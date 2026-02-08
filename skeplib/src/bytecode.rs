@@ -33,6 +33,7 @@ pub enum Instr {
     OrBool,
     Jump(usize),
     JumpIfFalse(usize),
+    Call { name: String, argc: usize },
     Return,
 }
 
@@ -41,6 +42,7 @@ pub struct FunctionChunk {
     pub name: String,
     pub code: Vec<Instr>,
     pub locals_count: usize,
+    pub param_count: usize,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -76,17 +78,21 @@ impl Compiler {
     fn compile_program(&mut self, program: &Program) -> BytecodeModule {
         let mut module = BytecodeModule::default();
         for func in &program.functions {
-            let chunk = self.compile_function(func.name.as_str(), &func.body);
+            let chunk = self.compile_function(func);
             module.functions.insert(func.name.clone(), chunk);
         }
         module
     }
 
-    fn compile_function(&mut self, name: &str, body: &[Stmt]) -> FunctionChunk {
+    fn compile_function(&mut self, func: &crate::ast::FnDecl) -> FunctionChunk {
         let mut ctx = FnCtx::default();
         let mut code = Vec::new();
 
-        for stmt in body {
+        for param in &func.params {
+            ctx.alloc_local(param.name.clone());
+        }
+
+        for stmt in &func.body {
             self.compile_stmt(stmt, &mut ctx, &mut code);
         }
 
@@ -96,9 +102,10 @@ impl Compiler {
         }
 
         FunctionChunk {
-            name: name.to_string(),
+            name: func.name.clone(),
             code,
             locals_count: ctx.next_local,
+            param_count: func.params.len(),
         }
     }
 
@@ -227,8 +234,21 @@ impl Compiler {
                     BinaryOp::OrOr => code.push(Instr::OrBool),
                 }
             }
+            Expr::Call { callee, args } => {
+                let name = match &**callee {
+                    Expr::Ident(name) => name.clone(),
+                    _ => {
+                        self.error("Only direct function calls are supported in bytecode v0 slice".to_string());
+                        return;
+                    }
+                };
+                for arg in args {
+                    self.compile_expr(arg, ctx, code);
+                }
+                code.push(Instr::Call { name, argc: args.len() });
+            }
             Expr::Group(inner) => self.compile_expr(inner, ctx, code),
-            Expr::Call { .. } | Expr::StringLit(_) | Expr::Path(_) => {
+            Expr::StringLit(_) | Expr::Path(_) => {
                 self.error("Expression kind not supported in bytecode v0 compiler slice".to_string());
             }
         }

@@ -27,8 +27,7 @@ fn main() -> Int {
 }
 "#;
     let module = compile_source(src).expect("compile should succeed");
-    let main = module.functions.get("main").expect("main chunk exists");
-    let out = Vm::run_main(main).expect("vm run");
+    let out = Vm::run_module_main(&module).expect("vm run");
     assert_eq!(out, Value::Int(30));
 }
 
@@ -36,15 +35,15 @@ fn main() -> Int {
 fn compile_reports_unsupported_constructs() {
     let src = r#"
 fn main() -> Int {
-  foo();
+  io.println("x");
   return 0;
 }
 "#;
-    let err = compile_source(src).expect_err("compile should fail for call support in this slice");
+    let err = compile_source(src).expect_err("compile should fail for unsupported path/string calls");
     assert!(err
         .as_slice()
         .iter()
-        .any(|d| d.message.contains("not supported in bytecode v0 compiler slice")));
+        .any(|d| d.message.contains("not supported") || d.message.contains("Only direct function calls are supported")));
 }
 
 #[test]
@@ -60,8 +59,7 @@ fn main() -> Int {
 }
 "#;
     let module = compile_source(src).expect("compile should succeed");
-    let main = module.functions.get("main").expect("main chunk exists");
-    let out = Vm::run_main(main).expect("vm run");
+    let out = Vm::run_module_main(&module).expect("vm run");
     assert_eq!(out, Value::Int(10));
 }
 
@@ -79,8 +77,7 @@ fn main() -> Int {
 }
 "#;
     let module = compile_source(src).expect("compile should succeed");
-    let main = module.functions.get("main").expect("main chunk exists");
-    let out = Vm::run_main(main).expect("vm run");
+    let out = Vm::run_module_main(&module).expect("vm run");
     assert_eq!(out, Value::Int(10));
 }
 
@@ -96,7 +93,26 @@ fn main() -> Int {
 }
 "#;
     let module = compile_source(src).expect("compile should succeed");
-    let main = module.functions.get("main").expect("main chunk exists");
-    let out = Vm::run_main(main).expect("vm run");
+    let out = Vm::run_module_main(&module).expect("vm run");
     assert_eq!(out, Value::Int(1));
+}
+
+#[test]
+fn runs_user_defined_function_calls_with_args() {
+    let src = r#"
+fn add(a: Int, b: Int) -> Int {
+  return a + b;
+}
+
+fn twice(x: Int) -> Int {
+  return add(x, x);
+}
+
+fn main() -> Int {
+  return twice(7);
+}
+"#;
+    let module = compile_source(src).expect("compile should succeed");
+    let out = Vm::run_module_main(&module).expect("vm run");
+    assert_eq!(out, Value::Int(14));
 }

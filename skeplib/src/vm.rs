@@ -1,12 +1,38 @@
-use crate::bytecode::{FunctionChunk, Instr, Value};
+use crate::bytecode::{BytecodeModule, FunctionChunk, Instr, Value};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Vm;
 
 impl Vm {
+    pub fn run_module_main(module: &BytecodeModule) -> Result<Value, String> {
+        Self::run_function(module, "main", Vec::new())
+    }
+
     pub fn run_main(chunk: &FunctionChunk) -> Result<Value, String> {
+        let module = BytecodeModule {
+            functions: vec![(chunk.name.clone(), chunk.clone())].into_iter().collect(),
+        };
+        Self::run_function(&module, chunk.name.as_str(), Vec::new())
+    }
+
+    fn run_function(module: &BytecodeModule, name: &str, args: Vec<Value>) -> Result<Value, String> {
+        let Some(chunk) = module.functions.get(name) else {
+            return Err(format!("Unknown function `{name}`"));
+        };
+        if args.len() != chunk.param_count {
+            return Err(format!(
+                "Function `{}` arity mismatch: expected {}, got {}",
+                name, chunk.param_count, args.len()
+            ));
+        }
+
         let mut stack: Vec<Value> = Vec::new();
         let mut locals: Vec<Value> = vec![Value::Unit; chunk.locals_count.max(1)];
+        for (i, arg) in args.into_iter().enumerate() {
+            if i < locals.len() {
+                locals[i] = arg;
+            }
+        }
 
         let mut ip = 0usize;
         while ip < chunk.code.len() {
@@ -104,6 +130,15 @@ impl Vm {
                         ip = *target;
                         continue;
                     }
+                }
+                Instr::Call { name, argc } => {
+                    if stack.len() < *argc {
+                        return Err("Stack underflow on Call".to_string());
+                    }
+                    let split = stack.len() - *argc;
+                    let call_args = stack.split_off(split);
+                    let ret = Self::run_function(module, name, call_args)?;
+                    stack.push(ret);
                 }
                 Instr::Return => {
                     return Ok(stack.pop().unwrap_or(Value::Unit));
