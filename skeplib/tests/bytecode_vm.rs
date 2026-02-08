@@ -1,5 +1,5 @@
-use skeplib::bytecode::{compile_source, Instr, Value};
-use skeplib::vm::{TestHost, Vm, VmErrorKind};
+use skeplib::bytecode::{compile_source, BytecodeModule, FunctionChunk, Instr, Value};
+use skeplib::vm::{BuiltinHost, BuiltinRegistry, TestHost, Vm, VmErrorKind};
 use std::collections::VecDeque;
 
 #[test]
@@ -198,4 +198,147 @@ fn main() -> Int {
     let module = compile_source(src).expect("compile");
     let err = Vm::run_module_main(&module).expect_err("should overflow");
     assert_eq!(err.kind, VmErrorKind::StackOverflow);
+}
+
+#[test]
+fn vm_reports_division_by_zero_kind() {
+    let src = r#"
+fn main() -> Int {
+  return 10 / 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("should fail");
+    assert_eq!(err.kind, VmErrorKind::DivisionByZero);
+}
+
+#[test]
+fn vm_reports_unknown_builtin_kind() {
+    let src = r#"
+fn main() -> Int {
+  return pkg.work(1);
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("unknown builtin");
+    assert_eq!(err.kind, VmErrorKind::UnknownBuiltin);
+}
+
+#[test]
+fn vm_reports_function_arity_mismatch_kind() {
+    let src = r#"
+fn f(x: Int) -> Int {
+  return x;
+}
+
+fn main() -> Int {
+  return f();
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("arity mismatch");
+    assert_eq!(err.kind, VmErrorKind::ArityMismatch);
+}
+
+#[test]
+fn vm_supports_string_concat_and_equality() {
+    let src = r#"
+fn main() -> Int {
+  if ("ab" + "cd" == "abcd") {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(1));
+}
+
+#[test]
+fn bytecode_decode_rejects_truncated_payload() {
+    let src = r#"
+fn main() -> Int { return 1; }
+"#;
+    let module = compile_source(src).expect("compile");
+    let mut bytes = module.to_bytes();
+    bytes.truncate(bytes.len().saturating_sub(3));
+    let err = BytecodeModule::from_bytes(&bytes).expect_err("truncate should fail");
+    assert!(err.contains("Unexpected EOF"));
+}
+
+#[test]
+fn vm_reports_stack_underflow_for_invalid_program() {
+    let module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![Instr::Pop, Instr::Return],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&module).expect_err("stack underflow");
+    assert_eq!(err.kind, VmErrorKind::StackUnderflow);
+}
+
+#[test]
+fn vm_reports_type_mismatch_for_bad_jump_condition() {
+    let module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::LoadConst(Value::Int(1)),
+                    Instr::JumpIfFalse(4),
+                    Instr::LoadConst(Value::Int(1)),
+                    Instr::Return,
+                    Instr::LoadConst(Value::Int(0)),
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&module).expect_err("type mismatch");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
+}
+
+fn custom_math_inc(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, skeplib::vm::VmError> {
+    if args.len() != 1 {
+        return Err(skeplib::vm::VmError {
+            kind: VmErrorKind::ArityMismatch,
+            message: "math.inc expects 1 arg".to_string(),
+        });
+    }
+    match args[0] {
+        Value::Int(v) => Ok(Value::Int(v + 1)),
+        _ => Err(skeplib::vm::VmError {
+            kind: VmErrorKind::TypeMismatch,
+            message: "math.inc expects Int".to_string(),
+        }),
+    }
+}
+
+#[test]
+fn vm_runs_with_custom_builtin_registry_extension() {
+    let src = r#"
+fn main() -> Int {
+  return math.inc(41);
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let mut reg = BuiltinRegistry::with_defaults();
+    reg.register("math", "inc", custom_math_inc);
+    let mut host = TestHost::default();
+    let out = Vm::run_module_main_with_registry(&module, &mut host, &reg).expect("run");
+    assert_eq!(out, Value::Int(42));
 }
