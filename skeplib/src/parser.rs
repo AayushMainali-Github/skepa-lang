@@ -57,7 +57,7 @@ impl Parser {
             }
 
             self.error_here_expected("Expected top-level declaration (`import` or `fn`)");
-            self.bump();
+            self.synchronize_toplevel();
         }
 
         Program { imports, functions }
@@ -360,9 +360,19 @@ impl Parser {
             let mut args = Vec::new();
             if !self.at(TokenKind::RParen) {
                 loop {
+                    if self.at(TokenKind::Comma) {
+                        self.error_here_expected("Expected expression before `,` in call");
+                        return None;
+                    }
                     args.push(self.parse_expr()?);
                     if self.at(TokenKind::Comma) {
                         self.bump();
+                        if self.at(TokenKind::RParen) {
+                            self.error_here_expected(
+                                "Trailing comma is not allowed in call arguments",
+                            );
+                            return None;
+                        }
                         continue;
                     }
                     break;
@@ -399,7 +409,7 @@ impl Parser {
                 .and_then(|v| v.strip_suffix('"'))
                 .unwrap_or(&tok.lexeme)
                 .to_string();
-            let s = Self::decode_string_escapes(&s);
+            let s = self.decode_string_escapes(&s, tok.span);
             return Some(Expr::StringLit(s));
         }
         if self.at(TokenKind::Ident) {
@@ -533,6 +543,15 @@ impl Parser {
         }
     }
 
+    fn synchronize_toplevel(&mut self) {
+        while !self.at(TokenKind::Eof) {
+            if self.at(TokenKind::KwImport) || self.at(TokenKind::KwFn) {
+                return;
+            }
+            self.bump();
+        }
+    }
+
     fn token_label(token: &Token) -> String {
         if token.kind == TokenKind::Eof {
             return "EOF".to_string();
@@ -549,7 +568,7 @@ impl Parser {
             .error(format!("{message}; found {found}"), self.current().span);
     }
 
-    fn decode_string_escapes(raw: &str) -> String {
+    fn decode_string_escapes(&mut self, raw: &str, span: Span) -> String {
         let mut out = String::with_capacity(raw.len());
         let mut chars = raw.chars();
         while let Some(ch) = chars.next() {
@@ -564,10 +583,16 @@ impl Parser {
                 Some('"') => out.push('"'),
                 Some('\\') => out.push('\\'),
                 Some(other) => {
-                    out.push('\\');
+                    self.diagnostics.error(
+                        format!("Invalid escape sequence `\\{other}` in string literal"),
+                        span,
+                    );
                     out.push(other);
                 }
-                None => out.push('\\'),
+                None => {
+                    self.diagnostics
+                        .error("String ends with trailing escape `\\`", span);
+                }
             }
         }
         out

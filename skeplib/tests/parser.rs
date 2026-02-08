@@ -542,3 +542,61 @@ fn main() -> Int {
         _ => panic!("expected call expression statement"),
     }
 }
+
+#[test]
+fn reports_invalid_escape_sequence_in_string() {
+    let src = r#"
+fn main() -> Int {
+  io.println("bad\q");
+  return 0;
+}
+"#;
+    let (_program, diags) = Parser::parse_source(src);
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("Invalid escape sequence")));
+}
+
+#[test]
+fn reports_trailing_comma_in_call_arguments() {
+    let src = r#"
+fn main() -> Int {
+  hello(1,);
+  return 0;
+}
+"#;
+    let (_program, diags) = Parser::parse_source(src);
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("Trailing comma is not allowed")));
+}
+
+#[test]
+fn enforces_top_level_declarations_only() {
+    let src = r#"
+let x = 1;
+fn main() -> Int { return 0; }
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(!diags.is_empty());
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("Expected top-level declaration")));
+    assert_eq!(program.functions.len(), 1);
+}
+
+#[test]
+fn recovers_after_top_level_error_and_parses_following_items() {
+    let src = r#"
+?? nonsense
+import io;
+fn main() -> Int { return 0; }
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(!diags.is_empty());
+    assert_eq!(program.imports.len(), 1);
+    assert_eq!(program.functions.len(), 1);
+}

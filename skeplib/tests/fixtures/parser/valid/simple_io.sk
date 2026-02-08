@@ -1,0 +1,6 @@
+import io;
+
+fn main() -> Int {
+  io.println("ok");
+  return 0;
+}

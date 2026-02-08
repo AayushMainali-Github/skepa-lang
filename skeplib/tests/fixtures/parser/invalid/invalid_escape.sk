@@ -1,0 +1,4 @@
+fn main() -> Int {
+  io.println("bad\q");
+  return 0;
+}
