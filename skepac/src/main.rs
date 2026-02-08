@@ -3,6 +3,7 @@ use std::fs;
 use std::process::ExitCode;
 
 use skeplib::bytecode::{compile_source, BytecodeModule};
+use skeplib::diagnostic::Diagnostic;
 use skeplib::parser::Parser;
 use skeplib::sema::analyze_source;
 
@@ -71,7 +72,7 @@ fn check_file(path: &str) -> Result<ExitCode, String> {
     }
 
     for d in diagnostics.as_slice() {
-        eprintln!("[parse] {d}");
+        print_diag("parse", d);
     }
     Ok(ExitCode::from(1))
 }
@@ -83,7 +84,7 @@ fn build_file(input: &str, output: &str) -> Result<ExitCode, String> {
     let (_sema, sema_diags) = analyze_source(&source);
     if !sema_diags.is_empty() {
         for d in sema_diags.as_slice() {
-            eprintln!("[sema] {d}");
+            print_diag("sema", d);
         }
         return Ok(ExitCode::from(1));
     }
@@ -92,7 +93,7 @@ fn build_file(input: &str, output: &str) -> Result<ExitCode, String> {
         Ok(m) => m,
         Err(diags) => {
             for d in diags.as_slice() {
-                eprintln!("[codegen] {d}");
+                print_diag("codegen", d);
             }
             return Ok(ExitCode::from(1));
         }
@@ -118,7 +119,7 @@ fn disasm_file(path: &str) -> Result<ExitCode, String> {
         let (_sema, sema_diags) = analyze_source(&source);
         if !sema_diags.is_empty() {
             for d in sema_diags.as_slice() {
-                eprintln!("[sema] {d}");
+                print_diag("sema", d);
             }
             return Ok(ExitCode::from(1));
         }
@@ -126,7 +127,7 @@ fn disasm_file(path: &str) -> Result<ExitCode, String> {
             Ok(m) => m,
             Err(diags) => {
                 for d in diags.as_slice() {
-                    eprintln!("[codegen] {d}");
+                    print_diag("codegen", d);
                 }
                 return Ok(ExitCode::from(1));
             }
@@ -136,4 +137,17 @@ fn disasm_file(path: &str) -> Result<ExitCode, String> {
     }
 
     Err("disasm supports only .sk and .skbc files".to_string())
+}
+
+fn print_diag(phase: &str, d: &Diagnostic) {
+    eprintln!("[{}][{}] {}", phase_code(phase), phase, d);
+}
+
+fn phase_code(phase: &str) -> &'static str {
+    match phase {
+        "parse" => "E-PARSE",
+        "sema" => "E-SEMA",
+        "codegen" => "E-CODEGEN",
+        _ => "E-UNKNOWN",
+    }
 }

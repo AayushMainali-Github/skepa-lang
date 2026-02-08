@@ -41,18 +41,18 @@ fn run_cases(cmd: &str, dir: PathBuf) {
             path.display()
         );
 
-        if let Some(needle) = spec.stdout_contains {
+        for needle in &spec.stdout_contains {
             let stdout = String::from_utf8_lossy(&output.stdout);
             assert!(
-                stdout.contains(&needle),
+                stdout.contains(needle),
                 "case: {}, missing stdout fragment: {needle}\nstdout:\n{stdout}",
                 path.display()
             );
         }
-        if let Some(needle) = spec.stderr_contains {
+        for needle in &spec.stderr_contains {
             let stderr = String::from_utf8_lossy(&output.stderr);
             assert!(
-                stderr.contains(&needle),
+                stderr.contains(needle),
                 "case: {}, missing stderr fragment: {needle}\nstderr:\n{stderr}",
                 path.display()
             );
@@ -80,16 +80,16 @@ fn materialize_input(cmd: &str, source_path: &Path) -> PathBuf {
 #[derive(Debug)]
 struct CaseSpec {
     exit_code: i32,
-    stdout_contains: Option<String>,
-    stderr_contains: Option<String>,
+    stdout_contains: Vec<String>,
+    stderr_contains: Vec<String>,
 }
 
 fn parse_spec(path: &Path) -> CaseSpec {
     let text = fs::read_to_string(path).expect("read .expect file");
     let mut spec = CaseSpec {
         exit_code: 0,
-        stdout_contains: None,
-        stderr_contains: None,
+        stdout_contains: Vec::new(),
+        stderr_contains: Vec::new(),
     };
     for raw in text.lines() {
         let line = raw.trim();
@@ -103,8 +103,8 @@ fn parse_spec(path: &Path) -> CaseSpec {
         let value = v.trim().to_string();
         match key {
             "exit" => spec.exit_code = value.parse::<i32>().expect("exit must be i32"),
-            "stdout_contains" => spec.stdout_contains = Some(value),
-            "stderr_contains" => spec.stderr_contains = Some(value),
+            "stdout_contains" => spec.stdout_contains.push(value),
+            "stderr_contains" => spec.stderr_contains.push(value),
             _ => panic!("unknown key `{key}` in {}", path.display()),
         }
     }

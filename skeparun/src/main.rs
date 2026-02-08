@@ -3,6 +3,7 @@ use std::fs;
 use std::process::ExitCode;
 
 use skeplib::bytecode::{compile_source, BytecodeModule};
+use skeplib::diagnostic::Diagnostic;
 use skeplib::sema::analyze_source;
 use skeplib::vm::{Vm, VmConfig};
 
@@ -68,7 +69,7 @@ fn run_file(path: &str, config: VmConfig) -> Result<ExitCode, String> {
     let (_sema, sema_diags) = analyze_source(&source);
     if !sema_diags.is_empty() {
         for d in sema_diags.as_slice() {
-            eprintln!("[sema] {d}");
+            print_diag("sema", d);
         }
         return Ok(ExitCode::from(1));
     }
@@ -77,7 +78,7 @@ fn run_file(path: &str, config: VmConfig) -> Result<ExitCode, String> {
         Ok(m) => m,
         Err(diags) => {
             for d in diags.as_slice() {
-                eprintln!("[codegen] {d}");
+                print_diag("codegen", d);
             }
             return Ok(ExitCode::from(1));
         }
@@ -89,7 +90,7 @@ fn run_file(path: &str, config: VmConfig) -> Result<ExitCode, String> {
             _ => Ok(ExitCode::from(0)),
         },
         Err(e) => {
-            eprintln!("[runtime] {e}");
+            eprintln!("[{}][runtime] {e}", e.kind.code());
             Ok(ExitCode::from(1))
         }
     }
@@ -106,8 +107,21 @@ fn run_bytecode_file(path: &str, config: VmConfig) -> Result<ExitCode, String> {
             _ => Ok(ExitCode::from(0)),
         },
         Err(e) => {
-            eprintln!("[runtime] {e}");
+            eprintln!("[{}][runtime] {e}", e.kind.code());
             Ok(ExitCode::from(1))
         }
+    }
+}
+
+fn print_diag(phase: &str, d: &Diagnostic) {
+    eprintln!("[{}][{}] {}", phase_code(phase), phase, d);
+}
+
+fn phase_code(phase: &str) -> &'static str {
+    match phase {
+        "parse" => "E-PARSE",
+        "sema" => "E-SEMA",
+        "codegen" => "E-CODEGEN",
+        _ => "E-UNKNOWN",
     }
 }

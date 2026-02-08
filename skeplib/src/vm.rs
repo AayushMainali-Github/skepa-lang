@@ -36,6 +36,22 @@ pub enum VmErrorKind {
     StackOverflow,
 }
 
+impl VmErrorKind {
+    pub fn code(self) -> &'static str {
+        match self {
+            VmErrorKind::UnknownFunction => "E-VM-UNKNOWN-FUNCTION",
+            VmErrorKind::ArityMismatch => "E-VM-ARITY",
+            VmErrorKind::StackUnderflow => "E-VM-STACK-UNDERFLOW",
+            VmErrorKind::TypeMismatch => "E-VM-TYPE",
+            VmErrorKind::InvalidLocal => "E-VM-INVALID-LOCAL",
+            VmErrorKind::DivisionByZero => "E-VM-DIV-ZERO",
+            VmErrorKind::UnknownBuiltin => "E-VM-UNKNOWN-BUILTIN",
+            VmErrorKind::HostError => "E-VM-HOST",
+            VmErrorKind::StackOverflow => "E-VM-STACK-OVERFLOW",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct VmError {
     pub kind: VmErrorKind,

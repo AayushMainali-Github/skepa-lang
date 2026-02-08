@@ -50,6 +50,7 @@ fn main() -> Int {
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("Expected `;` after return statement"));
+    assert!(stderr.contains("[E-PARSE][parse]"));
 }
 
 #[test]

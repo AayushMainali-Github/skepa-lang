@@ -52,6 +52,7 @@ fn main() -> Int {
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("Return type mismatch"));
+    assert!(stderr.contains("[E-SEMA][sema]"));
 }
 
 #[test]
@@ -77,6 +78,7 @@ fn main() -> Int {
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("[runtime]"));
+    assert!(stderr.contains("[E-VM-DIV-ZERO]"));
 }
 
 #[test]
