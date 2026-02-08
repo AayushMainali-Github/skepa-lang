@@ -600,3 +600,93 @@ fn main() -> Int { return 0; }
     assert_eq!(program.imports.len(), 1);
     assert_eq!(program.functions.len(), 1);
 }
+
+#[test]
+fn reports_missing_comma_between_call_arguments() {
+    let src = r#"
+fn main() -> Int {
+  hello(1 2);
+  return 0;
+}
+"#;
+    let (_program, diags) = Parser::parse_source(src);
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("Expected `)` after call arguments")));
+}
+
+#[test]
+fn reports_leading_comma_in_call_arguments() {
+    let src = r#"
+fn main() -> Int {
+  hello(,1);
+  return 0;
+}
+"#;
+    let (_program, diags) = Parser::parse_source(src);
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("Expected expression before `,` in call")));
+}
+
+#[test]
+fn parser_collects_multiple_errors_in_one_function() {
+    let src = r#"
+fn main() -> Int {
+  let x = ;
+  hello(1,);
+  return 0
+}
+"#;
+    let (_program, diags) = Parser::parse_source(src);
+    assert!(
+        diags.len() >= 3,
+        "expected multiple diagnostics, got {:?}",
+        diags.as_slice()
+    );
+}
+
+#[test]
+fn parses_chained_call_on_call_expression() {
+    let src = r#"
+fn main() -> Int {
+  make()(1);
+  return 0;
+}
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    match &program.functions[0].body[0] {
+        Stmt::Expr(Expr::Call { callee, args }) => {
+            assert_eq!(args.len(), 1);
+            assert!(matches!(&**callee, Expr::Call { .. }));
+        }
+        _ => panic!("expected chained call"),
+    }
+}
+
+#[test]
+fn parses_nested_group_and_unary_expression() {
+    let src = r#"
+fn main() -> Int {
+  let x = !((1 + 2) == 3);
+  return 0;
+}
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    match &program.functions[0].body[0] {
+        Stmt::Let { value, .. } => match value {
+            Expr::Unary {
+                op: UnaryOp::Not,
+                expr,
+            } => {
+                assert!(matches!(&**expr, Expr::Group(_)));
+            }
+            _ => panic!("expected unary not"),
+        },
+        _ => panic!("expected let"),
+    }
+}

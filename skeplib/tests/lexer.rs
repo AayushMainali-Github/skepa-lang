@@ -216,3 +216,51 @@ fn lexes_string_with_escape_sequences() {
     assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
     assert_eq!(tokens[0].kind, TokenKind::StringLit);
 }
+
+#[test]
+fn lexes_empty_input_to_only_eof() {
+    let (tokens, diags) = lex("");
+    assert!(diags.is_empty());
+    assert_eq!(tokens.len(), 1);
+    assert_eq!(tokens[0].kind, TokenKind::Eof);
+}
+
+#[test]
+fn lexes_float_then_dot_chain() {
+    let (tokens, diags) = lex("1.2.3");
+    assert!(diags.is_empty());
+    let got: Vec<TokenKind> = tokens.into_iter().map(|t| t.kind).collect();
+    assert_eq!(
+        got,
+        vec![TokenKind::FloatLit, TokenKind::Dot, TokenKind::IntLit, TokenKind::Eof]
+    );
+}
+
+#[test]
+fn reports_unterminated_string_with_trailing_escape() {
+    let (_tokens, diags) = lex("\"abc\\");
+    assert_eq!(diags.len(), 1);
+    assert!(diags.as_slice()[0]
+        .message
+        .contains("Unterminated string literal"));
+}
+
+#[test]
+fn reports_unterminated_block_comment_across_newline() {
+    let (_tokens, diags) = lex("/* line1\nline2");
+    assert_eq!(diags.len(), 1);
+    assert!(diags.as_slice()[0]
+        .message
+        .contains("Unterminated block comment"));
+}
+
+#[test]
+fn keywords_inside_identifiers_are_not_keywords() {
+    let (tokens, diags) = lex("imported fnx returnValue trueish false0");
+    assert!(diags.is_empty());
+    assert_eq!(tokens[0].kind, TokenKind::Ident);
+    assert_eq!(tokens[1].kind, TokenKind::Ident);
+    assert_eq!(tokens[2].kind, TokenKind::Ident);
+    assert_eq!(tokens[3].kind, TokenKind::Ident);
+    assert_eq!(tokens[4].kind, TokenKind::Ident);
+}

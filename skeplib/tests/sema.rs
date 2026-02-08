@@ -107,3 +107,202 @@ fn main() -> Int {
         .iter()
         .any(|d| d.message.contains("without `import io;`")));
 }
+
+#[test]
+fn sema_reports_unknown_variable() {
+    let src = r#"
+fn main() -> Int {
+  let x = y;
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("Unknown variable `y`")));
+}
+
+#[test]
+fn sema_reports_unknown_function() {
+    let src = r#"
+fn main() -> Int {
+  let x = nope(1);
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("Unknown function `nope`")));
+}
+
+#[test]
+fn sema_reports_io_print_type_error() {
+    let src = r#"
+import io;
+fn main() -> Int {
+  io.println(1);
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("expects String argument")));
+}
+
+#[test]
+fn sema_reports_io_readline_arity_error() {
+    let src = r#"
+import io;
+fn main() -> Int {
+  let x = io.readLine(1);
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("io.readLine expects 0 arguments")));
+}
+
+#[test]
+fn sema_allows_shadowing_in_inner_block() {
+    let src = r#"
+fn main() -> Int {
+  let x: Int = 1;
+  if (true) {
+    let x: Int = 2;
+    return x;
+  }
+  return x;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_reports_let_declared_type_mismatch() {
+    let src = r#"
+fn main() -> Int {
+  let x: Int = "s";
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("Type mismatch in let `x`")));
+}
+
+#[test]
+fn sema_reports_invalid_binary_operands() {
+    let src = r#"
+fn main() -> Int {
+  let x = true + 1;
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("Invalid operands for Add")));
+}
+
+#[test]
+fn sema_reports_invalid_logical_operands() {
+    let src = r#"
+fn main() -> Int {
+  let x = 1 && 2;
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("Logical operators require Bool operands")));
+}
+
+#[test]
+fn sema_reports_while_condition_type_error() {
+    let src = r#"
+fn main() -> Int {
+  while (1) {
+    return 0;
+  }
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("while condition must be Bool")));
+}
+
+#[test]
+fn sema_reports_unknown_io_method() {
+    let src = r#"
+import io;
+fn main() -> Int {
+  io.nope("x");
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("Unknown io method")));
+}
+
+#[test]
+fn sema_reports_function_argument_type_mismatch() {
+    let src = r#"
+fn take(x: Int) -> Int {
+  return x;
+}
+
+fn main() -> Int {
+  let y = take("x");
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("Argument 1 for `take`")));
+}
+
+#[test]
+fn sema_accepts_readline_as_string_value() {
+    let src = r#"
+import io;
+fn main() -> Int {
+  let s: String = io.readLine();
+  io.println(s);
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
