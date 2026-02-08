@@ -7,12 +7,20 @@ use skeplib::diagnostic::Diagnostic;
 use skeplib::sema::analyze_source;
 use skeplib::vm::{Vm, VmConfig};
 
+const EXIT_OK: u8 = 0;
+const EXIT_USAGE: u8 = 2;
+const EXIT_IO: u8 = 3;
+const EXIT_SEMA: u8 = 11;
+const EXIT_CODEGEN: u8 = 12;
+const EXIT_DECODE: u8 = 13;
+const EXIT_RUNTIME: u8 = 14;
+
 fn main() -> ExitCode {
     match run() {
         Ok(code) => code,
         Err(message) => {
             eprintln!("{message}");
-            ExitCode::from(1)
+            ExitCode::from(EXIT_USAGE)
         }
     }
 }
@@ -64,14 +72,20 @@ fn parse_run_args(
 }
 
 fn run_file(path: &str, config: VmConfig) -> Result<ExitCode, String> {
-    let source = fs::read_to_string(path).map_err(|e| format!("Failed to read `{path}`: {e}"))?;
+    let source = match fs::read_to_string(path) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Failed to read `{path}`: {e}");
+            return Ok(ExitCode::from(EXIT_IO));
+        }
+    };
 
     let (_sema, sema_diags) = analyze_source(&source);
     if !sema_diags.is_empty() {
         for d in sema_diags.as_slice() {
             print_diag("sema", d);
         }
-        return Ok(ExitCode::from(1));
+        return Ok(ExitCode::from(EXIT_SEMA));
     }
 
     let module = match compile_source(&source) {
@@ -80,35 +94,46 @@ fn run_file(path: &str, config: VmConfig) -> Result<ExitCode, String> {
             for d in diags.as_slice() {
                 print_diag("codegen", d);
             }
-            return Ok(ExitCode::from(1));
+            return Ok(ExitCode::from(EXIT_CODEGEN));
         }
     };
 
     match Vm::run_module_main_with_config(&module, config) {
         Ok(value) => match value {
             skeplib::bytecode::Value::Int(code) => Ok(ExitCode::from((code & 0xFF) as u8)),
-            _ => Ok(ExitCode::from(0)),
+            _ => Ok(ExitCode::from(EXIT_OK)),
         },
         Err(e) => {
             eprintln!("[{}][runtime] {e}", e.kind.code());
-            Ok(ExitCode::from(1))
+            Ok(ExitCode::from(EXIT_RUNTIME))
         }
     }
 }
 
 fn run_bytecode_file(path: &str, config: VmConfig) -> Result<ExitCode, String> {
-    let bytes = fs::read(path).map_err(|e| format!("Failed to read `{path}`: {e}"))?;
-    let module = BytecodeModule::from_bytes(&bytes)
-        .map_err(|e| format!("Failed to decode `{path}`: {e}"))?;
+    let bytes = match fs::read(path) {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("Failed to read `{path}`: {e}");
+            return Ok(ExitCode::from(EXIT_IO));
+        }
+    };
+    let module = match BytecodeModule::from_bytes(&bytes) {
+        Ok(m) => m,
+        Err(e) => {
+            eprintln!("Failed to decode `{path}`: {e}");
+            return Ok(ExitCode::from(EXIT_DECODE));
+        }
+    };
 
     match Vm::run_module_main_with_config(&module, config) {
         Ok(value) => match value {
             skeplib::bytecode::Value::Int(code) => Ok(ExitCode::from((code & 0xFF) as u8)),
-            _ => Ok(ExitCode::from(0)),
+            _ => Ok(ExitCode::from(EXIT_OK)),
         },
         Err(e) => {
             eprintln!("[{}][runtime] {e}", e.kind.code());
-            Ok(ExitCode::from(1))
+            Ok(ExitCode::from(EXIT_RUNTIME))
         }
     }
 }

@@ -49,7 +49,7 @@ fn main() -> Int {
         .output()
         .expect("run skeparun");
 
-    assert!(!output.status.success());
+    assert_eq!(output.status.code(), Some(11));
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("Return type mismatch"));
     assert!(stderr.contains("[E-SEMA][sema]"));
@@ -75,10 +75,33 @@ fn main() -> Int {
         .output()
         .expect("run skeparun");
 
-    assert!(!output.status.success());
+    assert_eq!(output.status.code(), Some(14));
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("[runtime]"));
     assert!(stderr.contains("[E-VM-DIV-ZERO]"));
+}
+
+#[test]
+fn run_missing_file_returns_io_exit_code() {
+    let output = Command::new(skeparun_bin())
+        .arg("run")
+        .arg("does_not_exist.sk")
+        .output()
+        .expect("run skeparun");
+    assert_eq!(output.status.code(), Some(3));
+}
+
+#[test]
+fn run_bc_decode_failure_returns_decode_exit_code() {
+    let tmp = make_temp_dir("skeparun_bad_bc");
+    let bc = tmp.join("bad.skbc");
+    fs::write(&bc, b"not-bytecode").expect("write bad bc");
+    let output = Command::new(skeparun_bin())
+        .arg("run-bc")
+        .arg(&bc)
+        .output()
+        .expect("run skeparun");
+    assert_eq!(output.status.code(), Some(13));
 }
 
 #[test]

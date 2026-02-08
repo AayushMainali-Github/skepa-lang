@@ -47,7 +47,7 @@ fn main() -> Int {
         .arg(&file)
         .output()
         .expect("run skepac");
-    assert!(!output.status.success());
+    assert_eq!(output.status.code(), Some(10));
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("Expected `;` after return statement"));
     assert!(stderr.contains("[E-PARSE][parse]"));
@@ -58,7 +58,7 @@ fn check_without_arguments_shows_usage_and_fails() {
     let output = Command::new(skepac_bin())
         .output()
         .expect("run skepac");
-    assert!(!output.status.success());
+    assert_eq!(output.status.code(), Some(2));
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("Usage: skepac check <file.sk> | skepac build <in.sk> <out.skbc>"));
 }
@@ -69,7 +69,7 @@ fn unknown_command_fails() {
         .arg("wat")
         .output()
         .expect("run skepac");
-    assert!(!output.status.success());
+    assert_eq!(output.status.code(), Some(2));
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("Unknown command"));
 }
@@ -81,7 +81,7 @@ fn missing_file_fails() {
         .arg("does_not_exist.sk")
         .output()
         .expect("run skepac");
-    assert!(!output.status.success());
+    assert_eq!(output.status.code(), Some(3));
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("Failed to read"));
 }
