@@ -334,3 +334,107 @@ fn main() -> Int {
         _ => panic!("expected let"),
     }
 }
+
+#[test]
+fn parses_if_else_statement() {
+    let src = r#"
+fn main() -> Int {
+  if (true) {
+    return 1;
+  } else {
+    return 0;
+  }
+}
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    match &program.functions[0].body[0] {
+        Stmt::If {
+            cond,
+            then_body,
+            else_body,
+        } => {
+            assert_eq!(*cond, Expr::BoolLit(true));
+            assert_eq!(then_body.len(), 1);
+            assert_eq!(else_body.len(), 1);
+        }
+        _ => panic!("expected if"),
+    }
+}
+
+#[test]
+fn parses_while_statement() {
+    let src = r#"
+fn main() -> Int {
+  while (true) {
+    return 0;
+  }
+}
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    match &program.functions[0].body[0] {
+        Stmt::While { cond, body } => {
+            assert_eq!(*cond, Expr::BoolLit(true));
+            assert_eq!(body.len(), 1);
+        }
+        _ => panic!("expected while"),
+    }
+}
+
+#[test]
+fn parses_nested_blocks_in_if_and_while() {
+    let src = r#"
+fn main() -> Int {
+  if (true) {
+    while (false) {
+      ping();
+    }
+  } else {
+    return 0;
+  }
+}
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    match &program.functions[0].body[0] {
+        Stmt::If { then_body, .. } => match &then_body[0] {
+            Stmt::While { body, .. } => {
+                assert!(matches!(body[0], Stmt::Expr(_)));
+            }
+            _ => panic!("expected nested while"),
+        },
+        _ => panic!("expected outer if"),
+    }
+}
+
+#[test]
+fn reports_missing_paren_after_if_condition() {
+    let src = r#"
+fn main() -> Int {
+  if (true {
+    return 0;
+  }
+}
+"#;
+    let (_program, diags) = Parser::parse_source(src);
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("Expected `)` after if condition")));
+}
+
+#[test]
+fn reports_missing_block_after_while() {
+    let src = r#"
+fn main() -> Int {
+  while (true)
+    return 0;
+}
+"#;
+    let (_program, diags) = Parser::parse_source(src);
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("Expected `{` before while body")));
+}

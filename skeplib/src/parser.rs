@@ -121,6 +121,34 @@ impl Parser {
     }
 
     fn parse_stmt(&mut self) -> Option<Stmt> {
+        if self.at(TokenKind::KwIf) {
+            self.bump();
+            self.expect(TokenKind::LParen, "Expected `(` after `if`")?;
+            let cond = self.parse_expr()?;
+            self.expect(TokenKind::RParen, "Expected `)` after if condition")?;
+            let then_body = self.parse_block("Expected `{` before if body")?;
+            let else_body = if self.at(TokenKind::KwElse) {
+                self.bump();
+                self.parse_block("Expected `{` before else body")?
+            } else {
+                Vec::new()
+            };
+            return Some(Stmt::If {
+                cond,
+                then_body,
+                else_body,
+            });
+        }
+
+        if self.at(TokenKind::KwWhile) {
+            self.bump();
+            self.expect(TokenKind::LParen, "Expected `(` after `while`")?;
+            let cond = self.parse_expr()?;
+            self.expect(TokenKind::RParen, "Expected `)` after while condition")?;
+            let body = self.parse_block("Expected `{` before while body")?;
+            return Some(Stmt::While { cond, body });
+        }
+
         if self.at(TokenKind::KwLet) {
             self.bump();
             let name = self.expect_ident("Expected variable name after `let`")?;
@@ -162,6 +190,21 @@ impl Parser {
         let expr = self.parse_expr()?;
         self.expect(TokenKind::Semi, "Expected `;` after expression statement")?;
         Some(Stmt::Expr(expr))
+    }
+
+    fn parse_block(&mut self, open_err: &str) -> Option<Vec<Stmt>> {
+        self.expect(TokenKind::LBrace, open_err)?;
+        let mut body = Vec::new();
+        while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
+            match self.parse_stmt() {
+                Some(stmt) => body.push(stmt),
+                None => {
+                    let _ = self.bump();
+                }
+            }
+        }
+        self.expect(TokenKind::RBrace, "Expected `}` after block")?;
+        Some(body)
     }
 
     fn parse_expr(&mut self) -> Option<Expr> {
