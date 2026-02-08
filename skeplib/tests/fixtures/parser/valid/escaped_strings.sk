@@ -1,0 +1,4 @@
+fn main() -> Int {
+  io.println("line1\\nline2\\t\\\"ok\\\"");
+  return 0;
+}

@@ -1,0 +1,7 @@
+import io;
+
+fn main() -> Int {
+  user.profile.name = "sam";
+  io.println("ok");
+  return 0;
+}
