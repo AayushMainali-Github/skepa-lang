@@ -12,4 +12,15 @@ pub struct ImportDecl {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FnDecl {
     pub name: String,
+    pub body: Vec<Stmt>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Stmt {
+    Return(Option<Expr>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Expr {
+    IntLit(i64),
 }
