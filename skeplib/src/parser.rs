@@ -121,6 +121,32 @@ impl Parser {
     }
 
     fn parse_stmt(&mut self) -> Option<Stmt> {
+        if self.at(TokenKind::KwLet) {
+            self.bump();
+            let name = self.expect_ident("Expected variable name after `let`")?;
+            let mut ty = None;
+            if self.at(TokenKind::Colon) {
+                self.bump();
+                ty = Some(self.expect_type_name("Expected type after `:`")?);
+            }
+            self.expect(TokenKind::Assign, "Expected `=` in let declaration")?;
+            let value = self.parse_expr()?;
+            self.expect(TokenKind::Semi, "Expected `;` after let declaration")?;
+            return Some(Stmt::Let {
+                name: name.lexeme,
+                ty,
+                value,
+            });
+        }
+
+        if self.at(TokenKind::Ident) && self.peek_kind() == TokenKind::Assign {
+            let name = self.bump().lexeme;
+            self.bump();
+            let value = self.parse_expr()?;
+            self.expect(TokenKind::Semi, "Expected `;` after assignment")?;
+            return Some(Stmt::Assign { name, value });
+        }
+
         if self.at(TokenKind::KwReturn) {
             self.bump();
             if self.at(TokenKind::Semi) {
@@ -142,6 +168,10 @@ impl Parser {
             let tok = self.bump();
             let value = tok.lexeme.parse::<i64>().ok()?;
             return Some(Expr::IntLit(value));
+        }
+        if self.at(TokenKind::Ident) {
+            let tok = self.bump();
+            return Some(Expr::Ident(tok.lexeme));
         }
         self.error_here("Expected expression");
         None
@@ -186,6 +216,11 @@ impl Parser {
     fn current(&self) -> &Token {
         let last = self.tokens.len().saturating_sub(1);
         &self.tokens[self.idx.min(last)]
+    }
+
+    fn peek_kind(&self) -> TokenKind {
+        let i = (self.idx + 1).min(self.tokens.len().saturating_sub(1));
+        self.tokens[i].kind
     }
 
     fn bump(&mut self) -> Token {
