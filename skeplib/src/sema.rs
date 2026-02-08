@@ -190,6 +190,7 @@ impl Checker {
     fn check_expr(&mut self, expr: &Expr, scopes: &mut [HashMap<String, TypeInfo>]) -> TypeInfo {
         match expr {
             Expr::IntLit(_) => TypeInfo::Int,
+            Expr::FloatLit(_) => TypeInfo::Float,
             Expr::BoolLit(_) => TypeInfo::Bool,
             Expr::StringLit(_) => TypeInfo::String,
             Expr::Ident(name) => self.lookup_var(name, scopes),
@@ -237,6 +238,8 @@ impl Checker {
             Add | Sub | Mul | Div => {
                 if lt == TypeInfo::Int && rt == TypeInfo::Int {
                     TypeInfo::Int
+                } else if lt == TypeInfo::Float && rt == TypeInfo::Float {
+                    TypeInfo::Float
                 } else if op == Add && lt == TypeInfo::String && rt == TypeInfo::String {
                     TypeInfo::String
                 } else if lt == TypeInfo::Unknown || rt == TypeInfo::Unknown {
@@ -262,6 +265,8 @@ impl Checker {
             }
             Lt | Lte | Gt | Gte => {
                 if lt == TypeInfo::Int && rt == TypeInfo::Int {
+                    TypeInfo::Bool
+                } else if lt == TypeInfo::Float && rt == TypeInfo::Float {
                     TypeInfo::Bool
                 } else if lt == TypeInfo::Unknown || rt == TypeInfo::Unknown {
                     TypeInfo::Unknown

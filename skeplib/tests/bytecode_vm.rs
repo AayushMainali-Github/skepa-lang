@@ -1,5 +1,5 @@
 use skeplib::bytecode::{compile_source, BytecodeModule, FunctionChunk, Instr, Value};
-use skeplib::vm::{BuiltinHost, BuiltinRegistry, TestHost, Vm, VmErrorKind};
+use skeplib::vm::{BuiltinHost, BuiltinRegistry, TestHost, Vm, VmConfig, VmErrorKind};
 use std::collections::VecDeque;
 
 #[test]
@@ -201,6 +201,27 @@ fn main() -> Int {
 }
 
 #[test]
+fn vm_stack_overflow_respects_configured_limit() {
+    let src = r#"
+fn f(x: Int) -> Int {
+  return f(x + 1);
+}
+fn main() -> Int { return f(0); }
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main_with_config(
+        &module,
+        VmConfig {
+            max_call_depth: 8,
+            trace: false,
+        },
+    )
+    .expect_err("overflow");
+    assert_eq!(err.kind, VmErrorKind::StackOverflow);
+    assert!(err.message.contains("8"));
+}
+
+#[test]
 fn vm_reports_division_by_zero_kind() {
     let src = r#"
 fn main() -> Int {
@@ -310,6 +331,7 @@ fn vm_reports_type_mismatch_for_bad_jump_condition() {
     };
     let err = Vm::run_module_main(&module).expect_err("type mismatch");
     assert_eq!(err.kind, VmErrorKind::TypeMismatch);
+    assert!(err.message.contains("main@"));
 }
 
 fn custom_math_inc(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, skeplib::vm::VmError> {
@@ -357,4 +379,45 @@ fn main() -> Int {
     assert!(txt.contains("LoadConst Int(1)"));
     assert!(txt.contains("Add"));
     assert!(txt.contains("Return"));
+}
+
+#[test]
+fn runs_float_arithmetic() {
+    let src = r#"
+fn main() -> Float {
+  let x = 8.0;
+  x = x / 2.0;
+  return x + 0.25;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Float(4.25));
+}
+
+#[test]
+fn supports_float_comparison_in_conditionals() {
+    let src = r#"
+fn main() -> Int {
+  if (2.5 > 2.0) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(1));
+}
+
+#[test]
+fn bytecode_roundtrip_preserves_float_constant() {
+    let src = r#"
+fn main() -> Float { return 3.5; }
+"#;
+    let module = compile_source(src).expect("compile");
+    let bytes = module.to_bytes();
+    let decoded = BytecodeModule::from_bytes(&bytes).expect("decode");
+    let out = Vm::run_module_main(&decoded).expect("run");
+    assert_eq!(out, Value::Float(3.5));
 }

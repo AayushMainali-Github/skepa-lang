@@ -306,3 +306,34 @@ fn main() -> Int {
     let (result, diags) = analyze_source(src);
     assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
 }
+
+#[test]
+fn sema_accepts_float_arithmetic_and_comparison() {
+    let src = r#"
+fn main() -> Float {
+  let x: Float = 1.5 + 2.5;
+  if (x >= 4.0) {
+    return x;
+  }
+  return 0.0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_rejects_mixed_int_and_float_operands() {
+    let src = r#"
+fn main() -> Int {
+  let x = 1 + 2.0;
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("Invalid operands for Add")));
+}

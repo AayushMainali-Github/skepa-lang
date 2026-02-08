@@ -4,15 +4,16 @@ use crate::ast::{AssignTarget, BinaryOp, Expr, Program, Stmt, UnaryOp};
 use crate::diagnostic::{DiagnosticBag, Span};
 use crate::parser::Parser;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     Int(i64),
+    Float(f64),
     Bool(bool),
     String(String),
     Unit,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Instr {
     LoadConst(Value),
     LoadLocal(usize),
@@ -43,7 +44,7 @@ pub enum Instr {
     Return,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct FunctionChunk {
     pub name: String,
     pub code: Vec<Instr>,
@@ -51,7 +52,7 @@ pub struct FunctionChunk {
     pub param_count: usize,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct BytecodeModule {
     pub functions: HashMap<String, FunctionChunk>,
 }
@@ -274,6 +275,14 @@ impl Compiler {
     fn compile_expr(&mut self, expr: &Expr, ctx: &mut FnCtx, code: &mut Vec<Instr>) {
         match expr {
             Expr::IntLit(v) => code.push(Instr::LoadConst(Value::Int(*v))),
+            Expr::FloatLit(v) => {
+                if let Ok(n) = v.parse::<f64>() {
+                    code.push(Instr::LoadConst(Value::Float(n)));
+                } else {
+                    self.error(format!("Invalid float literal `{v}`"));
+                    code.push(Instr::LoadConst(Value::Float(0.0)));
+                }
+            }
             Expr::BoolLit(v) => code.push(Instr::LoadConst(Value::Bool(*v))),
             Expr::StringLit(v) => code.push(Instr::LoadConst(Value::String(v.clone()))),
             Expr::Ident(name) => {
@@ -381,6 +390,9 @@ fn write_u32(out: &mut Vec<u8>, v: u32) {
 fn write_i64(out: &mut Vec<u8>, v: i64) {
     out.extend_from_slice(&v.to_le_bytes());
 }
+fn write_f64(out: &mut Vec<u8>, v: f64) {
+    out.extend_from_slice(&v.to_le_bytes());
+}
 fn write_bool(out: &mut Vec<u8>, v: bool) {
     write_u8(out, if v { 1 } else { 0 });
 }
@@ -395,15 +407,19 @@ fn encode_value(v: &Value, out: &mut Vec<u8>) {
             write_u8(out, 0);
             write_i64(out, *n);
         }
-        Value::Bool(b) => {
+        Value::Float(n) => {
             write_u8(out, 1);
+            write_f64(out, *n);
+        }
+        Value::Bool(b) => {
+            write_u8(out, 2);
             write_bool(out, *b);
         }
         Value::String(s) => {
-            write_u8(out, 2);
+            write_u8(out, 3);
             write_str(out, s);
         }
-        Value::Unit => write_u8(out, 3),
+        Value::Unit => write_u8(out, 4),
     }
 }
 
@@ -489,6 +505,12 @@ impl<'a> Reader<'a> {
             b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7],
         ]))
     }
+    fn read_f64(&mut self) -> Result<f64, String> {
+        let b = self.read_exact(8)?;
+        Ok(f64::from_le_bytes([
+            b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7],
+        ]))
+    }
     fn read_bool(&mut self) -> Result<bool, String> {
         Ok(self.read_u8()? != 0)
     }
@@ -502,9 +524,10 @@ impl<'a> Reader<'a> {
 fn decode_value(rd: &mut Reader<'_>) -> Result<Value, String> {
     match rd.read_u8()? {
         0 => Ok(Value::Int(rd.read_i64()?)),
-        1 => Ok(Value::Bool(rd.read_bool()?)),
-        2 => Ok(Value::String(rd.read_str()?)),
-        3 => Ok(Value::Unit),
+        1 => Ok(Value::Float(rd.read_f64()?)),
+        2 => Ok(Value::Bool(rd.read_bool()?)),
+        3 => Ok(Value::String(rd.read_str()?)),
+        4 => Ok(Value::Unit),
         t => Err(format!("Unknown value tag {t}")),
     }
 }
@@ -548,6 +571,7 @@ fn decode_instr(rd: &mut Reader<'_>) -> Result<Instr, String> {
 fn fmt_value(v: &Value) -> String {
     match v {
         Value::Int(i) => format!("Int({i})"),
+        Value::Float(n) => format!("Float({n})"),
         Value::Bool(b) => format!("Bool({b})"),
         Value::String(s) => format!("String({s:?})"),
         Value::Unit => "Unit".to_string(),

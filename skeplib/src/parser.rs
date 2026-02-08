@@ -393,6 +393,10 @@ impl Parser {
             let value = tok.lexeme.parse::<i64>().ok()?;
             return Some(Expr::IntLit(value));
         }
+        if self.at(TokenKind::FloatLit) {
+            let tok = self.bump();
+            return Some(Expr::FloatLit(tok.lexeme));
+        }
         if self.at(TokenKind::KwTrue) {
             self.bump();
             return Some(Expr::BoolLit(true));

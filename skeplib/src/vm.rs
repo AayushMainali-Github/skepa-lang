@@ -6,7 +6,22 @@ use crate::bytecode::{BytecodeModule, FunctionChunk, Instr, Value};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Vm;
-const MAX_CALL_DEPTH: usize = 128;
+const DEFAULT_MAX_CALL_DEPTH: usize = 128;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VmConfig {
+    pub max_call_depth: usize,
+    pub trace: bool,
+}
+
+impl Default for VmConfig {
+    fn default() -> Self {
+        Self {
+            max_call_depth: DEFAULT_MAX_CALL_DEPTH,
+            trace: false,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VmErrorKind {
@@ -21,7 +36,7 @@ pub enum VmErrorKind {
     StackOverflow,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct VmError {
     pub kind: VmErrorKind,
     pub message: String,
@@ -186,9 +201,16 @@ fn builtin_io_readline(host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<V
 
 impl Vm {
     pub fn run_module_main(module: &BytecodeModule) -> Result<Value, VmError> {
+        Self::run_module_main_with_config(module, VmConfig::default())
+    }
+
+    pub fn run_module_main_with_config(
+        module: &BytecodeModule,
+        config: VmConfig,
+    ) -> Result<Value, VmError> {
         let mut host = StdIoHost;
         let reg = BuiltinRegistry::with_defaults();
-        Self::run_function(module, "main", Vec::new(), &mut host, &reg, 0)
+        Self::run_function(module, "main", Vec::new(), &mut host, &reg, 0, config)
     }
 
     pub fn run_module_main_with_host(
@@ -196,7 +218,7 @@ impl Vm {
         host: &mut dyn BuiltinHost,
     ) -> Result<Value, VmError> {
         let reg = BuiltinRegistry::with_defaults();
-        Self::run_function(module, "main", Vec::new(), host, &reg, 0)
+        Self::run_function(module, "main", Vec::new(), host, &reg, 0, VmConfig::default())
     }
 
     pub fn run_module_main_with_registry(
@@ -204,7 +226,7 @@ impl Vm {
         host: &mut dyn BuiltinHost,
         reg: &BuiltinRegistry,
     ) -> Result<Value, VmError> {
-        Self::run_function(module, "main", Vec::new(), host, reg, 0)
+        Self::run_function(module, "main", Vec::new(), host, reg, 0, VmConfig::default())
     }
 
     pub fn run_main(chunk: &FunctionChunk) -> Result<Value, VmError> {
@@ -216,22 +238,23 @@ impl Vm {
 
     fn run_function(
         module: &BytecodeModule,
-        name: &str,
+        function_name: &str,
         args: Vec<Value>,
         host: &mut dyn BuiltinHost,
         reg: &BuiltinRegistry,
         depth: usize,
+        config: VmConfig,
     ) -> Result<Value, VmError> {
-        if depth >= MAX_CALL_DEPTH {
+        if depth >= config.max_call_depth {
             return Err(VmError::new(
                 VmErrorKind::StackOverflow,
-                format!("Call stack limit exceeded ({MAX_CALL_DEPTH})"),
+                format!("Call stack limit exceeded ({})", config.max_call_depth),
             ));
         }
-        let Some(chunk) = module.functions.get(name) else {
+        let Some(chunk) = module.functions.get(function_name) else {
             return Err(VmError::new(
                 VmErrorKind::UnknownFunction,
-                format!("Unknown function `{name}`"),
+                format!("Unknown function `{function_name}`"),
             ));
         };
         if args.len() != chunk.param_count {
@@ -239,7 +262,7 @@ impl Vm {
                 VmErrorKind::ArityMismatch,
                 format!(
                     "Function `{}` arity mismatch: expected {}, got {}",
-                    name, chunk.param_count, args.len()
+                    function_name, chunk.param_count, args.len()
                 ),
             ));
         }
@@ -254,22 +277,29 @@ impl Vm {
 
         let mut ip = 0usize;
         while ip < chunk.code.len() {
+            if config.trace {
+                eprintln!("[trace] {}@{} {:?}", function_name, ip, chunk.code[ip]);
+            }
             match &chunk.code[ip] {
                 Instr::LoadConst(v) => stack.push(v.clone()),
                 Instr::LoadLocal(slot) => {
                     let Some(v) = locals.get(*slot).cloned() else {
-                        return Err(VmError::new(
+                        return Err(Self::err_at(
                             VmErrorKind::InvalidLocal,
                             format!("Invalid local slot {slot}"),
+                            function_name,
+                            ip,
                         ));
                     };
                     stack.push(v);
                 }
                 Instr::StoreLocal(slot) => {
                     let Some(v) = stack.pop() else {
-                        return Err(VmError::new(
+                        return Err(Self::err_at(
                             VmErrorKind::StackUnderflow,
                             "Stack underflow on StoreLocal",
+                            function_name,
+                            ip,
                         ));
                     };
                     if *slot >= locals.len() {
@@ -279,43 +309,61 @@ impl Vm {
                 }
                 Instr::Pop => {
                     if stack.pop().is_none() {
-                        return Err(VmError::new(
+                        return Err(Self::err_at(
                             VmErrorKind::StackUnderflow,
                             "Stack underflow on Pop",
+                            function_name,
+                            ip,
                         ));
                     }
                 }
                 Instr::NegInt => {
-                    let Some(Value::Int(v)) = stack.pop() else {
-                        return Err(VmError::new(VmErrorKind::TypeMismatch, "NegInt expects Int"));
+                    let Some(v) = stack.pop() else {
+                        return Err(Self::err_at(VmErrorKind::StackUnderflow, "NegInt expects value", function_name, ip));
                     };
-                    stack.push(Value::Int(-v));
+                    match v {
+                        Value::Int(v) => stack.push(Value::Int(-v)),
+                        Value::Float(v) => stack.push(Value::Float(-v)),
+                        _ => {
+                            return Err(Self::err_at(
+                                VmErrorKind::TypeMismatch,
+                                "NegInt expects Int or Float",
+                                function_name,
+                                ip,
+                            ));
+                        }
+                    }
                 }
                 Instr::NotBool => {
                     let Some(Value::Bool(v)) = stack.pop() else {
-                        return Err(VmError::new(
+                        return Err(Self::err_at(
                             VmErrorKind::TypeMismatch,
                             "NotBool expects Bool",
+                            function_name,
+                            ip,
                         ));
                     };
                     stack.push(Value::Bool(!v));
                 }
                 Instr::Add => {
                     let Some(r) = stack.pop() else {
-                        return Err(VmError::new(VmErrorKind::StackUnderflow, "Add expects rhs"));
+                        return Err(Self::err_at(VmErrorKind::StackUnderflow, "Add expects rhs", function_name, ip));
                     };
                     let Some(l) = stack.pop() else {
-                        return Err(VmError::new(VmErrorKind::StackUnderflow, "Add expects lhs"));
+                        return Err(Self::err_at(VmErrorKind::StackUnderflow, "Add expects lhs", function_name, ip));
                     };
                     match (l, r) {
                         (Value::Int(a), Value::Int(b)) => stack.push(Value::Int(a + b)),
+                        (Value::Float(a), Value::Float(b)) => stack.push(Value::Float(a + b)),
                         (Value::String(a), Value::String(b)) => {
                             stack.push(Value::String(format!("{a}{b}")))
                         }
                         _ => {
-                            return Err(VmError::new(
+                            return Err(Self::err_at(
                                 VmErrorKind::TypeMismatch,
-                                "Add supports Int+Int or String+String",
+                                "Add supports Int+Int, Float+Float, or String+String",
+                                function_name,
+                                ip,
                             ));
                         }
                     }
@@ -327,66 +375,106 @@ impl Vm {
                 | Instr::LteInt
                 | Instr::GtInt
                 | Instr::GteInt => {
-                    let Some(Value::Int(r)) = stack.pop() else {
-                        return Err(VmError::new(
-                            VmErrorKind::TypeMismatch,
-                            "int binary op expects rhs Int",
+                    let Some(r) = stack.pop() else {
+                        return Err(Self::err_at(
+                            VmErrorKind::StackUnderflow,
+                            "int binary op expects rhs",
+                            function_name,
+                            ip,
                         ));
                     };
-                    let Some(Value::Int(l)) = stack.pop() else {
-                        return Err(VmError::new(
-                            VmErrorKind::TypeMismatch,
-                            "int binary op expects lhs Int",
+                    let Some(l) = stack.pop() else {
+                        return Err(Self::err_at(
+                            VmErrorKind::StackUnderflow,
+                            "int binary op expects lhs",
+                            function_name,
+                            ip,
                         ));
                     };
-                    match chunk.code[ip] {
-                        Instr::SubInt => stack.push(Value::Int(l - r)),
-                        Instr::MulInt => stack.push(Value::Int(l * r)),
-                        Instr::DivInt => {
-                            if r == 0 {
-                                return Err(VmError::new(
-                                    VmErrorKind::DivisionByZero,
-                                    "division by zero",
-                                ));
+                    match (l, r) {
+                        (Value::Int(l), Value::Int(r)) => match chunk.code[ip] {
+                            Instr::SubInt => stack.push(Value::Int(l - r)),
+                            Instr::MulInt => stack.push(Value::Int(l * r)),
+                            Instr::DivInt => {
+                                if r == 0 {
+                                    return Err(Self::err_at(
+                                        VmErrorKind::DivisionByZero,
+                                        "division by zero",
+                                        function_name,
+                                        ip,
+                                    ));
+                                }
+                                stack.push(Value::Int(l / r));
                             }
-                            stack.push(Value::Int(l / r));
+                            Instr::LtInt => stack.push(Value::Bool(l < r)),
+                            Instr::LteInt => stack.push(Value::Bool(l <= r)),
+                            Instr::GtInt => stack.push(Value::Bool(l > r)),
+                            Instr::GteInt => stack.push(Value::Bool(l >= r)),
+                            _ => unreachable!(),
+                        },
+                        (Value::Float(l), Value::Float(r)) => match chunk.code[ip] {
+                            Instr::SubInt => stack.push(Value::Float(l - r)),
+                            Instr::MulInt => stack.push(Value::Float(l * r)),
+                            Instr::DivInt => {
+                                if r == 0.0 {
+                                    return Err(Self::err_at(
+                                        VmErrorKind::DivisionByZero,
+                                        "division by zero",
+                                        function_name,
+                                        ip,
+                                    ));
+                                }
+                                stack.push(Value::Float(l / r));
+                            }
+                            Instr::LtInt => stack.push(Value::Bool(l < r)),
+                            Instr::LteInt => stack.push(Value::Bool(l <= r)),
+                            Instr::GtInt => stack.push(Value::Bool(l > r)),
+                            Instr::GteInt => stack.push(Value::Bool(l >= r)),
+                            _ => unreachable!(),
+                        },
+                        _ => {
+                            return Err(Self::err_at(
+                                VmErrorKind::TypeMismatch,
+                                "numeric binary op expects matching Int/Float operands",
+                                function_name,
+                                ip,
+                            ));
                         }
-                        Instr::LtInt => stack.push(Value::Bool(l < r)),
-                        Instr::LteInt => stack.push(Value::Bool(l <= r)),
-                        Instr::GtInt => stack.push(Value::Bool(l > r)),
-                        Instr::GteInt => stack.push(Value::Bool(l >= r)),
-                        _ => unreachable!(),
                     }
                 }
                 Instr::Eq => {
                     let Some(r) = stack.pop() else {
-                        return Err(VmError::new(VmErrorKind::StackUnderflow, "Eq expects rhs"));
+                        return Err(Self::err_at(VmErrorKind::StackUnderflow, "Eq expects rhs", function_name, ip));
                     };
                     let Some(l) = stack.pop() else {
-                        return Err(VmError::new(VmErrorKind::StackUnderflow, "Eq expects lhs"));
+                        return Err(Self::err_at(VmErrorKind::StackUnderflow, "Eq expects lhs", function_name, ip));
                     };
                     stack.push(Value::Bool(l == r));
                 }
                 Instr::Neq => {
                     let Some(r) = stack.pop() else {
-                        return Err(VmError::new(VmErrorKind::StackUnderflow, "Neq expects rhs"));
+                        return Err(Self::err_at(VmErrorKind::StackUnderflow, "Neq expects rhs", function_name, ip));
                     };
                     let Some(l) = stack.pop() else {
-                        return Err(VmError::new(VmErrorKind::StackUnderflow, "Neq expects lhs"));
+                        return Err(Self::err_at(VmErrorKind::StackUnderflow, "Neq expects lhs", function_name, ip));
                     };
                     stack.push(Value::Bool(l != r));
                 }
                 Instr::AndBool | Instr::OrBool => {
                     let Some(Value::Bool(r)) = stack.pop() else {
-                        return Err(VmError::new(
+                        return Err(Self::err_at(
                             VmErrorKind::TypeMismatch,
                             "logical op expects rhs Bool",
+                            function_name,
+                            ip,
                         ));
                     };
                     let Some(Value::Bool(l)) = stack.pop() else {
-                        return Err(VmError::new(
+                        return Err(Self::err_at(
                             VmErrorKind::TypeMismatch,
                             "logical op expects lhs Bool",
+                            function_name,
+                            ip,
                         ));
                     };
                     match chunk.code[ip] {
@@ -401,9 +489,11 @@ impl Vm {
                 }
                 Instr::JumpIfFalse(target) => {
                     let Some(Value::Bool(v)) = stack.pop() else {
-                        return Err(VmError::new(
+                        return Err(Self::err_at(
                             VmErrorKind::TypeMismatch,
                             "JumpIfFalse expects Bool",
+                            function_name,
+                            ip,
                         ));
                     };
                     if !v {
@@ -411,16 +501,18 @@ impl Vm {
                         continue;
                     }
                 }
-                Instr::Call { name, argc } => {
+                Instr::Call { name: callee_name, argc } => {
                     if stack.len() < *argc {
-                        return Err(VmError::new(
+                        return Err(Self::err_at(
                             VmErrorKind::StackUnderflow,
                             "Stack underflow on Call",
+                            function_name,
+                            ip,
                         ));
                     }
                     let split = stack.len() - *argc;
                     let call_args = stack.split_off(split);
-                    let ret = Self::run_function(module, name, call_args, host, reg, depth + 1)?;
+                    let ret = Self::run_function(module, callee_name, call_args, host, reg, depth + 1, config)?;
                     stack.push(ret);
                 }
                 Instr::CallBuiltin {
@@ -429,9 +521,11 @@ impl Vm {
                     argc,
                 } => {
                     if stack.len() < *argc {
-                        return Err(VmError::new(
+                        return Err(Self::err_at(
                             VmErrorKind::StackUnderflow,
                             "Stack underflow on CallBuiltin",
+                            function_name,
+                            ip,
                         ));
                     }
                     let split = stack.len() - *argc;
@@ -447,5 +541,10 @@ impl Vm {
         }
 
         Ok(Value::Unit)
+    }
+
+    fn err_at(kind: VmErrorKind, message: impl Into<String>, function: &str, ip: usize) -> VmError {
+        let msg = message.into();
+        VmError::new(kind, format!("{function}@{ip}: {msg}"))
     }
 }

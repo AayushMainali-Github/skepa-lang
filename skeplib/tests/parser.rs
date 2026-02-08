@@ -289,6 +289,21 @@ fn main() -> Int {
 }
 
 #[test]
+fn parses_float_literal_expression() {
+    let src = r#"
+fn main() -> Float {
+  return 3.14;
+}
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    match &program.functions[0].body[0] {
+        Stmt::Return(Some(Expr::FloatLit(v))) => assert_eq!(v, "3.14"),
+        other => panic!("expected float return, got {other:?}"),
+    }
+}
+
+#[test]
 fn parses_grouped_expression_shape() {
     let src = r#"
 fn main() -> Int {

@@ -4,7 +4,7 @@ use std::process::ExitCode;
 
 use skeplib::bytecode::{compile_source, BytecodeModule};
 use skeplib::sema::analyze_source;
-use skeplib::vm::Vm;
+use skeplib::vm::{Vm, VmConfig};
 
 fn main() -> ExitCode {
     match run() {
@@ -24,28 +24,45 @@ fn run() -> Result<ExitCode, String> {
 
     match cmd.as_str() {
         "run" => {
-            let Some(path) = args.next() else {
-                return Err("Usage: skeparun run <file.sk>".to_string());
-            };
-            if args.next().is_some() {
-                return Err("Usage: skeparun run <file.sk>".to_string());
-            }
-            run_file(&path)
+            let (opts, path) = parse_run_args(args, "Usage: skeparun run [--trace] <file.sk>")?;
+            run_file(&path, opts)
         }
         "run-bc" => {
-            let Some(path) = args.next() else {
-                return Err("Usage: skeparun run-bc <file.skbc>".to_string());
-            };
-            if args.next().is_some() {
-                return Err("Usage: skeparun run-bc <file.skbc>".to_string());
-            }
-            run_bytecode_file(&path)
+            let (opts, path) = parse_run_args(args, "Usage: skeparun run-bc [--trace] <file.skbc>")?;
+            run_bytecode_file(&path, opts)
         }
         _ => Err("Unknown command. Supported: run, run-bc".to_string()),
     }
 }
 
-fn run_file(path: &str) -> Result<ExitCode, String> {
+fn parse_run_args(
+    mut args: impl Iterator<Item = String>,
+    usage: &str,
+) -> Result<(VmConfig, String), String> {
+    let mut trace = false;
+    let mut path: Option<String> = None;
+    for arg in args.by_ref() {
+        if arg == "--trace" {
+            trace = true;
+            continue;
+        }
+        if path.is_none() {
+            path = Some(arg);
+        } else {
+            return Err(usage.to_string());
+        }
+    }
+    let Some(path) = path else {
+        return Err(usage.to_string());
+    };
+    let max_call_depth = match env::var("SKEPA_MAX_CALL_DEPTH") {
+        Ok(v) => v.parse::<usize>().map_err(|_| "SKEPA_MAX_CALL_DEPTH must be a positive integer".to_string())?,
+        Err(_) => VmConfig::default().max_call_depth,
+    };
+    Ok((VmConfig { trace, max_call_depth }, path))
+}
+
+fn run_file(path: &str, config: VmConfig) -> Result<ExitCode, String> {
     let source = fs::read_to_string(path).map_err(|e| format!("Failed to read `{path}`: {e}"))?;
 
     let (_sema, sema_diags) = analyze_source(&source);
@@ -66,7 +83,7 @@ fn run_file(path: &str) -> Result<ExitCode, String> {
         }
     };
 
-    match Vm::run_module_main(&module) {
+    match Vm::run_module_main_with_config(&module, config) {
         Ok(value) => match value {
             skeplib::bytecode::Value::Int(code) => Ok(ExitCode::from((code & 0xFF) as u8)),
             _ => Ok(ExitCode::from(0)),
@@ -78,12 +95,12 @@ fn run_file(path: &str) -> Result<ExitCode, String> {
     }
 }
 
-fn run_bytecode_file(path: &str) -> Result<ExitCode, String> {
+fn run_bytecode_file(path: &str, config: VmConfig) -> Result<ExitCode, String> {
     let bytes = fs::read(path).map_err(|e| format!("Failed to read `{path}`: {e}"))?;
     let module = BytecodeModule::from_bytes(&bytes)
         .map_err(|e| format!("Failed to decode `{path}`: {e}"))?;
 
-    match Vm::run_module_main(&module) {
+    match Vm::run_module_main_with_config(&module, config) {
         Ok(value) => match value {
             skeplib::bytecode::Value::Int(code) => Ok(ExitCode::from((code & 0xFF) as u8)),
             _ => Ok(ExitCode::from(0)),

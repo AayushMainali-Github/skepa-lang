@@ -50,6 +50,7 @@ pub enum AssignTarget {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expr {
     IntLit(i64),
+    FloatLit(String),
     Ident(String),
     BoolLit(bool),
     StringLit(String),
@@ -195,6 +196,7 @@ fn pretty_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
 fn pretty_expr(expr: &Expr) -> String {
     match expr {
         Expr::IntLit(v) => v.to_string(),
+        Expr::FloatLit(v) => v.clone(),
         Expr::Ident(n) => n.clone(),
         Expr::BoolLit(v) => v.to_string(),
         Expr::StringLit(s) => format!("\"{}\"", s.replace('"', "\\\"")),
