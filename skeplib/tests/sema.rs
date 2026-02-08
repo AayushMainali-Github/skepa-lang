@@ -154,7 +154,7 @@ fn main() -> Int {
     assert!(diags
         .as_slice()
         .iter()
-        .any(|d| d.message.contains("expects String argument")));
+        .any(|d| d.message.contains("io.println argument 1 expects String")));
 }
 
 #[test]
@@ -171,7 +171,7 @@ fn main() -> Int {
     assert!(diags
         .as_slice()
         .iter()
-        .any(|d| d.message.contains("io.readLine expects 0 arguments")));
+        .any(|d| d.message.contains("io.readLine expects 0 argument(s), got 1")));
 }
 
 #[test]
@@ -270,7 +270,7 @@ fn main() -> Int {
     assert!(diags
         .as_slice()
         .iter()
-        .any(|d| d.message.contains("Unknown io method")));
+        .any(|d| d.message.contains("Unknown builtin `io.nope`")));
 }
 
 #[test]

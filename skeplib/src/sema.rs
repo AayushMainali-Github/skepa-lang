@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use crate::ast::{AssignTarget, BinaryOp, Expr, Program, Stmt, UnaryOp};
+use crate::builtins::find_builtin_sig;
 use crate::diagnostic::{DiagnosticBag, Span};
 use crate::parser::Parser;
 use crate::types::{FunctionSig, TypeInfo};
@@ -296,7 +297,7 @@ impl Checker {
     ) -> TypeInfo {
         if let Expr::Path(parts) = callee {
             if parts.len() == 2 && parts[0] == "io" {
-                return self.check_io_call(&parts[1], args, scopes);
+                return self.check_builtin_call(&parts[0], &parts[1], args, scopes);
             }
         }
 
@@ -341,40 +342,46 @@ impl Checker {
         sig.ret
     }
 
-    fn check_io_call(
+    fn check_builtin_call(
         &mut self,
+        package: &str,
         method: &str,
         args: &[Expr],
         scopes: &mut [HashMap<String, TypeInfo>],
     ) -> TypeInfo {
-        if !self.has_io_import {
+        if package == "io" && !self.has_io_import {
             self.error("`io.*` used without `import io;`".to_string());
             return TypeInfo::Unknown;
         }
 
-        match method {
-            "print" | "println" => {
-                if args.len() != 1 {
-                    self.error(format!("io.{method} expects 1 argument"));
-                    return TypeInfo::Void;
-                }
-                let arg_ty = self.check_expr(&args[0], scopes);
-                if arg_ty != TypeInfo::Unknown && arg_ty != TypeInfo::String {
-                    self.error(format!("io.{method} expects String argument"));
-                }
-                TypeInfo::Void
-            }
-            "readLine" => {
-                if !args.is_empty() {
-                    self.error("io.readLine expects 0 arguments".to_string());
-                }
-                TypeInfo::String
-            }
-            _ => {
-                self.error(format!("Unknown io method `io.{method}`"));
-                TypeInfo::Unknown
+        let Some(sig) = find_builtin_sig(package, method) else {
+            self.error(format!("Unknown builtin `{package}.{method}`"));
+            return TypeInfo::Unknown;
+        };
+
+        if sig.params.len() != args.len() {
+            self.error(format!(
+                "{package}.{method} expects {} argument(s), got {}",
+                sig.params.len(),
+                args.len()
+            ));
+            return sig.ret;
+        }
+
+        for (idx, arg) in args.iter().enumerate() {
+            let got = self.check_expr(arg, scopes);
+            let expected = sig.params[idx];
+            if got != TypeInfo::Unknown && got != expected {
+                self.error(format!(
+                    "{package}.{method} argument {} expects {:?}, got {:?}",
+                    idx + 1,
+                    expected,
+                    got
+                ));
             }
         }
+
+        sig.ret
     }
 
     fn lookup_var(&mut self, name: &str, scopes: &mut [HashMap<String, TypeInfo>]) -> TypeInfo {
