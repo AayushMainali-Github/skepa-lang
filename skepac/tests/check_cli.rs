@@ -52,6 +52,39 @@ fn main() -> Int {
     assert!(stderr.contains("Expected `;` after return statement"));
 }
 
+#[test]
+fn check_without_arguments_shows_usage_and_fails() {
+    let output = Command::new(skepac_bin())
+        .output()
+        .expect("run skepac");
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("Usage: skepac check <file.sk>"));
+}
+
+#[test]
+fn unknown_command_fails() {
+    let output = Command::new(skepac_bin())
+        .arg("wat")
+        .output()
+        .expect("run skepac");
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("Unknown command"));
+}
+
+#[test]
+fn missing_file_fails() {
+    let output = Command::new(skepac_bin())
+        .arg("check")
+        .arg("does_not_exist.sk")
+        .output()
+        .expect("run skepac");
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("Failed to read"));
+}
+
 fn skepac_bin() -> &'static str {
     env!("CARGO_BIN_EXE_skepac")
 }

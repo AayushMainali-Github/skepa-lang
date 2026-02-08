@@ -127,3 +127,48 @@ fn main() -> Int {
         .iter()
         .any(|d| d.message.contains("Expected `=` in let declaration")));
 }
+
+#[test]
+fn parses_void_return_statement() {
+    let src = r#"
+fn log() -> Void {
+  return;
+}
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    assert_eq!(program.functions.len(), 1);
+    assert!(matches!(program.functions[0].body[0], Stmt::Return(None)));
+}
+
+#[test]
+fn reports_missing_parameter_type() {
+    let src = r#"
+fn add(a:) -> Int {
+  return 0;
+}
+"#;
+    let (_program, diags) = Parser::parse_source(src);
+    assert!(!diags.is_empty());
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("Expected parameter type after `:`")));
+}
+
+#[test]
+fn reports_missing_semicolon_after_assignment() {
+    let src = r#"
+fn main() -> Int {
+  let x = 1;
+  x = 2
+  return 0;
+}
+"#;
+    let (_program, diags) = Parser::parse_source(src);
+    assert!(!diags.is_empty());
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("Expected `;` after assignment")));
+}
