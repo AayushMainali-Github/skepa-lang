@@ -76,7 +76,7 @@ fn main() -> Int {
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("Runtime error"));
+    assert!(stderr.contains("[runtime]"));
 }
 
 #[test]

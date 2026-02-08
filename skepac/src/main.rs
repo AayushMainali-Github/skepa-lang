@@ -59,7 +59,7 @@ fn check_file(path: &str) -> Result<ExitCode, String> {
     }
 
     for d in diagnostics.as_slice() {
-        eprintln!("{d}");
+        eprintln!("[parse] {d}");
     }
     Ok(ExitCode::from(1))
 }
@@ -71,7 +71,7 @@ fn build_file(input: &str, output: &str) -> Result<ExitCode, String> {
     let (_sema, sema_diags) = analyze_source(&source);
     if !sema_diags.is_empty() {
         for d in sema_diags.as_slice() {
-            eprintln!("{d}");
+            eprintln!("[sema] {d}");
         }
         return Ok(ExitCode::from(1));
     }
@@ -80,7 +80,7 @@ fn build_file(input: &str, output: &str) -> Result<ExitCode, String> {
         Ok(m) => m,
         Err(diags) => {
             for d in diags.as_slice() {
-                eprintln!("{d}");
+                eprintln!("[codegen] {d}");
             }
             return Ok(ExitCode::from(1));
         }

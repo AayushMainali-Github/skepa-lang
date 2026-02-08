@@ -6,6 +6,7 @@ use crate::bytecode::{BytecodeModule, FunctionChunk, Instr, Value};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Vm;
+const MAX_CALL_DEPTH: usize = 128;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VmErrorKind {
@@ -17,6 +18,7 @@ pub enum VmErrorKind {
     DivisionByZero,
     UnknownBuiltin,
     HostError,
+    StackOverflow,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -186,7 +188,7 @@ impl Vm {
     pub fn run_module_main(module: &BytecodeModule) -> Result<Value, VmError> {
         let mut host = StdIoHost;
         let reg = BuiltinRegistry::with_defaults();
-        Self::run_function(module, "main", Vec::new(), &mut host, &reg)
+        Self::run_function(module, "main", Vec::new(), &mut host, &reg, 0)
     }
 
     pub fn run_module_main_with_host(
@@ -194,7 +196,7 @@ impl Vm {
         host: &mut dyn BuiltinHost,
     ) -> Result<Value, VmError> {
         let reg = BuiltinRegistry::with_defaults();
-        Self::run_function(module, "main", Vec::new(), host, &reg)
+        Self::run_function(module, "main", Vec::new(), host, &reg, 0)
     }
 
     pub fn run_module_main_with_registry(
@@ -202,7 +204,7 @@ impl Vm {
         host: &mut dyn BuiltinHost,
         reg: &BuiltinRegistry,
     ) -> Result<Value, VmError> {
-        Self::run_function(module, "main", Vec::new(), host, reg)
+        Self::run_function(module, "main", Vec::new(), host, reg, 0)
     }
 
     pub fn run_main(chunk: &FunctionChunk) -> Result<Value, VmError> {
@@ -218,7 +220,14 @@ impl Vm {
         args: Vec<Value>,
         host: &mut dyn BuiltinHost,
         reg: &BuiltinRegistry,
+        depth: usize,
     ) -> Result<Value, VmError> {
+        if depth >= MAX_CALL_DEPTH {
+            return Err(VmError::new(
+                VmErrorKind::StackOverflow,
+                format!("Call stack limit exceeded ({MAX_CALL_DEPTH})"),
+            ));
+        }
         let Some(chunk) = module.functions.get(name) else {
             return Err(VmError::new(
                 VmErrorKind::UnknownFunction,
@@ -411,7 +420,7 @@ impl Vm {
                     }
                     let split = stack.len() - *argc;
                     let call_args = stack.split_off(split);
-                    let ret = Self::run_function(module, name, call_args, host, reg)?;
+                    let ret = Self::run_function(module, name, call_args, host, reg, depth + 1)?;
                     stack.push(ret);
                 }
                 Instr::CallBuiltin {

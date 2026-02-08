@@ -59,6 +59,8 @@ pub struct BytecodeModule {
 impl BytecodeModule {
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut out = Vec::new();
+        out.extend_from_slice(b"SKBC");
+        write_u32(&mut out, 1);
         write_u32(&mut out, self.functions.len() as u32);
         let mut funcs: Vec<_> = self.functions.values().collect();
         funcs.sort_by(|a, b| a.name.cmp(&b.name));
@@ -76,6 +78,14 @@ impl BytecodeModule {
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, String> {
         let mut rd = Reader { bytes, idx: 0 };
+        let magic = rd.read_exact(4)?;
+        if magic != b"SKBC" {
+            return Err("Invalid bytecode magic header".to_string());
+        }
+        let version = rd.read_u32()?;
+        if version != 1 {
+            return Err(format!("Unsupported bytecode version {version}"));
+        }
         let funcs_len = rd.read_u32()? as usize;
         let mut functions = HashMap::new();
         for _ in 0..funcs_len {

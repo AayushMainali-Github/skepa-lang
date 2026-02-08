@@ -1,5 +1,5 @@
 use skeplib::bytecode::{compile_source, Instr, Value};
-use skeplib::vm::{TestHost, Vm};
+use skeplib::vm::{TestHost, Vm, VmErrorKind};
 use std::collections::VecDeque;
 
 #[test]
@@ -166,4 +166,36 @@ fn main() -> Int {
     let decoded = skeplib::bytecode::BytecodeModule::from_bytes(&bytes).expect("decode");
     let out = Vm::run_module_main(&decoded).expect("run");
     assert_eq!(out, Value::Int(42));
+}
+
+#[test]
+fn bytecode_decode_rejects_bad_magic() {
+    let bad = vec![0, 1, 2, 3, 1, 0, 0, 0];
+    let err = skeplib::bytecode::BytecodeModule::from_bytes(&bad).expect_err("bad header");
+    assert!(err.contains("magic"));
+}
+
+#[test]
+fn bytecode_decode_rejects_unknown_version() {
+    let mut bytes = b"SKBC".to_vec();
+    bytes.extend_from_slice(&99u32.to_le_bytes());
+    bytes.extend_from_slice(&0u32.to_le_bytes()); // zero functions
+    let err = skeplib::bytecode::BytecodeModule::from_bytes(&bytes).expect_err("bad version");
+    assert!(err.contains("Unsupported bytecode version"));
+}
+
+#[test]
+fn vm_reports_stack_overflow_on_unbounded_recursion() {
+    let src = r#"
+fn f(x: Int) -> Int {
+  return f(x + 1);
+}
+
+fn main() -> Int {
+  return f(0);
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("should overflow");
+    assert_eq!(err.kind, VmErrorKind::StackOverflow);
 }
