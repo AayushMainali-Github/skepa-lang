@@ -3,6 +3,8 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use skeplib::bytecode::compile_source;
+
 #[test]
 fn run_valid_program_returns_success() {
     let tmp = make_temp_dir("skeparun_ok");
@@ -75,6 +77,29 @@ fn main() -> Int {
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("Runtime error"));
+}
+
+#[test]
+fn run_bc_executes_compiled_artifact() {
+    let tmp = make_temp_dir("skeparun_run_bc");
+    let bc = tmp.join("main.skbc");
+    let module = compile_source(
+        r#"
+fn main() -> Int {
+  return 9;
+}
+"#,
+    )
+    .expect("compile");
+    fs::write(&bc, module.to_bytes()).expect("write bc");
+
+    let output = Command::new(skeparun_bin())
+        .arg("run-bc")
+        .arg(&bc)
+        .output()
+        .expect("run skeparun");
+
+    assert_eq!(output.status.code(), Some(9));
 }
 
 fn skeparun_bin() -> &'static str {

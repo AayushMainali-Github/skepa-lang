@@ -59,7 +59,7 @@ fn check_without_arguments_shows_usage_and_fails() {
         .expect("run skepac");
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("Usage: skepac check <file.sk>"));
+    assert!(stderr.contains("Usage: skepac check <file.sk> | skepac build <in.sk> <out.skbc>"));
 }
 
 #[test]
@@ -83,6 +83,32 @@ fn missing_file_fails() {
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("Failed to read"));
+}
+
+#[test]
+fn build_writes_bytecode_artifact() {
+    let tmp = make_temp_dir("skepac_build");
+    let source = tmp.join("main.sk");
+    let out = tmp.join("main.skbc");
+    fs::write(
+        &source,
+        r#"
+fn main() -> Int {
+  return 7;
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("build")
+        .arg(&source)
+        .arg(&out)
+        .output()
+        .expect("run skepac build");
+
+    assert!(output.status.success(), "{:?}", output);
+    assert!(out.exists());
 }
 
 fn skepac_bin() -> &'static str {

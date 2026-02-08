@@ -153,3 +153,17 @@ fn main() -> Int {
         .iter()
         .any(|d| d.message.contains("package.function")));
 }
+
+#[test]
+fn bytecode_module_roundtrip_bytes() {
+    let src = r#"
+fn main() -> Int {
+  return 42;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let bytes = module.to_bytes();
+    let decoded = skeplib::bytecode::BytecodeModule::from_bytes(&bytes).expect("decode");
+    let out = Vm::run_module_main(&decoded).expect("run");
+    assert_eq!(out, Value::Int(42));
+}
