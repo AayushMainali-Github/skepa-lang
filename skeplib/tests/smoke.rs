@@ -7,7 +7,7 @@ use skeplib::vm::Vm;
 
 #[test]
 fn can_build_empty_program_structs() {
-    let _ = Program;
+    let _ = Program::default();
     let _ = Parser;
     let _ = TypeInfo;
     let _ = SemaResult;
