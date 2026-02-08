@@ -111,6 +111,65 @@ fn main() -> Int {
     assert!(out.exists());
 }
 
+#[test]
+fn disasm_source_prints_bytecode_text() {
+    let tmp = make_temp_dir("skepac_disasm_src");
+    let source = tmp.join("main.sk");
+    fs::write(
+        &source,
+        r#"
+fn main() -> Int {
+  return 1 + 2;
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("disasm")
+        .arg(&source)
+        .output()
+        .expect("run skepac disasm");
+
+    assert!(output.status.success(), "{:?}", output);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("fn main"));
+    assert!(stdout.contains("Add"));
+}
+
+#[test]
+fn disasm_bytecode_file_prints_text() {
+    let tmp = make_temp_dir("skepac_disasm_bc");
+    let source = tmp.join("main.sk");
+    let bc = tmp.join("main.skbc");
+    fs::write(
+        &source,
+        r#"
+fn main() -> Int {
+  return 3;
+}
+"#,
+    )
+    .expect("write source");
+
+    let build_out = Command::new(skepac_bin())
+        .arg("build")
+        .arg(&source)
+        .arg(&bc)
+        .output()
+        .expect("run build");
+    assert!(build_out.status.success(), "{:?}", build_out);
+
+    let disasm_out = Command::new(skepac_bin())
+        .arg("disasm")
+        .arg(&bc)
+        .output()
+        .expect("run disasm");
+    assert!(disasm_out.status.success(), "{:?}", disasm_out);
+    let stdout = String::from_utf8_lossy(&disasm_out.stdout);
+    assert!(stdout.contains("LoadConst Int(3)"));
+}
+
 fn skepac_bin() -> &'static str {
     env!("CARGO_BIN_EXE_skepac")
 }

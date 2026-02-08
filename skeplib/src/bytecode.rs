@@ -109,6 +109,22 @@ impl BytecodeModule {
         }
         Ok(Self { functions })
     }
+
+    pub fn disassemble(&self) -> String {
+        let mut out = String::new();
+        let mut funcs: Vec<_> = self.functions.values().collect();
+        funcs.sort_by(|a, b| a.name.cmp(&b.name));
+        for f in funcs {
+            out.push_str(&format!(
+                "fn {} (params={}, locals={})\n",
+                f.name, f.param_count, f.locals_count
+            ));
+            for (ip, instr) in f.code.iter().enumerate() {
+                out.push_str(&format!("  {:04} {}\n", ip, fmt_instr(instr)));
+            }
+        }
+        out
+    }
 }
 
 pub fn compile_source(source: &str) -> Result<BytecodeModule, DiagnosticBag> {
@@ -527,4 +543,45 @@ fn decode_instr(rd: &mut Reader<'_>) -> Result<Instr, String> {
         22 => Instr::Return,
         t => return Err(format!("Unknown instruction tag {t}")),
     })
+}
+
+fn fmt_value(v: &Value) -> String {
+    match v {
+        Value::Int(i) => format!("Int({i})"),
+        Value::Bool(b) => format!("Bool({b})"),
+        Value::String(s) => format!("String({s:?})"),
+        Value::Unit => "Unit".to_string(),
+    }
+}
+
+fn fmt_instr(i: &Instr) -> String {
+    match i {
+        Instr::LoadConst(v) => format!("LoadConst {}", fmt_value(v)),
+        Instr::LoadLocal(s) => format!("LoadLocal {s}"),
+        Instr::StoreLocal(s) => format!("StoreLocal {s}"),
+        Instr::Pop => "Pop".to_string(),
+        Instr::NegInt => "NegInt".to_string(),
+        Instr::NotBool => "NotBool".to_string(),
+        Instr::Add => "Add".to_string(),
+        Instr::SubInt => "SubInt".to_string(),
+        Instr::MulInt => "MulInt".to_string(),
+        Instr::DivInt => "DivInt".to_string(),
+        Instr::Eq => "Eq".to_string(),
+        Instr::Neq => "Neq".to_string(),
+        Instr::LtInt => "LtInt".to_string(),
+        Instr::LteInt => "LteInt".to_string(),
+        Instr::GtInt => "GtInt".to_string(),
+        Instr::GteInt => "GteInt".to_string(),
+        Instr::AndBool => "AndBool".to_string(),
+        Instr::OrBool => "OrBool".to_string(),
+        Instr::Jump(t) => format!("Jump {t}"),
+        Instr::JumpIfFalse(t) => format!("JumpIfFalse {t}"),
+        Instr::Call { name, argc } => format!("Call {name} argc={argc}"),
+        Instr::CallBuiltin {
+            package,
+            name,
+            argc,
+        } => format!("CallBuiltin {package}.{name} argc={argc}"),
+        Instr::Return => "Return".to_string(),
+    }
 }

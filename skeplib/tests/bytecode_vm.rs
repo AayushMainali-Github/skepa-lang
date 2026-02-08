@@ -342,3 +342,19 @@ fn main() -> Int {
     let out = Vm::run_module_main_with_registry(&module, &mut host, &reg).expect("run");
     assert_eq!(out, Value::Int(42));
 }
+
+#[test]
+fn disassemble_outputs_named_instructions() {
+    let src = r#"
+fn main() -> Int {
+  let x = 1;
+  return x + 2;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let txt = module.disassemble();
+    assert!(txt.contains("fn main"));
+    assert!(txt.contains("LoadConst Int(1)"));
+    assert!(txt.contains("Add"));
+    assert!(txt.contains("Return"));
+}

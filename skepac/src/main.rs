@@ -2,7 +2,7 @@ use std::env;
 use std::fs;
 use std::process::ExitCode;
 
-use skeplib::bytecode::compile_source;
+use skeplib::bytecode::{compile_source, BytecodeModule};
 use skeplib::parser::Parser;
 use skeplib::sema::analyze_source;
 
@@ -19,7 +19,10 @@ fn main() -> ExitCode {
 fn run() -> Result<ExitCode, String> {
     let mut args = env::args().skip(1);
     let Some(cmd) = args.next() else {
-        return Err("Usage: skepac check <file.sk> | skepac build <in.sk> <out.skbc>".to_string());
+        return Err(
+            "Usage: skepac check <file.sk> | skepac build <in.sk> <out.skbc> | skepac disasm <file.sk|file.skbc>"
+                .to_string(),
+        );
     };
 
     match cmd.as_str() {
@@ -44,7 +47,16 @@ fn run() -> Result<ExitCode, String> {
             }
             build_file(&input, &output)
         }
-        _ => Err("Unknown command. Supported: check, build".to_string()),
+        "disasm" => {
+            let Some(path) = args.next() else {
+                return Err("Usage: skepac disasm <file.sk|file.skbc>".to_string());
+            };
+            if args.next().is_some() {
+                return Err("Usage: skepac disasm <file.sk|file.skbc>".to_string());
+            }
+            disasm_file(&path)
+        }
+        _ => Err("Unknown command. Supported: check, build, disasm".to_string()),
     }
 }
 
@@ -90,4 +102,38 @@ fn build_file(input: &str, output: &str) -> Result<ExitCode, String> {
     fs::write(output, bytes).map_err(|e| format!("Failed to write `{output}`: {e}"))?;
     println!("built: {output}");
     Ok(ExitCode::from(0))
+}
+
+fn disasm_file(path: &str) -> Result<ExitCode, String> {
+    if path.ends_with(".skbc") {
+        let bytes = fs::read(path).map_err(|e| format!("Failed to read `{path}`: {e}"))?;
+        let module = BytecodeModule::from_bytes(&bytes)
+            .map_err(|e| format!("Failed to decode `{path}`: {e}"))?;
+        print!("{}", module.disassemble());
+        return Ok(ExitCode::from(0));
+    }
+
+    if path.ends_with(".sk") {
+        let source = fs::read_to_string(path).map_err(|e| format!("Failed to read `{path}`: {e}"))?;
+        let (_sema, sema_diags) = analyze_source(&source);
+        if !sema_diags.is_empty() {
+            for d in sema_diags.as_slice() {
+                eprintln!("[sema] {d}");
+            }
+            return Ok(ExitCode::from(1));
+        }
+        let module = match compile_source(&source) {
+            Ok(m) => m,
+            Err(diags) => {
+                for d in diags.as_slice() {
+                    eprintln!("[codegen] {d}");
+                }
+                return Ok(ExitCode::from(1));
+            }
+        };
+        print!("{}", module.disassemble());
+        return Ok(ExitCode::from(0));
+    }
+
+    Err("disasm supports only .sk and .skbc files".to_string())
 }
