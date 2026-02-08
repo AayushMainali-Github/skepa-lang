@@ -1,4 +1,5 @@
 use skeplib::ast::{Expr, FnDecl, ImportDecl, Param, Program, Stmt, TypeName};
+use skeplib::parser::Parser;
 
 #[test]
 fn create_empty_program() {
@@ -71,4 +72,25 @@ fn function_can_store_params_and_return_type() {
     assert_eq!(function.params[0].name, "a");
     assert_eq!(function.params[0].ty, TypeName::Int);
     assert_eq!(function.return_type, Some(TypeName::Int));
+}
+
+#[test]
+fn program_pretty_print_is_stable() {
+    let src = r#"
+import io;
+fn main() -> Int {
+  let x: Int = 1;
+  io.println("ok");
+  return 0;
+}
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+
+    let pretty = program.pretty();
+    assert!(pretty.contains("import io"));
+    assert!(pretty.contains("fn main() -> Int"));
+    assert!(pretty.contains("let x: Int = 1"));
+    assert!(pretty.contains("expr io.println(\"ok\")"));
+    assert!(pretty.contains("return 0"));
 }

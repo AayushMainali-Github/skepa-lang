@@ -1,0 +1,17 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Run Workspace Tests
+        run: cargo test --workspace
+      - name: Run Parser Perf Sanity
+        run: cargo test -p skeplib --test parser_perf -- --ignored

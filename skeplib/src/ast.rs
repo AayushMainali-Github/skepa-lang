@@ -106,3 +106,139 @@ pub enum BinaryOp {
     AndAnd,
     OrOr,
 }
+
+impl Program {
+    pub fn pretty(&self) -> String {
+        let mut out = String::new();
+        for import in &self.imports {
+            out.push_str(&format!("import {}\n", import.module));
+        }
+        for func in &self.functions {
+            pretty_fn(func, 0, &mut out);
+        }
+        out
+    }
+}
+
+fn pretty_fn(func: &FnDecl, indent: usize, out: &mut String) {
+    let pad = " ".repeat(indent);
+    let params = func
+        .params
+        .iter()
+        .map(|p| format!("{}: {}", p.name, p.ty.as_str()))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let ret = func.return_type.map(|t| t.as_str()).unwrap_or("Void");
+    out.push_str(&format!("{pad}fn {}({}) -> {}\n", func.name, params, ret));
+    for stmt in &func.body {
+        pretty_stmt(stmt, indent + 2, out);
+    }
+}
+
+fn pretty_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
+    let pad = " ".repeat(indent);
+    match stmt {
+        Stmt::Let { name, ty, value } => {
+            if let Some(ty) = ty {
+                out.push_str(&format!(
+                    "{pad}let {}: {} = {}\n",
+                    name,
+                    ty.as_str(),
+                    pretty_expr(value)
+                ));
+            } else {
+                out.push_str(&format!("{pad}let {} = {}\n", name, pretty_expr(value)));
+            }
+        }
+        Stmt::Assign { target, value } => {
+            let target = match target {
+                AssignTarget::Ident(n) => n.clone(),
+                AssignTarget::Path(parts) => parts.join("."),
+            };
+            out.push_str(&format!("{pad}assign {} = {}\n", target, pretty_expr(value)));
+        }
+        Stmt::Expr(expr) => {
+            out.push_str(&format!("{pad}expr {}\n", pretty_expr(expr)));
+        }
+        Stmt::If {
+            cond,
+            then_body,
+            else_body,
+        } => {
+            out.push_str(&format!("{pad}if {}\n", pretty_expr(cond)));
+            for s in then_body {
+                pretty_stmt(s, indent + 2, out);
+            }
+            if !else_body.is_empty() {
+                out.push_str(&format!("{pad}else\n"));
+                for s in else_body {
+                    pretty_stmt(s, indent + 2, out);
+                }
+            }
+        }
+        Stmt::While { cond, body } => {
+            out.push_str(&format!("{pad}while {}\n", pretty_expr(cond)));
+            for s in body {
+                pretty_stmt(s, indent + 2, out);
+            }
+        }
+        Stmt::Return(expr) => {
+            if let Some(expr) = expr {
+                out.push_str(&format!("{pad}return {}\n", pretty_expr(expr)));
+            } else {
+                out.push_str(&format!("{pad}return\n"));
+            }
+        }
+    }
+}
+
+fn pretty_expr(expr: &Expr) -> String {
+    match expr {
+        Expr::IntLit(v) => v.to_string(),
+        Expr::Ident(n) => n.clone(),
+        Expr::BoolLit(v) => v.to_string(),
+        Expr::StringLit(s) => format!("\"{}\"", s.replace('"', "\\\"")),
+        Expr::Path(parts) => parts.join("."),
+        Expr::Unary { op, expr } => {
+            let symbol = match op {
+                UnaryOp::Neg => "-",
+                UnaryOp::Not => "!",
+            };
+            format!("({}{})", symbol, pretty_expr(expr))
+        }
+        Expr::Binary { left, op, right } => {
+            let symbol = match op {
+                BinaryOp::Add => "+",
+                BinaryOp::Sub => "-",
+                BinaryOp::Mul => "*",
+                BinaryOp::Div => "/",
+                BinaryOp::EqEq => "==",
+                BinaryOp::Neq => "!=",
+                BinaryOp::Lt => "<",
+                BinaryOp::Lte => "<=",
+                BinaryOp::Gt => ">",
+                BinaryOp::Gte => ">=",
+                BinaryOp::AndAnd => "&&",
+                BinaryOp::OrOr => "||",
+            };
+            format!("({} {} {})", pretty_expr(left), symbol, pretty_expr(right))
+        }
+        Expr::Call { callee, args } => {
+            let args = args.iter().map(pretty_expr).collect::<Vec<_>>().join(", ");
+            format!("{}({})", pretty_expr(callee), args)
+        }
+        Expr::Group(inner) => format!("({})", pretty_expr(inner)),
+    }
+}
+
+impl TypeName {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            TypeName::Int => "Int",
+            TypeName::Float => "Float",
+            TypeName::Bool => "Bool",
+            TypeName::String => "String",
+            TypeName::Void => "Void",
+        }
+    }
+}
