@@ -209,3 +209,10 @@ fn tracks_string_span_start_position() {
     assert_eq!(tokens[0].span.line, 1);
     assert_eq!(tokens[0].span.col, 3);
 }
+
+#[test]
+fn lexes_string_with_escape_sequences() {
+    let (tokens, diags) = lex("\"a\\n\\t\\\"b\\\\c\"");
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    assert_eq!(tokens[0].kind, TokenKind::StringLit);
+}

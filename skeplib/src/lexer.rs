@@ -201,6 +201,13 @@ impl Lexer {
                 terminated = true;
                 break;
             }
+            if ch == '\\' {
+                self.bump();
+                if self.peek().is_some() {
+                    self.bump();
+                }
+                continue;
+            }
             if ch == '\n' {
                 break;
             }

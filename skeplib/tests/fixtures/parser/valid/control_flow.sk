@@ -1,0 +1,13 @@
+import io;
+
+fn main() -> Int {
+  let x: Int = 1;
+  if (x > 0) {
+    io.println("ok");
+  } else if (x == 0) {
+    io.println("zero");
+  } else {
+    io.println("neg");
+  }
+  return 0;
+}

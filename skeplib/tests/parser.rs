@@ -491,3 +491,54 @@ fn main() -> Int {
         .iter()
         .any(|d| d.message.contains("found `Int`")));
 }
+
+#[test]
+fn parses_else_if_chain() {
+    let src = r#"
+fn main() -> Int {
+  if (false) {
+    return 1;
+  } else if (true) {
+    return 2;
+  } else {
+    return 3;
+  }
+}
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    match &program.functions[0].body[0] {
+        Stmt::If { else_body, .. } => {
+            assert_eq!(else_body.len(), 1);
+            assert!(matches!(else_body[0], Stmt::If { .. }));
+        }
+        _ => panic!("expected if"),
+    }
+}
+
+#[test]
+fn parses_escaped_string_literals() {
+    let src = r#"
+fn main() -> Int {
+  io.println("line1\nline2\t\"ok\"\\");
+  return 0;
+}
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    match &program.functions[0].body[0] {
+        Stmt::Expr(Expr::Call { args, .. }) => {
+            assert_eq!(args.len(), 1);
+            match &args[0] {
+                Expr::StringLit(s) => {
+                    assert!(s.contains('\n'));
+                    assert!(s.contains('\t'));
+                    assert!(s.contains("\"ok\""));
+                    assert!(s.ends_with('\\'));
+                }
+                _ => panic!("expected string arg"),
+            }
+        }
+        _ => panic!("expected call expression statement"),
+    }
+}

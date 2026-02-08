@@ -129,7 +129,12 @@ impl Parser {
             let then_body = self.parse_block("Expected `{` before if body")?;
             let else_body = if self.at(TokenKind::KwElse) {
                 self.bump();
-                self.parse_block("Expected `{` before else body")?
+                if self.at(TokenKind::KwIf) {
+                    let nested_if = self.parse_stmt()?;
+                    vec![nested_if]
+                } else {
+                    self.parse_block("Expected `{` before else body")?
+                }
             } else {
                 Vec::new()
             };
@@ -394,6 +399,7 @@ impl Parser {
                 .and_then(|v| v.strip_suffix('"'))
                 .unwrap_or(&tok.lexeme)
                 .to_string();
+            let s = Self::decode_string_escapes(&s);
             return Some(Expr::StringLit(s));
         }
         if self.at(TokenKind::Ident) {
@@ -541,5 +547,29 @@ impl Parser {
         let found = Self::token_label(self.current());
         self.diagnostics
             .error(format!("{message}; found {found}"), self.current().span);
+    }
+
+    fn decode_string_escapes(raw: &str) -> String {
+        let mut out = String::with_capacity(raw.len());
+        let mut chars = raw.chars();
+        while let Some(ch) = chars.next() {
+            if ch != '\\' {
+                out.push(ch);
+                continue;
+            }
+            match chars.next() {
+                Some('n') => out.push('\n'),
+                Some('t') => out.push('\t'),
+                Some('r') => out.push('\r'),
+                Some('"') => out.push('"'),
+                Some('\\') => out.push('\\'),
+                Some(other) => {
+                    out.push('\\');
+                    out.push(other);
+                }
+                None => out.push('\\'),
+            }
+        }
+        out
     }
 }
