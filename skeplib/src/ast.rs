@@ -25,7 +25,7 @@ pub enum Stmt {
         value: Expr,
     },
     Assign {
-        name: String,
+        target: AssignTarget,
         value: Expr,
     },
     Expr(Expr),
@@ -39,6 +39,12 @@ pub enum Stmt {
         body: Vec<Stmt>,
     },
     Return(Option<Expr>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AssignTarget {
+    Ident(String),
+    Path(Vec<String>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

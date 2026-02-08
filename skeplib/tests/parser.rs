@@ -1,4 +1,4 @@
-use skeplib::ast::{BinaryOp, Expr, Stmt, TypeName, UnaryOp};
+use skeplib::ast::{AssignTarget, BinaryOp, Expr, Stmt, TypeName, UnaryOp};
 use skeplib::parser::Parser;
 
 #[test]
@@ -104,8 +104,8 @@ fn main() -> Int {
     }
 
     match &body[2] {
-        Stmt::Assign { name, value } => {
-            assert_eq!(name, "y");
+        Stmt::Assign { target, value } => {
+            assert_eq!(*target, AssignTarget::Ident("y".to_string()));
             assert_eq!(*value, Expr::IntLit(2));
         }
         _ => panic!("expected assignment"),
@@ -171,6 +171,28 @@ fn main() -> Int {
         .as_slice()
         .iter()
         .any(|d| d.message.contains("Expected `;` after assignment")));
+}
+
+#[test]
+fn parses_path_assignment_target() {
+    let src = r#"
+fn main() -> Int {
+  obj.field = 2;
+  return 0;
+}
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    match &program.functions[0].body[0] {
+        Stmt::Assign { target, value } => {
+            assert_eq!(
+                *target,
+                AssignTarget::Path(vec!["obj".to_string(), "field".to_string()])
+            );
+            assert_eq!(*value, Expr::IntLit(2));
+        }
+        _ => panic!("expected assignment"),
+    }
 }
 
 #[test]
@@ -437,4 +459,35 @@ fn main() -> Int {
         .as_slice()
         .iter()
         .any(|d| d.message.contains("Expected `{` before while body")));
+}
+
+#[test]
+fn parser_recovers_and_parses_next_statement_after_error() {
+    let src = r#"
+fn main() -> Int {
+  let x = ;
+  return 0;
+}
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(!diags.is_empty());
+    assert!(program.functions[0]
+        .body
+        .iter()
+        .any(|s| matches!(s, Stmt::Return(Some(Expr::IntLit(0))))));
+}
+
+#[test]
+fn diagnostics_include_found_token_context() {
+    let src = r#"
+fn main() -> Int {
+  let x Int = 1;
+  return 0;
+}
+"#;
+    let (_program, diags) = Parser::parse_source(src);
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("found `Int`")));
 }

@@ -1,4 +1,6 @@
-use crate::ast::{BinaryOp, Expr, FnDecl, ImportDecl, Param, Program, Stmt, TypeName, UnaryOp};
+use crate::ast::{
+    AssignTarget, BinaryOp, Expr, FnDecl, ImportDecl, Param, Program, Stmt, TypeName, UnaryOp,
+};
 use crate::diagnostic::{DiagnosticBag, Span};
 use crate::lexer::lex;
 use crate::token::{Token, TokenKind};
@@ -54,7 +56,7 @@ impl Parser {
                 continue;
             }
 
-            self.error_here("Expected top-level declaration (`import` or `fn`)");
+            self.error_here_expected("Expected top-level declaration (`import` or `fn`)");
             self.bump();
         }
 
@@ -105,9 +107,7 @@ impl Parser {
         while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
             match self.parse_stmt() {
                 Some(stmt) => body.push(stmt),
-                None => {
-                    let _ = self.bump();
-                }
+                None => self.synchronize_stmt(),
             }
         }
         self.expect(TokenKind::RBrace, "Expected `}` after function body")?;
@@ -167,12 +167,12 @@ impl Parser {
             });
         }
 
-        if self.at(TokenKind::Ident) && self.peek_kind() == TokenKind::Assign {
-            let name = self.bump().lexeme;
-            self.bump();
+        if self.at(TokenKind::Ident) && self.can_start_assignment_target() {
+            let target = self.parse_assignment_target()?;
+            self.expect(TokenKind::Assign, "Expected `=` after assignment target")?;
             let value = self.parse_expr()?;
             self.expect(TokenKind::Semi, "Expected `;` after assignment")?;
-            return Some(Stmt::Assign { name, value });
+            return Some(Stmt::Assign { target, value });
         }
 
         if self.at(TokenKind::KwReturn) {
@@ -198,9 +198,7 @@ impl Parser {
         while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
             match self.parse_stmt() {
                 Some(stmt) => body.push(stmt),
-                None => {
-                    let _ = self.bump();
-                }
+                None => self.synchronize_stmt(),
             }
         }
         self.expect(TokenKind::RBrace, "Expected `}` after block")?;
@@ -417,15 +415,52 @@ impl Parser {
             return Some(Expr::Group(Box::new(expr)));
         }
 
-        self.error_here("Expected expression");
+        self.error_here_expected("Expected expression");
         None
+    }
+
+    fn can_start_assignment_target(&self) -> bool {
+        if !self.at(TokenKind::Ident) {
+            return false;
+        }
+        let mut i = self.idx + 1;
+        let last = self.tokens.len().saturating_sub(1);
+        while i <= last {
+            let k = self.tokens[i].kind;
+            if k == TokenKind::Assign {
+                return true;
+            }
+            if k == TokenKind::Dot {
+                i += 1;
+                if i <= last && self.tokens[i].kind == TokenKind::Ident {
+                    i += 1;
+                    continue;
+                }
+            }
+            return false;
+        }
+        false
+    }
+
+    fn parse_assignment_target(&mut self) -> Option<AssignTarget> {
+        let mut parts = vec![self.expect_ident("Expected assignment target")?.lexeme];
+        while self.at(TokenKind::Dot) {
+            self.bump();
+            let part = self.expect_ident("Expected identifier after `.` in assignment target")?;
+            parts.push(part.lexeme);
+        }
+        if parts.len() == 1 {
+            Some(AssignTarget::Ident(parts.remove(0)))
+        } else {
+            Some(AssignTarget::Path(parts))
+        }
     }
 
     fn expect_ident(&mut self, message: &str) -> Option<Token> {
         if self.at(TokenKind::Ident) {
             return Some(self.bump());
         }
-        self.error_here(message);
+        self.error_here_expected(message);
         None
     }
 
@@ -437,7 +472,7 @@ impl Parser {
             TokenKind::TyString => TypeName::String,
             TokenKind::TyVoid => TypeName::Void,
             _ => {
-                self.error_here(message);
+                self.error_here_expected(message);
                 return None;
             }
         };
@@ -449,7 +484,7 @@ impl Parser {
         if self.at(kind) {
             return Some(self.bump());
         }
-        self.error_here(message);
+        self.error_here_expected(message);
         None
     }
 
@@ -462,11 +497,6 @@ impl Parser {
         &self.tokens[self.idx.min(last)]
     }
 
-    fn peek_kind(&self) -> TokenKind {
-        let i = (self.idx + 1).min(self.tokens.len().saturating_sub(1));
-        self.tokens[i].kind
-    }
-
     fn bump(&mut self) -> Token {
         let token = self.current().clone();
         if self.idx < self.tokens.len() {
@@ -475,8 +505,41 @@ impl Parser {
         token
     }
 
-    fn error_here(&mut self, message: &str) {
+    fn synchronize_stmt(&mut self) {
+        while !self.at(TokenKind::Eof) {
+            if self.at(TokenKind::Semi) {
+                self.bump();
+                return;
+            }
+            if self.at(TokenKind::RBrace) {
+                return;
+            }
+            match self.current().kind {
+                TokenKind::KwLet
+                | TokenKind::KwIf
+                | TokenKind::KwWhile
+                | TokenKind::KwReturn
+                | TokenKind::Ident => return,
+                _ => {
+                    self.bump();
+                }
+            }
+        }
+    }
+
+    fn token_label(token: &Token) -> String {
+        if token.kind == TokenKind::Eof {
+            return "EOF".to_string();
+        }
+        if !token.lexeme.is_empty() {
+            return format!("`{}`", token.lexeme);
+        }
+        format!("{:?}", token.kind)
+    }
+
+    fn error_here_expected(&mut self, message: &str) {
+        let found = Self::token_label(self.current());
         self.diagnostics
-            .error(message, self.current().span);
+            .error(format!("{message}; found {found}"), self.current().span);
     }
 }
