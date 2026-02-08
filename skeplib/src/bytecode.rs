@@ -35,7 +35,10 @@ pub enum Instr {
     OrBool,
     Jump(usize),
     JumpIfFalse(usize),
-    Call { name: String, argc: usize },
+    Call {
+        name: String,
+        argc: usize,
+    },
     CallBuiltin {
         package: String,
         name: String,
@@ -341,18 +344,27 @@ impl Compiler {
                 let name = match &**callee {
                     Expr::Ident(name) => name.clone(),
                     _ => {
-                        self.error("Only direct function calls are supported in bytecode v0 slice".to_string());
+                        self.error(
+                            "Only direct function calls are supported in bytecode v0 slice"
+                                .to_string(),
+                        );
                         return;
                     }
                 };
                 for arg in args {
                     self.compile_expr(arg, ctx, code);
                 }
-                code.push(Instr::Call { name, argc: args.len() });
+                code.push(Instr::Call {
+                    name,
+                    argc: args.len(),
+                });
             }
             Expr::Group(inner) => self.compile_expr(inner, ctx, code),
             Expr::Path(_) => {
-                self.error("Path expression value is not supported in bytecode v0 compiler slice".to_string());
+                self.error(
+                    "Path expression value is not supported in bytecode v0 compiler slice"
+                        .to_string(),
+                );
             }
         }
     }

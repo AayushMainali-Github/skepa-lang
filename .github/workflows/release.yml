@@ -1,0 +1,74 @@
+name: Release Binaries
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build Release Binaries
+        run: cargo build --release -p skepac -p skeparun
+
+      - name: Package (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARCHIVE_DIR="dist"
+          mkdir -p "$ARCHIVE_DIR"
+          PKG="skepa-${RUNNER_OS,,}-x64"
+          mkdir -p "$PKG"
+          cp target/release/skepac "$PKG/"
+          cp target/release/skeparun "$PKG/"
+          cp README.md "$PKG/"
+          cp DOCS.md "$PKG/"
+          tar -czf "$ARCHIVE_DIR/$PKG.tar.gz" "$PKG"
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          $pkg = "skepa-windows-x64"
+          New-Item -ItemType Directory -Force $pkg | Out-Null
+          Copy-Item target\release\skepac.exe "$pkg\"
+          Copy-Item target\release\skeparun.exe "$pkg\"
+          Copy-Item README.md "$pkg\"
+          Copy-Item DOCS.md "$pkg\"
+          Compress-Archive -Path $pkg -DestinationPath "dist\$pkg.zip" -Force
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bins-${{ matrix.os }}
+          path: dist/*
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download All Build Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Publish GitHub Release Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/**/*

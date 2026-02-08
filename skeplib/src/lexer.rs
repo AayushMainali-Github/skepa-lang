@@ -119,8 +119,10 @@ impl Lexer {
                     self.bump();
                     self.push_token(TokenKind::AndAnd, start, line, col);
                 } else {
-                    self.diagnostics
-                        .error("Unexpected '&'. Did you mean '&&'?", Span::new(start, self.idx, line, col));
+                    self.diagnostics.error(
+                        "Unexpected '&'. Did you mean '&&'?",
+                        Span::new(start, self.idx, line, col),
+                    );
                 }
             }
             '|' => {
@@ -129,8 +131,10 @@ impl Lexer {
                     self.bump();
                     self.push_token(TokenKind::OrOr, start, line, col);
                 } else {
-                    self.diagnostics
-                        .error("Unexpected '|'. Did you mean '||'?", Span::new(start, self.idx, line, col));
+                    self.diagnostics.error(
+                        "Unexpected '|'. Did you mean '||'?",
+                        Span::new(start, self.idx, line, col),
+                    );
                 }
             }
             _ => {
@@ -166,8 +170,11 @@ impl Lexer {
             "Void" => TokenKind::TyVoid,
             _ => TokenKind::Ident,
         };
-        self.tokens
-            .push(Token::new(kind, lexeme, Span::new(start, self.idx, line, col)));
+        self.tokens.push(Token::new(
+            kind,
+            lexeme,
+            Span::new(start, self.idx, line, col),
+        ));
     }
 
     fn lex_number(&mut self, start: usize, line: usize, col: usize) {
@@ -177,9 +184,7 @@ impl Lexer {
         }
 
         let mut kind = TokenKind::IntLit;
-        if self.peek() == Some('.')
-            && matches!(self.peek_next(), Some(ch) if ch.is_ascii_digit())
-        {
+        if self.peek() == Some('.') && matches!(self.peek_next(), Some(ch) if ch.is_ascii_digit()) {
             kind = TokenKind::FloatLit;
             self.bump();
             while matches!(self.peek(), Some(ch) if ch.is_ascii_digit()) {
@@ -188,8 +193,11 @@ impl Lexer {
         }
 
         let lexeme = self.slice(start, self.idx);
-        self.tokens
-            .push(Token::new(kind, lexeme, Span::new(start, self.idx, line, col)));
+        self.tokens.push(Token::new(
+            kind,
+            lexeme,
+            Span::new(start, self.idx, line, col),
+        ));
     }
 
     fn lex_string(&mut self, start: usize, line: usize, col: usize) {
@@ -291,8 +299,11 @@ impl Lexer {
 
     fn push_token(&mut self, kind: TokenKind, start: usize, line: usize, col: usize) {
         let lexeme = self.slice(start, self.idx);
-        self.tokens
-            .push(Token::new(kind, lexeme, Span::new(start, self.idx, line, col)));
+        self.tokens.push(Token::new(
+            kind,
+            lexeme,
+            Span::new(start, self.idx, line, col),
+        ));
     }
 
     fn current_span(&self, start: usize) -> Span {

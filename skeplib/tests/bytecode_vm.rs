@@ -1,4 +1,4 @@
-use skeplib::bytecode::{compile_source, BytecodeModule, FunctionChunk, Instr, Value};
+use skeplib::bytecode::{BytecodeModule, FunctionChunk, Instr, Value, compile_source};
 use skeplib::vm::{BuiltinHost, BuiltinRegistry, TestHost, Vm, VmConfig, VmErrorKind};
 use std::collections::VecDeque;
 
@@ -41,10 +41,11 @@ fn main() -> Int {
 }
 "#;
     let err = compile_source(src).expect_err("compile should fail for unsupported path assignment");
-    assert!(err
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("Path assignment not supported")));
+    assert!(
+        err.as_slice()
+            .iter()
+            .any(|d| d.message.contains("Path assignment not supported"))
+    );
 }
 
 #[test]
@@ -148,10 +149,11 @@ fn main() -> Int {
 }
 "#;
     let err = compile_source(src).expect_err("should reject deep path call");
-    assert!(err
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("package.function")));
+    assert!(
+        err.as_slice()
+            .iter()
+            .any(|d| d.message.contains("package.function"))
+    );
 }
 
 #[test]
@@ -334,7 +336,10 @@ fn vm_reports_type_mismatch_for_bad_jump_condition() {
     assert!(err.message.contains("main@"));
 }
 
-fn custom_math_inc(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, skeplib::vm::VmError> {
+fn custom_math_inc(
+    _host: &mut dyn BuiltinHost,
+    args: Vec<Value>,
+) -> Result<Value, skeplib::vm::VmError> {
     if args.len() != 1 {
         return Err(skeplib::vm::VmError {
             kind: VmErrorKind::ArityMismatch,

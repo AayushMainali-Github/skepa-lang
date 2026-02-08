@@ -2,7 +2,7 @@ use std::env;
 use std::fs;
 use std::process::ExitCode;
 
-use skeplib::bytecode::{compile_source, BytecodeModule};
+use skeplib::bytecode::{BytecodeModule, compile_source};
 use skeplib::diagnostic::Diagnostic;
 use skeplib::parser::Parser;
 use skeplib::sema::analyze_source;
@@ -176,7 +176,6 @@ fn disasm_file(path: &str) -> Result<ExitCode, String> {
 
     Err("disasm supports only .sk and .skbc files".to_string())
 }
-
 
 fn print_diag(phase: &str, d: &Diagnostic) {
     eprintln!("[{}][{}] {}", phase_code(phase), phase, d);

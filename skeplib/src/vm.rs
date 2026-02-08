@@ -234,7 +234,15 @@ impl Vm {
         host: &mut dyn BuiltinHost,
     ) -> Result<Value, VmError> {
         let reg = BuiltinRegistry::with_defaults();
-        Self::run_function(module, "main", Vec::new(), host, &reg, 0, VmConfig::default())
+        Self::run_function(
+            module,
+            "main",
+            Vec::new(),
+            host,
+            &reg,
+            0,
+            VmConfig::default(),
+        )
     }
 
     pub fn run_module_main_with_registry(
@@ -242,12 +250,22 @@ impl Vm {
         host: &mut dyn BuiltinHost,
         reg: &BuiltinRegistry,
     ) -> Result<Value, VmError> {
-        Self::run_function(module, "main", Vec::new(), host, reg, 0, VmConfig::default())
+        Self::run_function(
+            module,
+            "main",
+            Vec::new(),
+            host,
+            reg,
+            0,
+            VmConfig::default(),
+        )
     }
 
     pub fn run_main(chunk: &FunctionChunk) -> Result<Value, VmError> {
         let module = BytecodeModule {
-            functions: vec![(chunk.name.clone(), chunk.clone())].into_iter().collect(),
+            functions: vec![(chunk.name.clone(), chunk.clone())]
+                .into_iter()
+                .collect(),
         };
         Self::run_module_main(&module)
     }
@@ -278,7 +296,9 @@ impl Vm {
                 VmErrorKind::ArityMismatch,
                 format!(
                     "Function `{}` arity mismatch: expected {}, got {}",
-                    function_name, chunk.param_count, args.len()
+                    function_name,
+                    chunk.param_count,
+                    args.len()
                 ),
             ));
         }
@@ -335,7 +355,12 @@ impl Vm {
                 }
                 Instr::NegInt => {
                     let Some(v) = stack.pop() else {
-                        return Err(Self::err_at(VmErrorKind::StackUnderflow, "NegInt expects value", function_name, ip));
+                        return Err(Self::err_at(
+                            VmErrorKind::StackUnderflow,
+                            "NegInt expects value",
+                            function_name,
+                            ip,
+                        ));
                     };
                     match v {
                         Value::Int(v) => stack.push(Value::Int(-v)),
@@ -363,10 +388,20 @@ impl Vm {
                 }
                 Instr::Add => {
                     let Some(r) = stack.pop() else {
-                        return Err(Self::err_at(VmErrorKind::StackUnderflow, "Add expects rhs", function_name, ip));
+                        return Err(Self::err_at(
+                            VmErrorKind::StackUnderflow,
+                            "Add expects rhs",
+                            function_name,
+                            ip,
+                        ));
                     };
                     let Some(l) = stack.pop() else {
-                        return Err(Self::err_at(VmErrorKind::StackUnderflow, "Add expects lhs", function_name, ip));
+                        return Err(Self::err_at(
+                            VmErrorKind::StackUnderflow,
+                            "Add expects lhs",
+                            function_name,
+                            ip,
+                        ));
                     };
                     match (l, r) {
                         (Value::Int(a), Value::Int(b)) => stack.push(Value::Int(a + b)),
@@ -460,19 +495,39 @@ impl Vm {
                 }
                 Instr::Eq => {
                     let Some(r) = stack.pop() else {
-                        return Err(Self::err_at(VmErrorKind::StackUnderflow, "Eq expects rhs", function_name, ip));
+                        return Err(Self::err_at(
+                            VmErrorKind::StackUnderflow,
+                            "Eq expects rhs",
+                            function_name,
+                            ip,
+                        ));
                     };
                     let Some(l) = stack.pop() else {
-                        return Err(Self::err_at(VmErrorKind::StackUnderflow, "Eq expects lhs", function_name, ip));
+                        return Err(Self::err_at(
+                            VmErrorKind::StackUnderflow,
+                            "Eq expects lhs",
+                            function_name,
+                            ip,
+                        ));
                     };
                     stack.push(Value::Bool(l == r));
                 }
                 Instr::Neq => {
                     let Some(r) = stack.pop() else {
-                        return Err(Self::err_at(VmErrorKind::StackUnderflow, "Neq expects rhs", function_name, ip));
+                        return Err(Self::err_at(
+                            VmErrorKind::StackUnderflow,
+                            "Neq expects rhs",
+                            function_name,
+                            ip,
+                        ));
                     };
                     let Some(l) = stack.pop() else {
-                        return Err(Self::err_at(VmErrorKind::StackUnderflow, "Neq expects lhs", function_name, ip));
+                        return Err(Self::err_at(
+                            VmErrorKind::StackUnderflow,
+                            "Neq expects lhs",
+                            function_name,
+                            ip,
+                        ));
                     };
                     stack.push(Value::Bool(l != r));
                 }
@@ -517,7 +572,10 @@ impl Vm {
                         continue;
                     }
                 }
-                Instr::Call { name: callee_name, argc } => {
+                Instr::Call {
+                    name: callee_name,
+                    argc,
+                } => {
                     if stack.len() < *argc {
                         return Err(Self::err_at(
                             VmErrorKind::StackUnderflow,
@@ -528,7 +586,15 @@ impl Vm {
                     }
                     let split = stack.len() - *argc;
                     let call_args = stack.split_off(split);
-                    let ret = Self::run_function(module, callee_name, call_args, host, reg, depth + 1, config)?;
+                    let ret = Self::run_function(
+                        module,
+                        callee_name,
+                        call_args,
+                        host,
+                        reg,
+                        depth + 1,
+                        config,
+                    )?;
                     stack.push(ret);
                 }
                 Instr::CallBuiltin {

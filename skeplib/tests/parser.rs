@@ -30,10 +30,12 @@ fn main() -> Int {
 "#;
     let (_program, diags) = Parser::parse_source(src);
     assert!(!diags.is_empty());
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("Expected `;` after return statement")));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Expected `;` after return statement"))
+    );
 }
 
 #[test]
@@ -64,10 +66,12 @@ fn add(a Int) -> Int {
 "#;
     let (_program, diags) = Parser::parse_source(src);
     assert!(!diags.is_empty());
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("Expected `:` after parameter name")));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Expected `:` after parameter name"))
+    );
 }
 
 #[test]
@@ -122,10 +126,12 @@ fn main() -> Int {
 "#;
     let (_program, diags) = Parser::parse_source(src);
     assert!(!diags.is_empty());
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("Expected `=` in let declaration")));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Expected `=` in let declaration"))
+    );
 }
 
 #[test]
@@ -150,10 +156,12 @@ fn add(a:) -> Int {
 "#;
     let (_program, diags) = Parser::parse_source(src);
     assert!(!diags.is_empty());
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("Expected parameter type after `:`")));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Expected parameter type after `:`"))
+    );
 }
 
 #[test]
@@ -167,10 +175,12 @@ fn main() -> Int {
 "#;
     let (_program, diags) = Parser::parse_source(src);
     assert!(!diags.is_empty());
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("Expected `;` after assignment")));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Expected `;` after assignment"))
+    );
 }
 
 #[test]
@@ -231,7 +241,9 @@ fn main() -> Int {
     }
     match &program.functions[0].body[1] {
         Stmt::Expr(Expr::Call { callee, args }) => {
-            assert!(matches!(&**callee, Expr::Path(parts) if parts == &vec!["io".to_string(), "println".to_string()]));
+            assert!(
+                matches!(&**callee, Expr::Path(parts) if parts == &vec!["io".to_string(), "println".to_string()])
+            );
             assert_eq!(args.len(), 1);
         }
         _ => panic!("expected path call"),
@@ -247,10 +259,12 @@ fn main() -> Int {
 }
 "#;
     let (_program, diags) = Parser::parse_source(src);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("Expected `)` after call arguments")));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Expected `)` after call arguments"))
+    );
 }
 
 #[test]
@@ -455,10 +469,12 @@ fn main() -> Int {
 }
 "#;
     let (_program, diags) = Parser::parse_source(src);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("Expected `)` after if condition")));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Expected `)` after if condition"))
+    );
 }
 
 #[test]
@@ -470,10 +486,12 @@ fn main() -> Int {
 }
 "#;
     let (_program, diags) = Parser::parse_source(src);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("Expected `{` before while body")));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Expected `{` before while body"))
+    );
 }
 
 #[test]
@@ -486,10 +504,12 @@ fn main() -> Int {
 "#;
     let (program, diags) = Parser::parse_source(src);
     assert!(!diags.is_empty());
-    assert!(program.functions[0]
-        .body
-        .iter()
-        .any(|s| matches!(s, Stmt::Return(Some(Expr::IntLit(0))))));
+    assert!(
+        program.functions[0]
+            .body
+            .iter()
+            .any(|s| matches!(s, Stmt::Return(Some(Expr::IntLit(0)))))
+    );
 }
 
 #[test]
@@ -501,10 +521,12 @@ fn main() -> Int {
 }
 "#;
     let (_program, diags) = Parser::parse_source(src);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("found `Int`")));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("found `Int`"))
+    );
 }
 
 #[test]
@@ -567,10 +589,12 @@ fn main() -> Int {
 }
 "#;
     let (_program, diags) = Parser::parse_source(src);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("Invalid escape sequence")));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Invalid escape sequence"))
+    );
 }
 
 #[test]
@@ -582,10 +606,12 @@ fn main() -> Int {
 }
 "#;
     let (_program, diags) = Parser::parse_source(src);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("Trailing comma is not allowed")));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Trailing comma is not allowed"))
+    );
 }
 
 #[test]
@@ -596,10 +622,12 @@ fn main() -> Int { return 0; }
 "#;
     let (program, diags) = Parser::parse_source(src);
     assert!(!diags.is_empty());
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("Expected top-level declaration")));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Expected top-level declaration"))
+    );
     assert_eq!(program.functions.len(), 1);
 }
 
@@ -625,10 +653,12 @@ fn main() -> Int {
 }
 "#;
     let (_program, diags) = Parser::parse_source(src);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("Expected `)` after call arguments")));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Expected `)` after call arguments"))
+    );
 }
 
 #[test]
@@ -640,10 +670,12 @@ fn main() -> Int {
 }
 "#;
     let (_program, diags) = Parser::parse_source(src);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("Expected expression before `,` in call")));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Expected expression before `,` in call"))
+    );
 }
 
 #[test]

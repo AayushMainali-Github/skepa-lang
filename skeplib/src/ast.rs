@@ -156,7 +156,11 @@ fn pretty_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
                 AssignTarget::Ident(n) => n.clone(),
                 AssignTarget::Path(parts) => parts.join("."),
             };
-            out.push_str(&format!("{pad}assign {} = {}\n", target, pretty_expr(value)));
+            out.push_str(&format!(
+                "{pad}assign {} = {}\n",
+                target,
+                pretty_expr(value)
+            ));
         }
         Stmt::Expr(expr) => {
             out.push_str(&format!("{pad}expr {}\n", pretty_expr(expr)));

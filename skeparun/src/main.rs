@@ -2,7 +2,7 @@ use std::env;
 use std::fs;
 use std::process::ExitCode;
 
-use skeplib::bytecode::{compile_source, BytecodeModule};
+use skeplib::bytecode::{BytecodeModule, compile_source};
 use skeplib::diagnostic::Diagnostic;
 use skeplib::sema::analyze_source;
 use skeplib::vm::{Vm, VmConfig};
@@ -37,7 +37,8 @@ fn run() -> Result<ExitCode, String> {
             run_file(&path, opts)
         }
         "run-bc" => {
-            let (opts, path) = parse_run_args(args, "Usage: skeparun run-bc [--trace] <file.skbc>")?;
+            let (opts, path) =
+                parse_run_args(args, "Usage: skeparun run-bc [--trace] <file.skbc>")?;
             run_bytecode_file(&path, opts)
         }
         _ => Err("Unknown command. Supported: run, run-bc".to_string()),
@@ -65,10 +66,18 @@ fn parse_run_args(
         return Err(usage.to_string());
     };
     let max_call_depth = match env::var("SKEPA_MAX_CALL_DEPTH") {
-        Ok(v) => v.parse::<usize>().map_err(|_| "SKEPA_MAX_CALL_DEPTH must be a positive integer".to_string())?,
+        Ok(v) => v
+            .parse::<usize>()
+            .map_err(|_| "SKEPA_MAX_CALL_DEPTH must be a positive integer".to_string())?,
         Err(_) => VmConfig::default().max_call_depth,
     };
-    Ok((VmConfig { trace, max_call_depth }, path))
+    Ok((
+        VmConfig {
+            trace,
+            max_call_depth,
+        },
+        path,
+    ))
 }
 
 fn run_file(path: &str, config: VmConfig) -> Result<ExitCode, String> {

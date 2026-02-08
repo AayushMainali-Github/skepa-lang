@@ -49,7 +49,10 @@ impl Checker {
                 .iter()
                 .map(|p| TypeInfo::from_ast(p.ty))
                 .collect::<Vec<_>>();
-            let ret = f.return_type.map(TypeInfo::from_ast).unwrap_or(TypeInfo::Void);
+            let ret = f
+                .return_type
+                .map(TypeInfo::from_ast)
+                .unwrap_or(TypeInfo::Void);
             self.functions.insert(
                 f.name.clone(),
                 FunctionSig {
@@ -66,7 +69,10 @@ impl Checker {
     }
 
     fn check_function(&mut self, f: &crate::ast::FnDecl) {
-        let expected_ret = f.return_type.map(TypeInfo::from_ast).unwrap_or(TypeInfo::Void);
+        let expected_ret = f
+            .return_type
+            .map(TypeInfo::from_ast)
+            .unwrap_or(TypeInfo::Void);
         let mut scopes = vec![HashMap::<String, TypeInfo>::new()];
         for p in &f.params {
             scopes[0].insert(p.name.clone(), TypeInfo::from_ast(p.ty));
@@ -264,9 +270,9 @@ impl Checker {
                 }
             }
             Lt | Lte | Gt | Gte => {
-                if lt == TypeInfo::Int && rt == TypeInfo::Int {
-                    TypeInfo::Bool
-                } else if lt == TypeInfo::Float && rt == TypeInfo::Float {
+                if (lt == TypeInfo::Int && rt == TypeInfo::Int)
+                    || (lt == TypeInfo::Float && rt == TypeInfo::Float)
+                {
                     TypeInfo::Bool
                 } else if lt == TypeInfo::Unknown || rt == TypeInfo::Unknown {
                     TypeInfo::Unknown
@@ -300,10 +306,11 @@ impl Checker {
         args: &[Expr],
         scopes: &mut [HashMap<String, TypeInfo>],
     ) -> TypeInfo {
-        if let Expr::Path(parts) = callee {
-            if parts.len() == 2 && parts[0] == "io" {
-                return self.check_builtin_call(&parts[0], &parts[1], args, scopes);
-            }
+        if let Expr::Path(parts) = callee
+            && parts.len() == 2
+            && parts[0] == "io"
+        {
+            return self.check_builtin_call(&parts[0], &parts[1], args, scopes);
         }
 
         let fn_name = match callee {

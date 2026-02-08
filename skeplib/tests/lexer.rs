@@ -133,9 +133,11 @@ fn lexes_complete_fixture_program() {
 fn reports_unterminated_block_comment() {
     let (_tokens, diags) = lex("/* never ends");
     assert_eq!(diags.len(), 1);
-    assert!(diags.as_slice()[0]
-        .message
-        .contains("Unterminated block comment"));
+    assert!(
+        diags.as_slice()[0]
+            .message
+            .contains("Unterminated block comment")
+    );
 }
 
 #[test]
@@ -232,7 +234,12 @@ fn lexes_float_then_dot_chain() {
     let got: Vec<TokenKind> = tokens.into_iter().map(|t| t.kind).collect();
     assert_eq!(
         got,
-        vec![TokenKind::FloatLit, TokenKind::Dot, TokenKind::IntLit, TokenKind::Eof]
+        vec![
+            TokenKind::FloatLit,
+            TokenKind::Dot,
+            TokenKind::IntLit,
+            TokenKind::Eof
+        ]
     );
 }
 
@@ -240,18 +247,22 @@ fn lexes_float_then_dot_chain() {
 fn reports_unterminated_string_with_trailing_escape() {
     let (_tokens, diags) = lex("\"abc\\");
     assert_eq!(diags.len(), 1);
-    assert!(diags.as_slice()[0]
-        .message
-        .contains("Unterminated string literal"));
+    assert!(
+        diags.as_slice()[0]
+            .message
+            .contains("Unterminated string literal")
+    );
 }
 
 #[test]
 fn reports_unterminated_block_comment_across_newline() {
     let (_tokens, diags) = lex("/* line1\nline2");
     assert_eq!(diags.len(), 1);
-    assert!(diags.as_slice()[0]
-        .message
-        .contains("Unterminated block comment"));
+    assert!(
+        diags.as_slice()[0]
+            .message
+            .contains("Unterminated block comment")
+    );
 }
 
 #[test]

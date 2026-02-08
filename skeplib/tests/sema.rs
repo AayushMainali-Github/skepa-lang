@@ -31,10 +31,12 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("Return type mismatch")));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Return type mismatch"))
+    );
 }
 
 #[test]
@@ -48,10 +50,12 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("Assignment type mismatch")));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Assignment type mismatch"))
+    );
 }
 
 #[test]
@@ -66,10 +70,12 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("if condition must be Bool")));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("if condition must be Bool"))
+    );
 }
 
 #[test]
@@ -86,10 +92,12 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("Arity mismatch")));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Arity mismatch"))
+    );
 }
 
 #[test]
@@ -102,10 +110,12 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("without `import io;`")));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("without `import io;`"))
+    );
 }
 
 #[test]
@@ -118,10 +128,12 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("Unknown variable `y`")));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Unknown variable `y`"))
+    );
 }
 
 #[test]
@@ -134,10 +146,12 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("Unknown function `nope`")));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Unknown function `nope`"))
+    );
 }
 
 #[test]
@@ -151,10 +165,12 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("io.println argument 1 expects String")));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("io.println argument 1 expects String"))
+    );
 }
 
 #[test]
@@ -168,10 +184,10 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("io.readLine expects 0 argument(s), got 1")));
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("io.readLine expects 0 argument(s), got 1")
+    }));
 }
 
 #[test]
@@ -200,10 +216,12 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("Type mismatch in let `x`")));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Type mismatch in let `x`"))
+    );
 }
 
 #[test]
@@ -216,10 +234,12 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("Invalid operands for Add")));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Invalid operands for Add"))
+    );
 }
 
 #[test]
@@ -232,10 +252,10 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("Logical operators require Bool operands")));
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("Logical operators require Bool operands")
+    }));
 }
 
 #[test]
@@ -250,10 +270,12 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("while condition must be Bool")));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("while condition must be Bool"))
+    );
 }
 
 #[test]
@@ -267,10 +289,12 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("Unknown builtin `io.nope`")));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Unknown builtin `io.nope`"))
+    );
 }
 
 #[test]
@@ -287,10 +311,12 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("Argument 1 for `take`")));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Argument 1 for `take`"))
+    );
 }
 
 #[test]
@@ -332,8 +358,10 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("Invalid operands for Add")));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Invalid operands for Add"))
+    );
 }

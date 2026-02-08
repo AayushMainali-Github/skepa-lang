@@ -55,9 +55,7 @@ fn main() -> Int {
 
 #[test]
 fn check_without_arguments_shows_usage_and_fails() {
-    let output = Command::new(skepac_bin())
-        .output()
-        .expect("run skepac");
+    let output = Command::new(skepac_bin()).output().expect("run skepac");
     assert_eq!(output.status.code(), Some(2));
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("Usage: skepac check <file.sk> | skepac build <in.sk> <out.skbc>"));

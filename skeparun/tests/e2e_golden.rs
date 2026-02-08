@@ -116,5 +116,7 @@ fn skeparun_bin() -> &'static str {
 }
 
 fn fixtures_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests").join("fixtures")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests")
+        .join("fixtures")
 }
