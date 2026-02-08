@@ -7,6 +7,7 @@ use crate::parser::Parser;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Value {
     Int(i64),
+    Bool(bool),
     Unit,
 }
 
@@ -17,10 +18,21 @@ pub enum Instr {
     StoreLocal(usize),
     Pop,
     NegInt,
+    NotBool,
     AddInt,
     SubInt,
     MulInt,
     DivInt,
+    EqInt,
+    NeqInt,
+    LtInt,
+    LteInt,
+    GtInt,
+    GteInt,
+    AndBool,
+    OrBool,
+    Jump(usize),
+    JumpIfFalse(usize),
     Return,
 }
 
@@ -127,8 +139,50 @@ impl Compiler {
                 }
                 code.push(Instr::Return);
             }
-            Stmt::If { .. } | Stmt::While { .. } => {
-                self.error("if/while not supported in bytecode v0 compiler slice".to_string());
+            Stmt::If {
+                cond,
+                then_body,
+                else_body,
+            } => {
+                self.compile_expr(cond, ctx, code);
+                let jmp_false_at = code.len();
+                code.push(Instr::JumpIfFalse(usize::MAX));
+
+                for s in then_body {
+                    self.compile_stmt(s, ctx, code);
+                }
+
+                if else_body.is_empty() {
+                    let after_then = code.len();
+                    code[jmp_false_at] = Instr::JumpIfFalse(after_then);
+                } else {
+                    let jmp_end_at = code.len();
+                    code.push(Instr::Jump(usize::MAX));
+
+                    let else_start = code.len();
+                    code[jmp_false_at] = Instr::JumpIfFalse(else_start);
+
+                    for s in else_body {
+                        self.compile_stmt(s, ctx, code);
+                    }
+
+                    let end = code.len();
+                    code[jmp_end_at] = Instr::Jump(end);
+                }
+            }
+            Stmt::While { cond, body } => {
+                let loop_start = code.len();
+                self.compile_expr(cond, ctx, code);
+                let jmp_false_at = code.len();
+                code.push(Instr::JumpIfFalse(usize::MAX));
+
+                for s in body {
+                    self.compile_stmt(s, ctx, code);
+                }
+
+                code.push(Instr::Jump(loop_start));
+                let loop_end = code.len();
+                code[jmp_false_at] = Instr::JumpIfFalse(loop_end);
             }
         }
     }
@@ -136,6 +190,7 @@ impl Compiler {
     fn compile_expr(&mut self, expr: &Expr, ctx: &mut FnCtx, code: &mut Vec<Instr>) {
         match expr {
             Expr::IntLit(v) => code.push(Instr::LoadConst(Value::Int(*v))),
+            Expr::BoolLit(v) => code.push(Instr::LoadConst(Value::Bool(*v))),
             Expr::Ident(name) => {
                 if let Some(slot) = ctx.lookup(name) {
                     code.push(Instr::LoadLocal(slot));
@@ -150,7 +205,8 @@ impl Compiler {
                     code.push(Instr::NegInt);
                 }
                 UnaryOp::Not => {
-                    self.error("Unary ! not supported in bytecode v0 compiler slice".to_string());
+                    self.compile_expr(expr, ctx, code);
+                    code.push(Instr::NotBool);
                 }
             },
             Expr::Binary { left, op, right } => {
@@ -161,14 +217,18 @@ impl Compiler {
                     BinaryOp::Sub => code.push(Instr::SubInt),
                     BinaryOp::Mul => code.push(Instr::MulInt),
                     BinaryOp::Div => code.push(Instr::DivInt),
-                    _ => self.error(format!("Operator {:?} not supported in bytecode v0 compiler slice", op)),
+                    BinaryOp::EqEq => code.push(Instr::EqInt),
+                    BinaryOp::Neq => code.push(Instr::NeqInt),
+                    BinaryOp::Lt => code.push(Instr::LtInt),
+                    BinaryOp::Lte => code.push(Instr::LteInt),
+                    BinaryOp::Gt => code.push(Instr::GtInt),
+                    BinaryOp::Gte => code.push(Instr::GteInt),
+                    BinaryOp::AndAnd => code.push(Instr::AndBool),
+                    BinaryOp::OrOr => code.push(Instr::OrBool),
                 }
             }
             Expr::Group(inner) => self.compile_expr(inner, ctx, code),
-            Expr::Call { .. }
-            | Expr::BoolLit(_)
-            | Expr::StringLit(_)
-            | Expr::Path(_) => {
+            Expr::Call { .. } | Expr::StringLit(_) | Expr::Path(_) => {
                 self.error("Expression kind not supported in bytecode v0 compiler slice".to_string());
             }
         }

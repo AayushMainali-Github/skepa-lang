@@ -38,26 +38,72 @@ impl Vm {
                     };
                     stack.push(Value::Int(-v));
                 }
-                Instr::AddInt | Instr::SubInt | Instr::MulInt | Instr::DivInt => {
+                Instr::NotBool => {
+                    let Some(Value::Bool(v)) = stack.pop() else {
+                        return Err("NotBool expects Bool".to_string());
+                    };
+                    stack.push(Value::Bool(!v));
+                }
+                Instr::AddInt
+                | Instr::SubInt
+                | Instr::MulInt
+                | Instr::DivInt
+                | Instr::EqInt
+                | Instr::NeqInt
+                | Instr::LtInt
+                | Instr::LteInt
+                | Instr::GtInt
+                | Instr::GteInt => {
                     let Some(Value::Int(r)) = stack.pop() else {
-                        return Err("binary op expects rhs Int".to_string());
+                        return Err("int binary op expects rhs Int".to_string());
                     };
                     let Some(Value::Int(l)) = stack.pop() else {
-                        return Err("binary op expects lhs Int".to_string());
+                        return Err("int binary op expects lhs Int".to_string());
                     };
-                    let out = match chunk.code[ip] {
-                        Instr::AddInt => l + r,
-                        Instr::SubInt => l - r,
-                        Instr::MulInt => l * r,
+                    match chunk.code[ip] {
+                        Instr::AddInt => stack.push(Value::Int(l + r)),
+                        Instr::SubInt => stack.push(Value::Int(l - r)),
+                        Instr::MulInt => stack.push(Value::Int(l * r)),
                         Instr::DivInt => {
                             if r == 0 {
                                 return Err("division by zero".to_string());
                             }
-                            l / r
+                            stack.push(Value::Int(l / r));
                         }
+                        Instr::EqInt => stack.push(Value::Bool(l == r)),
+                        Instr::NeqInt => stack.push(Value::Bool(l != r)),
+                        Instr::LtInt => stack.push(Value::Bool(l < r)),
+                        Instr::LteInt => stack.push(Value::Bool(l <= r)),
+                        Instr::GtInt => stack.push(Value::Bool(l > r)),
+                        Instr::GteInt => stack.push(Value::Bool(l >= r)),
                         _ => unreachable!(),
+                    }
+                }
+                Instr::AndBool | Instr::OrBool => {
+                    let Some(Value::Bool(r)) = stack.pop() else {
+                        return Err("logical op expects rhs Bool".to_string());
                     };
-                    stack.push(Value::Int(out));
+                    let Some(Value::Bool(l)) = stack.pop() else {
+                        return Err("logical op expects lhs Bool".to_string());
+                    };
+                    match chunk.code[ip] {
+                        Instr::AndBool => stack.push(Value::Bool(l && r)),
+                        Instr::OrBool => stack.push(Value::Bool(l || r)),
+                        _ => unreachable!(),
+                    }
+                }
+                Instr::Jump(target) => {
+                    ip = *target;
+                    continue;
+                }
+                Instr::JumpIfFalse(target) => {
+                    let Some(Value::Bool(v)) = stack.pop() else {
+                        return Err("JumpIfFalse expects Bool".to_string());
+                    };
+                    if !v {
+                        ip = *target;
+                        continue;
+                    }
                 }
                 Instr::Return => {
                     return Ok(stack.pop().unwrap_or(Value::Unit));
