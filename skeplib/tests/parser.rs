@@ -1,4 +1,4 @@
-use skeplib::ast::Stmt;
+use skeplib::ast::{Stmt, TypeName};
 use skeplib::parser::Parser;
 
 #[test]
@@ -34,4 +34,38 @@ fn main() -> Int {
         .as_slice()
         .iter()
         .any(|d| d.message.contains("Expected `;` after return statement")));
+}
+
+#[test]
+fn parses_typed_function_parameters() {
+    let src = r#"
+fn add(a: Int, b: Int) -> Int {
+  return 0;
+}
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    assert_eq!(program.functions.len(), 1);
+    let f = &program.functions[0];
+    assert_eq!(f.name, "add");
+    assert_eq!(f.params.len(), 2);
+    assert_eq!(f.params[0].name, "a");
+    assert_eq!(f.params[0].ty, TypeName::Int);
+    assert_eq!(f.params[1].name, "b");
+    assert_eq!(f.params[1].ty, TypeName::Int);
+}
+
+#[test]
+fn reports_missing_colon_in_parameter() {
+    let src = r#"
+fn add(a Int) -> Int {
+  return 0;
+}
+"#;
+    let (_program, diags) = Parser::parse_source(src);
+    assert!(!diags.is_empty());
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("Expected `:` after parameter name")));
 }

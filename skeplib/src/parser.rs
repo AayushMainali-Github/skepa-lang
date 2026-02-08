@@ -1,4 +1,4 @@
-use crate::ast::{Expr, FnDecl, ImportDecl, Program, Stmt, TypeName};
+use crate::ast::{Expr, FnDecl, ImportDecl, Param, Program, Stmt, TypeName};
 use crate::diagnostic::{DiagnosticBag, Span};
 use crate::lexer::lex;
 use crate::token::{Token, TokenKind};
@@ -74,6 +74,24 @@ impl Parser {
         self.expect(TokenKind::KwFn, "Expected `fn`")?;
         let name = self.expect_ident("Expected function name after `fn`")?;
         self.expect(TokenKind::LParen, "Expected `(` after function name")?;
+        let mut params = Vec::new();
+        if !self.at(TokenKind::RParen) {
+            loop {
+                let param_name = self.expect_ident("Expected parameter name")?;
+                self.expect(TokenKind::Colon, "Expected `:` after parameter name")?;
+                let param_ty = self.expect_type_name("Expected parameter type after `:`")?;
+                params.push(Param {
+                    name: param_name.lexeme,
+                    ty: param_ty,
+                });
+
+                if self.at(TokenKind::Comma) {
+                    self.bump();
+                    continue;
+                }
+                break;
+            }
+        }
         self.expect(TokenKind::RParen, "Expected `)` after parameters")?;
 
         let mut return_type = None;
@@ -96,7 +114,7 @@ impl Parser {
 
         Some(FnDecl {
             name: name.lexeme,
-            params: Vec::new(),
+            params,
             return_type,
             body,
         })
