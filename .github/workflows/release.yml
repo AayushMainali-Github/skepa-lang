@@ -32,7 +32,8 @@ jobs:
           set -euo pipefail
           ARCHIVE_DIR="dist"
           mkdir -p "$ARCHIVE_DIR"
-          PKG="skepa-${RUNNER_OS,,}-x64"
+          OS_LOWER="$(printf '%s' "$RUNNER_OS" | tr '[:upper:]' '[:lower:]')"
+          PKG="skepa-${OS_LOWER}-x64"
           mkdir -p "$PKG"
           cp target/release/skepac "$PKG/"
           cp target/release/skeparun "$PKG/"
