@@ -1,0 +1,20 @@
+import io;
+
+fn main() -> Int {
+  let x: Int = 42;
+  let y: Float = 3.14;
+  let ok: Bool = true;
+  let s: String = "hello";
+
+  if (ok && x > 0) {
+    io.println(s + " world");
+  } else {
+    io.print("fallback");
+  }
+
+  while (x != 0) {
+    return 0;
+  }
+
+  return 0;
+}
