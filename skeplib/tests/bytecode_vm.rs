@@ -1,5 +1,6 @@
 use skeplib::bytecode::{compile_source, Instr, Value};
-use skeplib::vm::Vm;
+use skeplib::vm::{TestHost, Vm};
+use std::collections::VecDeque;
 
 #[test]
 fn compiles_main_to_bytecode_with_locals_and_return() {
@@ -13,7 +14,7 @@ fn main() -> Int {
     let module = compile_source(src).expect("compile should succeed");
     let main = module.functions.get("main").expect("main chunk exists");
     assert!(main.locals_count >= 2);
-    assert!(main.code.iter().any(|i| matches!(i, Instr::AddInt)));
+    assert!(main.code.iter().any(|i| matches!(i, Instr::Add)));
     assert!(matches!(main.code.last(), Some(Instr::Return)));
 }
 
@@ -35,15 +36,15 @@ fn main() -> Int {
 fn compile_reports_unsupported_constructs() {
     let src = r#"
 fn main() -> Int {
-  io.println("x");
+  user.name = "x";
   return 0;
 }
 "#;
-    let err = compile_source(src).expect_err("compile should fail for unsupported path/string calls");
+    let err = compile_source(src).expect_err("compile should fail for unsupported path assignment");
     assert!(err
         .as_slice()
         .iter()
-        .any(|d| d.message.contains("not supported") || d.message.contains("Only direct function calls are supported")));
+        .any(|d| d.message.contains("Path assignment not supported")));
 }
 
 #[test]
@@ -115,4 +116,40 @@ fn main() -> Int {
     let module = compile_source(src).expect("compile should succeed");
     let out = Vm::run_module_main(&module).expect("vm run");
     assert_eq!(out, Value::Int(14));
+}
+
+#[test]
+fn runs_io_println_and_readline_through_builtin_registry() {
+    let src = r#"
+import io;
+
+fn main() -> Int {
+  let name = io.readLine();
+  io.println("hi " + name);
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile should succeed");
+    let mut host = TestHost {
+        output: String::new(),
+        input: VecDeque::from([String::from("sam")]),
+    };
+    let out = Vm::run_module_main_with_host(&module, &mut host).expect("vm run");
+    assert_eq!(out, Value::Int(0));
+    assert_eq!(host.output, "hi sam\n");
+}
+
+#[test]
+fn compile_rejects_non_direct_builtin_path_depth() {
+    let src = r#"
+fn main() -> Int {
+  a.b.c();
+  return 0;
+}
+"#;
+    let err = compile_source(src).expect_err("should reject deep path call");
+    assert!(err
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("package.function")));
 }

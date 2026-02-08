@@ -8,6 +8,7 @@ use crate::parser::Parser;
 pub enum Value {
     Int(i64),
     Bool(bool),
+    String(String),
     Unit,
 }
 
@@ -19,12 +20,12 @@ pub enum Instr {
     Pop,
     NegInt,
     NotBool,
-    AddInt,
+    Add,
     SubInt,
     MulInt,
     DivInt,
-    EqInt,
-    NeqInt,
+    Eq,
+    Neq,
     LtInt,
     LteInt,
     GtInt,
@@ -34,6 +35,11 @@ pub enum Instr {
     Jump(usize),
     JumpIfFalse(usize),
     Call { name: String, argc: usize },
+    CallBuiltin {
+        package: String,
+        name: String,
+        argc: usize,
+    },
     Return,
 }
 
@@ -198,6 +204,7 @@ impl Compiler {
         match expr {
             Expr::IntLit(v) => code.push(Instr::LoadConst(Value::Int(*v))),
             Expr::BoolLit(v) => code.push(Instr::LoadConst(Value::Bool(*v))),
+            Expr::StringLit(v) => code.push(Instr::LoadConst(Value::String(v.clone()))),
             Expr::Ident(name) => {
                 if let Some(slot) = ctx.lookup(name) {
                     code.push(Instr::LoadLocal(slot));
@@ -220,12 +227,12 @@ impl Compiler {
                 self.compile_expr(left, ctx, code);
                 self.compile_expr(right, ctx, code);
                 match op {
-                    BinaryOp::Add => code.push(Instr::AddInt),
+                    BinaryOp::Add => code.push(Instr::Add),
                     BinaryOp::Sub => code.push(Instr::SubInt),
                     BinaryOp::Mul => code.push(Instr::MulInt),
                     BinaryOp::Div => code.push(Instr::DivInt),
-                    BinaryOp::EqEq => code.push(Instr::EqInt),
-                    BinaryOp::Neq => code.push(Instr::NeqInt),
+                    BinaryOp::EqEq => code.push(Instr::Eq),
+                    BinaryOp::Neq => code.push(Instr::Neq),
                     BinaryOp::Lt => code.push(Instr::LtInt),
                     BinaryOp::Lte => code.push(Instr::LteInt),
                     BinaryOp::Gt => code.push(Instr::GtInt),
@@ -235,6 +242,22 @@ impl Compiler {
                 }
             }
             Expr::Call { callee, args } => {
+                if let Expr::Path(parts) = &**callee {
+                    if parts.len() == 2 {
+                        for arg in args {
+                            self.compile_expr(arg, ctx, code);
+                        }
+                        code.push(Instr::CallBuiltin {
+                            package: parts[0].clone(),
+                            name: parts[1].clone(),
+                            argc: args.len(),
+                        });
+                        return;
+                    }
+                    self.error("Only `package.function(...)` builtins are supported".to_string());
+                    return;
+                }
+
                 let name = match &**callee {
                     Expr::Ident(name) => name.clone(),
                     _ => {
@@ -248,8 +271,8 @@ impl Compiler {
                 code.push(Instr::Call { name, argc: args.len() });
             }
             Expr::Group(inner) => self.compile_expr(inner, ctx, code),
-            Expr::StringLit(_) | Expr::Path(_) => {
-                self.error("Expression kind not supported in bytecode v0 compiler slice".to_string());
+            Expr::Path(_) => {
+                self.error("Path expression value is not supported in bytecode v0 compiler slice".to_string());
             }
         }
     }
