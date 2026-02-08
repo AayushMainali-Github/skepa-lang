@@ -16,6 +16,7 @@ fn main() -> Int {
     assert_eq!(program.imports[0].module, "io");
     assert_eq!(program.functions.len(), 1);
     assert_eq!(program.functions[0].name, "main");
+    assert_eq!(program.functions[0].params.len(), 0);
     assert_eq!(program.functions[0].body.len(), 1);
     assert!(matches!(program.functions[0].body[0], Stmt::Return(_)));
 }

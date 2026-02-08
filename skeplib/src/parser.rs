@@ -1,4 +1,4 @@
-use crate::ast::{Expr, FnDecl, ImportDecl, Program, Stmt};
+use crate::ast::{Expr, FnDecl, ImportDecl, Program, Stmt, TypeName};
 use crate::diagnostic::{DiagnosticBag, Span};
 use crate::lexer::lex;
 use crate::token::{Token, TokenKind};
@@ -76,9 +76,10 @@ impl Parser {
         self.expect(TokenKind::LParen, "Expected `(` after function name")?;
         self.expect(TokenKind::RParen, "Expected `)` after parameters")?;
 
+        let mut return_type = None;
         if self.at(TokenKind::Arrow) {
             self.bump();
-            self.expect_type_name("Expected return type after `->`")?;
+            return_type = Some(self.expect_type_name("Expected return type after `->`")?);
         }
 
         self.expect(TokenKind::LBrace, "Expected `{` before function body")?;
@@ -95,6 +96,8 @@ impl Parser {
 
         Some(FnDecl {
             name: name.lexeme,
+            params: Vec::new(),
+            return_type,
             body,
         })
     }
@@ -134,20 +137,20 @@ impl Parser {
         None
     }
 
-    fn expect_type_name(&mut self, message: &str) -> Option<Token> {
-        let kind = self.current().kind;
-        if matches!(
-            kind,
-            TokenKind::TyInt
-                | TokenKind::TyFloat
-                | TokenKind::TyBool
-                | TokenKind::TyString
-                | TokenKind::TyVoid
-        ) {
-            return Some(self.bump());
-        }
-        self.error_here(message);
-        None
+    fn expect_type_name(&mut self, message: &str) -> Option<TypeName> {
+        let ty = match self.current().kind {
+            TokenKind::TyInt => TypeName::Int,
+            TokenKind::TyFloat => TypeName::Float,
+            TokenKind::TyBool => TypeName::Bool,
+            TokenKind::TyString => TypeName::String,
+            TokenKind::TyVoid => TypeName::Void,
+            _ => {
+                self.error_here(message);
+                return None;
+            }
+        };
+        let _ = self.bump();
+        Some(ty)
     }
 
     fn expect(&mut self, kind: TokenKind, message: &str) -> Option<Token> {
