@@ -11,6 +11,6 @@ fn can_build_empty_program_structs() {
     let _ = Parser::default();
     let _ = TypeInfo::Unknown;
     let _ = SemaResult::default();
-    let _ = BytecodeModule;
+    let _ = BytecodeModule::default();
     let _ = Vm;
 }
