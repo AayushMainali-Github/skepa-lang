@@ -9,8 +9,8 @@ use skeplib::vm::Vm;
 fn can_build_empty_program_structs() {
     let _ = Program::default();
     let _ = Parser::default();
-    let _ = TypeInfo;
-    let _ = SemaResult;
+    let _ = TypeInfo::Unknown;
+    let _ = SemaResult::default();
     let _ = BytecodeModule;
     let _ = Vm;
 }
