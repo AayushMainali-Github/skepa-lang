@@ -45,6 +45,23 @@ pub enum Stmt {
 pub enum Expr {
     IntLit(i64),
     Ident(String),
+    BoolLit(bool),
+    StringLit(String),
+    Path(Vec<String>),
+    Unary {
+        op: UnaryOp,
+        expr: Box<Expr>,
+    },
+    Binary {
+        left: Box<Expr>,
+        op: BinaryOp,
+        right: Box<Expr>,
+    },
+    Call {
+        callee: Box<Expr>,
+        args: Vec<Expr>,
+    },
+    Group(Box<Expr>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -60,4 +77,26 @@ pub enum TypeName {
     Bool,
     String,
     Void,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnaryOp {
+    Neg,
+    Not,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BinaryOp {
+    Add,
+    Sub,
+    Mul,
+    Div,
+    EqEq,
+    Neq,
+    Lt,
+    Lte,
+    Gt,
+    Gte,
+    AndAnd,
+    OrOr,
 }

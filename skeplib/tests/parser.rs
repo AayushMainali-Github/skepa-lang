@@ -1,4 +1,4 @@
-use skeplib::ast::{Expr, Stmt, TypeName};
+use skeplib::ast::{BinaryOp, Expr, Stmt, TypeName, UnaryOp};
 use skeplib::parser::Parser;
 
 #[test]
@@ -171,4 +171,166 @@ fn main() -> Int {
         .as_slice()
         .iter()
         .any(|d| d.message.contains("Expected `;` after assignment")));
+}
+
+#[test]
+fn parses_expression_statement() {
+    let src = r#"
+fn main() -> Int {
+  ping;
+  return 0;
+}
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    assert!(matches!(
+        program.functions[0].body[0],
+        Stmt::Expr(Expr::Ident(_))
+    ));
+}
+
+#[test]
+fn parses_call_expressions_for_ident_and_path() {
+    let src = r#"
+fn main() -> Int {
+  hello(1, 2);
+  io.println("ok");
+  return 0;
+}
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    match &program.functions[0].body[0] {
+        Stmt::Expr(Expr::Call { callee, args }) => {
+            assert!(matches!(&**callee, Expr::Ident(name) if name == "hello"));
+            assert_eq!(args.len(), 2);
+        }
+        _ => panic!("expected call"),
+    }
+    match &program.functions[0].body[1] {
+        Stmt::Expr(Expr::Call { callee, args }) => {
+            assert!(matches!(&**callee, Expr::Path(parts) if parts == &vec!["io".to_string(), "println".to_string()]));
+            assert_eq!(args.len(), 1);
+        }
+        _ => panic!("expected path call"),
+    }
+}
+
+#[test]
+fn reports_malformed_call_missing_right_paren() {
+    let src = r#"
+fn main() -> Int {
+  hello(1, 2;
+  return 0;
+}
+"#;
+    let (_program, diags) = Parser::parse_source(src);
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("Expected `)` after call arguments")));
+}
+
+#[test]
+fn parses_unary_and_binary_with_precedence() {
+    let src = r#"
+fn main() -> Int {
+  let x = -1 + 2 * 3 == 5 && !false || true;
+  return 0;
+}
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+
+    let expr = match &program.functions[0].body[0] {
+        Stmt::Let { value, .. } => value,
+        _ => panic!("expected let"),
+    };
+
+    match expr {
+        Expr::Binary {
+            left,
+            op: BinaryOp::OrOr,
+            right,
+        } => {
+            assert!(matches!(**right, Expr::BoolLit(true)));
+            match &**left {
+                Expr::Binary {
+                    op: BinaryOp::AndAnd,
+                    ..
+                } => {}
+                _ => panic!("expected && on left of ||"),
+            }
+        }
+        _ => panic!("expected top-level ||"),
+    }
+}
+
+#[test]
+fn parses_grouped_expression_shape() {
+    let src = r#"
+fn main() -> Int {
+  let v = (1 + 2) * 3;
+  return 0;
+}
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    let expr = match &program.functions[0].body[0] {
+        Stmt::Let { value, .. } => value,
+        _ => panic!("expected let"),
+    };
+    match expr {
+        Expr::Binary {
+            left,
+            op: BinaryOp::Mul,
+            right,
+        } => {
+            assert!(matches!(**right, Expr::IntLit(3)));
+            match &**left {
+                Expr::Group(inner) => assert!(matches!(
+                    **inner,
+                    Expr::Binary {
+                        op: BinaryOp::Add,
+                        ..
+                    }
+                )),
+                _ => panic!("expected grouped left operand"),
+            }
+        }
+        _ => panic!("expected multiply"),
+    }
+}
+
+#[test]
+fn parses_unary_neg_and_not() {
+    let src = r#"
+fn main() -> Int {
+  let a = -1;
+  let b = !false;
+  return 0;
+}
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    match &program.functions[0].body[0] {
+        Stmt::Let { value, .. } => assert!(matches!(
+            value,
+            Expr::Unary {
+                op: UnaryOp::Neg,
+                ..
+            }
+        )),
+        _ => panic!("expected let"),
+    }
+    match &program.functions[0].body[1] {
+        Stmt::Let { value, .. } => assert!(matches!(
+            value,
+            Expr::Unary {
+                op: UnaryOp::Not,
+                ..
+            }
+        )),
+        _ => panic!("expected let"),
+    }
 }
