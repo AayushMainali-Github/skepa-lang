@@ -140,6 +140,36 @@ fn main() -> Int {
 }
 
 #[test]
+fn short_circuit_and_skips_rhs_evaluation() {
+    let src = r#"
+fn main() -> Int {
+  if (false && ((1 / 0) == 0)) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile should succeed");
+    let out = Vm::run_module_main(&module).expect("vm run");
+    assert_eq!(out, Value::Int(0));
+}
+
+#[test]
+fn short_circuit_or_skips_rhs_evaluation() {
+    let src = r#"
+fn main() -> Int {
+  if (true || ((1 / 0) == 0)) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile should succeed");
+    let out = Vm::run_module_main(&module).expect("vm run");
+    assert_eq!(out, Value::Int(1));
+}
+
+#[test]
 fn runs_user_defined_function_calls_with_args() {
     let src = r#"
 fn add(a: Int, b: Int) -> Int {

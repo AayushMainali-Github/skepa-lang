@@ -36,6 +36,7 @@ pub enum Instr {
     OrBool,
     Jump(usize),
     JumpIfFalse(usize),
+    JumpIfTrue(usize),
     Call {
         name: String,
         argc: usize,
@@ -339,25 +340,52 @@ impl Compiler {
                     code.push(Instr::NotBool);
                 }
             },
-            Expr::Binary { left, op, right } => {
-                self.compile_expr(left, ctx, code);
-                self.compile_expr(right, ctx, code);
-                match op {
-                    BinaryOp::Add => code.push(Instr::Add),
-                    BinaryOp::Sub => code.push(Instr::SubInt),
-                    BinaryOp::Mul => code.push(Instr::MulInt),
-                    BinaryOp::Div => code.push(Instr::DivInt),
-                    BinaryOp::Mod => code.push(Instr::ModInt),
-                    BinaryOp::EqEq => code.push(Instr::Eq),
-                    BinaryOp::Neq => code.push(Instr::Neq),
-                    BinaryOp::Lt => code.push(Instr::LtInt),
-                    BinaryOp::Lte => code.push(Instr::LteInt),
-                    BinaryOp::Gt => code.push(Instr::GtInt),
-                    BinaryOp::Gte => code.push(Instr::GteInt),
-                    BinaryOp::AndAnd => code.push(Instr::AndBool),
-                    BinaryOp::OrOr => code.push(Instr::OrBool),
+            Expr::Binary { left, op, right } => match op {
+                BinaryOp::AndAnd => {
+                    self.compile_expr(left, ctx, code);
+                    let jmp_false_at = code.len();
+                    code.push(Instr::JumpIfFalse(usize::MAX));
+                    self.compile_expr(right, ctx, code);
+                    let jmp_end_at = code.len();
+                    code.push(Instr::Jump(usize::MAX));
+                    let false_label = code.len();
+                    code.push(Instr::LoadConst(Value::Bool(false)));
+                    let end_label = code.len();
+                    code[jmp_false_at] = Instr::JumpIfFalse(false_label);
+                    code[jmp_end_at] = Instr::Jump(end_label);
                 }
-            }
+                BinaryOp::OrOr => {
+                    self.compile_expr(left, ctx, code);
+                    let jmp_true_at = code.len();
+                    code.push(Instr::JumpIfTrue(usize::MAX));
+                    self.compile_expr(right, ctx, code);
+                    let jmp_end_at = code.len();
+                    code.push(Instr::Jump(usize::MAX));
+                    let true_label = code.len();
+                    code.push(Instr::LoadConst(Value::Bool(true)));
+                    let end_label = code.len();
+                    code[jmp_true_at] = Instr::JumpIfTrue(true_label);
+                    code[jmp_end_at] = Instr::Jump(end_label);
+                }
+                _ => {
+                    self.compile_expr(left, ctx, code);
+                    self.compile_expr(right, ctx, code);
+                    match op {
+                        BinaryOp::Add => code.push(Instr::Add),
+                        BinaryOp::Sub => code.push(Instr::SubInt),
+                        BinaryOp::Mul => code.push(Instr::MulInt),
+                        BinaryOp::Div => code.push(Instr::DivInt),
+                        BinaryOp::Mod => code.push(Instr::ModInt),
+                        BinaryOp::EqEq => code.push(Instr::Eq),
+                        BinaryOp::Neq => code.push(Instr::Neq),
+                        BinaryOp::Lt => code.push(Instr::LtInt),
+                        BinaryOp::Lte => code.push(Instr::LteInt),
+                        BinaryOp::Gt => code.push(Instr::GtInt),
+                        BinaryOp::Gte => code.push(Instr::GteInt),
+                        BinaryOp::AndAnd | BinaryOp::OrOr => unreachable!(),
+                    }
+                }
+            },
             Expr::Call { callee, args } => {
                 if let Expr::Path(parts) = &**callee {
                     if parts.len() == 2 {
@@ -513,8 +541,12 @@ fn encode_instr(i: &Instr, out: &mut Vec<u8>) {
             write_u8(out, 20);
             write_u32(out, *t as u32);
         }
-        Instr::Call { name, argc } => {
+        Instr::JumpIfTrue(t) => {
             write_u8(out, 21);
+            write_u32(out, *t as u32);
+        }
+        Instr::Call { name, argc } => {
+            write_u8(out, 22);
             write_str(out, name);
             write_u32(out, *argc as u32);
         }
@@ -523,12 +555,12 @@ fn encode_instr(i: &Instr, out: &mut Vec<u8>) {
             name,
             argc,
         } => {
-            write_u8(out, 22);
+            write_u8(out, 23);
             write_str(out, package);
             write_str(out, name);
             write_u32(out, *argc as u32);
         }
-        Instr::Return => write_u8(out, 23),
+        Instr::Return => write_u8(out, 24),
     }
 }
 
@@ -608,16 +640,17 @@ fn decode_instr(rd: &mut Reader<'_>) -> Result<Instr, String> {
         18 => Instr::OrBool,
         19 => Instr::Jump(rd.read_u32()? as usize),
         20 => Instr::JumpIfFalse(rd.read_u32()? as usize),
-        21 => Instr::Call {
+        21 => Instr::JumpIfTrue(rd.read_u32()? as usize),
+        22 => Instr::Call {
             name: rd.read_str()?,
             argc: rd.read_u32()? as usize,
         },
-        22 => Instr::CallBuiltin {
+        23 => Instr::CallBuiltin {
             package: rd.read_str()?,
             name: rd.read_str()?,
             argc: rd.read_u32()? as usize,
         },
-        23 => Instr::Return,
+        24 => Instr::Return,
         t => return Err(format!("Unknown instruction tag {t}")),
     })
 }
@@ -655,6 +688,7 @@ fn fmt_instr(i: &Instr) -> String {
         Instr::OrBool => "OrBool".to_string(),
         Instr::Jump(t) => format!("Jump {t}"),
         Instr::JumpIfFalse(t) => format!("JumpIfFalse {t}"),
+        Instr::JumpIfTrue(t) => format!("JumpIfTrue {t}"),
         Instr::Call { name, argc } => format!("Call {name} argc={argc}"),
         Instr::CallBuiltin {
             package,

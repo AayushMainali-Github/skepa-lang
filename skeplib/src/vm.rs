@@ -599,6 +599,20 @@ impl Vm {
                         continue;
                     }
                 }
+                Instr::JumpIfTrue(target) => {
+                    let Some(Value::Bool(v)) = stack.pop() else {
+                        return Err(Self::err_at(
+                            VmErrorKind::TypeMismatch,
+                            "JumpIfTrue expects Bool",
+                            function_name,
+                            ip,
+                        ));
+                    };
+                    if v {
+                        ip = *target;
+                        continue;
+                    }
+                }
                 Instr::Call {
                     name: callee_name,
                     argc,
