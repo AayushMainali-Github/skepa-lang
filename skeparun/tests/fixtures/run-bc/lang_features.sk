@@ -1,0 +1,18 @@
+fn main() -> Int {
+  let i = 0;
+  let acc = +0;
+  while (i < 8) {
+    i = i + 1;
+    if (i == 2) {
+      continue;
+    }
+    acc = acc + (i % 3);
+    if (i == 6 || false) {
+      break;
+    }
+  }
+  if (false && ((1 / 0) == 0)) {
+    return 99;
+  }
+  return acc;
+}
