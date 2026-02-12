@@ -325,6 +325,8 @@ impl Parser {
                 Some(BinaryOp::Mul)
             } else if self.at(TokenKind::Slash) {
                 Some(BinaryOp::Div)
+            } else if self.at(TokenKind::Percent) {
+                Some(BinaryOp::Mod)
             } else {
                 None
             };

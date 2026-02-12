@@ -354,6 +354,27 @@ fn main() -> Int {
 }
 
 #[test]
+fn parses_modulo_operator() {
+    let src = r#"
+fn main() -> Int {
+  let x = 7 % 3;
+  return x;
+}
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    match &program.functions[0].body[0] {
+        Stmt::Let {
+            value: Expr::Binary {
+                op: BinaryOp::Mod, ..
+            },
+            ..
+        } => {}
+        _ => panic!("expected modulo expression"),
+    }
+}
+
+#[test]
 fn parses_unary_neg_and_not() {
     let src = r#"
 fn main() -> Int {

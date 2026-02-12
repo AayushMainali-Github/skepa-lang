@@ -416,3 +416,33 @@ fn main() -> Int {
     let (result, diags) = analyze_source(src);
     assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
 }
+
+#[test]
+fn sema_accepts_int_modulo() {
+    let src = r#"
+fn main() -> Int {
+  let x: Int = 9 % 4;
+  return x;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_rejects_float_modulo() {
+    let src = r#"
+fn main() -> Int {
+  let x = 9.0 % 4.0;
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Invalid operands for Mod"))
+    );
+}

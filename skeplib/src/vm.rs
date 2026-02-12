@@ -493,6 +493,33 @@ impl Vm {
                         }
                     }
                 }
+                Instr::ModInt => {
+                    let Some(Value::Int(r)) = stack.pop() else {
+                        return Err(Self::err_at(
+                            VmErrorKind::TypeMismatch,
+                            "ModInt expects rhs Int",
+                            function_name,
+                            ip,
+                        ));
+                    };
+                    let Some(Value::Int(l)) = stack.pop() else {
+                        return Err(Self::err_at(
+                            VmErrorKind::TypeMismatch,
+                            "ModInt expects lhs Int",
+                            function_name,
+                            ip,
+                        ));
+                    };
+                    if r == 0 {
+                        return Err(Self::err_at(
+                            VmErrorKind::DivisionByZero,
+                            "modulo by zero",
+                            function_name,
+                            ip,
+                        ));
+                    }
+                    stack.push(Value::Int(l % r));
+                }
                 Instr::Eq => {
                     let Some(r) = stack.pop() else {
                         return Err(Self::err_at(

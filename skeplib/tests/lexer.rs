@@ -43,7 +43,7 @@ fn lexes_keywords_and_types() {
 
 #[test]
 fn lexes_operators_and_punctuation() {
-    let got = kinds("(){}.,:; -> = + - * / ! == != < <= > >= && ||");
+    let got = kinds("(){}.,:; -> = + - * / % ! == != < <= > >= && ||");
     let want = vec![
         TokenKind::LParen,
         TokenKind::RParen,
@@ -59,6 +59,7 @@ fn lexes_operators_and_punctuation() {
         TokenKind::Minus,
         TokenKind::Star,
         TokenKind::Slash,
+        TokenKind::Percent,
         TokenKind::Bang,
         TokenKind::EqEq,
         TokenKind::Neq,

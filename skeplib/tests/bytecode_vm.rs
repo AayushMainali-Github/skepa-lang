@@ -276,6 +276,30 @@ fn main() -> Int {
 }
 
 #[test]
+fn runs_int_modulo() {
+    let src = r#"
+fn main() -> Int {
+  return 17 % 5;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(2));
+}
+
+#[test]
+fn vm_reports_modulo_by_zero_kind() {
+    let src = r#"
+fn main() -> Int {
+  return 10 % 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("should fail");
+    assert_eq!(err.kind, VmErrorKind::DivisionByZero);
+}
+
+#[test]
 fn vm_reports_unknown_builtin_kind() {
     let src = r#"
 fn main() -> Int {

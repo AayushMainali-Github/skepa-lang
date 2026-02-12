@@ -25,6 +25,7 @@ pub enum Instr {
     SubInt,
     MulInt,
     DivInt,
+    ModInt,
     Eq,
     Neq,
     LtInt,
@@ -346,6 +347,7 @@ impl Compiler {
                     BinaryOp::Sub => code.push(Instr::SubInt),
                     BinaryOp::Mul => code.push(Instr::MulInt),
                     BinaryOp::Div => code.push(Instr::DivInt),
+                    BinaryOp::Mod => code.push(Instr::ModInt),
                     BinaryOp::EqEq => code.push(Instr::Eq),
                     BinaryOp::Neq => code.push(Instr::Neq),
                     BinaryOp::Lt => code.push(Instr::LtInt),
@@ -494,24 +496,25 @@ fn encode_instr(i: &Instr, out: &mut Vec<u8>) {
         Instr::SubInt => write_u8(out, 7),
         Instr::MulInt => write_u8(out, 8),
         Instr::DivInt => write_u8(out, 9),
-        Instr::Eq => write_u8(out, 10),
-        Instr::Neq => write_u8(out, 11),
-        Instr::LtInt => write_u8(out, 12),
-        Instr::LteInt => write_u8(out, 13),
-        Instr::GtInt => write_u8(out, 14),
-        Instr::GteInt => write_u8(out, 15),
-        Instr::AndBool => write_u8(out, 16),
-        Instr::OrBool => write_u8(out, 17),
+        Instr::ModInt => write_u8(out, 10),
+        Instr::Eq => write_u8(out, 11),
+        Instr::Neq => write_u8(out, 12),
+        Instr::LtInt => write_u8(out, 13),
+        Instr::LteInt => write_u8(out, 14),
+        Instr::GtInt => write_u8(out, 15),
+        Instr::GteInt => write_u8(out, 16),
+        Instr::AndBool => write_u8(out, 17),
+        Instr::OrBool => write_u8(out, 18),
         Instr::Jump(t) => {
-            write_u8(out, 18);
-            write_u32(out, *t as u32);
-        }
-        Instr::JumpIfFalse(t) => {
             write_u8(out, 19);
             write_u32(out, *t as u32);
         }
-        Instr::Call { name, argc } => {
+        Instr::JumpIfFalse(t) => {
             write_u8(out, 20);
+            write_u32(out, *t as u32);
+        }
+        Instr::Call { name, argc } => {
+            write_u8(out, 21);
             write_str(out, name);
             write_u32(out, *argc as u32);
         }
@@ -520,12 +523,12 @@ fn encode_instr(i: &Instr, out: &mut Vec<u8>) {
             name,
             argc,
         } => {
-            write_u8(out, 21);
+            write_u8(out, 22);
             write_str(out, package);
             write_str(out, name);
             write_u32(out, *argc as u32);
         }
-        Instr::Return => write_u8(out, 22),
+        Instr::Return => write_u8(out, 23),
     }
 }
 
@@ -594,26 +597,27 @@ fn decode_instr(rd: &mut Reader<'_>) -> Result<Instr, String> {
         7 => Instr::SubInt,
         8 => Instr::MulInt,
         9 => Instr::DivInt,
-        10 => Instr::Eq,
-        11 => Instr::Neq,
-        12 => Instr::LtInt,
-        13 => Instr::LteInt,
-        14 => Instr::GtInt,
-        15 => Instr::GteInt,
-        16 => Instr::AndBool,
-        17 => Instr::OrBool,
-        18 => Instr::Jump(rd.read_u32()? as usize),
-        19 => Instr::JumpIfFalse(rd.read_u32()? as usize),
-        20 => Instr::Call {
+        10 => Instr::ModInt,
+        11 => Instr::Eq,
+        12 => Instr::Neq,
+        13 => Instr::LtInt,
+        14 => Instr::LteInt,
+        15 => Instr::GtInt,
+        16 => Instr::GteInt,
+        17 => Instr::AndBool,
+        18 => Instr::OrBool,
+        19 => Instr::Jump(rd.read_u32()? as usize),
+        20 => Instr::JumpIfFalse(rd.read_u32()? as usize),
+        21 => Instr::Call {
             name: rd.read_str()?,
             argc: rd.read_u32()? as usize,
         },
-        21 => Instr::CallBuiltin {
+        22 => Instr::CallBuiltin {
             package: rd.read_str()?,
             name: rd.read_str()?,
             argc: rd.read_u32()? as usize,
         },
-        22 => Instr::Return,
+        23 => Instr::Return,
         t => return Err(format!("Unknown instruction tag {t}")),
     })
 }
@@ -640,6 +644,7 @@ fn fmt_instr(i: &Instr) -> String {
         Instr::SubInt => "SubInt".to_string(),
         Instr::MulInt => "MulInt".to_string(),
         Instr::DivInt => "DivInt".to_string(),
+        Instr::ModInt => "ModInt".to_string(),
         Instr::Eq => "Eq".to_string(),
         Instr::Neq => "Neq".to_string(),
         Instr::LtInt => "LtInt".to_string(),

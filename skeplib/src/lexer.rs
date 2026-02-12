@@ -68,6 +68,7 @@ impl Lexer {
             '+' => self.single(TokenKind::Plus, start, line, col),
             '*' => self.single(TokenKind::Star, start, line, col),
             '/' => self.single(TokenKind::Slash, start, line, col),
+            '%' => self.single(TokenKind::Percent, start, line, col),
             '-' => {
                 self.bump();
                 if self.peek() == Some('>') {

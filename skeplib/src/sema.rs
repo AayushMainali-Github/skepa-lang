@@ -272,6 +272,19 @@ impl Checker {
                     TypeInfo::Unknown
                 }
             }
+            Mod => {
+                if lt == TypeInfo::Int && rt == TypeInfo::Int {
+                    TypeInfo::Int
+                } else if lt == TypeInfo::Unknown || rt == TypeInfo::Unknown {
+                    TypeInfo::Unknown
+                } else {
+                    self.error(format!(
+                        "Invalid operands for {:?}: left {:?}, right {:?}",
+                        op, lt, rt
+                    ));
+                    TypeInfo::Unknown
+                }
+            }
             EqEq | Neq => {
                 if lt == rt || lt == TypeInfo::Unknown || rt == TypeInfo::Unknown {
                     TypeInfo::Bool
