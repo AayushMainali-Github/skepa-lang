@@ -516,6 +516,120 @@ fn main() -> Int {
 }
 
 #[test]
+fn parses_for_with_no_clauses() {
+    let src = r#"
+fn main() -> Int {
+  for (;;) {
+    break;
+  }
+  return 0;
+}
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    match &program.functions[0].body[0] {
+        Stmt::For {
+            init,
+            cond,
+            step,
+            body,
+        } => {
+            assert!(init.is_none());
+            assert!(cond.is_none());
+            assert!(step.is_none());
+            assert_eq!(body.len(), 1);
+        }
+        _ => panic!("expected for"),
+    }
+}
+
+#[test]
+fn parses_for_with_only_init_clause() {
+    let src = r#"
+fn main() -> Int {
+  for (let i = 0;;) {
+    break;
+  }
+  return 0;
+}
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    match &program.functions[0].body[0] {
+        Stmt::For {
+            init,
+            cond,
+            step,
+            body,
+        } => {
+            assert!(init.is_some());
+            assert!(cond.is_none());
+            assert!(step.is_none());
+            assert_eq!(body.len(), 1);
+        }
+        _ => panic!("expected for"),
+    }
+}
+
+#[test]
+fn parses_for_with_only_condition_clause() {
+    let src = r#"
+fn main() -> Int {
+  let i = 0;
+  for (; i < 3;) {
+    break;
+  }
+  return 0;
+}
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    match &program.functions[0].body[1] {
+        Stmt::For {
+            init,
+            cond,
+            step,
+            body,
+        } => {
+            assert!(init.is_none());
+            assert!(cond.is_some());
+            assert!(step.is_none());
+            assert_eq!(body.len(), 1);
+        }
+        _ => panic!("expected for"),
+    }
+}
+
+#[test]
+fn parses_for_with_only_step_clause() {
+    let src = r#"
+fn main() -> Int {
+  let i = 0;
+  for (;; i = i + 1) {
+    break;
+  }
+  return 0;
+}
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    match &program.functions[0].body[1] {
+        Stmt::For {
+            init,
+            cond,
+            step,
+            body,
+        } => {
+            assert!(init.is_none());
+            assert!(cond.is_none());
+            assert!(step.is_some());
+            assert_eq!(body.len(), 1);
+        }
+        _ => panic!("expected for"),
+    }
+}
+
+#[test]
 fn parses_nested_blocks_in_if_and_while() {
     let src = r#"
 fn main() -> Int {
