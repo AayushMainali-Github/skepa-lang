@@ -577,6 +577,120 @@ fn main() -> Int {
 }
 
 #[test]
+fn reports_missing_first_semicolon_in_for_header() {
+    let src = r#"
+fn main() -> Int {
+  for (let i = 0 i < 3; i = i + 1) {
+    ping(i);
+  }
+  return 0;
+}
+"#;
+    let (_program, diags) = Parser::parse_source(src);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Expected `;` after for init clause"))
+    );
+}
+
+#[test]
+fn reports_missing_second_semicolon_in_for_header() {
+    let src = r#"
+fn main() -> Int {
+  for (let i = 0; i < 3 i = i + 1) {
+    ping(i);
+  }
+  return 0;
+}
+"#;
+    let (_program, diags) = Parser::parse_source(src);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Expected `;` after for condition"))
+    );
+}
+
+#[test]
+fn reports_missing_right_paren_in_for_header() {
+    let src = r#"
+fn main() -> Int {
+  for (let i = 0; i < 3; i = i + 1 {
+    ping(i);
+  }
+  return 0;
+}
+"#;
+    let (_program, diags) = Parser::parse_source(src);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Expected `)` after for clauses"))
+    );
+}
+
+#[test]
+fn reports_invalid_return_in_for_init_clause() {
+    let src = r#"
+fn main() -> Int {
+  for (return 1; true; ) {
+    return 0;
+  }
+  return 0;
+}
+"#;
+    let (_program, diags) = Parser::parse_source(src);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Expected expression"))
+    );
+}
+
+#[test]
+fn reports_invalid_break_in_for_step_clause() {
+    let src = r#"
+fn main() -> Int {
+  for (let i = 0; i < 3; break) {
+    return 0;
+  }
+  return 0;
+}
+"#;
+    let (_program, diags) = Parser::parse_source(src);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Expected expression"))
+    );
+}
+
+#[test]
+fn reports_invalid_assignment_target_in_for_step_clause() {
+    let src = r#"
+fn main() -> Int {
+  for (let i = 0; i < 3; (i + 1) = 2) {
+    return 0;
+  }
+  return 0;
+}
+"#;
+    let (_program, diags) = Parser::parse_source(src);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Expected `)` after for clauses"))
+    );
+}
+
+#[test]
 fn parser_recovers_and_parses_next_statement_after_error() {
     let src = r#"
 fn main() -> Int {

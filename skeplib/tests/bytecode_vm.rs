@@ -146,6 +146,121 @@ fn main() -> Int {
 }
 
 #[test]
+fn runs_infinite_for_loop_with_break() {
+    let src = r#"
+fn main() -> Int {
+  let i = 0;
+  for (;;) {
+    if (i == 5) {
+      break;
+    }
+    i = i + 1;
+  }
+  return i;
+}
+"#;
+    let module = compile_source(src).expect("compile should succeed");
+    let out = Vm::run_module_main(&module).expect("vm run");
+    assert_eq!(out, Value::Int(5));
+}
+
+#[test]
+fn runs_nested_for_loops_with_inner_continue() {
+    let src = r#"
+fn main() -> Int {
+  let acc = 0;
+  for (let i = 0; i < 3; i = i + 1) {
+    for (let j = 0; j < 4; j = j + 1) {
+      if (j == 1) {
+        continue;
+      }
+      acc = acc + 1;
+    }
+  }
+  return acc;
+}
+"#;
+    let module = compile_source(src).expect("compile should succeed");
+    let out = Vm::run_module_main(&module).expect("vm run");
+    assert_eq!(out, Value::Int(9));
+}
+
+#[test]
+fn runs_for_continue_inside_nested_if_branch() {
+    let src = r#"
+fn main() -> Int {
+  let acc = 0;
+  for (let i = 0; i < 6; i = i + 1) {
+    if (i < 4) {
+      if ((i % 2) == 0) {
+        continue;
+      }
+    }
+    acc = acc + i;
+  }
+  return acc;
+}
+"#;
+    let module = compile_source(src).expect("compile should succeed");
+    let out = Vm::run_module_main(&module).expect("vm run");
+    assert_eq!(out, Value::Int(13));
+}
+
+#[test]
+fn for_bytecode_has_expected_jump_shape() {
+    let src = r#"
+fn main() -> Int {
+  let acc = 0;
+  for (let i = 0; i < 3; i = i + 1) {
+    acc = acc + i;
+  }
+  return acc;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let main = module.functions.get("main").expect("main");
+    let code = &main.code;
+
+    let jf_idx = code
+        .iter()
+        .position(|i| matches!(i, Instr::JumpIfFalse(_)))
+        .expect("for should emit JumpIfFalse");
+    let body_jump_idx = jf_idx + 1;
+    assert!(matches!(code[body_jump_idx], Instr::Jump(_)));
+
+    let backward_jumps: Vec<_> = code
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, instr)| match instr {
+            Instr::Jump(target) if *target < idx => Some((*target, idx)),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        backward_jumps.len() >= 2,
+        "expected two backward jumps (to cond and step), got {backward_jumps:?}"
+    );
+}
+
+#[test]
+fn for_bytecode_patches_break_jumps() {
+    let src = r#"
+fn main() -> Int {
+  for (;;) {
+    break;
+  }
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let main = module.functions.get("main").expect("main");
+    assert!(!main.code.iter().any(|i| {
+        matches!(i, Instr::Jump(t) if *t == usize::MAX)
+            || matches!(i, Instr::JumpIfFalse(t) if *t == usize::MAX)
+    }));
+}
+
+#[test]
 fn runs_bool_logic_and_not_for_conditions() {
     let src = r#"
 fn main() -> Int {
@@ -325,6 +440,48 @@ fn main() -> Int {
     let module = compile_source(src).expect("compile");
     let err = Vm::run_module_main(&module).expect_err("should fail");
     assert_eq!(err.kind, VmErrorKind::DivisionByZero);
+}
+
+#[test]
+fn vm_reports_division_by_zero_inside_for_loop() {
+    let src = r#"
+fn main() -> Int {
+  let i = 0;
+  for (; i < 1; i = i + 1) {
+    let x = 1 / 0;
+    return x;
+  }
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("division by zero");
+    assert_eq!(err.kind, VmErrorKind::DivisionByZero);
+}
+
+#[test]
+fn vm_reports_type_mismatch_for_loop_like_bad_condition() {
+    let module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::LoadConst(Value::Int(1)),
+                    Instr::JumpIfFalse(4),
+                    Instr::Jump(0),
+                    Instr::LoadConst(Value::Int(0)),
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&module).expect_err("type mismatch");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
 }
 
 #[test]

@@ -550,3 +550,40 @@ fn main() -> Int {
             .any(|d| d.message.contains("for condition must be Bool"))
     );
 }
+
+#[test]
+fn sema_for_init_scope_does_not_escape_loop() {
+    let src = r#"
+fn main() -> Int {
+  for (let i = 0; i < 2; i = i + 1) {
+  }
+  return i;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Unknown variable `i`"))
+    );
+}
+
+#[test]
+fn sema_allows_shadowing_inside_for_loop_body() {
+    let src = r#"
+fn main() -> Int {
+  let x: Int = 10;
+  for (let i = 0; i < 1; i = i + 1) {
+    let x: Int = 20;
+    if (x == 20) {
+      continue;
+    }
+  }
+  return x;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
