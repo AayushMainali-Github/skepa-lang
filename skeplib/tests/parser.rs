@@ -434,6 +434,28 @@ fn main() -> Int {
 }
 
 #[test]
+fn parses_break_and_continue_in_while() {
+    let src = r#"
+fn main() -> Int {
+  while (true) {
+    continue;
+    break;
+  }
+  return 0;
+}
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    match &program.functions[0].body[0] {
+        Stmt::While { body, .. } => {
+            assert!(matches!(body[0], Stmt::Continue));
+            assert!(matches!(body[1], Stmt::Break));
+        }
+        _ => panic!("expected while"),
+    }
+}
+
+#[test]
 fn parses_nested_blocks_in_if_and_while() {
     let src = r#"
 fn main() -> Int {

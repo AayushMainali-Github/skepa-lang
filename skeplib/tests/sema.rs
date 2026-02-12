@@ -365,3 +365,54 @@ fn main() -> Int {
             .any(|d| d.message.contains("Invalid operands for Add"))
     );
 }
+
+#[test]
+fn sema_rejects_break_outside_while() {
+    let src = r#"
+fn main() -> Int {
+  break;
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("`break` is only allowed inside a while loop")
+    }));
+}
+
+#[test]
+fn sema_rejects_continue_outside_while() {
+    let src = r#"
+fn main() -> Int {
+  continue;
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("`continue` is only allowed inside a while loop")
+    }));
+}
+
+#[test]
+fn sema_accepts_break_and_continue_inside_while() {
+    let src = r#"
+fn main() -> Int {
+  let i = 0;
+  while (i < 10) {
+    if (i == 5) {
+      break;
+    } else {
+      continue;
+    }
+  }
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}

@@ -153,6 +153,16 @@ impl Parser {
             let body = self.parse_block("Expected `{` before while body")?;
             return Some(Stmt::While { cond, body });
         }
+        if self.at(TokenKind::KwBreak) {
+            self.bump();
+            self.expect(TokenKind::Semi, "Expected `;` after `break`")?;
+            return Some(Stmt::Break);
+        }
+        if self.at(TokenKind::KwContinue) {
+            self.bump();
+            self.expect(TokenKind::Semi, "Expected `;` after `continue`")?;
+            return Some(Stmt::Continue);
+        }
 
         if self.at(TokenKind::KwLet) {
             self.bump();
@@ -538,6 +548,8 @@ impl Parser {
                 TokenKind::KwLet
                 | TokenKind::KwIf
                 | TokenKind::KwWhile
+                | TokenKind::KwBreak
+                | TokenKind::KwContinue
                 | TokenKind::KwReturn
                 | TokenKind::Ident => return,
                 _ => {

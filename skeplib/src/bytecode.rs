@@ -167,6 +167,7 @@ impl Compiler {
 
     fn compile_function(&mut self, func: &crate::ast::FnDecl) -> FunctionChunk {
         let mut ctx = FnCtx::default();
+        let mut loops: Vec<LoopCtx> = Vec::new();
         let mut code = Vec::new();
 
         for param in &func.params {
@@ -174,7 +175,7 @@ impl Compiler {
         }
 
         for stmt in &func.body {
-            self.compile_stmt(stmt, &mut ctx, &mut code);
+            self.compile_stmt(stmt, &mut ctx, &mut loops, &mut code);
         }
 
         if !matches!(code.last(), Some(Instr::Return)) {
@@ -190,7 +191,13 @@ impl Compiler {
         }
     }
 
-    fn compile_stmt(&mut self, stmt: &Stmt, ctx: &mut FnCtx, code: &mut Vec<Instr>) {
+    fn compile_stmt(
+        &mut self,
+        stmt: &Stmt,
+        ctx: &mut FnCtx,
+        loops: &mut Vec<LoopCtx>,
+        code: &mut Vec<Instr>,
+    ) {
         match stmt {
             Stmt::Let { name, value, .. } => {
                 self.compile_expr(value, ctx, code);
@@ -237,7 +244,7 @@ impl Compiler {
                 code.push(Instr::JumpIfFalse(usize::MAX));
 
                 for s in then_body {
-                    self.compile_stmt(s, ctx, code);
+                    self.compile_stmt(s, ctx, loops, code);
                 }
 
                 if else_body.is_empty() {
@@ -251,7 +258,7 @@ impl Compiler {
                     code[jmp_false_at] = Instr::JumpIfFalse(else_start);
 
                     for s in else_body {
-                        self.compile_stmt(s, ctx, code);
+                        self.compile_stmt(s, ctx, loops, code);
                     }
 
                     let end = code.len();
@@ -260,17 +267,42 @@ impl Compiler {
             }
             Stmt::While { cond, body } => {
                 let loop_start = code.len();
+                loops.push(LoopCtx {
+                    loop_start,
+                    break_jumps: Vec::new(),
+                });
                 self.compile_expr(cond, ctx, code);
                 let jmp_false_at = code.len();
                 code.push(Instr::JumpIfFalse(usize::MAX));
 
                 for s in body {
-                    self.compile_stmt(s, ctx, code);
+                    self.compile_stmt(s, ctx, loops, code);
                 }
 
                 code.push(Instr::Jump(loop_start));
                 let loop_end = code.len();
                 code[jmp_false_at] = Instr::JumpIfFalse(loop_end);
+                if let Some(lp) = loops.pop() {
+                    for at in lp.break_jumps {
+                        code[at] = Instr::Jump(loop_end);
+                    }
+                }
+            }
+            Stmt::Break => {
+                if let Some(lp) = loops.last_mut() {
+                    let at = code.len();
+                    code.push(Instr::Jump(usize::MAX));
+                    lp.break_jumps.push(at);
+                } else {
+                    self.error("`break` used outside while loop".to_string());
+                }
+            }
+            Stmt::Continue => {
+                if let Some(lp) = loops.last() {
+                    code.push(Instr::Jump(lp.loop_start));
+                } else {
+                    self.error("`continue` used outside while loop".to_string());
+                }
             }
         }
     }
@@ -372,6 +404,12 @@ impl Compiler {
     fn error(&mut self, message: String) {
         self.diags.error(message, Span::default());
     }
+}
+
+#[derive(Debug, Clone, Default)]
+struct LoopCtx {
+    loop_start: usize,
+    break_jumps: Vec<usize>,
 }
 
 #[derive(Default)]

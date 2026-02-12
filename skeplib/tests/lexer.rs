@@ -16,7 +16,9 @@ fn kinds(src: &str) -> Vec<TokenKind> {
 
 #[test]
 fn lexes_keywords_and_types() {
-    let got = kinds("import fn let if else while return true false Int Float Bool String Void");
+    let got = kinds(
+        "import fn let if else while break continue return true false Int Float Bool String Void",
+    );
     let want = vec![
         TokenKind::KwImport,
         TokenKind::KwFn,
@@ -24,6 +26,8 @@ fn lexes_keywords_and_types() {
         TokenKind::KwIf,
         TokenKind::KwElse,
         TokenKind::KwWhile,
+        TokenKind::KwBreak,
+        TokenKind::KwContinue,
         TokenKind::KwReturn,
         TokenKind::KwTrue,
         TokenKind::KwFalse,

@@ -84,6 +84,46 @@ fn main() -> Int {
 }
 
 #[test]
+fn runs_while_with_break() {
+    let src = r#"
+fn main() -> Int {
+  let i = 0;
+  while (true) {
+    if (i == 4) {
+      break;
+    }
+    i = i + 1;
+  }
+  return i;
+}
+"#;
+    let module = compile_source(src).expect("compile should succeed");
+    let out = Vm::run_module_main(&module).expect("vm run");
+    assert_eq!(out, Value::Int(4));
+}
+
+#[test]
+fn runs_while_with_continue() {
+    let src = r#"
+fn main() -> Int {
+  let i = 0;
+  let acc = 0;
+  while (i < 5) {
+    i = i + 1;
+    if (i == 3) {
+      continue;
+    }
+    acc = acc + i;
+  }
+  return acc;
+}
+"#;
+    let module = compile_source(src).expect("compile should succeed");
+    let out = Vm::run_module_main(&module).expect("vm run");
+    assert_eq!(out, Value::Int(12));
+}
+
+#[test]
 fn runs_bool_logic_and_not_for_conditions() {
     let src = r#"
 fn main() -> Int {

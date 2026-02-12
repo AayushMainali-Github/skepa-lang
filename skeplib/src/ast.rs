@@ -38,6 +38,8 @@ pub enum Stmt {
         cond: Expr,
         body: Vec<Stmt>,
     },
+    Break,
+    Continue,
     Return(Option<Expr>),
 }
 
@@ -194,6 +196,8 @@ fn pretty_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
                 out.push_str(&format!("{pad}return\n"));
             }
         }
+        Stmt::Break => out.push_str(&format!("{pad}break\n")),
+        Stmt::Continue => out.push_str(&format!("{pad}continue\n")),
     }
 }
 

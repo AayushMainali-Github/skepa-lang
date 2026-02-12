@@ -30,6 +30,7 @@ struct Checker {
     diagnostics: DiagnosticBag,
     functions: HashMap<String, FunctionSig>,
     has_io_import: bool,
+    loop_depth: usize,
 }
 
 impl Checker {
@@ -39,6 +40,7 @@ impl Checker {
             diagnostics: DiagnosticBag::new(),
             functions: HashMap::new(),
             has_io_import,
+            loop_depth: 0,
         }
     }
 
@@ -153,11 +155,23 @@ impl Checker {
                     self.error("while condition must be Bool".to_string());
                 }
 
+                self.loop_depth += 1;
                 scopes.push(HashMap::new());
                 for s in body {
                     self.check_stmt(s, scopes, expected_ret);
                 }
                 scopes.pop();
+                self.loop_depth = self.loop_depth.saturating_sub(1);
+            }
+            Stmt::Break => {
+                if self.loop_depth == 0 {
+                    self.error("`break` is only allowed inside a while loop".to_string());
+                }
+            }
+            Stmt::Continue => {
+                if self.loop_depth == 0 {
+                    self.error("`continue` is only allowed inside a while loop".to_string());
+                }
             }
             Stmt::Return(expr_opt) => {
                 let ret_ty = match expr_opt {
