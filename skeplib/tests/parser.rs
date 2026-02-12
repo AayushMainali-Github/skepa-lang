@@ -379,6 +379,7 @@ fn parses_unary_neg_and_not() {
     let src = r#"
 fn main() -> Int {
   let a = -1;
+  let p = +2;
   let b = !false;
   return 0;
 }
@@ -396,6 +397,16 @@ fn main() -> Int {
         _ => panic!("expected let"),
     }
     match &program.functions[0].body[1] {
+        Stmt::Let { value, .. } => assert!(matches!(
+            value,
+            Expr::Unary {
+                op: UnaryOp::Pos,
+                ..
+            }
+        )),
+        _ => panic!("expected let"),
+    }
+    match &program.functions[0].body[2] {
         Stmt::Let { value, .. } => assert!(matches!(
             value,
             Expr::Unary {

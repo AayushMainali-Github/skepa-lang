@@ -335,6 +335,9 @@ impl Compiler {
                     self.compile_expr(expr, ctx, code);
                     code.push(Instr::NegInt);
                 }
+                UnaryOp::Pos => {
+                    self.compile_expr(expr, ctx, code);
+                }
                 UnaryOp::Not => {
                     self.compile_expr(expr, ctx, code);
                     code.push(Instr::NotBool);

@@ -318,6 +318,23 @@ fn main() -> Int {
 }
 
 #[test]
+fn runs_unary_plus_numeric_values() {
+    let src = r#"
+fn main() -> Int {
+  let a = +5;
+  let b: Float = +2.5;
+  if (b == 2.5) {
+    return a;
+  }
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(5));
+}
+
+#[test]
 fn vm_reports_modulo_by_zero_kind() {
     let src = r#"
 fn main() -> Int {

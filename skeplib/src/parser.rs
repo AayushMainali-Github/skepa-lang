@@ -359,6 +359,14 @@ impl Parser {
                 expr: Box::new(expr),
             });
         }
+        if self.at(TokenKind::Plus) {
+            self.bump();
+            let expr = self.parse_unary()?;
+            return Some(Expr::Unary {
+                op: UnaryOp::Pos,
+                expr: Box::new(expr),
+            });
+        }
         self.parse_call()
     }
 

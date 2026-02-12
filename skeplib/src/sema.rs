@@ -233,6 +233,14 @@ impl Checker {
                             TypeInfo::Unknown
                         }
                     }
+                    UnaryOp::Pos => {
+                        if ty == TypeInfo::Int || ty == TypeInfo::Float || ty == TypeInfo::Unknown {
+                            ty
+                        } else {
+                            self.error("Unary `+` expects Int or Float".to_string());
+                            TypeInfo::Unknown
+                        }
+                    }
                     UnaryOp::Not => {
                         if ty == TypeInfo::Bool || ty == TypeInfo::Unknown {
                             TypeInfo::Bool

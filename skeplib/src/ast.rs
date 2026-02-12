@@ -91,6 +91,7 @@ pub enum TypeName {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnaryOp {
     Neg,
+    Pos,
     Not,
 }
 
@@ -213,6 +214,7 @@ fn pretty_expr(expr: &Expr) -> String {
         Expr::Unary { op, expr } => {
             let symbol = match op {
                 UnaryOp::Neg => "-",
+                UnaryOp::Pos => "+",
                 UnaryOp::Not => "!",
             };
             format!("({}{})", symbol, pretty_expr(expr))

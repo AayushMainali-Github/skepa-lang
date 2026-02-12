@@ -446,3 +446,34 @@ fn main() -> Int {
             .any(|d| d.message.contains("Invalid operands for Mod"))
     );
 }
+
+#[test]
+fn sema_accepts_unary_plus_for_numeric() {
+    let src = r#"
+fn main() -> Int {
+  let a: Int = +1;
+  let b: Float = +2.5;
+  return a;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_rejects_unary_plus_for_bool() {
+    let src = r#"
+fn main() -> Int {
+  let x = +true;
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Unary `+` expects Int or Float"))
+    );
+}
