@@ -652,7 +652,7 @@ fn main() -> Int {
 }
 
 #[test]
-fn reports_trailing_comma_in_call_arguments() {
+fn accepts_trailing_comma_in_call_arguments() {
     let src = r#"
 fn main() -> Int {
   hello(1,);
@@ -660,12 +660,19 @@ fn main() -> Int {
 }
 "#;
     let (_program, diags) = Parser::parse_source(src);
-    assert!(
-        diags
-            .as_slice()
-            .iter()
-            .any(|d| d.message.contains("Trailing comma is not allowed"))
-    );
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn accepts_trailing_comma_in_function_params() {
+    let src = r#"
+fn add(a: Int, b: Int,) -> Int {
+  return a + b;
+}
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    assert_eq!(program.functions[0].params.len(), 2);
 }
 
 #[test]
@@ -743,7 +750,7 @@ fn main() -> Int {
 "#;
     let (_program, diags) = Parser::parse_source(src);
     assert!(
-        diags.len() >= 3,
+        diags.len() >= 2,
         "expected multiple diagnostics, got {:?}",
         diags.as_slice()
     );

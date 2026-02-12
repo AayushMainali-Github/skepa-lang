@@ -89,6 +89,9 @@ impl Parser {
 
                 if self.at(TokenKind::Comma) {
                     self.bump();
+                    if self.at(TokenKind::RParen) {
+                        break;
+                    }
                     continue;
                 }
                 break;
@@ -388,10 +391,8 @@ impl Parser {
                     if self.at(TokenKind::Comma) {
                         self.bump();
                         if self.at(TokenKind::RParen) {
-                            self.error_here_expected(
-                                "Trailing comma is not allowed in call arguments",
-                            );
-                            return None;
+                            // allow trailing comma in call arguments
+                            break;
                         }
                         continue;
                     }

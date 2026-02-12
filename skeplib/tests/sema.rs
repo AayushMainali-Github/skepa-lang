@@ -477,3 +477,35 @@ fn main() -> Int {
             .any(|d| d.message.contains("Unary `+` expects Int or Float"))
     );
 }
+
+#[test]
+fn sema_rejects_missing_return_for_non_void_function() {
+    let src = r#"
+fn main() -> Int {
+  let x = 1;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("may exit without returning"))
+    );
+}
+
+#[test]
+fn sema_accepts_if_else_when_both_paths_return() {
+    let src = r#"
+fn main() -> Int {
+  if (true) {
+    return 1;
+  } else {
+    return 2;
+  }
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}

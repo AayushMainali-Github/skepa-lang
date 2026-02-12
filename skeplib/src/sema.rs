@@ -83,6 +83,37 @@ impl Checker {
         for stmt in &f.body {
             self.check_stmt(stmt, &mut scopes, expected_ret);
         }
+        if expected_ret != TypeInfo::Void && !Self::block_must_return(&f.body) {
+            self.error(format!(
+                "Function `{}` may exit without returning {:?}",
+                f.name, expected_ret
+            ));
+        }
+    }
+
+    fn block_must_return(stmts: &[Stmt]) -> bool {
+        for stmt in stmts {
+            if Self::stmt_must_return(stmt) {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn stmt_must_return(stmt: &Stmt) -> bool {
+        match stmt {
+            Stmt::Return(_) => true,
+            Stmt::If {
+                then_body,
+                else_body,
+                ..
+            } => {
+                !else_body.is_empty()
+                    && Self::block_must_return(then_body)
+                    && Self::block_must_return(else_body)
+            }
+            _ => false,
+        }
     }
 
     fn check_stmt(
