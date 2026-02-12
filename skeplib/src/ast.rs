@@ -38,6 +38,12 @@ pub enum Stmt {
         cond: Expr,
         body: Vec<Stmt>,
     },
+    For {
+        init: Option<Box<Stmt>>,
+        cond: Option<Expr>,
+        step: Option<Box<Stmt>>,
+        body: Vec<Stmt>,
+    },
     Break,
     Continue,
     Return(Option<Expr>),
@@ -191,6 +197,26 @@ fn pretty_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
                 pretty_stmt(s, indent + 2, out);
             }
         }
+        Stmt::For {
+            init,
+            cond,
+            step,
+            body,
+        } => {
+            let init = init
+                .as_ref()
+                .map(|s| pretty_for_clause_stmt(s))
+                .unwrap_or_default();
+            let cond = cond.as_ref().map(pretty_expr).unwrap_or_default();
+            let step = step
+                .as_ref()
+                .map(|s| pretty_for_clause_stmt(s))
+                .unwrap_or_default();
+            out.push_str(&format!("{pad}for ({init}; {cond}; {step})\n"));
+            for s in body {
+                pretty_stmt(s, indent + 2, out);
+            }
+        }
         Stmt::Return(expr) => {
             if let Some(expr) = expr {
                 out.push_str(&format!("{pad}return {}\n", pretty_expr(expr)));
@@ -200,6 +226,27 @@ fn pretty_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
         }
         Stmt::Break => out.push_str(&format!("{pad}break\n")),
         Stmt::Continue => out.push_str(&format!("{pad}continue\n")),
+    }
+}
+
+fn pretty_for_clause_stmt(stmt: &Stmt) -> String {
+    match stmt {
+        Stmt::Let { name, ty, value } => {
+            if let Some(ty) = ty {
+                format!("let {}: {} = {}", name, ty.as_str(), pretty_expr(value))
+            } else {
+                format!("let {} = {}", name, pretty_expr(value))
+            }
+        }
+        Stmt::Assign { target, value } => {
+            let target = match target {
+                AssignTarget::Ident(n) => n.clone(),
+                AssignTarget::Path(parts) => parts.join("."),
+            };
+            format!("{target} = {}", pretty_expr(value))
+        }
+        Stmt::Expr(expr) => pretty_expr(expr),
+        _ => "<invalid-for-clause>".to_string(),
     }
 }
 

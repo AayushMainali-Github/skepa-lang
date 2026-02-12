@@ -13,6 +13,7 @@ pub enum TokenKind {
     KwIf,
     KwElse,
     KwWhile,
+    KwFor,
     KwBreak,
     KwContinue,
     KwReturn,

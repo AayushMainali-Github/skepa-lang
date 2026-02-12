@@ -270,7 +270,7 @@ impl Compiler {
             Stmt::While { cond, body } => {
                 let loop_start = code.len();
                 loops.push(LoopCtx {
-                    loop_start,
+                    continue_target: loop_start,
                     break_jumps: Vec::new(),
                 });
                 self.compile_expr(cond, ctx, code);
@@ -290,6 +290,55 @@ impl Compiler {
                     }
                 }
             }
+            Stmt::For {
+                init,
+                cond,
+                step,
+                body,
+            } => {
+                if let Some(init) = init {
+                    self.compile_stmt(init, ctx, loops, code);
+                }
+
+                let cond_start = code.len();
+                if let Some(cond) = cond {
+                    self.compile_expr(cond, ctx, code);
+                } else {
+                    code.push(Instr::LoadConst(Value::Bool(true)));
+                }
+                let jmp_false_at = code.len();
+                code.push(Instr::JumpIfFalse(usize::MAX));
+
+                // Jump to body first; step block is placed before body so `continue`
+                // can always target a known address.
+                let jmp_body_at = code.len();
+                code.push(Instr::Jump(usize::MAX));
+                let step_start = code.len();
+                loops.push(LoopCtx {
+                    continue_target: step_start,
+                    break_jumps: Vec::new(),
+                });
+
+                if let Some(step) = step {
+                    self.compile_stmt(step, ctx, loops, code);
+                }
+                code.push(Instr::Jump(cond_start));
+                let body_start = code.len();
+                code[jmp_body_at] = Instr::Jump(body_start);
+
+                for s in body {
+                    self.compile_stmt(s, ctx, loops, code);
+                }
+                code.push(Instr::Jump(step_start));
+
+                let loop_end = code.len();
+                code[jmp_false_at] = Instr::JumpIfFalse(loop_end);
+                if let Some(lp) = loops.pop() {
+                    for at in lp.break_jumps {
+                        code[at] = Instr::Jump(loop_end);
+                    }
+                }
+            }
             Stmt::Break => {
                 if let Some(lp) = loops.last_mut() {
                     let at = code.len();
@@ -301,7 +350,7 @@ impl Compiler {
             }
             Stmt::Continue => {
                 if let Some(lp) = loops.last() {
-                    code.push(Instr::Jump(lp.loop_start));
+                    code.push(Instr::Jump(lp.continue_target));
                 } else {
                     self.error("`continue` used outside while loop".to_string());
                 }
@@ -441,7 +490,7 @@ impl Compiler {
 
 #[derive(Debug, Clone, Default)]
 struct LoopCtx {
-    loop_start: usize,
+    continue_target: usize,
     break_jumps: Vec<usize>,
 }
 

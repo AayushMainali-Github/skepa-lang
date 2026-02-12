@@ -124,6 +124,28 @@ fn main() -> Int {
 }
 
 #[test]
+fn runs_for_loop_with_break_and_continue() {
+    let src = r#"
+fn main() -> Int {
+  let acc = 0;
+  for (let i = 0; i < 8; i = i + 1) {
+    if (i == 2) {
+      continue;
+    }
+    if (i == 6) {
+      break;
+    }
+    acc = acc + (i % 3);
+  }
+  return acc;
+}
+"#;
+    let module = compile_source(src).expect("compile should succeed");
+    let out = Vm::run_module_main(&module).expect("vm run");
+    assert_eq!(out, Value::Int(4));
+}
+
+#[test]
 fn runs_bool_logic_and_not_for_conditions() {
     let src = r#"
 fn main() -> Int {

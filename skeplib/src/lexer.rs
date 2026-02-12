@@ -161,6 +161,7 @@ impl Lexer {
             "if" => TokenKind::KwIf,
             "else" => TokenKind::KwElse,
             "while" => TokenKind::KwWhile,
+            "for" => TokenKind::KwFor,
             "break" => TokenKind::KwBreak,
             "continue" => TokenKind::KwContinue,
             "return" => TokenKind::KwReturn,

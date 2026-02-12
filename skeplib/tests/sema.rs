@@ -509,3 +509,44 @@ fn main() -> Int {
     let (result, diags) = analyze_source(src);
     assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
 }
+
+#[test]
+fn sema_accepts_for_with_break_and_continue() {
+    let src = r#"
+fn main() -> Int {
+  let acc = 0;
+  for (let i = 0; i < 8; i = i + 1) {
+    if (i == 2) {
+      continue;
+    }
+    if (i == 6) {
+      break;
+    }
+    acc = acc + (i % 3);
+  }
+  return acc;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_reports_non_bool_for_condition() {
+    let src = r#"
+fn main() -> Int {
+  for (let i = 0; 1; i = i + 1) {
+    return 0;
+  }
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("for condition must be Bool"))
+    );
+}

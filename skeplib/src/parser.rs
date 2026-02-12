@@ -156,6 +156,44 @@ impl Parser {
             let body = self.parse_block("Expected `{` before while body")?;
             return Some(Stmt::While { cond, body });
         }
+        if self.at(TokenKind::KwFor) {
+            self.bump();
+            self.expect(TokenKind::LParen, "Expected `(` after `for`")?;
+
+            let init = if self.at(TokenKind::Semi) {
+                self.bump();
+                None
+            } else {
+                let stmt = self.parse_for_clause_stmt()?;
+                self.expect(TokenKind::Semi, "Expected `;` after for init clause")?;
+                Some(Box::new(stmt))
+            };
+
+            let cond = if self.at(TokenKind::Semi) {
+                self.bump();
+                None
+            } else {
+                let expr = self.parse_expr()?;
+                self.expect(TokenKind::Semi, "Expected `;` after for condition")?;
+                Some(expr)
+            };
+
+            let step = if self.at(TokenKind::RParen) {
+                None
+            } else {
+                let stmt = self.parse_for_clause_stmt()?;
+                Some(Box::new(stmt))
+            };
+
+            self.expect(TokenKind::RParen, "Expected `)` after for clauses")?;
+            let body = self.parse_block("Expected `{` before for body")?;
+            return Some(Stmt::For {
+                init,
+                cond,
+                step,
+                body,
+            });
+        }
         if self.at(TokenKind::KwBreak) {
             self.bump();
             self.expect(TokenKind::Semi, "Expected `;` after `break`")?;
@@ -221,6 +259,35 @@ impl Parser {
         }
         self.expect(TokenKind::RBrace, "Expected `}` after block")?;
         Some(body)
+    }
+
+    fn parse_for_clause_stmt(&mut self) -> Option<Stmt> {
+        if self.at(TokenKind::KwLet) {
+            self.bump();
+            let name = self.expect_ident("Expected variable name after `let` in for clause")?;
+            let mut ty = None;
+            if self.at(TokenKind::Colon) {
+                self.bump();
+                ty = Some(self.expect_type_name("Expected type after `:` in for clause")?);
+            }
+            self.expect(TokenKind::Assign, "Expected `=` in for let clause")?;
+            let value = self.parse_expr()?;
+            return Some(Stmt::Let {
+                name: name.lexeme,
+                ty,
+                value,
+            });
+        }
+
+        if self.at(TokenKind::Ident) && self.can_start_assignment_target() {
+            let target = self.parse_assignment_target()?;
+            self.expect(TokenKind::Assign, "Expected `=` after assignment target")?;
+            let value = self.parse_expr()?;
+            return Some(Stmt::Assign { target, value });
+        }
+
+        let expr = self.parse_expr()?;
+        Some(Stmt::Expr(expr))
     }
 
     fn parse_expr(&mut self) -> Option<Expr> {
@@ -559,6 +626,7 @@ impl Parser {
                 TokenKind::KwLet
                 | TokenKind::KwIf
                 | TokenKind::KwWhile
+                | TokenKind::KwFor
                 | TokenKind::KwBreak
                 | TokenKind::KwContinue
                 | TokenKind::KwReturn

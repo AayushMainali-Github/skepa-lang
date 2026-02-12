@@ -488,6 +488,34 @@ fn main() -> Int {
 }
 
 #[test]
+fn parses_for_statement_with_all_clauses() {
+    let src = r#"
+fn main() -> Int {
+  for (let i = 0; i < 10; i = i + 1) {
+    ping(i);
+  }
+  return 0;
+}
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    match &program.functions[0].body[0] {
+        Stmt::For {
+            init,
+            cond,
+            step,
+            body,
+        } => {
+            assert!(init.is_some());
+            assert!(cond.is_some());
+            assert!(step.is_some());
+            assert_eq!(body.len(), 1);
+        }
+        _ => panic!("expected for"),
+    }
+}
+
+#[test]
 fn parses_nested_blocks_in_if_and_while() {
     let src = r#"
 fn main() -> Int {

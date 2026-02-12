@@ -194,6 +194,34 @@ impl Checker {
                 scopes.pop();
                 self.loop_depth = self.loop_depth.saturating_sub(1);
             }
+            Stmt::For {
+                init,
+                cond,
+                step,
+                body,
+            } => {
+                scopes.push(HashMap::new());
+                if let Some(init) = init {
+                    self.check_stmt(init, scopes, expected_ret);
+                }
+
+                if let Some(cond) = cond {
+                    let cond_ty = self.check_expr(cond, scopes);
+                    if cond_ty != TypeInfo::Bool && cond_ty != TypeInfo::Unknown {
+                        self.error("for condition must be Bool".to_string());
+                    }
+                }
+
+                self.loop_depth += 1;
+                for s in body {
+                    self.check_stmt(s, scopes, expected_ret);
+                }
+                if let Some(step) = step {
+                    self.check_stmt(step, scopes, expected_ret);
+                }
+                self.loop_depth = self.loop_depth.saturating_sub(1);
+                scopes.pop();
+            }
             Stmt::Break => {
                 if self.loop_depth == 0 {
                     self.error("`break` is only allowed inside a while loop".to_string());
