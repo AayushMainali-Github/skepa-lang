@@ -498,6 +498,22 @@ fn main() -> Int {
 }
 
 #[test]
+fn disassemble_includes_short_circuit_and_modulo_instruction_flow() {
+    let src = r#"
+fn main() -> Int {
+  if (true || false) {
+    return 8 % 3;
+  }
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let txt = module.disassemble();
+    assert!(txt.contains("JumpIfTrue"));
+    assert!(txt.contains("ModInt"));
+}
+
+#[test]
 fn runs_float_arithmetic() {
     let src = r#"
 fn main() -> Float {
@@ -516,6 +532,39 @@ fn supports_float_comparison_in_conditionals() {
     let src = r#"
 fn main() -> Int {
   if (2.5 > 2.0) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(1));
+}
+
+#[test]
+fn modulo_handles_negative_operands_with_rust_semantics() {
+    let src = r#"
+fn main() -> Int {
+  let a = -7 % 3;
+  let b = 7 % -3;
+  if (a == -1 && b == 1) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(1));
+}
+
+#[test]
+fn float_negative_zero_compares_equal_and_not_less_than_zero() {
+    let src = r#"
+fn main() -> Int {
+  let z: Float = -0.0;
+  if (z == 0.0 && !(z < 0.0) && !(z > 0.0)) {
     return 1;
   }
   return 0;
