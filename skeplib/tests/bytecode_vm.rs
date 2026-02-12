@@ -49,6 +49,38 @@ fn main() -> Int {
 }
 
 #[test]
+fn codegen_rejects_break_outside_loop_with_consistent_message() {
+    let src = r#"
+fn main() -> Int {
+  break;
+  return 0;
+}
+"#;
+    let err = compile_source(src).expect_err("compile should fail");
+    assert!(
+        err.as_slice()
+            .iter()
+            .any(|d| d.message.contains("`break` used outside a loop"))
+    );
+}
+
+#[test]
+fn codegen_rejects_continue_outside_loop_with_consistent_message() {
+    let src = r#"
+fn main() -> Int {
+  continue;
+  return 0;
+}
+"#;
+    let err = compile_source(src).expect_err("compile should fail");
+    assert!(
+        err.as_slice()
+            .iter()
+            .any(|d| d.message.contains("`continue` used outside a loop"))
+    );
+}
+
+#[test]
 fn runs_if_else_branching() {
     let src = r#"
 fn main() -> Int {

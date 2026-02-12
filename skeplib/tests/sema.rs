@@ -376,10 +376,12 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags.as_slice().iter().any(|d| {
-        d.message
-            .contains("`break` is only allowed inside a while loop")
-    }));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| { d.message.contains("`break` is only allowed inside a loop") })
+    );
 }
 
 #[test]
@@ -394,7 +396,7 @@ fn main() -> Int {
     assert!(result.has_errors);
     assert!(diags.as_slice().iter().any(|d| {
         d.message
-            .contains("`continue` is only allowed inside a while loop")
+            .contains("`continue` is only allowed inside a loop")
     }));
 }
 

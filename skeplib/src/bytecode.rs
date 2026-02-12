@@ -345,14 +345,14 @@ impl Compiler {
                     code.push(Instr::Jump(usize::MAX));
                     lp.break_jumps.push(at);
                 } else {
-                    self.error("`break` used outside while loop".to_string());
+                    self.error("`break` used outside a loop".to_string());
                 }
             }
             Stmt::Continue => {
                 if let Some(lp) = loops.last() {
                     code.push(Instr::Jump(lp.continue_target));
                 } else {
-                    self.error("`continue` used outside while loop".to_string());
+                    self.error("`continue` used outside a loop".to_string());
                 }
             }
         }

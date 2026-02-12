@@ -224,12 +224,12 @@ impl Checker {
             }
             Stmt::Break => {
                 if self.loop_depth == 0 {
-                    self.error("`break` is only allowed inside a while loop".to_string());
+                    self.error("`break` is only allowed inside a loop".to_string());
                 }
             }
             Stmt::Continue => {
                 if self.loop_depth == 0 {
-                    self.error("`continue` is only allowed inside a while loop".to_string());
+                    self.error("`continue` is only allowed inside a loop".to_string());
                 }
             }
             Stmt::Return(expr_opt) => {
