@@ -17,7 +17,7 @@
 
 ### Keywords
 
-`import`, `fn`, `let`, `if`, `else`, `while`, `return`, `true`, `false`
+`import`, `fn`, `let`, `if`, `else`, `while`, `break`, `continue`, `return`, `true`, `false`
 
 ### Built-in Type Names
 
@@ -77,6 +77,8 @@ fn main() -> Int {
 - expression statement
 - `if / else / else if`
 - `while`
+- `break`
+- `continue`
 - `return`
 
 Examples:
@@ -87,16 +89,20 @@ let y = x;
 x = 2;
 if (x > 0) { y = 1; } else { y = 2; }
 while (x < 10) { x = x + 1; }
+if (x == 5) { break; }
+if (x == 2) { continue; }
 return y;
 ```
+
+`break` and `continue` are valid only inside `while` loops.
 
 ## 7. Expressions
 
 - Primary: literals, identifiers, dotted paths, grouping
 - Calls: `fnName(a, b)`, `io.println("ok")`
-- Unary: `-expr`, `!expr`
+- Unary: `+expr`, `-expr`, `!expr`
 - Binary operators:
-  1. `*`, `/`
+  1. `*`, `/`, `%`
   2. `+`, `-`
   3. `<`, `<=`, `>`, `>=`
   4. `==`, `!=`
@@ -105,6 +111,10 @@ return y;
 
 All binary operators are left-associative.
 
+`&&` and `||` use short-circuit evaluation:
+- `false && rhs` does not evaluate `rhs`
+- `true || rhs` does not evaluate `rhs`
+
 ## 8. Type Rules (v0)
 
 - Variable type is fixed after declaration
@@ -112,9 +122,12 @@ All binary operators are left-associative.
 - Conditions for `if`/`while` must be `Bool`
 - Function arity and argument types must match signatures
 - Return type must match function return type
+- `break` / `continue` must be inside `while`
+- Unary `+` and unary `-` require `Int` or `Float`
 - Numeric rules are strict:
   - `Int` ops require `Int` + `Int`
   - `Float` ops require `Float` + `Float`
+  - `%` is `Int % Int` only
   - No implicit `Int -> Float` promotion
   - Mixed numeric ops are rejected
 
