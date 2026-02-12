@@ -169,6 +169,68 @@ fn main() -> Int {
     assert!(stdout.contains("LoadConst Int(3)"));
 }
 
+#[test]
+fn check_accepts_new_language_features_program() {
+    let tmp = make_temp_dir("skepac_check_new_features");
+    let file = tmp.join("features.sk");
+    fs::write(
+        &file,
+        r#"
+fn main() -> Int {
+  let i = 0;
+  let acc = +0;
+  while (i < 10) {
+    i = i + 1;
+    if (i == 3) {
+      continue;
+    }
+    acc = acc + (i % 4);
+    if (i == 7 || false) {
+      break;
+    }
+  }
+  return acc;
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("check")
+        .arg(&file)
+        .output()
+        .expect("run check");
+    assert_eq!(output.status.code(), Some(0));
+}
+
+#[test]
+fn disasm_includes_mod_and_short_circuit_instructions() {
+    let tmp = make_temp_dir("skepac_disasm_new_ops");
+    let source = tmp.join("main.sk");
+    fs::write(
+        &source,
+        r#"
+fn main() -> Int {
+  if (true || false) {
+    return 8 % 3;
+  }
+  return 0;
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("disasm")
+        .arg(&source)
+        .output()
+        .expect("run disasm");
+    assert!(output.status.success(), "{:?}", output);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("JumpIfTrue"));
+    assert!(stdout.contains("ModInt"));
+}
+
 fn skepac_bin() -> &'static str {
     env!("CARGO_BIN_EXE_skepac")
 }

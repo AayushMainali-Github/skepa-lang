@@ -127,6 +127,44 @@ fn main() -> Int {
     assert_eq!(output.status.code(), Some(9));
 }
 
+#[test]
+fn run_executes_break_continue_modulo_and_short_circuit() {
+    let tmp = make_temp_dir("skeparun_new_features");
+    let file = tmp.join("features.sk");
+    fs::write(
+        &file,
+        r#"
+fn main() -> Int {
+  let i = 0;
+  let acc = +0;
+  while (i < 8) {
+    i = i + 1;
+    if (i == 2) {
+      continue;
+    }
+    acc = acc + (i % 3);
+    if (i == 6 || false) {
+      break;
+    }
+  }
+  if (false && ((1 / 0) == 0)) {
+    return 99;
+  }
+  return acc;
+}
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(skeparun_bin())
+        .arg("run")
+        .arg(&file)
+        .output()
+        .expect("run skeparun");
+
+    assert_eq!(output.status.code(), Some(4));
+}
+
 fn skeparun_bin() -> &'static str {
     env!("CARGO_BIN_EXE_skeparun")
 }
