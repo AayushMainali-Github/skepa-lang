@@ -1,0 +1,13 @@
+fn main() -> Int {
+  let acc = 0;
+  for (let i = 0; i < 6; i = i + 1) {
+    if (i == 1) {
+      continue;
+    }
+    if (i == 5) {
+      break;
+    }
+    acc = acc + (i % 3);
+  }
+  return acc;
+}

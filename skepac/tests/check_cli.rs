@@ -231,6 +231,38 @@ fn main() -> Int {
     assert!(stdout.contains("ModInt"));
 }
 
+#[test]
+fn check_accepts_for_loop_control_flow_program() {
+    let tmp = make_temp_dir("skepac_check_for_features");
+    let file = tmp.join("for_features.sk");
+    fs::write(
+        &file,
+        r#"
+fn main() -> Int {
+  let acc = 0;
+  for (let i = 0; i < 8; i = i + 1) {
+    if (i == 2) {
+      continue;
+    }
+    if (i == 6) {
+      break;
+    }
+    acc = acc + (i % 3);
+  }
+  return acc;
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("check")
+        .arg(&file)
+        .output()
+        .expect("run check");
+    assert_eq!(output.status.code(), Some(0));
+}
+
 fn skepac_bin() -> &'static str {
     env!("CARGO_BIN_EXE_skepac")
 }
