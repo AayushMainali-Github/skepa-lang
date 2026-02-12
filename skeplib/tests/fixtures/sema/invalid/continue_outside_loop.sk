@@ -1,0 +1,4 @@
+fn main() -> Int {
+  continue;
+  return 0;
+}

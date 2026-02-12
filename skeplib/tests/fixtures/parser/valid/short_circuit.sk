@@ -1,0 +1,6 @@
+fn main() -> Int {
+  if (false && true || true) {
+    return 0;
+  }
+  return 1;
+}

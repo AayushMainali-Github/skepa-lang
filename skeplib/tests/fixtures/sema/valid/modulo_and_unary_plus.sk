@@ -1,0 +1,8 @@
+fn main() -> Int {
+  let a: Int = +17 % 5;
+  let b: Float = +2.5;
+  if (b == 2.5) {
+    return a;
+  }
+  return 0;
+}

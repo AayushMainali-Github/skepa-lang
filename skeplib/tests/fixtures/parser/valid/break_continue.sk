@@ -1,0 +1,7 @@
+fn main() -> Int {
+  while (true) {
+    continue;
+    break;
+  }
+  return 0;
+}
