@@ -1,6 +1,6 @@
 use crate::types::TypeInfo;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuiltinSig {
     pub package: &'static str,
     pub name: &'static str,

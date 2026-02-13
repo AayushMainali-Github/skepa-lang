@@ -83,7 +83,7 @@ impl Checker {
         }
 
         for stmt in &f.body {
-            self.check_stmt(stmt, &mut scopes, expected_ret);
+            self.check_stmt(stmt, &mut scopes, &expected_ret);
         }
         if expected_ret != TypeInfo::Void && !Self::block_must_return(&f.body) {
             self.error(format!(
@@ -122,7 +122,7 @@ impl Checker {
         &mut self,
         stmt: &Stmt,
         scopes: &mut Vec<HashMap<String, TypeInfo>>,
-        expected_ret: TypeInfo,
+        expected_ret: &TypeInfo,
     ) {
         match stmt {
             Stmt::Let { name, ty, value } => {
@@ -239,7 +239,7 @@ impl Checker {
                     Some(expr) => self.check_expr(expr, scopes),
                     None => TypeInfo::Void,
                 };
-                if ret_ty != TypeInfo::Unknown && ret_ty != expected_ret {
+                if ret_ty != TypeInfo::Unknown && &ret_ty != expected_ret {
                     self.error(format!(
                         "Return type mismatch: expected {:?}, got {:?}",
                         expected_ret, ret_ty
@@ -266,8 +266,26 @@ impl Checker {
                 TypeInfo::Unknown
             }
             AssignTarget::Index { .. } => {
-                self.error("Index assignment semantic typing is not supported yet".to_string());
-                TypeInfo::Unknown
+                if let AssignTarget::Index { base, index } = target {
+                    let base_ty = self.check_expr(base, scopes);
+                    let idx_ty = self.check_expr(index, scopes);
+                    if idx_ty != TypeInfo::Int && idx_ty != TypeInfo::Unknown {
+                        self.error("Array index must be Int".to_string());
+                    }
+                    match base_ty {
+                        TypeInfo::Array { elem, .. } => *elem,
+                        TypeInfo::Unknown => TypeInfo::Unknown,
+                        other => {
+                            self.error(format!(
+                                "Cannot index-assign into non-array type {:?}",
+                                other
+                            ));
+                            TypeInfo::Unknown
+                        }
+                    }
+                } else {
+                    TypeInfo::Unknown
+                }
             }
         }
     }
@@ -322,9 +340,52 @@ impl Checker {
                 self.check_binary(*op, lt, rt)
             }
             Expr::Call { callee, args } => self.check_call(callee, args, scopes),
-            Expr::ArrayLit(_) | Expr::ArrayRepeat { .. } | Expr::Index { .. } => {
-                self.error("Array semantic typing is not supported yet".to_string());
-                TypeInfo::Unknown
+            Expr::ArrayLit(items) => {
+                if items.is_empty() {
+                    self.error("Cannot infer type of empty array literal".to_string());
+                    return TypeInfo::Unknown;
+                }
+                let mut elem_ty = self.check_expr(&items[0], scopes);
+                for item in &items[1..] {
+                    let t = self.check_expr(item, scopes);
+                    if elem_ty == TypeInfo::Unknown {
+                        elem_ty = t;
+                        continue;
+                    }
+                    if t != TypeInfo::Unknown && t != elem_ty {
+                        self.error(format!(
+                            "Array literal element type mismatch: expected {:?}, got {:?}",
+                            elem_ty, t
+                        ));
+                        return TypeInfo::Unknown;
+                    }
+                }
+                TypeInfo::Array {
+                    elem: Box::new(elem_ty),
+                    size: items.len(),
+                }
+            }
+            Expr::ArrayRepeat { value, size } => {
+                let elem_ty = self.check_expr(value, scopes);
+                TypeInfo::Array {
+                    elem: Box::new(elem_ty),
+                    size: *size,
+                }
+            }
+            Expr::Index { base, index } => {
+                let base_ty = self.check_expr(base, scopes);
+                let idx_ty = self.check_expr(index, scopes);
+                if idx_ty != TypeInfo::Int && idx_ty != TypeInfo::Unknown {
+                    self.error("Array index must be Int".to_string());
+                }
+                match base_ty {
+                    TypeInfo::Array { elem, .. } => *elem,
+                    TypeInfo::Unknown => TypeInfo::Unknown,
+                    other => {
+                        self.error(format!("Cannot index into non-array type {:?}", other));
+                        TypeInfo::Unknown
+                    }
+                }
             }
         }
     }
@@ -438,12 +499,12 @@ impl Checker {
                 sig.params.len(),
                 args.len()
             ));
-            return sig.ret;
+            return sig.ret.clone();
         }
 
         for (i, arg) in args.iter().enumerate() {
             let got = self.check_expr(arg, scopes);
-            let expected = sig.params[i];
+            let expected = sig.params[i].clone();
             if got != TypeInfo::Unknown && got != expected {
                 self.error(format!(
                     "Argument {} for `{}`: expected {:?}, got {:?}",
@@ -481,12 +542,12 @@ impl Checker {
                 sig.params.len(),
                 args.len()
             ));
-            return sig.ret;
+            return sig.ret.clone();
         }
 
         for (idx, arg) in args.iter().enumerate() {
             let got = self.check_expr(arg, scopes);
-            let expected = sig.params[idx];
+            let expected = sig.params[idx].clone();
             if got != TypeInfo::Unknown && got != expected {
                 self.error(format!(
                     "{package}.{method} argument {} expects {:?}, got {:?}",
@@ -497,13 +558,13 @@ impl Checker {
             }
         }
 
-        sig.ret
+        sig.ret.clone()
     }
 
     fn lookup_var(&mut self, name: &str, scopes: &mut [HashMap<String, TypeInfo>]) -> TypeInfo {
         for scope in scopes.iter().rev() {
             if let Some(t) = scope.get(name) {
-                return *t;
+                return t.clone();
             }
         }
         self.error(format!("Unknown variable `{name}`"));

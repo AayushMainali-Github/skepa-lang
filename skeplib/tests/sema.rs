@@ -589,3 +589,89 @@ fn main() -> Int {
     let (result, diags) = analyze_source(src);
     assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
 }
+
+#[test]
+fn sema_accepts_static_arrays_and_indexing() {
+    let src = r#"
+fn main() -> Int {
+  let a: [Int; 3] = [1, 2, 3];
+  let x: Int = a[1];
+  a[2] = x;
+  return a[0] + a[1] + a[2];
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_rejects_array_literal_element_type_mismatch() {
+    let src = r#"
+fn main() -> Int {
+  let a: [Int; 2] = [1, true];
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message.contains("Array literal element type mismatch")
+            || d.message.contains("Type mismatch in let `a`")
+    }));
+}
+
+#[test]
+fn sema_rejects_array_size_mismatch() {
+    let src = r#"
+fn main() -> Int {
+  let a: [Int; 2] = [1, 2, 3];
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Type mismatch in let `a`"))
+    );
+}
+
+#[test]
+fn sema_rejects_non_int_array_index() {
+    let src = r#"
+fn main() -> Int {
+  let a: [Int; 2] = [1, 2];
+  let x = a[true];
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Array index must be Int"))
+    );
+}
+
+#[test]
+fn sema_rejects_index_assignment_type_mismatch() {
+    let src = r#"
+fn main() -> Int {
+  let a: [Int; 2] = [1, 2];
+  a[0] = true;
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Assignment type mismatch"))
+    );
+}
