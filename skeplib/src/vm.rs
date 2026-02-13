@@ -777,6 +777,112 @@ impl Vm {
                     items[idx as usize] = val;
                     stack.push(Value::Array(items));
                 }
+                Instr::ArraySetChain(depth) => {
+                    if *depth == 0 {
+                        return Err(Self::err_at(
+                            VmErrorKind::TypeMismatch,
+                            "ArraySetChain depth must be > 0",
+                            function_name,
+                            ip,
+                        ));
+                    }
+                    let Some(val) = stack.pop() else {
+                        return Err(Self::err_at(
+                            VmErrorKind::StackUnderflow,
+                            "ArraySetChain expects value",
+                            function_name,
+                            ip,
+                        ));
+                    };
+                    if stack.len() < *depth + 1 {
+                        return Err(Self::err_at(
+                            VmErrorKind::StackUnderflow,
+                            "ArraySetChain expects array and all indices",
+                            function_name,
+                            ip,
+                        ));
+                    }
+                    let mut indices = Vec::with_capacity(*depth);
+                    for _ in 0..*depth {
+                        let Some(idx_v) = stack.pop() else {
+                            return Err(Self::err_at(
+                                VmErrorKind::StackUnderflow,
+                                "ArraySetChain expects index",
+                                function_name,
+                                ip,
+                            ));
+                        };
+                        let Value::Int(idx) = idx_v else {
+                            return Err(Self::err_at(
+                                VmErrorKind::TypeMismatch,
+                                "ArraySetChain index must be Int",
+                                function_name,
+                                ip,
+                            ));
+                        };
+                        indices.push(idx);
+                    }
+                    indices.reverse();
+                    let Some(arr_v) = stack.pop() else {
+                        return Err(Self::err_at(
+                            VmErrorKind::StackUnderflow,
+                            "ArraySetChain expects array",
+                            function_name,
+                            ip,
+                        ));
+                    };
+
+                    fn set_deep(
+                        cur: Value,
+                        indices: &[i64],
+                        val: Value,
+                    ) -> Result<Value, VmErrorKind> {
+                        let Value::Array(mut items) = cur else {
+                            return Err(VmErrorKind::TypeMismatch);
+                        };
+                        let idx = indices[0];
+                        if idx < 0 || idx as usize >= items.len() {
+                            return Err(VmErrorKind::IndexOutOfBounds);
+                        }
+                        let u = idx as usize;
+                        if indices.len() == 1 {
+                            items[u] = val;
+                            return Ok(Value::Array(items));
+                        }
+                        let child = items[u].clone();
+                        let next = set_deep(child, &indices[1..], val)?;
+                        items[u] = next;
+                        Ok(Value::Array(items))
+                    }
+
+                    match set_deep(arr_v, &indices, val) {
+                        Ok(updated) => stack.push(updated),
+                        Err(VmErrorKind::TypeMismatch) => {
+                            return Err(Self::err_at(
+                                VmErrorKind::TypeMismatch,
+                                "ArraySetChain expects nested arrays along the assignment path",
+                                function_name,
+                                ip,
+                            ));
+                        }
+                        Err(VmErrorKind::IndexOutOfBounds) => {
+                            return Err(Self::err_at(
+                                VmErrorKind::IndexOutOfBounds,
+                                "ArraySetChain index out of bounds",
+                                function_name,
+                                ip,
+                            ));
+                        }
+                        Err(other) => {
+                            return Err(Self::err_at(
+                                other,
+                                "ArraySetChain failed",
+                                function_name,
+                                ip,
+                            ));
+                        }
+                    }
+                }
                 Instr::ArrayLen => {
                     let Some(arr_v) = stack.pop() else {
                         return Err(Self::err_at(

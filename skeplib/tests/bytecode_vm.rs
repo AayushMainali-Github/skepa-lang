@@ -281,11 +281,52 @@ fn main() -> Int {
 }
 
 #[test]
+fn runs_nested_static_array_3d_read_write() {
+    let src = r#"
+fn main() -> Int {
+  let t: [[[Int; 2]; 2]; 2] = [[[1, 2], [3, 4]], [[5, 6], [7, 8]]];
+  t[1][0][1] = 42;
+  return t[1][0][1];
+}
+"#;
+    let module = compile_source(src).expect("compile should succeed");
+    let out = Vm::run_module_main(&module).expect("vm run");
+    assert_eq!(out, Value::Int(42));
+}
+
+#[test]
+fn runs_nested_static_array_4d_read_write() {
+    let src = r#"
+fn main() -> Int {
+  let q: [[[[Int; 2]; 1]; 1]; 1] = [[[[1, 2]]]];
+  q[0][0][0][1] = 9;
+  return q[0][0][0][1];
+}
+"#;
+    let module = compile_source(src).expect("compile should succeed");
+    let out = Vm::run_module_main(&module).expect("vm run");
+    assert_eq!(out, Value::Int(9));
+}
+
+#[test]
 fn vm_reports_array_index_out_of_bounds() {
     let src = r#"
 fn main() -> Int {
   let a: [Int; 2] = [1, 2];
   return a[5];
+}
+"#;
+    let module = compile_source(src).expect("compile should succeed");
+    let err = Vm::run_module_main(&module).expect_err("oob");
+    assert_eq!(err.kind, VmErrorKind::IndexOutOfBounds);
+}
+
+#[test]
+fn vm_reports_nested_array_index_out_of_bounds() {
+    let src = r#"
+fn main() -> Int {
+  let t: [[[Int; 2]; 2]; 2] = [[[1, 2], [3, 4]], [[5, 6], [7, 8]]];
+  return t[1][3][0];
 }
 "#;
     let module = compile_source(src).expect("compile should succeed");

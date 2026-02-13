@@ -51,6 +51,7 @@ pub enum Instr {
     MakeArrayRepeat(usize),
     ArrayGet,
     ArraySet,
+    ArraySetChain(usize),
     ArrayLen,
     Return,
 }
@@ -229,21 +230,24 @@ impl Compiler {
                     ));
                 }
                 AssignTarget::Index { base, index } => {
-                    if let Expr::Ident(name) = &**base {
-                        if let Some(slot) = ctx.lookup(name) {
+                    if let Some((root, indices)) = Self::flatten_index_target(base, index) {
+                        if let Some(slot) = ctx.lookup(&root) {
                             code.push(Instr::LoadLocal(slot));
-                            self.compile_expr(index, ctx, code);
+                            for idx in &indices {
+                                self.compile_expr(idx, ctx, code);
+                            }
                             self.compile_expr(value, ctx, code);
-                            code.push(Instr::ArraySet);
+                            if indices.len() == 1 {
+                                code.push(Instr::ArraySet);
+                            } else {
+                                code.push(Instr::ArraySetChain(indices.len()));
+                            }
                             code.push(Instr::StoreLocal(slot));
                         } else {
-                            self.error(format!("Unknown local `{name}` in index assignment"));
+                            self.error(format!("Unknown local `{root}` in index assignment"));
                         }
                     } else {
-                        self.error(
-                            "Index assignment currently supports local array variables only"
-                                .to_string(),
-                        );
+                        self.error("Unsupported index assignment target".to_string());
                     }
                 }
             },
@@ -537,6 +541,27 @@ impl Compiler {
     fn error(&mut self, message: String) {
         self.diags.error(message, Span::default());
     }
+
+    fn flatten_index_target<'a>(
+        base: &'a Expr,
+        index: &'a Expr,
+    ) -> Option<(String, Vec<&'a Expr>)> {
+        let mut indices = vec![index];
+        let mut cur = base;
+        loop {
+            match cur {
+                Expr::Ident(name) => {
+                    indices.reverse();
+                    return Some((name.clone(), indices));
+                }
+                Expr::Index { base, index } => {
+                    indices.push(index);
+                    cur = base;
+                }
+                _ => return None,
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -680,8 +705,12 @@ fn encode_instr(i: &Instr, out: &mut Vec<u8>) {
         }
         Instr::ArrayGet => write_u8(out, 26),
         Instr::ArraySet => write_u8(out, 27),
-        Instr::ArrayLen => write_u8(out, 28),
-        Instr::Return => write_u8(out, 29),
+        Instr::ArraySetChain(n) => {
+            write_u8(out, 28);
+            write_u32(out, *n as u32);
+        }
+        Instr::ArrayLen => write_u8(out, 29),
+        Instr::Return => write_u8(out, 30),
     }
 }
 
@@ -783,8 +812,9 @@ fn decode_instr(rd: &mut Reader<'_>) -> Result<Instr, String> {
         25 => Instr::MakeArrayRepeat(rd.read_u32()? as usize),
         26 => Instr::ArrayGet,
         27 => Instr::ArraySet,
-        28 => Instr::ArrayLen,
-        29 => Instr::Return,
+        28 => Instr::ArraySetChain(rd.read_u32()? as usize),
+        29 => Instr::ArrayLen,
+        30 => Instr::Return,
         t => return Err(format!("Unknown instruction tag {t}")),
     })
 }
@@ -834,6 +864,7 @@ fn fmt_instr(i: &Instr) -> String {
         Instr::MakeArrayRepeat(n) => format!("MakeArrayRepeat {n}"),
         Instr::ArrayGet => "ArrayGet".to_string(),
         Instr::ArraySet => "ArraySet".to_string(),
+        Instr::ArraySetChain(n) => format!("ArraySetChain {n}"),
         Instr::ArrayLen => "ArrayLen".to_string(),
         Instr::Return => "Return".to_string(),
     }

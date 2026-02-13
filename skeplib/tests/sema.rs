@@ -722,3 +722,17 @@ fn main() -> Int {
             .any(|d| d.message.contains("len expects 1 argument"))
     );
 }
+
+#[test]
+fn sema_accepts_multidimensional_arrays_any_depth() {
+    let src = r#"
+fn main() -> Int {
+  let t: [[[Int; 2]; 2]; 2] = [[[1, 2], [3, 4]], [[5, 6], [7, 8]]];
+  let q: [[[[Int; 2]; 1]; 1]; 1] = [[[[1, 2]]]];
+  t[1][1][0] = q[0][0][0][1];
+  return t[1][1][0];
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
