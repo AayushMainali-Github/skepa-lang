@@ -471,6 +471,26 @@ impl Checker {
         args: &[Expr],
         scopes: &mut [HashMap<String, TypeInfo>],
     ) -> TypeInfo {
+        if let Expr::Ident(name) = callee
+            && name == "len"
+        {
+            if args.len() != 1 {
+                self.error(format!("len expects 1 argument, got {}", args.len()));
+                return TypeInfo::Unknown;
+            }
+            let arg_ty = self.check_expr(&args[0], scopes);
+            return match arg_ty {
+                TypeInfo::String | TypeInfo::Array { .. } | TypeInfo::Unknown => TypeInfo::Int,
+                other => {
+                    self.error(format!(
+                        "len expects String or Array argument, got {:?}",
+                        other
+                    ));
+                    TypeInfo::Unknown
+                }
+            };
+        }
+
         if let Expr::Path(parts) = callee
             && parts.len() == 2
             && parts[0] == "io"

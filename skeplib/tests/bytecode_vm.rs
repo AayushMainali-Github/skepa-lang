@@ -267,6 +267,20 @@ fn main() -> Int {
 }
 
 #[test]
+fn runs_len_for_array_and_string() {
+    let src = r#"
+fn main() -> Int {
+  let a: [Int; 4] = [1; 4];
+  let s: String = "hello";
+  return len(a) + len(s);
+}
+"#;
+    let module = compile_source(src).expect("compile should succeed");
+    let out = Vm::run_module_main(&module).expect("vm run");
+    assert_eq!(out, Value::Int(9));
+}
+
+#[test]
 fn vm_reports_array_index_out_of_bounds() {
     let src = r#"
 fn main() -> Int {
@@ -277,6 +291,29 @@ fn main() -> Int {
     let module = compile_source(src).expect("compile should succeed");
     let err = Vm::run_module_main(&module).expect_err("oob");
     assert_eq!(err.kind, VmErrorKind::IndexOutOfBounds);
+}
+
+#[test]
+fn vm_reports_type_mismatch_for_len_on_non_collection_value() {
+    let module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::LoadConst(Value::Int(1)),
+                    Instr::ArrayLen,
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&module).expect_err("type mismatch");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
 }
 
 #[test]

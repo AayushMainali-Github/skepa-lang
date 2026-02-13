@@ -675,3 +675,50 @@ fn main() -> Int {
             .any(|d| d.message.contains("Assignment type mismatch"))
     );
 }
+
+#[test]
+fn sema_accepts_len_for_string_and_array() {
+    let src = r#"
+fn main() -> Int {
+  let a: [Int; 3] = [1, 2, 3];
+  let s: String = "abcd";
+  return len(a) + len(s);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_rejects_len_for_non_collection() {
+    let src = r#"
+fn main() -> Int {
+  return len(1);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("len expects String or Array argument"))
+    );
+}
+
+#[test]
+fn sema_rejects_len_wrong_arity() {
+    let src = r#"
+fn main() -> Int {
+  return len();
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("len expects 1 argument"))
+    );
+}

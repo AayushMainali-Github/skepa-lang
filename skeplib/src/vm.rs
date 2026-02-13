@@ -781,20 +781,23 @@ impl Vm {
                     let Some(arr_v) = stack.pop() else {
                         return Err(Self::err_at(
                             VmErrorKind::StackUnderflow,
-                            "ArrayLen expects array",
+                            "ArrayLen expects value",
                             function_name,
                             ip,
                         ));
                     };
-                    let Value::Array(items) = arr_v else {
-                        return Err(Self::err_at(
-                            VmErrorKind::TypeMismatch,
-                            "ArrayLen expects Array",
-                            function_name,
-                            ip,
-                        ));
-                    };
-                    stack.push(Value::Int(items.len() as i64));
+                    match arr_v {
+                        Value::Array(items) => stack.push(Value::Int(items.len() as i64)),
+                        Value::String(s) => stack.push(Value::Int(s.chars().count() as i64)),
+                        _ => {
+                            return Err(Self::err_at(
+                                VmErrorKind::TypeMismatch,
+                                "len expects Array or String",
+                                function_name,
+                                ip,
+                            ));
+                        }
+                    }
                 }
                 Instr::Return => {
                     return Ok(stack.pop().unwrap_or(Value::Unit));
