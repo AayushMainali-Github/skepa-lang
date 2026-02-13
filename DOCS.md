@@ -53,6 +53,18 @@ Built-in `io` API:
 - `Bool`
 - `String`
 - `Void`
+- Static arrays: `[T; N]` (fixed size at compile time)
+
+Static array examples:
+
+- `[Int; 4]`
+- `[[Int; 3]; 2]`
+
+Rules:
+
+- `N` is compile-time fixed.
+- No runtime resize.
+- No dynamic/vector operations.
 
 ## 5. Functions
 
@@ -142,6 +154,10 @@ return y;
 Supported forms:
 
 - Primary: literals, identifiers, dotted paths, grouping
+- Static array literals:
+  - Full literal: `[1, 2, 3]`
+  - Repeat literal: `[0; 8]`
+- Indexing: `arr[i]`
 - Calls: `fnName(a, b)`, `io.println("ok")`
 - Unary: `+expr`, `-expr`, `!expr`
 - Binary operators (precedence high -> low):
@@ -223,7 +239,8 @@ Decoder rejects invalid magic, unsupported versions, and truncated payloads.
 ## 11. Not in v0.1.x
 
 - User-defined types/structs
-- Collections (arrays/maps)
+- Dynamic collections (`Vec`, maps, sets)
+- Dynamic array operations (`push`, `pop`, `insert`, `remove`, `append`)
 - Casting and implicit numeric promotion
 - String interpolation
 - Package manager / dependency system

@@ -11,13 +11,14 @@ pub enum TypeInfo {
 }
 
 impl TypeInfo {
-    pub fn from_ast(ty: TypeName) -> Self {
+    pub fn from_ast(ty: &TypeName) -> Self {
         match ty {
             TypeName::Int => TypeInfo::Int,
             TypeName::Float => TypeInfo::Float,
             TypeName::Bool => TypeInfo::Bool,
             TypeName::String => TypeInfo::String,
             TypeName::Void => TypeInfo::Void,
+            TypeName::Array { .. } => TypeInfo::Unknown,
         }
     }
 }

@@ -53,6 +53,7 @@ pub enum Stmt {
 pub enum AssignTarget {
     Ident(String),
     Path(Vec<String>),
+    Index { base: Box<Expr>, index: Expr },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -63,6 +64,15 @@ pub enum Expr {
     BoolLit(bool),
     StringLit(String),
     Path(Vec<String>),
+    ArrayLit(Vec<Expr>),
+    ArrayRepeat {
+        value: Box<Expr>,
+        size: usize,
+    },
+    Index {
+        base: Box<Expr>,
+        index: Box<Expr>,
+    },
     Unary {
         op: UnaryOp,
         expr: Box<Expr>,
@@ -85,13 +95,14 @@ pub struct Param {
     pub ty: TypeName,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeName {
     Int,
     Float,
     Bool,
     String,
     Void,
+    Array { elem: Box<TypeName>, size: usize },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -139,7 +150,11 @@ fn pretty_fn(func: &FnDecl, indent: usize, out: &mut String) {
         .map(|p| format!("{}: {}", p.name, p.ty.as_str()))
         .collect::<Vec<_>>()
         .join(", ");
-    let ret = func.return_type.map(|t| t.as_str()).unwrap_or("Void");
+    let ret = func
+        .return_type
+        .as_ref()
+        .map(TypeName::as_str)
+        .unwrap_or_else(|| "Void".to_string());
     out.push_str(&format!("{pad}fn {}({}) -> {}\n", func.name, params, ret));
     for stmt in &func.body {
         pretty_stmt(stmt, indent + 2, out);
@@ -165,6 +180,9 @@ fn pretty_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
             let target = match target {
                 AssignTarget::Ident(n) => n.clone(),
                 AssignTarget::Path(parts) => parts.join("."),
+                AssignTarget::Index { base, index } => {
+                    format!("{}[{}]", pretty_expr(base), pretty_expr(index))
+                }
             };
             out.push_str(&format!(
                 "{pad}assign {} = {}\n",
@@ -242,6 +260,9 @@ fn pretty_for_clause_stmt(stmt: &Stmt) -> String {
             let target = match target {
                 AssignTarget::Ident(n) => n.clone(),
                 AssignTarget::Path(parts) => parts.join("."),
+                AssignTarget::Index { base, index } => {
+                    format!("{}[{}]", pretty_expr(base), pretty_expr(index))
+                }
             };
             format!("{target} = {}", pretty_expr(value))
         }
@@ -258,6 +279,12 @@ fn pretty_expr(expr: &Expr) -> String {
         Expr::BoolLit(v) => v.to_string(),
         Expr::StringLit(s) => format!("\"{}\"", s.replace('"', "\\\"")),
         Expr::Path(parts) => parts.join("."),
+        Expr::ArrayLit(items) => {
+            let items = items.iter().map(pretty_expr).collect::<Vec<_>>().join(", ");
+            format!("[{items}]")
+        }
+        Expr::ArrayRepeat { value, size } => format!("[{}; {}]", pretty_expr(value), size),
+        Expr::Index { base, index } => format!("{}[{}]", pretty_expr(base), pretty_expr(index)),
         Expr::Unary { op, expr } => {
             let symbol = match op {
                 UnaryOp::Neg => "-",
@@ -293,13 +320,14 @@ fn pretty_expr(expr: &Expr) -> String {
 }
 
 impl TypeName {
-    pub fn as_str(self) -> &'static str {
+    pub fn as_str(&self) -> String {
         match self {
-            TypeName::Int => "Int",
-            TypeName::Float => "Float",
-            TypeName::Bool => "Bool",
-            TypeName::String => "String",
-            TypeName::Void => "Void",
+            TypeName::Int => "Int".to_string(),
+            TypeName::Float => "Float".to_string(),
+            TypeName::Bool => "Bool".to_string(),
+            TypeName::String => "String".to_string(),
+            TypeName::Void => "Void".to_string(),
+            TypeName::Array { elem, size } => format!("[{}; {}]", elem.as_str(), size),
         }
     }
 }

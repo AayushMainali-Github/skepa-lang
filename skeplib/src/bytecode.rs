@@ -222,6 +222,11 @@ impl Compiler {
                             parts.join(".")
                         ));
                     }
+                    AssignTarget::Index { .. } => {
+                        self.error(
+                            "Index assignment not supported in bytecode compiler yet".to_string(),
+                        );
+                    }
                 }
             }
             Stmt::Expr(expr) => {
@@ -479,6 +484,9 @@ impl Compiler {
                     "Path expression value is not supported in bytecode v0 compiler slice"
                         .to_string(),
                 );
+            }
+            Expr::ArrayLit(_) | Expr::ArrayRepeat { .. } | Expr::Index { .. } => {
+                self.error("Array expressions not supported in bytecode compiler yet".to_string());
             }
         }
     }

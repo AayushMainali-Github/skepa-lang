@@ -49,10 +49,11 @@ impl Checker {
             let params = f
                 .params
                 .iter()
-                .map(|p| TypeInfo::from_ast(p.ty))
+                .map(|p| TypeInfo::from_ast(&p.ty))
                 .collect::<Vec<_>>();
             let ret = f
                 .return_type
+                .as_ref()
                 .map(TypeInfo::from_ast)
                 .unwrap_or(TypeInfo::Void);
             self.functions.insert(
@@ -73,11 +74,12 @@ impl Checker {
     fn check_function(&mut self, f: &crate::ast::FnDecl) {
         let expected_ret = f
             .return_type
+            .as_ref()
             .map(TypeInfo::from_ast)
             .unwrap_or(TypeInfo::Void);
         let mut scopes = vec![HashMap::<String, TypeInfo>::new()];
         for p in &f.params {
-            scopes[0].insert(p.name.clone(), TypeInfo::from_ast(p.ty));
+            scopes[0].insert(p.name.clone(), TypeInfo::from_ast(&p.ty));
         }
 
         for stmt in &f.body {
@@ -127,7 +129,7 @@ impl Checker {
                 let expr_ty = self.check_expr(value, scopes);
                 let var_ty = match ty {
                     Some(t) => {
-                        let declared = TypeInfo::from_ast(*t);
+                        let declared = TypeInfo::from_ast(t);
                         if expr_ty != TypeInfo::Unknown && declared != expr_ty {
                             self.error(format!(
                                 "Type mismatch in let `{name}`: declared {:?}, got {:?}",
@@ -263,6 +265,10 @@ impl Checker {
                 }
                 TypeInfo::Unknown
             }
+            AssignTarget::Index { .. } => {
+                self.error("Index assignment semantic typing is not supported yet".to_string());
+                TypeInfo::Unknown
+            }
         }
     }
 
@@ -316,6 +322,10 @@ impl Checker {
                 self.check_binary(*op, lt, rt)
             }
             Expr::Call { callee, args } => self.check_call(callee, args, scopes),
+            Expr::ArrayLit(_) | Expr::ArrayRepeat { .. } | Expr::Index { .. } => {
+                self.error("Array semantic typing is not supported yet".to_string());
+                TypeInfo::Unknown
+            }
         }
     }
 
