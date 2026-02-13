@@ -239,6 +239,47 @@ fn main() -> Int {
 }
 
 #[test]
+fn runs_static_array_literal_index_and_assignment() {
+    let src = r#"
+fn main() -> Int {
+  let a: [Int; 3] = [1, 2, 3];
+  let x = a[1];
+  a[2] = x + 4;
+  return a[0] + a[1] + a[2];
+}
+"#;
+    let module = compile_source(src).expect("compile should succeed");
+    let out = Vm::run_module_main(&module).expect("vm run");
+    assert_eq!(out, Value::Int(9));
+}
+
+#[test]
+fn runs_static_array_repeat_literal() {
+    let src = r#"
+fn main() -> Int {
+  let a: [Int; 4] = [3; 4];
+  return a[0] + a[1] + a[2] + a[3];
+}
+"#;
+    let module = compile_source(src).expect("compile should succeed");
+    let out = Vm::run_module_main(&module).expect("vm run");
+    assert_eq!(out, Value::Int(12));
+}
+
+#[test]
+fn vm_reports_array_index_out_of_bounds() {
+    let src = r#"
+fn main() -> Int {
+  let a: [Int; 2] = [1, 2];
+  return a[5];
+}
+"#;
+    let module = compile_source(src).expect("compile should succeed");
+    let err = Vm::run_module_main(&module).expect_err("oob");
+    assert_eq!(err.kind, VmErrorKind::IndexOutOfBounds);
+}
+
+#[test]
 fn for_bytecode_has_expected_jump_shape() {
     let src = r#"
 fn main() -> Int {
@@ -796,4 +837,19 @@ fn main() -> Float { return 3.5; }
     let decoded = BytecodeModule::from_bytes(&bytes).expect("decode");
     let out = Vm::run_module_main(&decoded).expect("run");
     assert_eq!(out, Value::Float(3.5));
+}
+
+#[test]
+fn bytecode_roundtrip_preserves_array_constants_and_ops() {
+    let src = r#"
+fn main() -> Int {
+  let a: [Int; 3] = [2, 4, 6];
+  return a[0] + a[2];
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let bytes = module.to_bytes();
+    let decoded = BytecodeModule::from_bytes(&bytes).expect("decode");
+    let out = Vm::run_module_main(&decoded).expect("run");
+    assert_eq!(out, Value::Int(8));
 }

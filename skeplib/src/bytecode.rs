@@ -10,6 +10,7 @@ pub enum Value {
     Float(f64),
     Bool(bool),
     String(String),
+    Array(Vec<Value>),
     Unit,
 }
 
@@ -46,6 +47,11 @@ pub enum Instr {
         name: String,
         argc: usize,
     },
+    MakeArray(usize),
+    MakeArrayRepeat(usize),
+    ArrayGet,
+    ArraySet,
+    ArrayLen,
     Return,
 }
 
@@ -206,29 +212,41 @@ impl Compiler {
                 let slot = ctx.alloc_local(name.clone());
                 code.push(Instr::StoreLocal(slot));
             }
-            Stmt::Assign { target, value } => {
-                self.compile_expr(value, ctx, code);
-                match target {
-                    AssignTarget::Ident(name) => {
+            Stmt::Assign { target, value } => match target {
+                AssignTarget::Ident(name) => {
+                    self.compile_expr(value, ctx, code);
+                    if let Some(slot) = ctx.lookup(name) {
+                        code.push(Instr::StoreLocal(slot));
+                    } else {
+                        self.error(format!("Unknown local `{name}` in assignment"));
+                    }
+                }
+                AssignTarget::Path(parts) => {
+                    self.compile_expr(value, ctx, code);
+                    self.error(format!(
+                        "Path assignment not supported in bytecode v0: {}",
+                        parts.join(".")
+                    ));
+                }
+                AssignTarget::Index { base, index } => {
+                    if let Expr::Ident(name) = &**base {
                         if let Some(slot) = ctx.lookup(name) {
+                            code.push(Instr::LoadLocal(slot));
+                            self.compile_expr(index, ctx, code);
+                            self.compile_expr(value, ctx, code);
+                            code.push(Instr::ArraySet);
                             code.push(Instr::StoreLocal(slot));
                         } else {
-                            self.error(format!("Unknown local `{name}` in assignment"));
+                            self.error(format!("Unknown local `{name}` in index assignment"));
                         }
-                    }
-                    AssignTarget::Path(parts) => {
-                        self.error(format!(
-                            "Path assignment not supported in bytecode v0: {}",
-                            parts.join(".")
-                        ));
-                    }
-                    AssignTarget::Index { .. } => {
+                    } else {
                         self.error(
-                            "Index assignment not supported in bytecode compiler yet".to_string(),
+                            "Index assignment currently supports local array variables only"
+                                .to_string(),
                         );
                     }
                 }
-            }
+            },
             Stmt::Expr(expr) => {
                 self.compile_expr(expr, ctx, code);
                 code.push(Instr::Pop);
@@ -485,8 +503,20 @@ impl Compiler {
                         .to_string(),
                 );
             }
-            Expr::ArrayLit(_) | Expr::ArrayRepeat { .. } | Expr::Index { .. } => {
-                self.error("Array expressions not supported in bytecode compiler yet".to_string());
+            Expr::ArrayLit(items) => {
+                for item in items {
+                    self.compile_expr(item, ctx, code);
+                }
+                code.push(Instr::MakeArray(items.len()));
+            }
+            Expr::ArrayRepeat { value, size } => {
+                self.compile_expr(value, ctx, code);
+                code.push(Instr::MakeArrayRepeat(*size));
+            }
+            Expr::Index { base, index } => {
+                self.compile_expr(base, ctx, code);
+                self.compile_expr(index, ctx, code);
+                code.push(Instr::ArrayGet);
             }
         }
     }
@@ -559,7 +589,14 @@ fn encode_value(v: &Value, out: &mut Vec<u8>) {
             write_u8(out, 3);
             write_str(out, s);
         }
-        Value::Unit => write_u8(out, 4),
+        Value::Array(items) => {
+            write_u8(out, 4);
+            write_u32(out, items.len() as u32);
+            for item in items {
+                encode_value(item, out);
+            }
+        }
+        Value::Unit => write_u8(out, 5),
     }
 }
 
@@ -620,7 +657,18 @@ fn encode_instr(i: &Instr, out: &mut Vec<u8>) {
             write_str(out, name);
             write_u32(out, *argc as u32);
         }
-        Instr::Return => write_u8(out, 24),
+        Instr::MakeArray(n) => {
+            write_u8(out, 24);
+            write_u32(out, *n as u32);
+        }
+        Instr::MakeArrayRepeat(n) => {
+            write_u8(out, 25);
+            write_u32(out, *n as u32);
+        }
+        Instr::ArrayGet => write_u8(out, 26),
+        Instr::ArraySet => write_u8(out, 27),
+        Instr::ArrayLen => write_u8(out, 28),
+        Instr::Return => write_u8(out, 29),
     }
 }
 
@@ -672,7 +720,15 @@ fn decode_value(rd: &mut Reader<'_>) -> Result<Value, String> {
         1 => Ok(Value::Float(rd.read_f64()?)),
         2 => Ok(Value::Bool(rd.read_bool()?)),
         3 => Ok(Value::String(rd.read_str()?)),
-        4 => Ok(Value::Unit),
+        4 => {
+            let n = rd.read_u32()? as usize;
+            let mut items = Vec::with_capacity(n);
+            for _ in 0..n {
+                items.push(decode_value(rd)?);
+            }
+            Ok(Value::Array(items))
+        }
+        5 => Ok(Value::Unit),
         t => Err(format!("Unknown value tag {t}")),
     }
 }
@@ -710,7 +766,12 @@ fn decode_instr(rd: &mut Reader<'_>) -> Result<Instr, String> {
             name: rd.read_str()?,
             argc: rd.read_u32()? as usize,
         },
-        24 => Instr::Return,
+        24 => Instr::MakeArray(rd.read_u32()? as usize),
+        25 => Instr::MakeArrayRepeat(rd.read_u32()? as usize),
+        26 => Instr::ArrayGet,
+        27 => Instr::ArraySet,
+        28 => Instr::ArrayLen,
+        29 => Instr::Return,
         t => return Err(format!("Unknown instruction tag {t}")),
     })
 }
@@ -721,6 +782,7 @@ fn fmt_value(v: &Value) -> String {
         Value::Float(n) => format!("Float({n})"),
         Value::Bool(b) => format!("Bool({b})"),
         Value::String(s) => format!("String({s:?})"),
+        Value::Array(items) => format!("Array(len={})", items.len()),
         Value::Unit => "Unit".to_string(),
     }
 }
@@ -755,6 +817,11 @@ fn fmt_instr(i: &Instr) -> String {
             name,
             argc,
         } => format!("CallBuiltin {package}.{name} argc={argc}"),
+        Instr::MakeArray(n) => format!("MakeArray {n}"),
+        Instr::MakeArrayRepeat(n) => format!("MakeArrayRepeat {n}"),
+        Instr::ArrayGet => "ArrayGet".to_string(),
+        Instr::ArraySet => "ArraySet".to_string(),
+        Instr::ArrayLen => "ArrayLen".to_string(),
         Instr::Return => "Return".to_string(),
     }
 }

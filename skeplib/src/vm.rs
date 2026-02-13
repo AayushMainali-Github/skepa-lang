@@ -34,6 +34,7 @@ pub enum VmErrorKind {
     UnknownBuiltin,
     HostError,
     StackOverflow,
+    IndexOutOfBounds,
 }
 
 impl VmErrorKind {
@@ -48,6 +49,7 @@ impl VmErrorKind {
             VmErrorKind::UnknownBuiltin => "E-VM-UNKNOWN-BUILTIN",
             VmErrorKind::HostError => "E-VM-HOST",
             VmErrorKind::StackOverflow => "E-VM-STACK-OVERFLOW",
+            VmErrorKind::IndexOutOfBounds => "E-VM-INDEX-OOB",
         }
     }
 }
@@ -655,6 +657,144 @@ impl Vm {
                     let call_args = stack.split_off(split);
                     let ret = reg.call(host, package, name, call_args)?;
                     stack.push(ret);
+                }
+                Instr::MakeArray(n) => {
+                    if stack.len() < *n {
+                        return Err(Self::err_at(
+                            VmErrorKind::StackUnderflow,
+                            "MakeArray expects enough stack values",
+                            function_name,
+                            ip,
+                        ));
+                    }
+                    let start = stack.len() - *n;
+                    let items = stack.split_off(start);
+                    stack.push(Value::Array(items));
+                }
+                Instr::MakeArrayRepeat(n) => {
+                    let Some(v) = stack.pop() else {
+                        return Err(Self::err_at(
+                            VmErrorKind::StackUnderflow,
+                            "MakeArrayRepeat expects a value",
+                            function_name,
+                            ip,
+                        ));
+                    };
+                    stack.push(Value::Array(vec![v; *n]));
+                }
+                Instr::ArrayGet => {
+                    let Some(idx_v) = stack.pop() else {
+                        return Err(Self::err_at(
+                            VmErrorKind::StackUnderflow,
+                            "ArrayGet expects index",
+                            function_name,
+                            ip,
+                        ));
+                    };
+                    let Some(arr_v) = stack.pop() else {
+                        return Err(Self::err_at(
+                            VmErrorKind::StackUnderflow,
+                            "ArrayGet expects array",
+                            function_name,
+                            ip,
+                        ));
+                    };
+                    let Value::Int(idx) = idx_v else {
+                        return Err(Self::err_at(
+                            VmErrorKind::TypeMismatch,
+                            "ArrayGet index must be Int",
+                            function_name,
+                            ip,
+                        ));
+                    };
+                    let Value::Array(items) = arr_v else {
+                        return Err(Self::err_at(
+                            VmErrorKind::TypeMismatch,
+                            "ArrayGet expects Array",
+                            function_name,
+                            ip,
+                        ));
+                    };
+                    if idx < 0 || idx as usize >= items.len() {
+                        return Err(Self::err_at(
+                            VmErrorKind::IndexOutOfBounds,
+                            format!("Array index {} out of bounds (len={})", idx, items.len()),
+                            function_name,
+                            ip,
+                        ));
+                    }
+                    stack.push(items[idx as usize].clone());
+                }
+                Instr::ArraySet => {
+                    let Some(val) = stack.pop() else {
+                        return Err(Self::err_at(
+                            VmErrorKind::StackUnderflow,
+                            "ArraySet expects value",
+                            function_name,
+                            ip,
+                        ));
+                    };
+                    let Some(idx_v) = stack.pop() else {
+                        return Err(Self::err_at(
+                            VmErrorKind::StackUnderflow,
+                            "ArraySet expects index",
+                            function_name,
+                            ip,
+                        ));
+                    };
+                    let Some(arr_v) = stack.pop() else {
+                        return Err(Self::err_at(
+                            VmErrorKind::StackUnderflow,
+                            "ArraySet expects array",
+                            function_name,
+                            ip,
+                        ));
+                    };
+                    let Value::Int(idx) = idx_v else {
+                        return Err(Self::err_at(
+                            VmErrorKind::TypeMismatch,
+                            "ArraySet index must be Int",
+                            function_name,
+                            ip,
+                        ));
+                    };
+                    let Value::Array(mut items) = arr_v else {
+                        return Err(Self::err_at(
+                            VmErrorKind::TypeMismatch,
+                            "ArraySet expects Array",
+                            function_name,
+                            ip,
+                        ));
+                    };
+                    if idx < 0 || idx as usize >= items.len() {
+                        return Err(Self::err_at(
+                            VmErrorKind::IndexOutOfBounds,
+                            format!("Array index {} out of bounds (len={})", idx, items.len()),
+                            function_name,
+                            ip,
+                        ));
+                    }
+                    items[idx as usize] = val;
+                    stack.push(Value::Array(items));
+                }
+                Instr::ArrayLen => {
+                    let Some(arr_v) = stack.pop() else {
+                        return Err(Self::err_at(
+                            VmErrorKind::StackUnderflow,
+                            "ArrayLen expects array",
+                            function_name,
+                            ip,
+                        ));
+                    };
+                    let Value::Array(items) = arr_v else {
+                        return Err(Self::err_at(
+                            VmErrorKind::TypeMismatch,
+                            "ArrayLen expects Array",
+                            function_name,
+                            ip,
+                        ));
+                    };
+                    stack.push(Value::Int(items.len() as i64));
                 }
                 Instr::Return => {
                     return Ok(stack.pop().unwrap_or(Value::Unit));
