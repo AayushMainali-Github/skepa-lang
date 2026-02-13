@@ -59,6 +59,8 @@ impl Lexer {
             '"' => self.lex_string(start, line, col),
             '(' => self.single(TokenKind::LParen, start, line, col),
             ')' => self.single(TokenKind::RParen, start, line, col),
+            '[' => self.single(TokenKind::LBracket, start, line, col),
+            ']' => self.single(TokenKind::RBracket, start, line, col),
             '{' => self.single(TokenKind::LBrace, start, line, col),
             '}' => self.single(TokenKind::RBrace, start, line, col),
             ',' => self.single(TokenKind::Comma, start, line, col),

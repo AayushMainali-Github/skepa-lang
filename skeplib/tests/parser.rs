@@ -58,6 +58,52 @@ fn add(a: Int, b: Int) -> Int {
 }
 
 #[test]
+fn parses_static_array_type_annotations() {
+    let src = r#"
+fn sum_row(row: [Int; 4]) -> [Int; 4] {
+  return row;
+}
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    let f = &program.functions[0];
+    assert_eq!(
+        f.params[0].ty,
+        TypeName::Array {
+            elem: Box::new(TypeName::Int),
+            size: 4
+        }
+    );
+    assert_eq!(
+        f.return_type,
+        Some(TypeName::Array {
+            elem: Box::new(TypeName::Int),
+            size: 4
+        })
+    );
+}
+
+#[test]
+fn parses_nested_static_array_type_annotations() {
+    let src = r#"
+fn mat(m: [[Int; 3]; 2]) -> [[Int; 3]; 2] {
+  return m;
+}
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    let want = TypeName::Array {
+        elem: Box::new(TypeName::Array {
+            elem: Box::new(TypeName::Int),
+            size: 3,
+        }),
+        size: 2,
+    };
+    assert_eq!(program.functions[0].params[0].ty, want.clone());
+    assert_eq!(program.functions[0].return_type, Some(want));
+}
+
+#[test]
 fn reports_missing_colon_in_parameter() {
     let src = r#"
 fn add(a Int) -> Int {
@@ -184,6 +230,31 @@ fn main() -> Int {
 }
 
 #[test]
+fn parses_array_literals_and_repeat_literals() {
+    let src = r#"
+fn main() -> Int {
+  let a = [1, 2, 3];
+  let b = [0; 8];
+  return 0;
+}
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    match &program.functions[0].body[0] {
+        Stmt::Let { value, .. } => {
+            assert!(matches!(value, Expr::ArrayLit(items) if items.len() == 3))
+        }
+        _ => panic!("expected let"),
+    }
+    match &program.functions[0].body[1] {
+        Stmt::Let { value, .. } => {
+            assert!(matches!(value, Expr::ArrayRepeat { size, .. } if *size == 8))
+        }
+        _ => panic!("expected let"),
+    }
+}
+
+#[test]
 fn parses_path_assignment_target() {
     let src = r#"
 fn main() -> Int {
@@ -202,6 +273,28 @@ fn main() -> Int {
             assert_eq!(*value, Expr::IntLit(2));
         }
         _ => panic!("expected assignment"),
+    }
+}
+
+#[test]
+fn parses_index_expression_and_index_assignment_target() {
+    let src = r#"
+fn main() -> Int {
+  let a = [1, 2, 3];
+  let x = a[1];
+  a[2] = x;
+  return 0;
+}
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    match &program.functions[0].body[1] {
+        Stmt::Let { value, .. } => assert!(matches!(value, Expr::Index { .. })),
+        _ => panic!("expected index let"),
+    }
+    match &program.functions[0].body[2] {
+        Stmt::Assign { target, .. } => assert!(matches!(target, AssignTarget::Index { .. })),
+        _ => panic!("expected index assignment"),
     }
 }
 

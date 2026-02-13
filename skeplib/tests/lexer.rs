@@ -44,10 +44,12 @@ fn lexes_keywords_and_types() {
 
 #[test]
 fn lexes_operators_and_punctuation() {
-    let got = kinds("(){}.,:; -> = + - * / % ! == != < <= > >= && ||");
+    let got = kinds("()[]{}.,:; -> = + - * / % ! == != < <= > >= && ||");
     let want = vec![
         TokenKind::LParen,
         TokenKind::RParen,
+        TokenKind::LBracket,
+        TokenKind::RBracket,
         TokenKind::LBrace,
         TokenKind::RBrace,
         TokenKind::Dot,

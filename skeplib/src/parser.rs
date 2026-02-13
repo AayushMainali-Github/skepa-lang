@@ -437,40 +437,53 @@ impl Parser {
                 expr: Box::new(expr),
             });
         }
-        self.parse_call()
+        self.parse_postfix()
     }
 
-    fn parse_call(&mut self) -> Option<Expr> {
+    fn parse_postfix(&mut self) -> Option<Expr> {
         let mut expr = self.parse_primary()?;
         loop {
-            if !self.at(TokenKind::LParen) {
-                break;
-            }
-            self.bump();
-            let mut args = Vec::new();
-            if !self.at(TokenKind::RParen) {
-                loop {
-                    if self.at(TokenKind::Comma) {
-                        self.error_here_expected("Expected expression before `,` in call");
-                        return None;
-                    }
-                    args.push(self.parse_expr()?);
-                    if self.at(TokenKind::Comma) {
-                        self.bump();
-                        if self.at(TokenKind::RParen) {
-                            // allow trailing comma in call arguments
-                            break;
+            if self.at(TokenKind::LParen) {
+                self.bump();
+                let mut args = Vec::new();
+                if !self.at(TokenKind::RParen) {
+                    loop {
+                        if self.at(TokenKind::Comma) {
+                            self.error_here_expected("Expected expression before `,` in call");
+                            return None;
                         }
-                        continue;
+                        args.push(self.parse_expr()?);
+                        if self.at(TokenKind::Comma) {
+                            self.bump();
+                            if self.at(TokenKind::RParen) {
+                                // allow trailing comma in call arguments
+                                break;
+                            }
+                            continue;
+                        }
+                        break;
                     }
-                    break;
                 }
+                self.expect(TokenKind::RParen, "Expected `)` after call arguments")?;
+                expr = Expr::Call {
+                    callee: Box::new(expr),
+                    args,
+                };
+                continue;
             }
-            self.expect(TokenKind::RParen, "Expected `)` after call arguments")?;
-            expr = Expr::Call {
-                callee: Box::new(expr),
-                args,
-            };
+
+            if self.at(TokenKind::LBracket) {
+                self.bump();
+                let index = self.parse_expr()?;
+                self.expect(TokenKind::RBracket, "Expected `]` after index expression")?;
+                expr = Expr::Index {
+                    base: Box::new(expr),
+                    index: Box::new(index),
+                };
+                continue;
+            }
+
+            break;
         }
         Some(expr)
     }
@@ -516,6 +529,43 @@ impl Parser {
             }
             return Some(Expr::Path(parts));
         }
+        if self.at(TokenKind::LBracket) {
+            self.bump();
+            if self.at(TokenKind::RBracket) {
+                self.bump();
+                return Some(Expr::ArrayLit(Vec::new()));
+            }
+            let first = self.parse_expr()?;
+            if self.at(TokenKind::Semi) {
+                self.bump();
+                let sz = self.expect(TokenKind::IntLit, "Expected integer size in array repeat")?;
+                let size = match sz.lexeme.parse::<usize>() {
+                    Ok(v) => v,
+                    Err(_) => {
+                        self.error_here_expected("Expected valid array repeat size");
+                        return None;
+                    }
+                };
+                self.expect(
+                    TokenKind::RBracket,
+                    "Expected `]` after array repeat literal",
+                )?;
+                return Some(Expr::ArrayRepeat {
+                    value: Box::new(first),
+                    size,
+                });
+            }
+            let mut items = vec![first];
+            while self.at(TokenKind::Comma) {
+                self.bump();
+                if self.at(TokenKind::RBracket) {
+                    break;
+                }
+                items.push(self.parse_expr()?);
+            }
+            self.expect(TokenKind::RBracket, "Expected `]` after array literal")?;
+            return Some(Expr::ArrayLit(items));
+        }
         if self.at(TokenKind::LParen) {
             self.bump();
             let expr = self.parse_expr()?;
@@ -545,6 +595,22 @@ impl Parser {
                     continue;
                 }
             }
+            if k == TokenKind::LBracket {
+                let mut depth = 1usize;
+                i += 1;
+                while i <= last && depth > 0 {
+                    let cur = self.tokens[i].kind;
+                    if cur == TokenKind::LBracket {
+                        depth += 1;
+                    } else if cur == TokenKind::RBracket {
+                        depth -= 1;
+                    }
+                    i += 1;
+                }
+                if depth == 0 {
+                    continue;
+                }
+            }
             return false;
         }
         false
@@ -557,10 +623,35 @@ impl Parser {
             let part = self.expect_ident("Expected identifier after `.` in assignment target")?;
             parts.push(part.lexeme);
         }
-        if parts.len() == 1 {
-            Some(AssignTarget::Ident(parts.remove(0)))
+        let mut base = if parts.len() == 1 {
+            Expr::Ident(parts.remove(0))
         } else {
-            Some(AssignTarget::Path(parts))
+            Expr::Path(parts)
+        };
+
+        let mut index_target = None;
+        while self.at(TokenKind::LBracket) {
+            self.bump();
+            let index = self.parse_expr()?;
+            self.expect(TokenKind::RBracket, "Expected `]` after assignment index")?;
+            index_target = Some((base.clone(), index.clone()));
+            base = Expr::Index {
+                base: Box::new(base),
+                index: Box::new(index),
+            };
+        }
+
+        if let Some((b, i)) = index_target {
+            Some(AssignTarget::Index {
+                base: Box::new(b),
+                index: i,
+            })
+        } else {
+            match base {
+                Expr::Ident(n) => Some(AssignTarget::Ident(n)),
+                Expr::Path(p) => Some(AssignTarget::Path(p)),
+                _ => None,
+            }
         }
     }
 
@@ -573,6 +664,24 @@ impl Parser {
     }
 
     fn expect_type_name(&mut self, message: &str) -> Option<TypeName> {
+        if self.at(TokenKind::LBracket) {
+            self.bump();
+            let elem = self.expect_type_name("Expected element type in array type")?;
+            self.expect(TokenKind::Semi, "Expected `;` in array type")?;
+            let sz = self.expect(TokenKind::IntLit, "Expected integer size in array type")?;
+            let size = match sz.lexeme.parse::<usize>() {
+                Ok(v) => v,
+                Err(_) => {
+                    self.error_here_expected("Expected valid integer size in array type");
+                    return None;
+                }
+            };
+            self.expect(TokenKind::RBracket, "Expected `]` after array type")?;
+            return Some(TypeName::Array {
+                elem: Box::new(elem),
+                size,
+            });
+        }
         let ty = match self.current().kind {
             TokenKind::TyInt => TypeName::Int,
             TokenKind::TyFloat => TypeName::Float,

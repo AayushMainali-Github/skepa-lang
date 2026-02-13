@@ -26,6 +26,8 @@ pub enum TokenKind {
     TyVoid,
     LParen,
     RParen,
+    LBracket,
+    RBracket,
     LBrace,
     RBrace,
     Comma,
