@@ -1,0 +1,3 @@
+exit=11
+stderr_contains=`break` is only allowed inside a loop
+stderr_contains=[E-SEMA][sema]

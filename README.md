@@ -47,14 +47,14 @@ cargo install --git https://github.com/AayushMainali-Github/skepa-lang skeparun
 ## Automatic Prebuilt Binary Releases
 
 - Workflow: `.github/workflows/release.yml`
-- Trigger: push a version tag like `v0.1.0`
+- Trigger: push a version tag like `v0.1.3`
 - It builds `skepac` + `skeparun` for Windows/Linux/macOS and uploads assets to the GitHub Release automatically.
 
 Create a release tag:
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.1.3
+git push origin v0.1.3
 ```
 
 ## Run
