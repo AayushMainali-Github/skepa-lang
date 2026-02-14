@@ -1,0 +1,7 @@
+import io;
+
+fn main() -> Int {
+  let fmt = "n=%d";
+  io.printf(fmt, "x");
+  return 0;
+}

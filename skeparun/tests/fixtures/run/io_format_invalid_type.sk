@@ -1,0 +1,6 @@
+import io;
+
+fn main() -> Int {
+  let _s = io.format("n=%d", "oops");
+  return 0;
+}

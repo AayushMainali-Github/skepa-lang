@@ -34,6 +34,29 @@ struct Checker {
 }
 
 impl Checker {
+    fn parse_format_specifiers(fmt: &str) -> Result<Vec<char>, String> {
+        let mut specs = Vec::new();
+        let chars: Vec<char> = fmt.chars().collect();
+        let mut i = 0usize;
+        while i < chars.len() {
+            if chars[i] != '%' {
+                i += 1;
+                continue;
+            }
+            if i + 1 >= chars.len() {
+                return Err("Format string ends with `%`".to_string());
+            }
+            let spec = chars[i + 1];
+            match spec {
+                '%' => {}
+                'd' | 'f' | 's' | 'b' => specs.push(spec),
+                other => return Err(format!("Unsupported format specifier `%{other}`")),
+            }
+            i += 2;
+        }
+        Ok(specs)
+    }
+
     fn new(program: &Program) -> Self {
         let has_io_import = program.imports.iter().any(|i| i.module == "io");
         Self {
@@ -549,6 +572,69 @@ impl Checker {
         if package == "io" && !self.has_io_import {
             self.error("`io.*` used without `import io;`".to_string());
             return TypeInfo::Unknown;
+        }
+
+        if package == "io" && (method == "format" || method == "printf") {
+            if args.is_empty() {
+                self.error(format!("io.{method} expects at least 1 argument"));
+                return TypeInfo::Unknown;
+            }
+            let fmt_ty = self.check_expr(&args[0], scopes);
+            if fmt_ty != TypeInfo::String && fmt_ty != TypeInfo::Unknown {
+                self.error(format!(
+                    "io.{method} argument 1 expects {:?}, got {:?}",
+                    TypeInfo::String,
+                    fmt_ty
+                ));
+            }
+
+            if let Expr::StringLit(fmt) = &args[0] {
+                match Self::parse_format_specifiers(fmt) {
+                    Ok(specs) => {
+                        let expected_args = specs.len();
+                        let got_args = args.len().saturating_sub(1);
+                        if expected_args != got_args {
+                            self.error(format!(
+                                "io.{method} format expects {} value argument(s), got {}",
+                                expected_args, got_args
+                            ));
+                        }
+                        for (idx, arg) in args.iter().skip(1).enumerate() {
+                            let got = self.check_expr(arg, scopes);
+                            if idx >= specs.len() {
+                                continue;
+                            }
+                            let expected = match specs[idx] {
+                                'd' => TypeInfo::Int,
+                                'f' => TypeInfo::Float,
+                                's' => TypeInfo::String,
+                                'b' => TypeInfo::Bool,
+                                _ => TypeInfo::Unknown,
+                            };
+                            if got != TypeInfo::Unknown && got != expected {
+                                self.error(format!(
+                                    "io.{method} argument {} expects {:?} for `%{}`, got {:?}",
+                                    idx + 2,
+                                    expected,
+                                    specs[idx],
+                                    got
+                                ));
+                            }
+                        }
+                    }
+                    Err(msg) => self.error(format!("io.{method} format error: {msg}")),
+                }
+            } else {
+                for arg in args.iter().skip(1) {
+                    self.check_expr(arg, scopes);
+                }
+            }
+
+            return if method == "format" {
+                TypeInfo::String
+            } else {
+                TypeInfo::Void
+            };
         }
 
         let Some(sig) = find_builtin_sig(package, method) else {

@@ -931,3 +931,50 @@ fn main() -> Int {
     let out = Vm::run_module_main(&decoded).expect("run");
     assert_eq!(out, Value::Int(8));
 }
+
+#[test]
+fn runs_io_format_and_printf_with_escapes_and_percent() {
+    let src = r#"
+import io;
+fn main() -> Int {
+  let msg = io.format("v=%d f=%f ok=%b s=%s %%\n", 5, 1.5, true, "yo");
+  io.printf("%s\t%s\\", msg, "done");
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let mut host = TestHost::default();
+    let out = Vm::run_module_main_with_host(&module, &mut host).expect("run");
+    assert_eq!(out, Value::Int(0));
+    assert_eq!(host.output, "v=5 f=1.5 ok=true s=yo %\n\tdone\\");
+}
+
+#[test]
+fn vm_reports_io_format_runtime_type_mismatch() {
+    let src = r#"
+import io;
+fn main() -> Int {
+  let _x = io.format("n=%d", "bad");
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("type mismatch");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
+    assert!(err.message.contains("must be Int for `%d`"));
+}
+
+#[test]
+fn vm_reports_io_printf_runtime_arity_mismatch() {
+    let src = r#"
+import io;
+fn main() -> Int {
+  io.printf("%d %d", 1);
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("arity mismatch");
+    assert_eq!(err.kind, VmErrorKind::ArityMismatch);
+    assert!(err.message.contains("expects 2 value argument(s), got 1"));
+}

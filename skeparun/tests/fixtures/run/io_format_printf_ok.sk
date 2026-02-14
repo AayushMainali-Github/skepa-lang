@@ -1,0 +1,8 @@
+import io;
+
+fn main() -> Int {
+  let msg = io.format("n=%d\tf=%f\tb=%b\ts=%s%%\\", 12, 3.5, true, "ok");
+  io.println(msg);
+  io.printf("[%s]", "done");
+  return 0;
+}

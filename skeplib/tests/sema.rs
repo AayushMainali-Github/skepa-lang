@@ -736,3 +736,52 @@ fn main() -> Int {
     let (result, diags) = analyze_source(src);
     assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
 }
+
+#[test]
+fn sema_accepts_io_format_and_printf_with_matching_specs() {
+    let src = r#"
+import io;
+fn main() -> Int {
+  let s = io.format("n=%d f=%f ok=%b name=%s %%\n", 7, 2.5, true, "sam");
+  io.printf("%s\t%s\\", s, "done");
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_rejects_io_format_type_mismatch_from_literal_spec() {
+    let src = r#"
+import io;
+fn main() -> Int {
+  let s = io.format("x=%d", "bad");
+  io.println(s);
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("io.format argument 2 expects Int for `%d`")
+    }));
+}
+
+#[test]
+fn sema_rejects_io_printf_arity_mismatch_from_literal_spec() {
+    let src = r#"
+import io;
+fn main() -> Int {
+  io.printf("x=%d y=%d", 1);
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("io.printf format expects 2 value argument(s), got 1")
+    }));
+}
