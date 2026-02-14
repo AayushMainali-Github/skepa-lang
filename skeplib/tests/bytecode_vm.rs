@@ -978,3 +978,38 @@ fn main() -> Int {
     assert_eq!(err.kind, VmErrorKind::ArityMismatch);
     assert!(err.message.contains("expects 2 value argument(s), got 1"));
 }
+
+#[test]
+fn runs_typed_io_print_builtins_with_newlines() {
+    let src = r#"
+import io;
+fn main() -> Int {
+  io.printInt(7);
+  io.printFloat(2.5);
+  io.printBool(false);
+  io.printString("ok");
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let mut host = TestHost::default();
+    let out = Vm::run_module_main_with_host(&module, &mut host).expect("run");
+    assert_eq!(out, Value::Int(0));
+    assert_eq!(host.output, "7\n2.5\nfalse\nok\n");
+}
+
+#[test]
+fn vm_reports_typed_io_print_runtime_mismatch() {
+    let src = r#"
+import io;
+fn main() -> Int {
+  let fmt = "x";
+  io.printInt(fmt);
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("type mismatch");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
+    assert!(err.message.contains("io.printInt expects Int argument"));
+}

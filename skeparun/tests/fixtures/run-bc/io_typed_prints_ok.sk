@@ -1,0 +1,9 @@
+import io;
+
+fn main() -> Int {
+  io.printInt(42);
+  io.printFloat(3.25);
+  io.printBool(true);
+  io.printString("hello");
+  return 0;
+}

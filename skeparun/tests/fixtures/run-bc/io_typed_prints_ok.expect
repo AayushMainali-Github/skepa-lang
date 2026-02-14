@@ -1,0 +1,5 @@
+exit=0
+stdout_contains=42
+stdout_contains=3.25
+stdout_contains=true
+stdout_contains=hello

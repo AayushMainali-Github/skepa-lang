@@ -785,3 +785,38 @@ fn main() -> Int {
             .contains("io.printf format expects 2 value argument(s), got 1")
     }));
 }
+
+#[test]
+fn sema_accepts_typed_io_print_builtins() {
+    let src = r#"
+import io;
+fn main() -> Int {
+  io.printInt(7);
+  io.printFloat(1.25);
+  io.printBool(true);
+  io.printString("ok");
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_rejects_typed_io_print_type_mismatch() {
+    let src = r#"
+import io;
+fn main() -> Int {
+  io.printInt("bad");
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("io.printInt argument 1 expects Int"))
+    );
+}

@@ -139,6 +139,10 @@ impl BuiltinRegistry {
         let mut r = Self::default();
         r.register("io", "print", builtin_io_print);
         r.register("io", "println", builtin_io_println);
+        r.register("io", "printInt", builtin_io_print_int);
+        r.register("io", "printFloat", builtin_io_print_float);
+        r.register("io", "printBool", builtin_io_print_bool);
+        r.register("io", "printString", builtin_io_print_string);
         r.register("io", "format", builtin_io_format);
         r.register("io", "printf", builtin_io_printf);
         r.register("io", "readLine", builtin_io_readline);
@@ -217,6 +221,82 @@ fn builtin_io_readline(host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<V
         ));
     }
     Ok(Value::String(host.read_line()?))
+}
+
+fn builtin_io_print_int(host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+    if args.len() != 1 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "io.printInt expects 1 argument",
+        ));
+    }
+    match &args[0] {
+        Value::Int(v) => host.write(&v.to_string(), true)?,
+        _ => {
+            return Err(VmError::new(
+                VmErrorKind::TypeMismatch,
+                "io.printInt expects Int argument",
+            ));
+        }
+    }
+    Ok(Value::Unit)
+}
+
+fn builtin_io_print_float(host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+    if args.len() != 1 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "io.printFloat expects 1 argument",
+        ));
+    }
+    match &args[0] {
+        Value::Float(v) => host.write(&v.to_string(), true)?,
+        _ => {
+            return Err(VmError::new(
+                VmErrorKind::TypeMismatch,
+                "io.printFloat expects Float argument",
+            ));
+        }
+    }
+    Ok(Value::Unit)
+}
+
+fn builtin_io_print_bool(host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+    if args.len() != 1 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "io.printBool expects 1 argument",
+        ));
+    }
+    match &args[0] {
+        Value::Bool(v) => host.write(&v.to_string(), true)?,
+        _ => {
+            return Err(VmError::new(
+                VmErrorKind::TypeMismatch,
+                "io.printBool expects Bool argument",
+            ));
+        }
+    }
+    Ok(Value::Unit)
+}
+
+fn builtin_io_print_string(host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+    if args.len() != 1 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "io.printString expects 1 argument",
+        ));
+    }
+    match &args[0] {
+        Value::String(s) => host.write(s, true)?,
+        _ => {
+            return Err(VmError::new(
+                VmErrorKind::TypeMismatch,
+                "io.printString expects String argument",
+            ));
+        }
+    }
+    Ok(Value::Unit)
 }
 
 fn parse_format_specifiers(fmt: &str) -> Result<Vec<char>, VmError> {

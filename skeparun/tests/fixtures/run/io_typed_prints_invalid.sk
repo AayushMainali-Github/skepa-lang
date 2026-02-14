@@ -1,0 +1,6 @@
+import io;
+
+fn main() -> Int {
+  io.printBool(1);
+  return 0;
+}
