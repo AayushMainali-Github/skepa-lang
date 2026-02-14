@@ -303,6 +303,41 @@ fn main() -> Int {
 }
 
 #[test]
+fn runs_str_indexof_slice_and_isempty() {
+    let src = r#"
+import str;
+fn main() -> Int {
+  let s = "skepa";
+  let idx = str.indexOf(s, "ep");
+  let miss = str.indexOf(s, "zz");
+  let cut = str.slice(s, 1, 4);
+  if (idx == 2 && miss == -1 && cut == "kep" && !str.isEmpty(cut) && str.isEmpty("")) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile should succeed");
+    let out = Vm::run_module_main(&module).expect("vm run");
+    assert_eq!(out, Value::Int(1));
+}
+
+#[test]
+fn vm_reports_str_slice_out_of_bounds() {
+    let src = r#"
+import str;
+fn main() -> Int {
+  let _s = str.slice("abc", 1, 9);
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile should succeed");
+    let err = Vm::run_module_main(&module).expect_err("slice bounds");
+    assert_eq!(err.kind, VmErrorKind::IndexOutOfBounds);
+    assert!(err.message.contains("str.slice bounds out of range"));
+}
+
+#[test]
 fn runs_nested_static_array_3d_read_write() {
     let src = r#"
 fn main() -> Int {

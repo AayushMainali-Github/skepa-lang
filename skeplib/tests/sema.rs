@@ -764,6 +764,43 @@ fn main() -> Int {
 }
 
 #[test]
+fn sema_accepts_str_indexof_slice_isempty() {
+    let src = r#"
+import str;
+fn main() -> Int {
+  let s = "skepa";
+  let idx = str.indexOf(s, "ep");
+  let cut = str.slice(s, 1, 4);
+  if (idx == 2 && cut == "kep" && !str.isEmpty(cut) && str.isEmpty("")) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_rejects_str_slice_signature_mismatch() {
+    let src = r#"
+import str;
+fn main() -> Int {
+  let _s = str.slice("abc", "0", 2);
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("str.slice argument 2 expects Int"))
+    );
+}
+
+#[test]
 fn sema_accepts_multidimensional_arrays_any_depth() {
     let src = r#"
 fn main() -> Int {

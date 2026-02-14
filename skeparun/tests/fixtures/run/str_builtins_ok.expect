@@ -1,3 +1,2 @@
 exit=0
-stdout_contains=skepa
-stdout_contains=SKEPA
+stdout_contains=1

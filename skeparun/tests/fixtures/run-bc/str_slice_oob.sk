@@ -1,0 +1,6 @@
+import str;
+
+fn main() -> Int {
+  let _s = str.slice("abc", 1, 9);
+  return 0;
+}

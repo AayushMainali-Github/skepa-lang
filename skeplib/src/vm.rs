@@ -153,6 +153,9 @@ impl BuiltinRegistry {
         r.register("str", "trim", builtin_str_trim);
         r.register("str", "toLower", builtin_str_to_lower);
         r.register("str", "toUpper", builtin_str_to_upper);
+        r.register("str", "indexOf", builtin_str_index_of);
+        r.register("str", "slice", builtin_str_slice);
+        r.register("str", "isEmpty", builtin_str_is_empty);
         r
     }
 
@@ -557,6 +560,75 @@ fn builtin_str_to_upper(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result
         _ => Err(VmError::new(
             VmErrorKind::TypeMismatch,
             "str.toUpper expects String argument",
+        )),
+    }
+}
+
+fn builtin_str_index_of(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+    if args.len() != 2 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "str.indexOf expects 2 arguments",
+        ));
+    }
+    match (&args[0], &args[1]) {
+        (Value::String(s), Value::String(needle)) => match s.find(needle) {
+            Some(byte_idx) => Ok(Value::Int(s[..byte_idx].chars().count() as i64)),
+            None => Ok(Value::Int(-1)),
+        },
+        _ => Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "str.indexOf expects String, String arguments",
+        )),
+    }
+}
+
+fn builtin_str_slice(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+    if args.len() != 3 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "str.slice expects 3 arguments",
+        ));
+    }
+    let (Value::String(s), Value::Int(start), Value::Int(end)) = (&args[0], &args[1], &args[2])
+    else {
+        return Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "str.slice expects String, Int, Int arguments",
+        ));
+    };
+
+    let len = s.chars().count() as i64;
+    if *start < 0 || *end < 0 || *start > *end || *end > len {
+        return Err(VmError::new(
+            VmErrorKind::IndexOutOfBounds,
+            format!(
+                "str.slice bounds out of range: start={}, end={}, len={len}",
+                start, end
+            ),
+        ));
+    }
+
+    let out: String = s
+        .chars()
+        .skip(*start as usize)
+        .take((*end - *start) as usize)
+        .collect();
+    Ok(Value::String(out))
+}
+
+fn builtin_str_is_empty(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+    if args.len() != 1 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "str.isEmpty expects 1 argument",
+        ));
+    }
+    match &args[0] {
+        Value::String(s) => Ok(Value::Bool(s.is_empty())),
+        _ => Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "str.isEmpty expects String argument",
         )),
     }
 }

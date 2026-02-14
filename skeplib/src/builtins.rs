@@ -23,6 +23,7 @@ const IO_PRINT_STRING_PARAMS: &[TypeInfo] = &[TypeInfo::String];
 const IO_READLINE_PARAMS: &[TypeInfo] = &[];
 const STR_ONE_STRING_PARAM: &[TypeInfo] = &[TypeInfo::String];
 const STR_TWO_STRING_PARAMS: &[TypeInfo] = &[TypeInfo::String, TypeInfo::String];
+const STR_SLICE_PARAMS: &[TypeInfo] = &[TypeInfo::String, TypeInfo::Int, TypeInfo::Int];
 
 pub const BUILTIN_SIGS: &[BuiltinSig] = &[
     BuiltinSig {
@@ -135,6 +136,27 @@ pub const BUILTIN_SIGS: &[BuiltinSig] = &[
         name: "toUpper",
         params: STR_ONE_STRING_PARAM,
         ret: TypeInfo::String,
+        kind: BuiltinKind::FixedArity,
+    },
+    BuiltinSig {
+        package: "str",
+        name: "indexOf",
+        params: STR_TWO_STRING_PARAMS,
+        ret: TypeInfo::Int,
+        kind: BuiltinKind::FixedArity,
+    },
+    BuiltinSig {
+        package: "str",
+        name: "slice",
+        params: STR_SLICE_PARAMS,
+        ret: TypeInfo::String,
+        kind: BuiltinKind::FixedArity,
+    },
+    BuiltinSig {
+        package: "str",
+        name: "isEmpty",
+        params: STR_ONE_STRING_PARAM,
+        ret: TypeInfo::Bool,
         kind: BuiltinKind::FixedArity,
     },
 ];
