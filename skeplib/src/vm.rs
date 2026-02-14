@@ -151,6 +151,8 @@ impl BuiltinRegistry {
         r.register("str", "startsWith", builtin_str_starts_with);
         r.register("str", "endsWith", builtin_str_ends_with);
         r.register("str", "trim", builtin_str_trim);
+        r.register("str", "toLower", builtin_str_to_lower);
+        r.register("str", "toUpper", builtin_str_to_upper);
         r
     }
 
@@ -523,6 +525,38 @@ fn builtin_str_trim(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Val
         _ => Err(VmError::new(
             VmErrorKind::TypeMismatch,
             "str.trim expects String argument",
+        )),
+    }
+}
+
+fn builtin_str_to_lower(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+    if args.len() != 1 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "str.toLower expects 1 argument",
+        ));
+    }
+    match &args[0] {
+        Value::String(s) => Ok(Value::String(s.to_lowercase())),
+        _ => Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "str.toLower expects String argument",
+        )),
+    }
+}
+
+fn builtin_str_to_upper(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+    if args.len() != 1 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "str.toUpper expects 1 argument",
+        ));
+    }
+    match &args[0] {
+        Value::String(s) => Ok(Value::String(s.to_uppercase())),
+        _ => Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "str.toUpper expects String argument",
         )),
     }
 }

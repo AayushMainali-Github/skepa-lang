@@ -2,10 +2,13 @@ import io;
 import str;
 
 fn main() -> Int {
-  let s = "  skepa  ";
+  let s = "  SkEpA  ";
   let t = str.trim(s);
-  if (str.startsWith(t, "sk") && str.endsWith(t, "pa") && str.contains(t, "kep")) {
-    io.printInt(str.len(t));
+  let l = str.toLower(t);
+  let u = str.toUpper(t);
+  if (str.startsWith(l, "sk") && str.endsWith(u, "PA") && str.contains(l, "kep")) {
+    io.printString(l);
+    io.printString(u);
     return 0;
   }
   return 1;

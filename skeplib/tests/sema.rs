@@ -728,6 +728,42 @@ fn main() -> Int {
 }
 
 #[test]
+fn sema_accepts_str_case_conversion_builtins() {
+    let src = r#"
+import str;
+fn main() -> Int {
+  let a = str.toLower("SkEpA");
+  let b = str.toUpper("laNg");
+  if (a == "skepa" && b == "LANG") {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_rejects_str_case_conversion_type_mismatch() {
+    let src = r#"
+import str;
+fn main() -> Int {
+  let _a = str.toLower(1);
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("str.toLower argument 1 expects String"))
+    );
+}
+
+#[test]
 fn sema_accepts_multidimensional_arrays_any_depth() {
     let src = r#"
 fn main() -> Int {

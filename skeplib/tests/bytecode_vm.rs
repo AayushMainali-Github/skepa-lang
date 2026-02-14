@@ -285,6 +285,24 @@ fn main() -> Int {
 }
 
 #[test]
+fn runs_str_case_conversion_builtins() {
+    let src = r#"
+import str;
+fn main() -> Int {
+  let a = str.toLower("SkEpA");
+  let b = str.toUpper("laNg");
+  if (a == "skepa" && b == "LANG") {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile should succeed");
+    let out = Vm::run_module_main(&module).expect("vm run");
+    assert_eq!(out, Value::Int(1));
+}
+
+#[test]
 fn runs_nested_static_array_3d_read_write() {
     let src = r#"
 fn main() -> Int {

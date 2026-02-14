@@ -123,6 +123,20 @@ pub const BUILTIN_SIGS: &[BuiltinSig] = &[
         ret: TypeInfo::String,
         kind: BuiltinKind::FixedArity,
     },
+    BuiltinSig {
+        package: "str",
+        name: "toLower",
+        params: STR_ONE_STRING_PARAM,
+        ret: TypeInfo::String,
+        kind: BuiltinKind::FixedArity,
+    },
+    BuiltinSig {
+        package: "str",
+        name: "toUpper",
+        params: STR_ONE_STRING_PARAM,
+        ret: TypeInfo::String,
+        kind: BuiltinKind::FixedArity,
+    },
 ];
 
 pub fn find_builtin_sig(package: &str, name: &str) -> Option<&'static BuiltinSig> {
