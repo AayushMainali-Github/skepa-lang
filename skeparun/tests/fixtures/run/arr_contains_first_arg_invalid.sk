@@ -1,0 +1,8 @@
+import arr;
+
+fn main() -> Int {
+  if (arr.contains(1, 1)) {
+    return 1;
+  }
+  return 0;
+}

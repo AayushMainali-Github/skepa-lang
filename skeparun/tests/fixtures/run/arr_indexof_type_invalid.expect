@@ -1,0 +1,3 @@
+exit=11
+stderr_contains=[sema]
+stderr_contains=arr.indexOf argument 2 expects Int

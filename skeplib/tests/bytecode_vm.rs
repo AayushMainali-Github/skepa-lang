@@ -1301,3 +1301,44 @@ fn vm_reports_arr_sum_unsupported_runtime_element_type_from_manual_bytecode() {
             .contains("arr.sum supports Int, Float, String, or Array")
     );
 }
+
+#[test]
+fn regression_arr_sum_large_int_array() {
+    let n = 4000usize;
+    let mut src = String::from("import arr;\nfn main() -> Int {\n  let a: [Int; ");
+    src.push_str(&n.to_string());
+    src.push_str("] = [");
+    for i in 0..n {
+        if i > 0 {
+            src.push_str(", ");
+        }
+        src.push_str(&(i as i64).to_string());
+    }
+    src.push_str("];\n  return arr.sum(a);\n}\n");
+
+    let expected = ((n as i64 - 1) * n as i64) / 2;
+    let module = compile_source(&src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(expected));
+}
+
+#[test]
+fn regression_arr_concat_large_arrays_and_sum() {
+    let n = 1500usize;
+    let mut src = String::from("import arr;\nfn main() -> Int {\n  let a: [Int; ");
+    src.push_str(&n.to_string());
+    src.push_str("] = [1; ");
+    src.push_str(&n.to_string());
+    src.push_str("];\n  let b: [Int; ");
+    src.push_str(&n.to_string());
+    src.push_str("] = [2; ");
+    src.push_str(&n.to_string());
+    src.push_str("];\n  let c = a + b;\n");
+    src.push_str("  if (arr.len(c) != ");
+    src.push_str(&(2 * n).to_string());
+    src.push_str(") { return 1; }\n  return arr.sum(c);\n}\n");
+
+    let module = compile_source(&src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int((n as i64) * 3));
+}

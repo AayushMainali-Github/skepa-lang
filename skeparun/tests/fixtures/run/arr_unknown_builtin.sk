@@ -1,0 +1,5 @@
+import arr;
+
+fn main() -> Int {
+  return arr.nope([1, 2]);
+}

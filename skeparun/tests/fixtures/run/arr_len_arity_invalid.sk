@@ -1,0 +1,6 @@
+import arr;
+
+fn main() -> Int {
+  let a: [Int; 2] = [1, 2];
+  return arr.len(a, 1);
+}

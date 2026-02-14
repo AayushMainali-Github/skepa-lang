@@ -1,0 +1,3 @@
+exit=11
+stderr_contains=[sema]
+stderr_contains=arr.len expects 1 argument(s), got 2
