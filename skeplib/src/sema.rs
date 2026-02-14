@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::ast::{AssignTarget, BinaryOp, Expr, Program, Stmt, UnaryOp};
-use crate::builtins::find_builtin_sig;
+use crate::builtins::{BuiltinKind, find_builtin_sig};
 use crate::diagnostic::{DiagnosticBag, Span};
 use crate::parser::Parser;
 use crate::types::{FunctionSig, TypeInfo};
@@ -574,93 +574,90 @@ impl Checker {
             return TypeInfo::Unknown;
         }
 
-        if package == "io" && (method == "format" || method == "printf") {
-            if args.is_empty() {
-                self.error(format!("io.{method} expects at least 1 argument"));
-                return TypeInfo::Unknown;
-            }
-            let fmt_ty = self.check_expr(&args[0], scopes);
-            if fmt_ty != TypeInfo::String && fmt_ty != TypeInfo::Unknown {
-                self.error(format!(
-                    "io.{method} argument 1 expects {:?}, got {:?}",
-                    TypeInfo::String,
-                    fmt_ty
-                ));
-            }
-
-            if let Expr::StringLit(fmt) = &args[0] {
-                match Self::parse_format_specifiers(fmt) {
-                    Ok(specs) => {
-                        let expected_args = specs.len();
-                        let got_args = args.len().saturating_sub(1);
-                        if expected_args != got_args {
-                            self.error(format!(
-                                "io.{method} format expects {} value argument(s), got {}",
-                                expected_args, got_args
-                            ));
-                        }
-                        for (idx, arg) in args.iter().skip(1).enumerate() {
-                            let got = self.check_expr(arg, scopes);
-                            if idx >= specs.len() {
-                                continue;
-                            }
-                            let expected = match specs[idx] {
-                                'd' => TypeInfo::Int,
-                                'f' => TypeInfo::Float,
-                                's' => TypeInfo::String,
-                                'b' => TypeInfo::Bool,
-                                _ => TypeInfo::Unknown,
-                            };
-                            if got != TypeInfo::Unknown && got != expected {
-                                self.error(format!(
-                                    "io.{method} argument {} expects {:?} for `%{}`, got {:?}",
-                                    idx + 2,
-                                    expected,
-                                    specs[idx],
-                                    got
-                                ));
-                            }
-                        }
-                    }
-                    Err(msg) => self.error(format!("io.{method} format error: {msg}")),
-                }
-            } else {
-                for arg in args.iter().skip(1) {
-                    self.check_expr(arg, scopes);
-                }
-            }
-
-            return if method == "format" {
-                TypeInfo::String
-            } else {
-                TypeInfo::Void
-            };
-        }
-
         let Some(sig) = find_builtin_sig(package, method) else {
             self.error(format!("Unknown builtin `{package}.{method}`"));
             return TypeInfo::Unknown;
         };
 
-        if sig.params.len() != args.len() {
-            self.error(format!(
-                "{package}.{method} expects {} argument(s), got {}",
-                sig.params.len(),
-                args.len()
-            ));
-            return sig.ret.clone();
-        }
+        match sig.kind {
+            BuiltinKind::FixedArity => {
+                if sig.params.len() != args.len() {
+                    self.error(format!(
+                        "{package}.{method} expects {} argument(s), got {}",
+                        sig.params.len(),
+                        args.len()
+                    ));
+                    return sig.ret.clone();
+                }
 
-        for (idx, arg) in args.iter().enumerate() {
-            let got = self.check_expr(arg, scopes);
-            let expected = sig.params[idx].clone();
-            if got != TypeInfo::Unknown && got != expected {
-                self.error(format!(
-                    "{package}.{method} argument {} expects {:?}, got {:?}",
-                    idx + 1,
-                    expected,
-                    got
-                ));
+                for (idx, arg) in args.iter().enumerate() {
+                    let got = self.check_expr(arg, scopes);
+                    let expected = sig.params[idx].clone();
+                    if got != TypeInfo::Unknown && got != expected {
+                        self.error(format!(
+                            "{package}.{method} argument {} expects {:?}, got {:?}",
+                            idx + 1,
+                            expected,
+                            got
+                        ));
+                    }
+                }
+            }
+            BuiltinKind::FormatVariadic => {
+                if args.is_empty() {
+                    self.error(format!("{package}.{method} expects at least 1 argument"));
+                    return sig.ret.clone();
+                }
+                let fmt_ty = self.check_expr(&args[0], scopes);
+                if fmt_ty != TypeInfo::String && fmt_ty != TypeInfo::Unknown {
+                    self.error(format!(
+                        "{package}.{method} argument 1 expects {:?}, got {:?}",
+                        TypeInfo::String,
+                        fmt_ty
+                    ));
+                }
+
+                if let Expr::StringLit(fmt) = &args[0] {
+                    match Self::parse_format_specifiers(fmt) {
+                        Ok(specs) => {
+                            let expected_args = specs.len();
+                            let got_args = args.len().saturating_sub(1);
+                            if expected_args != got_args {
+                                self.error(format!(
+                                    "{package}.{method} format expects {} value argument(s), got {}",
+                                    expected_args, got_args
+                                ));
+                            }
+                            for (idx, arg) in args.iter().skip(1).enumerate() {
+                                let got = self.check_expr(arg, scopes);
+                                if idx >= specs.len() {
+                                    continue;
+                                }
+                                let expected = match specs[idx] {
+                                    'd' => TypeInfo::Int,
+                                    'f' => TypeInfo::Float,
+                                    's' => TypeInfo::String,
+                                    'b' => TypeInfo::Bool,
+                                    _ => TypeInfo::Unknown,
+                                };
+                                if got != TypeInfo::Unknown && got != expected {
+                                    self.error(format!(
+                                        "{package}.{method} argument {} expects {:?} for `%{}`, got {:?}",
+                                        idx + 2,
+                                        expected,
+                                        specs[idx],
+                                        got
+                                    ));
+                                }
+                            }
+                        }
+                        Err(msg) => self.error(format!("{package}.{method} format error: {msg}")),
+                    }
+                } else {
+                    for arg in args.iter().skip(1) {
+                        self.check_expr(arg, scopes);
+                    }
+                }
             }
         }
 
