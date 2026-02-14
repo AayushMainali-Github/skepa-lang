@@ -3,9 +3,7 @@ use std::process::Command;
 
 #[test]
 fn examples_run_successfully() {
-    run_example("hello.sk", 0);
-    run_example("sum_loop.sk", 10);
-    run_example("float_math.sk", 0);
+    run_example("master.sk", 0);
 }
 
 fn run_example(name: &str, expected_code: i32) {

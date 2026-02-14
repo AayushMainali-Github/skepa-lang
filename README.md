@@ -77,6 +77,12 @@ Run source:
 skeparun run app.sk
 ```
 
+Try the bundled example:
+
+```bash
+skeparun run examples/master.sk
+```
+
 Run bytecode:
 
 ```bash
