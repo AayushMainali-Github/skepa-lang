@@ -1013,3 +1013,69 @@ fn main() -> Int {
     assert_eq!(err.kind, VmErrorKind::TypeMismatch);
     assert!(err.message.contains("io.printInt expects Int argument"));
 }
+
+#[test]
+fn vm_io_print_and_println_have_expected_newline_behavior() {
+    let src = r#"
+import io;
+fn main() -> Int {
+  io.print("a");
+  io.print("b");
+  io.println("c");
+  io.print("d");
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let mut host = TestHost::default();
+    let out = Vm::run_module_main_with_host(&module, &mut host).expect("run");
+    assert_eq!(out, Value::Int(0));
+    assert_eq!(host.output, "abc\nd");
+}
+
+#[test]
+fn vm_reports_io_print_runtime_arity_mismatch() {
+    let src = r#"
+import io;
+fn main() -> Int {
+  io.print();
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("arity mismatch");
+    assert_eq!(err.kind, VmErrorKind::ArityMismatch);
+    assert!(err.message.contains("io.print expects 1 argument"));
+}
+
+#[test]
+fn vm_reports_io_printf_runtime_invalid_specifier_for_dynamic_format() {
+    let src = r#"
+import io;
+fn main() -> Int {
+  let fmt = "bad=%q";
+  io.printf(fmt, 1);
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("invalid specifier");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
+    assert!(err.message.contains("unsupported format specifier `%q`"));
+}
+
+#[test]
+fn vm_reports_io_format_runtime_trailing_percent_for_dynamic_format() {
+    let src = r#"
+import io;
+fn main() -> Int {
+  let fmt = "oops %";
+  let _s = io.format(fmt, 1);
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("trailing percent");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
+    assert!(err.message.contains("format string ends with `%`"));
+}

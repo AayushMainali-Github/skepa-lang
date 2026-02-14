@@ -1,0 +1,6 @@
+import io;
+
+fn main() -> Int {
+  io.printf("oops %", 1);
+  return 0;
+}

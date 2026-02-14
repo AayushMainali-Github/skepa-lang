@@ -820,3 +820,73 @@ fn main() -> Int {
             .any(|d| d.message.contains("io.printInt argument 1 expects Int"))
     );
 }
+
+#[test]
+fn sema_rejects_io_format_invalid_specifier_literal() {
+    let src = r#"
+import io;
+fn main() -> Int {
+  let _s = io.format("bad=%q", 1);
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("io.format format error: Unsupported format specifier `%q`")
+    }));
+}
+
+#[test]
+fn sema_rejects_io_printf_trailing_percent_literal() {
+    let src = r#"
+import io;
+fn main() -> Int {
+  io.printf("oops %", 1);
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("io.printf format error: Format string ends with `%`")
+    }));
+}
+
+#[test]
+fn sema_rejects_io_printf_non_string_format_arg() {
+    let src = r#"
+import io;
+fn main() -> Int {
+  io.printf(1, 2);
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("io.printf argument 1 expects String"))
+    );
+}
+
+#[test]
+fn sema_rejects_typed_io_print_arity_mismatch() {
+    let src = r#"
+import io;
+fn main() -> Int {
+  io.printFloat();
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("io.printFloat expects 1 argument(s), got 0")
+    }));
+}

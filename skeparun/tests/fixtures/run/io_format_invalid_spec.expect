@@ -1,0 +1,3 @@
+exit=11
+stderr_contains=[sema]
+stderr_contains=Unsupported format specifier `%q`

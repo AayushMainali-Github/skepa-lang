@@ -1,0 +1,4 @@
+exit=14
+stderr_contains=[runtime]
+stderr_contains=[E-VM-TYPE]
+stderr_contains=unsupported format specifier `%q`

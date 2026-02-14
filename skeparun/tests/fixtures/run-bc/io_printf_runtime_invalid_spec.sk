@@ -1,0 +1,7 @@
+import io;
+
+fn main() -> Int {
+  let fmt = "bad=%q";
+  io.printf(fmt, 1);
+  return 0;
+}
