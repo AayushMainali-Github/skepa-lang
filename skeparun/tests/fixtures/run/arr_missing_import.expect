@@ -1,0 +1,3 @@
+exit=11
+stderr_contains=[sema]
+stderr_contains=`arr.*` used without `import arr;`

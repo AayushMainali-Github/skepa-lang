@@ -1,0 +1,3 @@
+exit=11
+stderr_contains=[sema]
+stderr_contains=arr.sum supports Int, Float, String, or Array

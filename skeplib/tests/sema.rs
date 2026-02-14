@@ -999,3 +999,81 @@ fn main() -> Int {
     let (result, diags) = analyze_source(src);
     assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
 }
+
+#[test]
+fn sema_rejects_arr_without_import() {
+    let src = r#"
+fn main() -> Int {
+  let a: [Int; 2] = [1, 2];
+  return arr.len(a);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("`arr.*` used without `import arr;`"))
+    );
+}
+
+#[test]
+fn sema_rejects_arr_contains_mismatched_needle_type() {
+    let src = r#"
+import arr;
+fn main() -> Int {
+  let a: [Int; 2] = [1, 2];
+  if (arr.contains(a, "x")) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("arr.contains argument 2 expects Int"))
+    );
+}
+
+#[test]
+fn sema_rejects_arr_sum_for_bool_elements() {
+    let src = r#"
+import arr;
+fn main() -> Int {
+  let b: [Bool; 2] = [true, false];
+  let _x = arr.sum(b);
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("arr.sum supports Int, Float, String, or Array")
+    }));
+}
+
+#[test]
+fn sema_rejects_array_add_with_different_element_types() {
+    let src = r#"
+fn main() -> Int {
+  let a: [Int; 2] = [1, 2];
+  let b: [Float; 2] = [1.0, 2.0];
+  let _c = a + b;
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Invalid operands for Add"))
+    );
+}

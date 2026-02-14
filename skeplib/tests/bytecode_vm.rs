@@ -1189,3 +1189,117 @@ fn main() -> Int {
     assert_eq!(err.kind, VmErrorKind::TypeMismatch);
     assert!(err.message.contains("arr.sum expects non-empty array"));
 }
+
+#[test]
+fn runs_arr_sum_for_float_and_string() {
+    let src = r#"
+import arr;
+fn main() -> Int {
+  let fs: [Float; 3] = [1.25, 2.0, 0.75];
+  let ss: [String; 3] = ["sk", "epa", "!"];
+  let f = arr.sum(fs);
+  let s = arr.sum(ss);
+  if (f == 4.0 && s == "skepa!") {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(1));
+}
+
+#[test]
+fn runs_arr_contains_and_indexof_for_nested_arrays() {
+    let src = r#"
+import arr;
+fn main() -> Int {
+  let rows: [[Int; 2]; 3] = [[1, 2], [3, 4], [5, 6]];
+  if (arr.contains(rows, [3, 4]) && arr.indexOf(rows, [5, 6]) == 2 && arr.indexOf(rows, [9, 9]) == -1) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(1));
+}
+
+#[test]
+fn arr_is_empty_handles_zero_sized_arrays() {
+    let src = r#"
+import arr;
+fn main() -> Int {
+  let z: [Int; 0] = [1; 0];
+  if (arr.isEmpty(z) && arr.len(z) == 0) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(1));
+}
+
+#[test]
+fn vm_reports_arr_builtin_runtime_arity_mismatch_from_manual_bytecode() {
+    let module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::LoadConst(Value::Array(vec![Value::Int(1)])),
+                    Instr::LoadConst(Value::Int(1)),
+                    Instr::CallBuiltin {
+                        package: "arr".to_string(),
+                        name: "len".to_string(),
+                        argc: 2,
+                    },
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&module).expect_err("arity mismatch");
+    assert_eq!(err.kind, VmErrorKind::ArityMismatch);
+    assert!(err.message.contains("arr.len expects 1 argument"));
+}
+
+#[test]
+fn vm_reports_arr_sum_unsupported_runtime_element_type_from_manual_bytecode() {
+    let module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::LoadConst(Value::Array(vec![Value::Bool(true), Value::Bool(false)])),
+                    Instr::CallBuiltin {
+                        package: "arr".to_string(),
+                        name: "sum".to_string(),
+                        argc: 1,
+                    },
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&module).expect_err("unsupported element type");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
+    assert!(
+        err.message
+            .contains("arr.sum supports Int, Float, String, or Array")
+    );
+}
