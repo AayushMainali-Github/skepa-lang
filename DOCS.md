@@ -1,4 +1,4 @@
-# Skepa Language Docs (v0.1.x)
+# Skepa Language Docs (v0.2.x)
 
 ## 1. Source Files
 
@@ -46,6 +46,10 @@ Built-in `io` API:
 - `io.println(x: String) -> Void`
 - `io.readLine() -> String`
 
+Universal builtins (no import required):
+
+- `len(x) -> Int` where `x` is `String` or static array
+
 ## 4. Types
 
 - `Int`
@@ -59,12 +63,14 @@ Static array examples:
 
 - `[Int; 4]`
 - `[[Int; 3]; 2]`
+- `[[[Int; 2]; 2]; 2]`
 
 Rules:
 
 - `N` is compile-time fixed.
 - No runtime resize.
 - No dynamic/vector operations.
+- Supports multidimensional arrays of arbitrary depth.
 
 ## 5. Functions
 
@@ -158,6 +164,8 @@ Supported forms:
   - Full literal: `[1, 2, 3]`
   - Repeat literal: `[0; 8]`
 - Indexing: `arr[i]`
+- Index assignment: `arr[i] = value`
+- Multidimensional indexing/assignment: `m[i][j]`, `t[a][b][c] = v`
 - Calls: `fnName(a, b)`, `io.println("ok")`
 - Unary: `+expr`, `-expr`, `!expr`
 - Binary operators (precedence high -> low):
@@ -179,6 +187,9 @@ Short-circuiting:
 
 - Variable type is fixed after declaration.
 - Assignment type must match target type.
+- Array element type/size must match declared type.
+- Array index must be `Int`.
+- `len(...)` accepts only `String` or static arrays.
 - Conditions for `if`, `while`, and `for` must be `Bool`.
 - Function arity and argument types must match function signatures.
 - Return type must match function return type.
@@ -213,6 +224,7 @@ Examples:
 - `E-VM-TYPE`
 - `E-VM-ARITY`
 - `E-VM-STACK-OVERFLOW`
+- `E-VM-INDEX-OOB`
 
 Compiler phase labels:
 
@@ -232,11 +244,12 @@ Value tags:
 - `1`: `Float(f64)`
 - `2`: `Bool(u8)`
 - `3`: `String(len + bytes)`
-- `4`: `Unit`
+- `4`: `Array(len + items...)`
+- `5`: `Unit`
 
 Decoder rejects invalid magic, unsupported versions, and truncated payloads.
 
-## 11. Not in v0.1.x
+## 11. Not in v0.2.x
 
 - User-defined types/structs
 - Dynamic collections (`Vec`, maps, sets)
