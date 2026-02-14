@@ -38,6 +38,7 @@ Supported escapes: `\n`, `\t`, `\r`, `\"`, `\\`
 
 ```sk
 import io;
+import str;
 ```
 
 Built-in `io` API:
@@ -46,9 +47,13 @@ Built-in `io` API:
 - `io.println(x: String) -> Void`
 - `io.readLine() -> String`
 
-Universal builtins (no import required):
+Built-in `str` API:
 
-- `len(x) -> Int` where `x` is `String` or static array
+- `str.len(s: String) -> Int`
+- `str.contains(s: String, needle: String) -> Bool`
+- `str.startsWith(s: String, prefix: String) -> Bool`
+- `str.endsWith(s: String, suffix: String) -> Bool`
+- `str.trim(s: String) -> String`
 
 ## 4. Types
 
@@ -189,7 +194,6 @@ Short-circuiting:
 - Assignment type must match target type.
 - Array element type/size must match declared type.
 - Array index must be `Int`.
-- `len(...)` accepts only `String` or static arrays.
 - Conditions for `if`, `while`, and `for` must be `Bool`.
 - Function arity and argument types must match function signatures.
 - Return type must match function return type.

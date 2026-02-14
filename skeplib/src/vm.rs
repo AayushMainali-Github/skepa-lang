@@ -146,6 +146,11 @@ impl BuiltinRegistry {
         r.register("io", "format", builtin_io_format);
         r.register("io", "printf", builtin_io_printf);
         r.register("io", "readLine", builtin_io_readline);
+        r.register("str", "len", builtin_str_len);
+        r.register("str", "contains", builtin_str_contains);
+        r.register("str", "startsWith", builtin_str_starts_with);
+        r.register("str", "endsWith", builtin_str_ends_with);
+        r.register("str", "trim", builtin_str_trim);
         r
     }
 
@@ -435,6 +440,91 @@ fn builtin_io_printf(host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Val
     let rendered = render_format(fmt, &args[1..])?;
     host.write(&rendered, false)?;
     Ok(Value::Unit)
+}
+
+fn builtin_str_len(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+    if args.len() != 1 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "str.len expects 1 argument",
+        ));
+    }
+    match &args[0] {
+        Value::String(s) => Ok(Value::Int(s.chars().count() as i64)),
+        _ => Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "str.len expects String argument",
+        )),
+    }
+}
+
+fn builtin_str_contains(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+    if args.len() != 2 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "str.contains expects 2 arguments",
+        ));
+    }
+    match (&args[0], &args[1]) {
+        (Value::String(haystack), Value::String(needle)) => {
+            Ok(Value::Bool(haystack.contains(needle)))
+        }
+        _ => Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "str.contains expects String, String arguments",
+        )),
+    }
+}
+
+fn builtin_str_starts_with(
+    _host: &mut dyn BuiltinHost,
+    args: Vec<Value>,
+) -> Result<Value, VmError> {
+    if args.len() != 2 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "str.startsWith expects 2 arguments",
+        ));
+    }
+    match (&args[0], &args[1]) {
+        (Value::String(s), Value::String(prefix)) => Ok(Value::Bool(s.starts_with(prefix))),
+        _ => Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "str.startsWith expects String, String arguments",
+        )),
+    }
+}
+
+fn builtin_str_ends_with(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+    if args.len() != 2 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "str.endsWith expects 2 arguments",
+        ));
+    }
+    match (&args[0], &args[1]) {
+        (Value::String(s), Value::String(suffix)) => Ok(Value::Bool(s.ends_with(suffix))),
+        _ => Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "str.endsWith expects String, String arguments",
+        )),
+    }
+}
+
+fn builtin_str_trim(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+    if args.len() != 1 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "str.trim expects 1 argument",
+        ));
+    }
+    match &args[0] {
+        Value::String(s) => Ok(Value::String(s.trim().to_string())),
+        _ => Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "str.trim expects String argument",
+        )),
+    }
 }
 
 impl Vm {

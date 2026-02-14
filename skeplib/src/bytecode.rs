@@ -466,19 +466,6 @@ impl Compiler {
                 }
             },
             Expr::Call { callee, args } => {
-                if let Expr::Ident(name) = &**callee
-                    && name == "len"
-                {
-                    if args.len() != 1 {
-                        self.error(format!("len expects 1 argument, got {}", args.len()));
-                        code.push(Instr::LoadConst(Value::Int(0)));
-                        return;
-                    }
-                    self.compile_expr(&args[0], ctx, code);
-                    code.push(Instr::ArrayLen);
-                    return;
-                }
-
                 if let Expr::Path(parts) = &**callee {
                     if parts.len() == 2 {
                         for arg in args {

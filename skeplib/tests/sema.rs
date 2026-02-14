@@ -677,12 +677,16 @@ fn main() -> Int {
 }
 
 #[test]
-fn sema_accepts_len_for_string_and_array() {
+fn sema_accepts_str_builtins() {
     let src = r#"
+import str;
 fn main() -> Int {
-  let a: [Int; 3] = [1, 2, 3];
-  let s: String = "abcd";
-  return len(a) + len(s);
+  let s: String = "  skepa-lang  ";
+  let t: String = str.trim(s);
+  if (str.startsWith(t, "sk") && str.endsWith(t, "lang") && str.contains(t, "epa")) {
+    return str.len(t);
+  }
+  return 0;
 }
 "#;
     let (result, diags) = analyze_source(src);
@@ -690,10 +694,10 @@ fn main() -> Int {
 }
 
 #[test]
-fn sema_rejects_len_for_non_collection() {
+fn sema_rejects_str_without_import() {
     let src = r#"
 fn main() -> Int {
-  return len(1);
+  return str.len("x");
 }
 "#;
     let (result, diags) = analyze_source(src);
@@ -702,15 +706,15 @@ fn main() -> Int {
         diags
             .as_slice()
             .iter()
-            .any(|d| d.message.contains("len expects String or Array argument"))
+            .any(|d| d.message.contains("`str.*` used without `import str;`"))
     );
 }
 
 #[test]
-fn sema_rejects_len_wrong_arity() {
+fn sema_rejects_removed_universal_len_function() {
     let src = r#"
 fn main() -> Int {
-  return len();
+  return len("x");
 }
 "#;
     let (result, diags) = analyze_source(src);
@@ -719,7 +723,7 @@ fn main() -> Int {
         diags
             .as_slice()
             .iter()
-            .any(|d| d.message.contains("len expects 1 argument"))
+            .any(|d| d.message.contains("Unknown function `len`"))
     );
 }
 

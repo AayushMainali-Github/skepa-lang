@@ -267,17 +267,21 @@ fn main() -> Int {
 }
 
 #[test]
-fn runs_len_for_array_and_string() {
+fn runs_str_builtins() {
     let src = r#"
+import str;
 fn main() -> Int {
-  let a: [Int; 4] = [1; 4];
-  let s: String = "hello";
-  return len(a) + len(s);
+  let s = "  hello  ";
+  let t = str.trim(s);
+  if (str.contains(t, "ell") && str.startsWith(t, "he") && str.endsWith(t, "lo")) {
+    return str.len(t);
+  }
+  return 0;
 }
 "#;
     let module = compile_source(src).expect("compile should succeed");
     let out = Vm::run_module_main(&module).expect("vm run");
-    assert_eq!(out, Value::Int(9));
+    assert_eq!(out, Value::Int(5));
 }
 
 #[test]

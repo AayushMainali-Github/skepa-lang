@@ -21,6 +21,8 @@ const IO_PRINT_FLOAT_PARAMS: &[TypeInfo] = &[TypeInfo::Float];
 const IO_PRINT_BOOL_PARAMS: &[TypeInfo] = &[TypeInfo::Bool];
 const IO_PRINT_STRING_PARAMS: &[TypeInfo] = &[TypeInfo::String];
 const IO_READLINE_PARAMS: &[TypeInfo] = &[];
+const STR_ONE_STRING_PARAM: &[TypeInfo] = &[TypeInfo::String];
+const STR_TWO_STRING_PARAMS: &[TypeInfo] = &[TypeInfo::String, TypeInfo::String];
 
 pub const BUILTIN_SIGS: &[BuiltinSig] = &[
     BuiltinSig {
@@ -83,6 +85,41 @@ pub const BUILTIN_SIGS: &[BuiltinSig] = &[
         package: "io",
         name: "readLine",
         params: IO_READLINE_PARAMS,
+        ret: TypeInfo::String,
+        kind: BuiltinKind::FixedArity,
+    },
+    BuiltinSig {
+        package: "str",
+        name: "len",
+        params: STR_ONE_STRING_PARAM,
+        ret: TypeInfo::Int,
+        kind: BuiltinKind::FixedArity,
+    },
+    BuiltinSig {
+        package: "str",
+        name: "contains",
+        params: STR_TWO_STRING_PARAMS,
+        ret: TypeInfo::Bool,
+        kind: BuiltinKind::FixedArity,
+    },
+    BuiltinSig {
+        package: "str",
+        name: "startsWith",
+        params: STR_TWO_STRING_PARAMS,
+        ret: TypeInfo::Bool,
+        kind: BuiltinKind::FixedArity,
+    },
+    BuiltinSig {
+        package: "str",
+        name: "endsWith",
+        params: STR_TWO_STRING_PARAMS,
+        ret: TypeInfo::Bool,
+        kind: BuiltinKind::FixedArity,
+    },
+    BuiltinSig {
+        package: "str",
+        name: "trim",
+        params: STR_ONE_STRING_PARAM,
         ret: TypeInfo::String,
         kind: BuiltinKind::FixedArity,
     },

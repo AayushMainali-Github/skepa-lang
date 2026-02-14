@@ -1,0 +1,12 @@
+import io;
+import str;
+
+fn main() -> Int {
+  let s = "  skepa  ";
+  let t = str.trim(s);
+  if (str.startsWith(t, "sk") && str.endsWith(t, "pa") && str.contains(t, "kep")) {
+    io.printInt(str.len(t));
+    return 0;
+  }
+  return 1;
+}

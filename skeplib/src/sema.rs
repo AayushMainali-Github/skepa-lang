@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::ast::{AssignTarget, BinaryOp, Expr, Program, Stmt, UnaryOp};
 use crate::builtins::{BuiltinKind, find_builtin_sig};
@@ -29,7 +29,7 @@ pub fn analyze_source(source: &str) -> (SemaResult, DiagnosticBag) {
 struct Checker {
     diagnostics: DiagnosticBag,
     functions: HashMap<String, FunctionSig>,
-    has_io_import: bool,
+    imported_modules: HashSet<String>,
     loop_depth: usize,
 }
 
@@ -58,11 +58,15 @@ impl Checker {
     }
 
     fn new(program: &Program) -> Self {
-        let has_io_import = program.imports.iter().any(|i| i.module == "io");
+        let imported_modules = program
+            .imports
+            .iter()
+            .map(|i| i.module.clone())
+            .collect::<HashSet<_>>();
         Self {
             diagnostics: DiagnosticBag::new(),
             functions: HashMap::new(),
-            has_io_import,
+            imported_modules,
             loop_depth: 0,
         }
     }
@@ -321,7 +325,7 @@ impl Checker {
             Expr::StringLit(_) => TypeInfo::String,
             Expr::Ident(name) => self.lookup_var(name, scopes),
             Expr::Path(parts) => {
-                if parts.len() == 2 && parts[0] == "io" {
+                if parts.len() == 2 && (parts[0] == "io" || parts[0] == "str") {
                     return TypeInfo::Unknown;
                 }
                 self.error(format!("Unknown path `{}`", parts.join(".")));
@@ -494,29 +498,8 @@ impl Checker {
         args: &[Expr],
         scopes: &mut [HashMap<String, TypeInfo>],
     ) -> TypeInfo {
-        if let Expr::Ident(name) = callee
-            && name == "len"
-        {
-            if args.len() != 1 {
-                self.error(format!("len expects 1 argument, got {}", args.len()));
-                return TypeInfo::Unknown;
-            }
-            let arg_ty = self.check_expr(&args[0], scopes);
-            return match arg_ty {
-                TypeInfo::String | TypeInfo::Array { .. } | TypeInfo::Unknown => TypeInfo::Int,
-                other => {
-                    self.error(format!(
-                        "len expects String or Array argument, got {:?}",
-                        other
-                    ));
-                    TypeInfo::Unknown
-                }
-            };
-        }
-
         if let Expr::Path(parts) = callee
             && parts.len() == 2
-            && parts[0] == "io"
         {
             return self.check_builtin_call(&parts[0], &parts[1], args, scopes);
         }
@@ -569,8 +552,8 @@ impl Checker {
         args: &[Expr],
         scopes: &mut [HashMap<String, TypeInfo>],
     ) -> TypeInfo {
-        if package == "io" && !self.has_io_import {
-            self.error("`io.*` used without `import io;`".to_string());
+        if !self.imported_modules.contains(package) {
+            self.error(format!("`{package}.*` used without `import {package};`"));
             return TypeInfo::Unknown;
         }
 
