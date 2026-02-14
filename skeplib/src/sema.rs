@@ -431,11 +431,17 @@ impl Checker {
                 } else if op == Add {
                     match (&lt, &rt) {
                         (
-                            TypeInfo::Array { elem: l_elem, .. },
-                            TypeInfo::Array { elem: r_elem, .. },
+                            TypeInfo::Array {
+                                elem: l_elem,
+                                size: l_size,
+                            },
+                            TypeInfo::Array {
+                                elem: r_elem,
+                                size: r_size,
+                            },
                         ) if l_elem == r_elem => TypeInfo::Array {
                             elem: l_elem.clone(),
-                            size: 0,
+                            size: l_size + r_size,
                         },
                         _ => {
                             if lt == TypeInfo::Unknown || rt == TypeInfo::Unknown {

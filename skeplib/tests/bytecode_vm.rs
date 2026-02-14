@@ -1175,19 +1175,17 @@ fn main() -> Int {
 }
 
 #[test]
-fn vm_reports_arr_sum_empty_array_runtime_error() {
+fn vm_returns_identity_for_arr_sum_empty_array() {
     let src = r#"
 import arr;
 fn main() -> Int {
   let xs: [Int; 0] = [];
-  let _v = arr.sum(xs);
-  return 0;
+  return arr.sum(xs);
 }
 "#;
     let module = compile_source(src).expect("compile");
-    let err = Vm::run_module_main(&module).expect_err("empty sum");
-    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
-    assert!(err.message.contains("arr.sum expects non-empty array"));
+    let out = Vm::run_module_main(&module).expect("identity");
+    assert_eq!(out, Value::Int(0));
 }
 
 #[test]

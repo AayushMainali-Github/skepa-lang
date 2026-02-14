@@ -739,10 +739,7 @@ fn builtin_arr_sum(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Valu
         ));
     };
     if items.is_empty() {
-        return Err(VmError::new(
-            VmErrorKind::TypeMismatch,
-            "arr.sum expects non-empty array",
-        ));
+        return Ok(Value::Int(0));
     }
     let mut acc = items[0].clone();
     for v in items.iter().skip(1) {

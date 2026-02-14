@@ -1,4 +1,1 @@
-exit=14
-stderr_contains=[runtime]
-stderr_contains=[E-VM-TYPE]
-stderr_contains=arr.sum expects non-empty array
+exit=0
