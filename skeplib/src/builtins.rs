@@ -4,6 +4,7 @@ use crate::types::TypeInfo;
 pub enum BuiltinKind {
     FixedArity,
     FormatVariadic,
+    ArrayOps,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -158,6 +159,41 @@ pub const BUILTIN_SIGS: &[BuiltinSig] = &[
         params: STR_ONE_STRING_PARAM,
         ret: TypeInfo::Bool,
         kind: BuiltinKind::FixedArity,
+    },
+    BuiltinSig {
+        package: "arr",
+        name: "len",
+        params: &[],
+        ret: TypeInfo::Unknown,
+        kind: BuiltinKind::ArrayOps,
+    },
+    BuiltinSig {
+        package: "arr",
+        name: "isEmpty",
+        params: &[],
+        ret: TypeInfo::Unknown,
+        kind: BuiltinKind::ArrayOps,
+    },
+    BuiltinSig {
+        package: "arr",
+        name: "contains",
+        params: &[],
+        ret: TypeInfo::Unknown,
+        kind: BuiltinKind::ArrayOps,
+    },
+    BuiltinSig {
+        package: "arr",
+        name: "indexOf",
+        params: &[],
+        ret: TypeInfo::Unknown,
+        kind: BuiltinKind::ArrayOps,
+    },
+    BuiltinSig {
+        package: "arr",
+        name: "sum",
+        params: &[],
+        ret: TypeInfo::Unknown,
+        kind: BuiltinKind::ArrayOps,
     },
 ];
 

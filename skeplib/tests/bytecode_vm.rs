@@ -1136,3 +1136,56 @@ fn main() -> Int {
     assert_eq!(err.kind, VmErrorKind::TypeMismatch);
     assert!(err.message.contains("format string ends with `%`"));
 }
+
+#[test]
+fn runs_arr_package_generic_ops_and_array_add() {
+    let src = r#"
+import arr;
+fn main() -> Int {
+  let a: [Int; 4] = [1, 2, 3, 2];
+  let b: [Int; 2] = [9, 8];
+  let c = a + b;
+  if (arr.len(c) == 6 && !arr.isEmpty(c) && arr.contains(c, 8) && arr.indexOf(c, 2) == 1 && arr.sum(c) == 25) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(1));
+}
+
+#[test]
+fn runs_arr_sum_on_nested_arrays_to_concatenate_rows() {
+    let src = r#"
+import arr;
+fn main() -> Int {
+  let rows: [[Int; 2]; 3] = [[1, 2], [3, 4], [5, 6]];
+  let flat = arr.sum(rows);
+  if (arr.len(flat) == 6 && arr.indexOf(flat, 4) == 3 && arr.contains(flat, 6)) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(1));
+}
+
+#[test]
+fn vm_reports_arr_sum_empty_array_runtime_error() {
+    let src = r#"
+import arr;
+fn main() -> Int {
+  let xs: [Int; 0] = [];
+  let _v = arr.sum(xs);
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("empty sum");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
+    assert!(err.message.contains("arr.sum expects non-empty array"));
+}

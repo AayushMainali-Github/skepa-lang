@@ -1,0 +1,15 @@
+import arr;
+import io;
+
+fn main() -> Int {
+  let a: [Int; 4] = [1, 2, 3, 2];
+  let b: [Int; 2] = [9, 8];
+  let c = a + b;
+  let rows: [[Int; 2]; 3] = [[1, 2], [3, 4], [5, 6]];
+  let flat = arr.sum(rows);
+  if (arr.len(c) == 6 && !arr.isEmpty(c) && arr.contains(c, 8) && arr.indexOf(c, 2) == 1 && arr.sum(c) == 25 && arr.len(flat) == 6 && arr.indexOf(flat, 4) == 3) {
+    io.printInt(1);
+    return 0;
+  }
+  return 1;
+}

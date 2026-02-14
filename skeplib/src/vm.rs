@@ -156,6 +156,11 @@ impl BuiltinRegistry {
         r.register("str", "indexOf", builtin_str_index_of);
         r.register("str", "slice", builtin_str_slice);
         r.register("str", "isEmpty", builtin_str_is_empty);
+        r.register("arr", "len", builtin_arr_len);
+        r.register("arr", "isEmpty", builtin_arr_is_empty);
+        r.register("arr", "contains", builtin_arr_contains);
+        r.register("arr", "indexOf", builtin_arr_index_of);
+        r.register("arr", "sum", builtin_arr_sum);
         r
     }
 
@@ -633,6 +638,119 @@ fn builtin_str_is_empty(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result
     }
 }
 
+fn builtin_arr_len(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+    if args.len() != 1 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "arr.len expects 1 argument",
+        ));
+    }
+    match &args[0] {
+        Value::Array(items) => Ok(Value::Int(items.len() as i64)),
+        _ => Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "arr.len expects Array argument",
+        )),
+    }
+}
+
+fn builtin_arr_is_empty(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+    if args.len() != 1 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "arr.isEmpty expects 1 argument",
+        ));
+    }
+    match &args[0] {
+        Value::Array(items) => Ok(Value::Bool(items.is_empty())),
+        _ => Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "arr.isEmpty expects Array argument",
+        )),
+    }
+}
+
+fn builtin_arr_contains(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+    if args.len() != 2 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "arr.contains expects 2 arguments",
+        ));
+    }
+    match &args[0] {
+        Value::Array(items) => Ok(Value::Bool(items.contains(&args[1]))),
+        _ => Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "arr.contains expects Array as first argument",
+        )),
+    }
+}
+
+fn builtin_arr_index_of(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+    if args.len() != 2 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "arr.indexOf expects 2 arguments",
+        ));
+    }
+    match &args[0] {
+        Value::Array(items) => {
+            let idx = items
+                .iter()
+                .position(|v| v == &args[1])
+                .map(|i| i as i64)
+                .unwrap_or(-1);
+            Ok(Value::Int(idx))
+        }
+        _ => Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "arr.indexOf expects Array as first argument",
+        )),
+    }
+}
+
+fn arr_sum_step(lhs: Value, rhs: Value) -> Result<Value, VmError> {
+    match (lhs, rhs) {
+        (Value::Int(a), Value::Int(b)) => Ok(Value::Int(a + b)),
+        (Value::Float(a), Value::Float(b)) => Ok(Value::Float(a + b)),
+        (Value::String(a), Value::String(b)) => Ok(Value::String(format!("{a}{b}"))),
+        (Value::Array(mut a), Value::Array(b)) => {
+            a.extend(b);
+            Ok(Value::Array(a))
+        }
+        _ => Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "arr.sum supports Int, Float, String, or Array element types",
+        )),
+    }
+}
+
+fn builtin_arr_sum(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+    if args.len() != 1 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "arr.sum expects 1 argument",
+        ));
+    }
+    let Value::Array(items) = &args[0] else {
+        return Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "arr.sum expects Array argument",
+        ));
+    };
+    if items.is_empty() {
+        return Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "arr.sum expects non-empty array",
+        ));
+    }
+    let mut acc = items[0].clone();
+    for v in items.iter().skip(1) {
+        acc = arr_sum_step(acc, v.clone())?;
+    }
+    Ok(acc)
+}
+
 impl Vm {
     pub fn run_module_main(module: &BytecodeModule) -> Result<Value, VmError> {
         Self::run_module_main_with_config(module, VmConfig::default())
@@ -827,10 +945,14 @@ impl Vm {
                         (Value::String(a), Value::String(b)) => {
                             stack.push(Value::String(format!("{a}{b}")))
                         }
+                        (Value::Array(mut a), Value::Array(b)) => {
+                            a.extend(b);
+                            stack.push(Value::Array(a));
+                        }
                         _ => {
                             return Err(Self::err_at(
                                 VmErrorKind::TypeMismatch,
-                                "Add supports Int+Int, Float+Float, or String+String",
+                                "Add supports Int+Int, Float+Float, String+String, or Array+Array",
                                 function_name,
                                 ip,
                             ));

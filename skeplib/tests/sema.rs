@@ -967,3 +967,35 @@ fn main() -> Int {
             .contains("io.printFloat expects 1 argument(s), got 0")
     }));
 }
+
+#[test]
+fn sema_accepts_arr_package_generic_ops_and_array_add() {
+    let src = r#"
+import arr;
+fn main() -> Int {
+  let a: [Int; 4] = [1, 2, 3, 2];
+  let b: [Int; 2] = [9, 8];
+  let c = a + b;
+  if (arr.len(c) == 6 && !arr.isEmpty(c) && arr.contains(c, 8) && arr.indexOf(c, 2) == 1 && arr.sum(c) == 25) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_accepts_arr_sum_for_nested_arrays() {
+    let src = r#"
+import arr;
+fn main() -> Int {
+  let rows: [[Int; 2]; 3] = [[1, 2], [3, 4], [5, 6]];
+  let flat = arr.sum(rows);
+  return arr.len(flat);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}

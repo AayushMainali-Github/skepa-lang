@@ -325,7 +325,8 @@ impl Checker {
             Expr::StringLit(_) => TypeInfo::String,
             Expr::Ident(name) => self.lookup_var(name, scopes),
             Expr::Path(parts) => {
-                if parts.len() == 2 && (parts[0] == "io" || parts[0] == "str") {
+                if parts.len() == 2 && (parts[0] == "io" || parts[0] == "str" || parts[0] == "arr")
+                {
                     return TypeInfo::Unknown;
                 }
                 self.error(format!("Unknown path `{}`", parts.join(".")));
@@ -427,6 +428,27 @@ impl Checker {
                     TypeInfo::Float
                 } else if op == Add && lt == TypeInfo::String && rt == TypeInfo::String {
                     TypeInfo::String
+                } else if op == Add {
+                    match (&lt, &rt) {
+                        (
+                            TypeInfo::Array { elem: l_elem, .. },
+                            TypeInfo::Array { elem: r_elem, .. },
+                        ) if l_elem == r_elem => TypeInfo::Array {
+                            elem: l_elem.clone(),
+                            size: 0,
+                        },
+                        _ => {
+                            if lt == TypeInfo::Unknown || rt == TypeInfo::Unknown {
+                                TypeInfo::Unknown
+                            } else {
+                                self.error(format!(
+                                    "Invalid operands for {:?}: left {:?}, right {:?}",
+                                    op, lt, rt
+                                ));
+                                TypeInfo::Unknown
+                            }
+                        }
+                    }
                 } else if lt == TypeInfo::Unknown || rt == TypeInfo::Unknown {
                     TypeInfo::Unknown
                 } else {
@@ -642,6 +664,89 @@ impl Checker {
                     }
                 }
             }
+            BuiltinKind::ArrayOps => match method {
+                "len" | "isEmpty" | "sum" => {
+                    if args.len() != 1 {
+                        self.error(format!(
+                            "{package}.{method} expects 1 argument(s), got {}",
+                            args.len()
+                        ));
+                        return TypeInfo::Unknown;
+                    }
+                    let arr_ty = self.check_expr(&args[0], scopes);
+                    let TypeInfo::Array { elem, .. } = arr_ty else {
+                        if arr_ty != TypeInfo::Unknown {
+                            self.error(format!(
+                                "{package}.{method} argument 1 expects Array, got {:?}",
+                                arr_ty
+                            ));
+                        }
+                        return TypeInfo::Unknown;
+                    };
+                    match method {
+                        "len" => return TypeInfo::Int,
+                        "isEmpty" => return TypeInfo::Bool,
+                        "sum" => {
+                            let sum_ty = *elem;
+                            if !matches!(
+                                sum_ty,
+                                TypeInfo::Int
+                                    | TypeInfo::Float
+                                    | TypeInfo::String
+                                    | TypeInfo::Array { .. }
+                                    | TypeInfo::Unknown
+                            ) {
+                                self.error(format!(
+                                    "arr.sum supports Int, Float, String, or Array elements, got {:?}",
+                                    sum_ty
+                                ));
+                                return TypeInfo::Unknown;
+                            }
+                            return sum_ty;
+                        }
+                        _ => unreachable!(),
+                    }
+                }
+                "contains" | "indexOf" => {
+                    if args.len() != 2 {
+                        self.error(format!(
+                            "{package}.{method} expects 2 argument(s), got {}",
+                            args.len()
+                        ));
+                        return TypeInfo::Unknown;
+                    }
+                    let arr_ty = self.check_expr(&args[0], scopes);
+                    let needle_ty = self.check_expr(&args[1], scopes);
+                    let TypeInfo::Array { elem, .. } = arr_ty else {
+                        if arr_ty != TypeInfo::Unknown {
+                            self.error(format!(
+                                "{package}.{method} argument 1 expects Array, got {:?}",
+                                arr_ty
+                            ));
+                        }
+                        return TypeInfo::Unknown;
+                    };
+                    let elem_ty = *elem;
+                    if needle_ty != TypeInfo::Unknown
+                        && elem_ty != TypeInfo::Unknown
+                        && needle_ty != elem_ty
+                    {
+                        self.error(format!(
+                            "{package}.{method} argument 2 expects {:?}, got {:?}",
+                            elem_ty, needle_ty
+                        ));
+                    }
+                    return if method == "contains" {
+                        TypeInfo::Bool
+                    } else {
+                        TypeInfo::Int
+                    };
+                }
+                _ => {
+                    self.error(format!("Unsupported array builtin `{package}.{method}`"));
+                    return TypeInfo::Unknown;
+                }
+            },
         }
 
         sig.ret.clone()

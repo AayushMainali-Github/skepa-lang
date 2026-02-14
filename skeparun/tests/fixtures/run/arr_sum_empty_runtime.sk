@@ -1,0 +1,7 @@
+import arr;
+
+fn main() -> Int {
+  let xs: [Int; 0] = [1; 0];
+  let _v = arr.sum(xs);
+  return 0;
+}
