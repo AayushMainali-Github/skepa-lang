@@ -1,65 +1,49 @@
 # Skepa Language
 
-Skepa is a small compiled language implemented in Rust with:
+Skepa is a compiled language implemented in Rust.
 
-- `skepac`: checker/compiler/disassembler
-- `skeparun`: source and bytecode runner
+Tooling:
+- `skepac`: check, build bytecode, disassemble
+- `skeparun`: run source and bytecode
 
-## Install (All Available Ways)
+## Install
 
-Prerequisite: Rust + Cargo (`cargo --version`)
+Prerequisite for Cargo-based install: Rust + Cargo (`cargo --version`).
 
-### 1) From Local Repo (clone + installer scripts)
+### 1) Local repo installer scripts
 
 ```powershell
 ./scripts/install.ps1
 ```
 
-or
-
 ```bash
 ./scripts/install.sh
 ```
 
-### 2) From Local Repo (manual Cargo install)
+### 2) Local repo manual Cargo install
 
 ```bash
 cargo install --path skepac
 cargo install --path skeparun
 ```
 
-### 3) No Clone via GitHub (Cargo git install)
+### 3) GitHub install without cloning
 
 ```bash
 cargo install --git https://github.com/AayushMainali-Github/skepa-lang skepac
 cargo install --git https://github.com/AayushMainali-Github/skepa-lang skeparun
 ```
 
-### 4) No Rust/Cargo: prebuilt binaries from GitHub Releases
+### 4) Prebuilt binaries from GitHub Releases
 
-- Download the latest release assets:
-  - `skepa-windows-x64.zip`
-  - `skepa-linux-x64.tar.gz`
-  - `skepa-macos-x64.tar.gz`
-- Extract and add binaries to your `PATH`.
-- Run `skepac` and `skeparun` directly.
-
-## Automatic Prebuilt Binary Releases
-
-- Workflow: `.github/workflows/release.yml`
-- Trigger: push a version tag like `v0.1.3`
-- It builds `skepac` + `skeparun` for Windows/Linux/macOS and uploads assets to the GitHub Release automatically.
-
-Create a release tag:
-
-```bash
-git tag v0.1.3
-git push origin v0.1.3
-```
+Download latest assets and add binaries to `PATH`:
+- `skepa-windows-x64.zip`
+- `skepa-linux-x64.tar.gz`
+- `skepa-macos-x64.tar.gz`
 
 ## Run
 
-Check source:
+Check:
 
 ```bash
 skepac check app.sk
@@ -77,12 +61,6 @@ Run source:
 skeparun run app.sk
 ```
 
-Try the bundled example:
-
-```bash
-skeparun run examples/master.sk
-```
-
 Run bytecode:
 
 ```bash
@@ -95,5 +73,12 @@ Disassemble:
 skepac disasm app.sk
 skepac disasm app.skbc
 ```
+
+Bundled example:
+
+```bash
+skeparun run examples/master.sk
+```
+
 
 For full language and runtime reference, see `DOCS.md`.

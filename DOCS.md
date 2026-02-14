@@ -1,8 +1,8 @@
-# Skepa Language Docs (v0.2.x)
+# Skepa Language Docs (v0.3.x)
 
-## 1. Source Files
+## 1. Source Model
 
-- Extension: `.sk`
+- File extension: `.sk`
 - Top-level declarations:
   - `import <module>;`
   - `fn <name>(...) -> <Type> { ... }`
@@ -13,7 +13,7 @@
 - Comments:
   - `// ...`
   - `/* ... */`
-- Identifiers start with letter or `_`, and continue with letter, digit, or `_`.
+- Identifiers: start with letter or `_`, continue with letter/digit/`_`.
 
 ### Keywords
 
@@ -34,26 +34,64 @@
 
 Supported escapes: `\n`, `\t`, `\r`, `\"`, `\\`
 
-## 3. Imports and Builtins
+## 3. Builtin Packages
+
+Imports are explicit:
 
 ```sk
 import io;
 import str;
+import arr;
 ```
 
-Built-in `io` API:
+### `io` package
 
 - `io.print(x: String) -> Void`
 - `io.println(x: String) -> Void`
+- `io.printInt(x: Int) -> Void`
+- `io.printFloat(x: Float) -> Void`
+- `io.printBool(x: Bool) -> Void`
+- `io.printString(x: String) -> Void`
+- `io.format(fmt: String, ...args) -> String`
+- `io.printf(fmt: String, ...args) -> Void`
 - `io.readLine() -> String`
 
-Built-in `str` API:
+`io.format/io.printf` specifiers:
+- `%d` Int
+- `%f` Float
+- `%s` String
+- `%b` Bool
+- `%%` literal `%`
+
+### `str` package
 
 - `str.len(s: String) -> Int`
 - `str.contains(s: String, needle: String) -> Bool`
 - `str.startsWith(s: String, prefix: String) -> Bool`
 - `str.endsWith(s: String, suffix: String) -> Bool`
 - `str.trim(s: String) -> String`
+- `str.toLower(s: String) -> String`
+- `str.toUpper(s: String) -> String`
+- `str.indexOf(s: String, needle: String) -> Int` (`-1` if not found)
+- `str.slice(s: String, start: Int, end: Int) -> String` (end-exclusive, char-indexed)
+- `str.isEmpty(s: String) -> Bool`
+
+### `arr` package
+
+- `arr.len(a: [T; N]) -> Int`
+- `arr.isEmpty(a: [T; N]) -> Bool`
+- `arr.contains(a: [T; N], x: T) -> Bool`
+- `arr.indexOf(a: [T; N], x: T) -> Int` (`-1` if not found)
+- `arr.sum(a: [T; N]) -> T`
+
+`arr.sum` element support:
+- `Int` -> numeric sum
+- `Float` -> numeric sum
+- `String` -> concatenation
+- `Array` -> concatenation/flatten one level
+
+Empty-array `arr.sum` behavior (deterministic):
+- Returns `0` at runtime.
 
 ## 4. Types
 
@@ -62,22 +100,17 @@ Built-in `str` API:
 - `Bool`
 - `String`
 - `Void`
-- Static arrays: `[T; N]` (fixed size at compile time)
-
-Static array examples:
-
-- `[Int; 4]`
-- `[[Int; 3]; 2]`
-- `[[[Int; 2]; 2]; 2]`
+- Static arrays: `[T; N]`
 
 Rules:
-
 - `N` is compile-time fixed.
 - No runtime resize.
 - No dynamic/vector operations.
-- Supports multidimensional arrays of arbitrary depth.
+- Multidimensional arrays are supported at arbitrary depth.
 
 ## 5. Functions
+
+Example:
 
 ```sk
 fn add(a: Int, b: Int) -> Int {
@@ -93,13 +126,12 @@ fn main() -> Int {
 }
 ```
 
-`main()` return value is used as process exit code when execution succeeds.
+On successful execution, `main()` return value is used as process exit code (low 8 bits).
 
 ## 6. Statements
 
-Supported statements:
-
-- `let` declaration (typed or inferred)
+Supported:
+- `let` (typed or inferred)
 - assignment
 - expression statement
 - `if / else / else if`
@@ -109,7 +141,7 @@ Supported statements:
 - `continue`
 - `return`
 
-### `for` Syntax
+`for` form:
 
 ```sk
 for (init; condition; step) {
@@ -117,95 +149,47 @@ for (init; condition; step) {
 }
 ```
 
-Each clause is optional:
+Each clause is optional.
 
-- `for (;;)`
-- `for (let i = 0;;)`
-- `for (; i < n;)`
-- `for (;; i = i + 1)`
-
-`init` supports:
-
-- `let` declaration
-- assignment
-- expression
-
-`step` supports:
-
-- assignment
-- expression
-
-Examples:
-
-```sk
-let x: Int = 1;
-let y = x;
-x = 2;
-
-if (x > 0) { y = 1; } else { y = 2; }
-
-while (x < 10) {
-  x = x + 1;
-  if (x == 5) { break; }
-  if (x == 2) { continue; }
-}
-
-for (let i = 0; i < 8; i = i + 1) {
-  if (i == 2) { continue; }
-  if (i == 6) { break; }
-}
-
-return y;
-```
-
-`break` and `continue` are valid only inside loop bodies (`while` or `for`).
+`break` and `continue` are valid only inside loop bodies.
 
 ## 7. Expressions
 
-Supported forms:
+Supported:
+- literals, identifiers, dotted paths, grouping
+- array literals: `[1, 2, 3]`, repeat `[0; 8]`
+- indexing and index assignment: `a[i]`, `a[i] = v`
+- multidimensional indexing/assignment: `m[i][j]`, `t[a][b][c] = v`
+- calls: `f(x)`, `io.println("ok")`, `arr.sum(xs)`
+- unary: `+`, `-`, `!`
+- binary: `* / %`, `+ -`, comparisons, equality, `&&`, `||`
 
-- Primary: literals, identifiers, dotted paths, grouping
-- Static array literals:
-  - Full literal: `[1, 2, 3]`
-  - Repeat literal: `[0; 8]`
-- Indexing: `arr[i]`
-- Index assignment: `arr[i] = value`
-- Multidimensional indexing/assignment: `m[i][j]`, `t[a][b][c] = v`
-- Calls: `fnName(a, b)`, `io.println("ok")`
-- Unary: `+expr`, `-expr`, `!expr`
-- Binary operators (precedence high -> low):
-  1. `*`, `/`, `%`
-  2. `+`, `-`
-  3. `<`, `<=`, `>`, `>=`
-  4. `==`, `!=`
-  5. `&&`
-  6. `||`
+Short-circuit:
+- `false && rhs` skips `rhs`
+- `true || rhs` skips `rhs`
 
-All binary operators are left-associative.
+`+` supports:
+- `Int + Int`
+- `Float + Float`
+- `String + String`
+- `Array + Array` when array element types match
 
-Short-circuiting:
-
-- `false && rhs` does not evaluate `rhs`
-- `true || rhs` does not evaluate `rhs`
+Array concat typing:
+- `[T; N] + [T; M] => [T; N+M]`
 
 ## 8. Type Rules
 
 - Variable type is fixed after declaration.
-- Assignment type must match target type.
+- Assignment value type must match target type.
 - Array element type/size must match declared type.
-- Array index must be `Int`.
-- Conditions for `if`, `while`, and `for` must be `Bool`.
-- Function arity and argument types must match function signatures.
-- Return type must match function return type.
+- Array index type must be `Int`.
+- `if` / `while` / `for` condition type must be `Bool`.
+- Function arity and argument types must match signatures.
+- Return type must match declared function return type.
 - Non-`Void` functions must return on all paths.
-- `break` and `continue` must appear inside loop bodies.
-- Unary `+` and unary `-` require numeric operands (`Int` or `Float`).
-- Numeric operations are strict:
-  - `Int` ops require `Int` + `Int`
-  - `Float` ops require `Float` + `Float`
-  - `%` is `Int % Int` only
-  - No implicit numeric promotion
-  - Mixed numeric operations are rejected
+- Unary `+` / `-` require numeric operands.
+- Numeric operations are strict (no implicit promotion).
+- `%` supports `Int % Int` only.
 
 ## 9. Runtime and CLI Contract
 
@@ -223,7 +207,6 @@ Short-circuiting:
 ### Runtime Error Labels
 
 Examples:
-
 - `E-VM-DIV-ZERO`
 - `E-VM-TYPE`
 - `E-VM-ARITY`
@@ -231,7 +214,6 @@ Examples:
 - `E-VM-INDEX-OOB`
 
 Compiler phase labels:
-
 - `E-PARSE`
 - `E-SEMA`
 - `E-CODEGEN`
@@ -243,7 +225,6 @@ Compiler phase labels:
 - Function serialization is deterministic (name-sorted)
 
 Value tags:
-
 - `0`: `Int(i64)`
 - `1`: `Float(f64)`
 - `2`: `Bool(u8)`
@@ -251,13 +232,16 @@ Value tags:
 - `4`: `Array(len + items...)`
 - `5`: `Unit`
 
-Decoder rejects invalid magic, unsupported versions, and truncated payloads.
+Decoder rejects:
+- invalid magic
+- unsupported version
+- truncated payload
 
-## 11. Not in v0.2.x
+## 11. Out of Scope (Current)
 
-- User-defined types/structs
-- Dynamic collections (`Vec`, maps, sets)
-- Dynamic array operations (`push`, `pop`, `insert`, `remove`, `append`)
-- Casting and implicit numeric promotion
+- User-defined structs/enums
+- Dynamic collections (`Vec`, map, set)
+- Dynamic array mutation (`push`, `pop`, etc.)
+- Casting / implicit numeric promotion
 - String interpolation
-- Package manager / dependency system
+- Package manager / dependency resolver
