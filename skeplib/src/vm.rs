@@ -156,6 +156,8 @@ impl BuiltinRegistry {
         r.register("str", "indexOf", builtin_str_index_of);
         r.register("str", "slice", builtin_str_slice);
         r.register("str", "isEmpty", builtin_str_is_empty);
+        r.register("str", "lastIndexOf", builtin_str_last_index_of);
+        r.register("str", "replace", builtin_str_replace);
         r.register("arr", "len", builtin_arr_len);
         r.register("arr", "isEmpty", builtin_arr_is_empty);
         r.register("arr", "contains", builtin_arr_contains);
@@ -637,6 +639,46 @@ fn builtin_str_is_empty(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result
         _ => Err(VmError::new(
             VmErrorKind::TypeMismatch,
             "str.isEmpty expects String argument",
+        )),
+    }
+}
+
+fn builtin_str_last_index_of(
+    _host: &mut dyn BuiltinHost,
+    args: Vec<Value>,
+) -> Result<Value, VmError> {
+    if args.len() != 2 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "str.lastIndexOf expects 2 arguments",
+        ));
+    }
+    match (&args[0], &args[1]) {
+        (Value::String(s), Value::String(needle)) => match s.rfind(needle) {
+            Some(byte_idx) => Ok(Value::Int(s[..byte_idx].chars().count() as i64)),
+            None => Ok(Value::Int(-1)),
+        },
+        _ => Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "str.lastIndexOf expects String, String arguments",
+        )),
+    }
+}
+
+fn builtin_str_replace(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+    if args.len() != 3 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "str.replace expects 3 arguments",
+        ));
+    }
+    match (&args[0], &args[1], &args[2]) {
+        (Value::String(s), Value::String(from), Value::String(to)) => {
+            Ok(Value::String(s.replace(from, to)))
+        }
+        _ => Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "str.replace expects String, String, String arguments",
         )),
     }
 }

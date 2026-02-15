@@ -1115,3 +1115,40 @@ fn main() -> Int {
             .any(|d| d.message.contains("arr.count argument 2 expects Int"))
     );
 }
+
+#[test]
+fn sema_accepts_str_lastindexof_and_replace() {
+    let src = r#"
+import str;
+fn main() -> Int {
+  let s = "a-b-a-b";
+  let i = str.lastIndexOf(s, "a");
+  let r = str.replace(s, "-", "_");
+  if (i == 4 && r == "a_b_a_b") {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_rejects_str_replace_type_mismatch() {
+    let src = r#"
+import str;
+fn main() -> Int {
+  let _s = str.replace("abc", 1, "x");
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("str.replace argument 2 expects String"))
+    );
+}

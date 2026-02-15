@@ -1,0 +1,2 @@
+exit=0
+stdout_contains=a_b_a_b

@@ -161,6 +161,20 @@ pub const BUILTIN_SIGS: &[BuiltinSig] = &[
         kind: BuiltinKind::FixedArity,
     },
     BuiltinSig {
+        package: "str",
+        name: "lastIndexOf",
+        params: STR_TWO_STRING_PARAMS,
+        ret: TypeInfo::Int,
+        kind: BuiltinKind::FixedArity,
+    },
+    BuiltinSig {
+        package: "str",
+        name: "replace",
+        params: &[TypeInfo::String, TypeInfo::String, TypeInfo::String],
+        ret: TypeInfo::String,
+        kind: BuiltinKind::FixedArity,
+    },
+    BuiltinSig {
         package: "arr",
         name: "len",
         params: &[],

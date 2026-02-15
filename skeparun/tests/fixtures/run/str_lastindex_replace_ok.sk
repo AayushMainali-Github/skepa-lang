@@ -1,0 +1,13 @@
+import io;
+import str;
+
+fn main() -> Int {
+  let s = "a-b-a-b";
+  let i = str.lastIndexOf(s, "a");
+  let r = str.replace(s, "-", "_");
+  if (i == 4 && r == "a_b_a_b") {
+    io.printString(r);
+    return 0;
+  }
+  return 1;
+}

@@ -1375,3 +1375,22 @@ fn main() -> Int {
     assert_eq!(err.kind, VmErrorKind::IndexOutOfBounds);
     assert!(err.message.contains("arr.first on empty array"));
 }
+
+#[test]
+fn runs_str_lastindexof_and_replace() {
+    let src = r#"
+import str;
+fn main() -> Int {
+  let s = "a-b-a-b";
+  let i = str.lastIndexOf(s, "a");
+  let r = str.replace(s, "-", "_");
+  if (i == 4 && r == "a_b_a_b" && str.lastIndexOf(s, "z") == -1) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(1));
+}
