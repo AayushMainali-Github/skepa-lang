@@ -1152,3 +1152,41 @@ fn main() -> Int {
             .any(|d| d.message.contains("str.replace argument 2 expects String"))
     );
 }
+
+#[test]
+fn sema_accepts_str_repeat_and_arr_reverse() {
+    let src = r#"
+import str;
+import arr;
+fn main() -> Int {
+  let s = str.repeat("ab", 3);
+  let a: [Int; 4] = [1, 2, 3, 4];
+  let r = arr.reverse(a);
+  if (s == "ababab" && arr.first(r) == 4 && arr.last(r) == 1) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_rejects_str_repeat_type_mismatch() {
+    let src = r#"
+import str;
+fn main() -> Int {
+  let _s = str.repeat("ab", "3");
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("str.repeat argument 2 expects Int"))
+    );
+}

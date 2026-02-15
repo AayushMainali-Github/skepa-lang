@@ -158,6 +158,7 @@ impl BuiltinRegistry {
         r.register("str", "isEmpty", builtin_str_is_empty);
         r.register("str", "lastIndexOf", builtin_str_last_index_of);
         r.register("str", "replace", builtin_str_replace);
+        r.register("str", "repeat", builtin_str_repeat);
         r.register("arr", "len", builtin_arr_len);
         r.register("arr", "isEmpty", builtin_arr_is_empty);
         r.register("arr", "contains", builtin_arr_contains);
@@ -166,6 +167,7 @@ impl BuiltinRegistry {
         r.register("arr", "count", builtin_arr_count);
         r.register("arr", "first", builtin_arr_first);
         r.register("arr", "last", builtin_arr_last);
+        r.register("arr", "reverse", builtin_arr_reverse);
         r
     }
 
@@ -683,6 +685,30 @@ fn builtin_str_replace(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<
     }
 }
 
+fn builtin_str_repeat(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+    if args.len() != 2 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "str.repeat expects 2 arguments",
+        ));
+    }
+    match (&args[0], &args[1]) {
+        (Value::String(s), Value::Int(n)) => {
+            if *n < 0 {
+                return Err(VmError::new(
+                    VmErrorKind::IndexOutOfBounds,
+                    "str.repeat count must be >= 0",
+                ));
+            }
+            Ok(Value::String(s.repeat(*n as usize)))
+        }
+        _ => Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "str.repeat expects String, Int arguments",
+        )),
+    }
+}
+
 fn builtin_arr_len(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
     if args.len() != 1 {
         return Err(VmError::new(
@@ -846,6 +872,26 @@ fn builtin_arr_last(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Val
         _ => Err(VmError::new(
             VmErrorKind::TypeMismatch,
             "arr.last expects Array argument",
+        )),
+    }
+}
+
+fn builtin_arr_reverse(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+    if args.len() != 1 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "arr.reverse expects 1 argument",
+        ));
+    }
+    match &args[0] {
+        Value::Array(items) => {
+            let mut out = items.clone();
+            out.reverse();
+            Ok(Value::Array(out))
+        }
+        _ => Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "arr.reverse expects Array argument",
         )),
     }
 }

@@ -1394,3 +1394,38 @@ fn main() -> Int {
     let out = Vm::run_module_main(&module).expect("run");
     assert_eq!(out, Value::Int(1));
 }
+
+#[test]
+fn runs_str_repeat_and_arr_reverse() {
+    let src = r#"
+import str;
+import arr;
+fn main() -> Int {
+  let s = str.repeat("ab", 3);
+  let a: [Int; 4] = [1, 2, 3, 4];
+  let r = arr.reverse(a);
+  if (s == "ababab" && arr.first(r) == 4 && arr.last(r) == 1) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(1));
+}
+
+#[test]
+fn vm_reports_str_repeat_negative_count() {
+    let src = r#"
+import str;
+fn main() -> Int {
+  let _s = str.repeat("x", -1);
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("negative repeat");
+    assert_eq!(err.kind, VmErrorKind::IndexOutOfBounds);
+    assert!(err.message.contains("str.repeat count must be >= 0"));
+}

@@ -175,6 +175,13 @@ pub const BUILTIN_SIGS: &[BuiltinSig] = &[
         kind: BuiltinKind::FixedArity,
     },
     BuiltinSig {
+        package: "str",
+        name: "repeat",
+        params: &[TypeInfo::String, TypeInfo::Int],
+        ret: TypeInfo::String,
+        kind: BuiltinKind::FixedArity,
+    },
+    BuiltinSig {
         package: "arr",
         name: "len",
         params: &[],
@@ -226,6 +233,13 @@ pub const BUILTIN_SIGS: &[BuiltinSig] = &[
     BuiltinSig {
         package: "arr",
         name: "last",
+        params: &[],
+        ret: TypeInfo::Unknown,
+        kind: BuiltinKind::ArrayOps,
+    },
+    BuiltinSig {
+        package: "arr",
+        name: "reverse",
         params: &[],
         ret: TypeInfo::Unknown,
         kind: BuiltinKind::ArrayOps,

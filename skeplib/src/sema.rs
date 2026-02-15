@@ -671,7 +671,7 @@ impl Checker {
                 }
             }
             BuiltinKind::ArrayOps => match method {
-                "len" | "isEmpty" | "sum" | "first" | "last" => {
+                "len" | "isEmpty" | "sum" | "first" | "last" | "reverse" => {
                     if args.len() != 1 {
                         self.error(format!(
                             "{package}.{method} expects 1 argument(s), got {}",
@@ -680,7 +680,7 @@ impl Checker {
                         return TypeInfo::Unknown;
                     }
                     let arr_ty = self.check_expr(&args[0], scopes);
-                    let TypeInfo::Array { elem, .. } = arr_ty else {
+                    let TypeInfo::Array { elem, size } = arr_ty else {
                         if arr_ty != TypeInfo::Unknown {
                             self.error(format!(
                                 "{package}.{method} argument 1 expects Array, got {:?}",
@@ -692,6 +692,12 @@ impl Checker {
                     match method {
                         "len" => return TypeInfo::Int,
                         "isEmpty" => return TypeInfo::Bool,
+                        "reverse" => {
+                            return TypeInfo::Array {
+                                elem: elem.clone(),
+                                size,
+                            };
+                        }
                         "first" | "last" => return *elem,
                         "sum" => {
                             let sum_ty = *elem;

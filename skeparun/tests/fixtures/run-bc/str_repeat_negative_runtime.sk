@@ -1,0 +1,6 @@
+import str;
+
+fn main() -> Int {
+  let _s = str.repeat("x", -1);
+  return 0;
+}
