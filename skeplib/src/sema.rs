@@ -672,7 +672,7 @@ impl Checker {
             }
             BuiltinKind::ArrayOps => match method {
                 "len" | "isEmpty" | "sum" | "first" | "last" | "reverse" | "min" | "max"
-                | "sort" => {
+                | "sort" | "distinct" => {
                     if args.len() != 1 {
                         self.error(format!(
                             "{package}.{method} expects 1 argument(s), got {}",
@@ -694,6 +694,12 @@ impl Checker {
                         "len" => return TypeInfo::Int,
                         "isEmpty" => return TypeInfo::Bool,
                         "reverse" => {
+                            return TypeInfo::Array {
+                                elem: elem.clone(),
+                                size,
+                            };
+                        }
+                        "distinct" => {
                             return TypeInfo::Array {
                                 elem: elem.clone(),
                                 size,

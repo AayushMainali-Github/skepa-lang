@@ -90,7 +90,7 @@ import arr;
 
 - `io`: print/input/format builtins
 - `str`: `len`, `contains`, `startsWith`, `endsWith`, `trim`, `toLower`, `toUpper`, `indexOf`, `lastIndexOf`, `slice`, `replace`, `repeat`, `isEmpty`
-- `arr`: `len`, `isEmpty`, `contains`, `indexOf`, `count`, `first`, `last`, `reverse`, `slice`, `sum`, `min`, `max`, `sort`, `join`
+- `arr`: `len`, `isEmpty`, `contains`, `indexOf`, `count`, `first`, `last`, `reverse`, `slice`, `sum`, `min`, `max`, `sort`, `distinct`, `join`
 
 Quick arr example:
 
@@ -103,6 +103,7 @@ let hi = arr.max(xs);          // 9
 let sorted = arr.sort(xs);     // [2, 2, 5, 7, 9]
 let flags: [Bool; 4] = [true, false, true, false];
 let sf = arr.sort(flags);      // [false, false, true, true]
+let d = arr.distinct([3, 1, 3, 2]); // [3, 1, 2]
 ```
 
 Runtime notes:

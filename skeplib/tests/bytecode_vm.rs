@@ -1854,6 +1854,78 @@ fn vm_reports_arr_sort_runtime_errors_from_manual_bytecode() {
 }
 
 #[test]
+fn runs_arr_distinct_stable_first_occurrence() {
+    let src = r#"
+import arr;
+fn main() -> Int {
+  let a: [Int; 7] = [3, 1, 3, 2, 1, 2, 2];
+  let d = arr.distinct(a);
+  if (arr.len(d) == 3 && arr.first(d) == 3 && arr.last(d) == 2 && arr.indexOf(d, 1) == 1) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(1));
+}
+
+#[test]
+fn vm_reports_arr_distinct_runtime_errors_from_manual_bytecode() {
+    let arity_module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::LoadConst(Value::Array(vec![Value::Int(1)])),
+                    Instr::LoadConst(Value::Int(2)),
+                    Instr::CallBuiltin {
+                        package: "arr".to_string(),
+                        name: "distinct".to_string(),
+                        argc: 2,
+                    },
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&arity_module).expect_err("arity mismatch");
+    assert_eq!(err.kind, VmErrorKind::ArityMismatch);
+    assert!(err.message.contains("arr.distinct expects 1 argument"));
+
+    let type_module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::LoadConst(Value::Int(7)),
+                    Instr::CallBuiltin {
+                        package: "arr".to_string(),
+                        name: "distinct".to_string(),
+                        argc: 1,
+                    },
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&type_module).expect_err("type mismatch");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
+    assert!(err.message.contains("arr.distinct expects Array argument"));
+}
+
+#[test]
 fn vm_reports_arr_join_runtime_type_mismatch_for_non_string_elements() {
     let module = BytecodeModule {
         functions: vec![(

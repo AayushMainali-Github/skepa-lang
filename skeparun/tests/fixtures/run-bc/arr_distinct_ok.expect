@@ -1,0 +1,2 @@
+exit=0
+stdout_contains=arr-distinct-ok

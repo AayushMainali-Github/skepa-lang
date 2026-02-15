@@ -1334,3 +1334,40 @@ fn main() -> Int {
             .any(|d| d.message.contains("arr.sort supports Int, Float, String, or Bool elements"))
     );
 }
+
+#[test]
+fn sema_accepts_arr_distinct() {
+    let src = r#"
+import arr;
+fn main() -> Int {
+  let a: [Int; 6] = [2, 1, 2, 3, 1, 3];
+  let d = arr.distinct(a);
+  if (arr.len(d) == 3 && arr.first(d) == 2 && arr.last(d) == 3) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_rejects_arr_distinct_arity_mismatch() {
+    let src = r#"
+import arr;
+fn main() -> Int {
+  let a: [Int; 2] = [1, 2];
+  let _d = arr.distinct(a, a);
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("arr.distinct expects 1 argument(s), got 2"))
+    );
+}

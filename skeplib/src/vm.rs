@@ -174,6 +174,7 @@ impl BuiltinRegistry {
         r.register("arr", "min", builtin_arr_min);
         r.register("arr", "max", builtin_arr_max);
         r.register("arr", "sort", builtin_arr_sort);
+        r.register("arr", "distinct", builtin_arr_distinct);
         r
     }
 
@@ -1161,6 +1162,28 @@ fn builtin_arr_sort(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Val
             "arr.sort supports Int, Float, String, or Bool element types",
         )),
     }
+}
+
+fn builtin_arr_distinct(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+    if args.len() != 1 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "arr.distinct expects 1 argument",
+        ));
+    }
+    let Value::Array(items) = &args[0] else {
+        return Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "arr.distinct expects Array argument",
+        ));
+    };
+    let mut out: Vec<Value> = Vec::with_capacity(items.len());
+    for v in items {
+        if !out.contains(v) {
+            out.push(v.clone());
+        }
+    }
+    Ok(Value::Array(out))
 }
 
 impl Vm {
