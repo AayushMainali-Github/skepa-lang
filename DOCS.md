@@ -94,7 +94,6 @@ import arr;
 - `arr.min(a: [Int|Float; N]) -> Int|Float`
 - `arr.max(a: [Int|Float; N]) -> Int|Float`
 - `arr.sort(a: [Int|Float|String|Bool; N]) -> [Int|Float|String|Bool; N]`
-- `arr.distinct(a: [T; N]) -> [T; M]` (stable first-occurrence dedup)
 - `arr.join(a: [String; N], sep: String) -> String`
 
 Example:
@@ -108,7 +107,6 @@ let hi = arr.max(xs);             // 9
 let sorted = arr.sort(xs);        // [2, 2, 5, 7, 9]
 let flags: [Bool; 4] = [true, false, true, false];
 let sf = arr.sort(flags);         // [false, false, true, true]
-let d = arr.distinct([3, 1, 3, 2]); // [3, 1, 2]
 ```
 
 `arr.sum` element support:

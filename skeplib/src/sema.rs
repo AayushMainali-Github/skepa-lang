@@ -34,6 +34,13 @@ struct Checker {
 }
 
 impl Checker {
+    fn const_non_negative_int(expr: &Expr) -> Option<usize> {
+        match expr {
+            Expr::IntLit(v) if *v >= 0 => Some(*v as usize),
+            _ => None,
+        }
+    }
+
     fn parse_format_specifiers(fmt: &str) -> Result<Vec<char>, String> {
         let mut specs = Vec::new();
         let chars: Vec<char> = fmt.chars().collect();
@@ -672,7 +679,7 @@ impl Checker {
             }
             BuiltinKind::ArrayOps => match method {
                 "len" | "isEmpty" | "sum" | "first" | "last" | "reverse" | "min" | "max"
-                | "sort" | "distinct" => {
+                | "sort" => {
                     if args.len() != 1 {
                         self.error(format!(
                             "{package}.{method} expects 1 argument(s), got {}",
@@ -699,12 +706,6 @@ impl Checker {
                                 size,
                             };
                         }
-                        "distinct" => {
-                            return TypeInfo::Array {
-                                elem: elem.clone(),
-                                size,
-                            };
-                        }
                         "first" | "last" => return *elem,
                         "sum" => {
                             let sum_ty = *elem;
@@ -721,6 +722,16 @@ impl Checker {
                                     sum_ty
                                 ));
                                 return TypeInfo::Unknown;
+                            }
+                            if let TypeInfo::Array {
+                                elem: inner_elem,
+                                size: inner_size,
+                            } = sum_ty
+                            {
+                                return TypeInfo::Array {
+                                    elem: inner_elem,
+                                    size: inner_size.saturating_mul(size),
+                                };
                             }
                             return sum_ty;
                         }
@@ -861,7 +872,30 @@ impl Checker {
                         }
                         return TypeInfo::Unknown;
                     };
-                    return TypeInfo::Array { elem, size };
+                    let Some(start) = Self::const_non_negative_int(&args[1]) else {
+                        self.error(
+                            "arr.slice argument 2 must be a non-negative Int literal for static arrays"
+                                .to_string(),
+                        );
+                        return TypeInfo::Unknown;
+                    };
+                    let Some(end) = Self::const_non_negative_int(&args[2]) else {
+                        self.error(
+                            "arr.slice argument 3 must be a non-negative Int literal for static arrays"
+                                .to_string(),
+                        );
+                        return TypeInfo::Unknown;
+                    };
+                    if start > end || end > size {
+                        self.error(format!(
+                            "arr.slice bounds out of range at compile time: start={start}, end={end}, len={size}"
+                        ));
+                        return TypeInfo::Unknown;
+                    }
+                    return TypeInfo::Array {
+                        elem,
+                        size: end - start,
+                    };
                 }
                 _ => {
                     self.error(format!("Unsupported array builtin `{package}.{method}`"));

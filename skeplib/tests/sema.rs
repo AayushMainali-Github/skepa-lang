@@ -1336,16 +1336,36 @@ fn main() -> Int {
 }
 
 #[test]
-fn sema_accepts_arr_distinct() {
+fn sema_rejects_arr_slice_non_literal_bounds_for_static_arrays() {
     let src = r#"
 import arr;
 fn main() -> Int {
-  let a: [Int; 6] = [2, 1, 2, 3, 1, 3];
-  let d = arr.distinct(a);
-  if (arr.len(d) == 3 && arr.first(d) == 2 && arr.last(d) == 3) {
-    return 1;
-  }
+  let a: [Int; 4] = [1, 2, 3, 4];
+  let i = 1;
+  let _s = arr.slice(a, i, 3);
   return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("arr.slice argument 2 must be a non-negative Int literal")
+    }));
+}
+
+#[test]
+fn sema_infers_precise_arr_slice_and_arr_sum_array_sizes() {
+    let src = r#"
+import arr;
+fn main() -> Int {
+  let a: [Int; 5] = [7, 2, 9, 2, 5];
+  let s = arr.slice(a, 1, 4);
+  let rows: [[Int; 2]; 3] = [[1, 2], [3, 4], [5, 6]];
+  let flat = arr.sum(rows);
+  let ok1: [Int; 3] = s;
+  let ok2: [Int; 6] = flat;
+  return arr.len(ok1) + arr.len(ok2);
 }
 "#;
     let (result, diags) = analyze_source(src);
@@ -1353,21 +1373,36 @@ fn main() -> Int {
 }
 
 #[test]
-fn sema_rejects_arr_distinct_arity_mismatch() {
+fn sema_accepts_slice_sort_concat_pipeline() {
     let src = r#"
 import arr;
 fn main() -> Int {
-  let a: [Int; 2] = [1, 2];
-  let _d = arr.distinct(a, a);
-  return 0;
+  let a: [Int; 5] = [7, 2, 9, 2, 5];
+  let mid = arr.slice(a, 1, 4);
+  let s = arr.sort(mid);
+  let out = s + arr.slice(a, 4, 5);
+  let typed: [Int; 4] = out;
+  return arr.len(typed);
 }
 "#;
     let (result, diags) = analyze_source(src);
-    assert!(result.has_errors);
-    assert!(
-        diags
-            .as_slice()
-            .iter()
-            .any(|d| d.message.contains("arr.distinct expects 1 argument(s), got 2"))
-    );
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_accepts_sum_slice_concat_pipeline() {
+    let src = r#"
+import arr;
+fn main() -> Int {
+  let rows: [[Int; 2]; 3] = [[1, 2], [3, 4], [5, 6]];
+  let flat = arr.sum(rows);
+  let head = arr.slice(flat, 0, 2);
+  let tail = arr.slice(flat, 4, 6);
+  let mix = head + tail;
+  let typed: [Int; 4] = mix;
+  return arr.len(typed);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
 }

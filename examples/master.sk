@@ -32,15 +32,14 @@ fn main() -> Int {
   let lo = arr.min(xs);
   let hi = arr.max(xs);
   let sorted = arr.sort(xs);
-  let uniq = arr.distinct(xs);
   let grid: [[Int; 2]; 2] = [[1, 2], [3, 4]];
   grid[1][0] = nums[1];
 
   let s = "skepa";
-  let total = acc + nums[1] + grid[1][0] + 4 + str.len(s) + arr.len(mid) + lo + hi + arr.first(sorted) + arr.len(uniq);
+  let total = acc + nums[1] + grid[1][0] + 4 + str.len(s) + arr.len(mid) + lo + hi + arr.first(sorted);
   io.println("master example done");
 
-  if (total == 61) {
+  if (total == 57) {
     return 0;
   }
   return 1;
