@@ -8,38 +8,46 @@ Tooling:
 
 ## Install
 
-Prerequisite for Cargo-based install: Rust + Cargo (`cargo --version`).
+### Option 1: Download prebuilt binaries (no Rust required)
 
-### 1) Local repo installer scripts
+From GitHub Releases, download:
+- Windows: `skepa-windows-x64.zip`
+- Linux: `skepa-linux-x64.tar.gz`
+- macOS: `skepa-macos-x64.tar.gz`
 
-```powershell
-./scripts/install.ps1
-```
+Extract and add the binaries to your `PATH`.
 
-```bash
-./scripts/install.sh
-```
+### Option 2: Install from GitHub with Cargo
 
-### 2) Local repo manual Cargo install
-
-```bash
-cargo install --path skepac
-cargo install --path skeparun
-```
-
-### 3) GitHub install without cloning
+Prerequisite: Rust + Cargo (`cargo --version`).
 
 ```bash
 cargo install --git https://github.com/AayushMainali-Github/skepa-lang skepac
 cargo install --git https://github.com/AayushMainali-Github/skepa-lang skeparun
 ```
 
-### 4) Prebuilt binaries from GitHub Releases
+### Option 3: Build/install locally from source
 
-Download latest assets and add binaries to `PATH`:
-- `skepa-windows-x64.zip`
-- `skepa-linux-x64.tar.gz`
-- `skepa-macos-x64.tar.gz`
+Clone the repo first, then:
+
+Windows (PowerShell):
+
+```powershell
+./scripts/install.ps1
+```
+
+Linux/macOS (bash):
+
+```bash
+./scripts/install.sh
+```
+
+Manual local install (all OSes):
+
+```bash
+cargo install --path skepac
+cargo install --path skeparun
+```
 
 ## Run
 
@@ -79,38 +87,5 @@ Bundled example:
 ```bash
 skeparun run examples/master.sk
 ```
-
-## Builtin Packages
-
-```sk
-import io;
-import str;
-import arr;
-```
-
-- `io`: print/input/format builtins
-- `str`: `len`, `contains`, `startsWith`, `endsWith`, `trim`, `toLower`, `toUpper`, `indexOf`, `lastIndexOf`, `slice`, `replace`, `repeat`, `isEmpty`
-- `arr`: `len`, `isEmpty`, `contains`, `indexOf`, `count`, `first`, `last`, `reverse`, `slice`, `sum`, `min`, `max`, `sort`, `join`
-
-Quick arr example:
-
-```sk
-import arr;
-let xs: [Int; 5] = [7, 2, 9, 2, 5];
-let mid = arr.slice(xs, 1, 4); // [2, 9, 2]
-let lo = arr.min(xs);          // 2
-let hi = arr.max(xs);          // 9
-let sorted = arr.sort(xs);     // [2, 2, 5, 7, 9]
-let flags: [Bool; 4] = [true, false, true, false];
-let sf = arr.sort(flags);      // [false, false, true, true]
-```
-
-Runtime notes:
-- `arr.first` / `arr.last` on empty arrays -> `E-VM-INDEX-OOB`
-- `arr.min` / `arr.max` on empty arrays -> `E-VM-INDEX-OOB`
-- `arr.slice` with invalid bounds -> `E-VM-INDEX-OOB`
-- `str.repeat` with negative count -> `E-VM-INDEX-OOB`
-- `str.repeat` output larger than 1,000,000 bytes -> `E-VM-INDEX-OOB`
-
 
 For full language and runtime reference, see `DOCS.md`.

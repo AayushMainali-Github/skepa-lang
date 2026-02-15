@@ -115,6 +115,12 @@ let sf = arr.sort(flags);         // [false, false, true, true]
 - `String` -> concatenation
 - `Array` -> concatenation/flatten one level
 
+Static-size constraints:
+- `arr.slice` currently requires `start` and `end` to be non-negative `Int` literals.
+- `arr.slice` result size is inferred at compile time as `end - start`.
+- For nested arrays, `arr.sum([[T; A]; B])` infers `[T; A*B]`.
+- Array concat infers exact size: `[T; N] + [T; M] -> [T; N+M]`.
+
 Empty-array `arr.sum` behavior (deterministic):
 - Returns `0` at runtime (current uniform identity).
 - Future typed identities may be introduced (`0.0`, `""`, `[]`) once runtime identity typing is added.
@@ -137,6 +143,7 @@ Runtime edge semantics:
 
 Rules:
 - `N` is compile-time fixed.
+- In explicit type syntax, `N` must be a compile-time integer literal (not a variable).
 - No runtime resize.
 - No dynamic/vector operations.
 - Multidimensional arrays are supported at arbitrary depth.
