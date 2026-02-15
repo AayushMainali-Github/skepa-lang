@@ -80,5 +80,21 @@ Bundled example:
 skeparun run examples/master.sk
 ```
 
+## Builtin Packages
+
+```sk
+import io;
+import str;
+import arr;
+```
+
+- `io`: print/input/format builtins
+- `str`: `len`, `contains`, `startsWith`, `endsWith`, `trim`, `toLower`, `toUpper`, `indexOf`, `lastIndexOf`, `slice`, `replace`, `repeat`, `isEmpty`
+- `arr`: `len`, `isEmpty`, `contains`, `indexOf`, `count`, `first`, `last`, `reverse`, `sum`, `join`
+
+Runtime notes:
+- `arr.first` / `arr.last` on empty arrays -> `E-VM-INDEX-OOB`
+- `str.repeat` with negative count -> `E-VM-INDEX-OOB`
+
 
 For full language and runtime reference, see `DOCS.md`.

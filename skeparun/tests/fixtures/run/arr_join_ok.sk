@@ -1,0 +1,14 @@
+import arr;
+import str;
+import io;
+
+fn main() -> Int {
+  let a: [String; 3] = ["hi", "sk", "lang"];
+  let j = arr.join(a, "::");
+  let s = str.repeat("x", 3);
+  if (j == "hi::sk::lang" && s == "xxx") {
+    io.printString(j);
+    return 0;
+  }
+  return 1;
+}

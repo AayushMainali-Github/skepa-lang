@@ -755,6 +755,40 @@ impl Checker {
                         _ => unreachable!(),
                     };
                 }
+                "join" => {
+                    if args.len() != 2 {
+                        self.error(format!(
+                            "{package}.{method} expects 2 argument(s), got {}",
+                            args.len()
+                        ));
+                        return TypeInfo::Unknown;
+                    }
+                    let arr_ty = self.check_expr(&args[0], scopes);
+                    let sep_ty = self.check_expr(&args[1], scopes);
+                    if sep_ty != TypeInfo::String && sep_ty != TypeInfo::Unknown {
+                        self.error(format!(
+                            "{package}.{method} argument 2 expects String, got {:?}",
+                            sep_ty
+                        ));
+                    }
+                    let TypeInfo::Array { elem, .. } = arr_ty else {
+                        if arr_ty != TypeInfo::Unknown {
+                            self.error(format!(
+                                "{package}.{method} argument 1 expects Array, got {:?}",
+                                arr_ty
+                            ));
+                        }
+                        return TypeInfo::Unknown;
+                    };
+                    if *elem != TypeInfo::String && *elem != TypeInfo::Unknown {
+                        self.error(format!(
+                            "{package}.{method} argument 1 expects Array[String], got {:?}",
+                            TypeInfo::Array { elem, size: 0 }
+                        ));
+                        return TypeInfo::Unknown;
+                    }
+                    return TypeInfo::String;
+                }
                 _ => {
                     self.error(format!("Unsupported array builtin `{package}.{method}`"));
                     return TypeInfo::Unknown;

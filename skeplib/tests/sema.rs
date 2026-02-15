@@ -1190,3 +1190,36 @@ fn main() -> Int {
             .any(|d| d.message.contains("str.repeat argument 2 expects Int"))
     );
 }
+
+#[test]
+fn sema_accepts_arr_join_for_string_arrays() {
+    let src = r#"
+import arr;
+fn main() -> Int {
+  let a: [String; 3] = ["a", "b", "c"];
+  let s = arr.join(a, "-");
+  if (s == "a-b-c") { return 1; }
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_rejects_arr_join_for_non_string_array() {
+    let src = r#"
+import arr;
+fn main() -> Int {
+  let a: [Int; 2] = [1, 2];
+  let _s = arr.join(a, ",");
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("arr.join argument 1 expects Array[String]")
+    }));
+}

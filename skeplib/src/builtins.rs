@@ -244,6 +244,13 @@ pub const BUILTIN_SIGS: &[BuiltinSig] = &[
         ret: TypeInfo::Unknown,
         kind: BuiltinKind::ArrayOps,
     },
+    BuiltinSig {
+        package: "arr",
+        name: "join",
+        params: &[],
+        ret: TypeInfo::Unknown,
+        kind: BuiltinKind::ArrayOps,
+    },
 ];
 
 pub fn find_builtin_sig(package: &str, name: &str) -> Option<&'static BuiltinSig> {

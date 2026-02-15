@@ -73,7 +73,10 @@ import arr;
 - `str.toLower(s: String) -> String`
 - `str.toUpper(s: String) -> String`
 - `str.indexOf(s: String, needle: String) -> Int` (`-1` if not found)
+- `str.lastIndexOf(s: String, needle: String) -> Int` (`-1` if not found)
 - `str.slice(s: String, start: Int, end: Int) -> String` (end-exclusive, char-indexed)
+- `str.replace(s: String, from: String, to: String) -> String`
+- `str.repeat(s: String, count: Int) -> String`
 - `str.isEmpty(s: String) -> Bool`
 
 ### `arr` package
@@ -82,7 +85,12 @@ import arr;
 - `arr.isEmpty(a: [T; N]) -> Bool`
 - `arr.contains(a: [T; N], x: T) -> Bool`
 - `arr.indexOf(a: [T; N], x: T) -> Int` (`-1` if not found)
+- `arr.count(a: [T; N], x: T) -> Int`
+- `arr.first(a: [T; N]) -> T`
+- `arr.last(a: [T; N]) -> T`
+- `arr.reverse(a: [T; N]) -> [T; N]`
 - `arr.sum(a: [T; N]) -> T`
+- `arr.join(a: [String; N], sep: String) -> String`
 
 `arr.sum` element support:
 - `Int` -> numeric sum
@@ -92,6 +100,10 @@ import arr;
 
 Empty-array `arr.sum` behavior (deterministic):
 - Returns `0` at runtime.
+
+Runtime edge semantics:
+- `arr.first` / `arr.last` on empty arrays: runtime `E-VM-INDEX-OOB`.
+- `str.repeat` with negative `count`: runtime `E-VM-INDEX-OOB`.
 
 ## 4. Types
 

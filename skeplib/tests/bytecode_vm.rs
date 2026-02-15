@@ -1429,3 +1429,53 @@ fn main() -> Int {
     assert_eq!(err.kind, VmErrorKind::IndexOutOfBounds);
     assert!(err.message.contains("str.repeat count must be >= 0"));
 }
+
+#[test]
+fn runs_arr_join_and_unicode_last_indexof() {
+    let src = r#"
+import arr;
+import str;
+fn main() -> Int {
+  let a: [String; 3] = ["hi", "sk", "lang"];
+  let j = arr.join(a, "::");
+  let s = "naïve-naïve";
+  let idx = str.lastIndexOf(s, "ï");
+  if (j == "hi::sk::lang" && idx == 8) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(1));
+}
+
+#[test]
+fn vm_reports_arr_join_runtime_type_mismatch_for_non_string_elements() {
+    let module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::LoadConst(Value::Array(vec![Value::Int(1), Value::Int(2)])),
+                    Instr::LoadConst(Value::String(",".to_string())),
+                    Instr::CallBuiltin {
+                        package: "arr".to_string(),
+                        name: "join".to_string(),
+                        argc: 2,
+                    },
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&module).expect_err("join type mismatch");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
+    assert!(err.message.contains("arr.join expects Array[String]"));
+}
