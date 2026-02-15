@@ -1,0 +1,11 @@
+import arr;
+import io;
+
+fn main() -> Int {
+  let a: [Int; 5] = [2, 9, 2, 3, 2];
+  if (arr.count(a, 2) == 3 && arr.first(a) == 2 && arr.last(a) == 2) {
+    io.printInt(1);
+    return 0;
+  }
+  return 1;
+}

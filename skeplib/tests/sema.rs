@@ -1077,3 +1077,41 @@ fn main() -> Int {
             .any(|d| d.message.contains("Invalid operands for Add"))
     );
 }
+
+#[test]
+fn sema_accepts_arr_count_first_last() {
+    let src = r#"
+import arr;
+fn main() -> Int {
+  let a: [Int; 5] = [2, 9, 2, 3, 2];
+  let c = arr.count(a, 2);
+  let f = arr.first(a);
+  let l = arr.last(a);
+  if (c == 3 && f == 2 && l == 2) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_rejects_arr_count_type_mismatch() {
+    let src = r#"
+import arr;
+fn main() -> Int {
+  let a: [Int; 2] = [1, 2];
+  return arr.count(a, "x");
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("arr.count argument 2 expects Int"))
+    );
+}

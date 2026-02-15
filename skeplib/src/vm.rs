@@ -161,6 +161,9 @@ impl BuiltinRegistry {
         r.register("arr", "contains", builtin_arr_contains);
         r.register("arr", "indexOf", builtin_arr_index_of);
         r.register("arr", "sum", builtin_arr_sum);
+        r.register("arr", "count", builtin_arr_count);
+        r.register("arr", "first", builtin_arr_first);
+        r.register("arr", "last", builtin_arr_last);
         r
     }
 
@@ -746,6 +749,63 @@ fn builtin_arr_sum(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Valu
         acc = arr_sum_step(acc, v.clone())?;
     }
     Ok(acc)
+}
+
+fn builtin_arr_count(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+    if args.len() != 2 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "arr.count expects 2 arguments",
+        ));
+    }
+    match &args[0] {
+        Value::Array(items) => {
+            let c = items.iter().filter(|v| *v == &args[1]).count() as i64;
+            Ok(Value::Int(c))
+        }
+        _ => Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "arr.count expects Array as first argument",
+        )),
+    }
+}
+
+fn builtin_arr_first(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+    if args.len() != 1 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "arr.first expects 1 argument",
+        ));
+    }
+    match &args[0] {
+        Value::Array(items) => items
+            .first()
+            .cloned()
+            .ok_or_else(|| VmError::new(VmErrorKind::IndexOutOfBounds, "arr.first on empty array")),
+        _ => Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "arr.first expects Array argument",
+        )),
+    }
+}
+
+fn builtin_arr_last(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+    if args.len() != 1 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "arr.last expects 1 argument",
+        ));
+    }
+    match &args[0] {
+        Value::Array(items) => items
+            .last()
+            .cloned()
+            .ok_or_else(|| VmError::new(VmErrorKind::IndexOutOfBounds, "arr.last on empty array")),
+        _ => Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "arr.last expects Array argument",
+        )),
+    }
 }
 
 impl Vm {

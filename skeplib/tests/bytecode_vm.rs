@@ -1342,3 +1342,36 @@ fn regression_arr_concat_large_arrays_and_sum() {
     let out = Vm::run_module_main(&module).expect("run");
     assert_eq!(out, Value::Int((n as i64) * 3));
 }
+
+#[test]
+fn runs_arr_count_first_last() {
+    let src = r#"
+import arr;
+fn main() -> Int {
+  let a: [Int; 5] = [2, 9, 2, 3, 2];
+  if (arr.count(a, 2) == 3 && arr.first(a) == 2 && arr.last(a) == 2) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(1));
+}
+
+#[test]
+fn vm_reports_arr_first_last_on_empty_array() {
+    let src = r#"
+import arr;
+fn main() -> Int {
+  let z: [Int; 0] = [1; 0];
+  let _a = arr.first(z);
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("empty");
+    assert_eq!(err.kind, VmErrorKind::IndexOutOfBounds);
+    assert!(err.message.contains("arr.first on empty array"));
+}

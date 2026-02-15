@@ -1,0 +1,7 @@
+import arr;
+
+fn main() -> Int {
+  let z: [Int; 0] = [1; 0];
+  let _x = arr.first(z);
+  return 0;
+}

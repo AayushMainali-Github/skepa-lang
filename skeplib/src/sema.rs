@@ -671,7 +671,7 @@ impl Checker {
                 }
             }
             BuiltinKind::ArrayOps => match method {
-                "len" | "isEmpty" | "sum" => {
+                "len" | "isEmpty" | "sum" | "first" | "last" => {
                     if args.len() != 1 {
                         self.error(format!(
                             "{package}.{method} expects 1 argument(s), got {}",
@@ -692,6 +692,7 @@ impl Checker {
                     match method {
                         "len" => return TypeInfo::Int,
                         "isEmpty" => return TypeInfo::Bool,
+                        "first" | "last" => return *elem,
                         "sum" => {
                             let sum_ty = *elem;
                             if !matches!(
@@ -713,7 +714,7 @@ impl Checker {
                         _ => unreachable!(),
                     }
                 }
-                "contains" | "indexOf" => {
+                "contains" | "indexOf" | "count" => {
                     if args.len() != 2 {
                         self.error(format!(
                             "{package}.{method} expects 2 argument(s), got {}",
@@ -742,10 +743,10 @@ impl Checker {
                             elem_ty, needle_ty
                         ));
                     }
-                    return if method == "contains" {
-                        TypeInfo::Bool
-                    } else {
-                        TypeInfo::Int
+                    return match method {
+                        "contains" => TypeInfo::Bool,
+                        "indexOf" | "count" => TypeInfo::Int,
+                        _ => unreachable!(),
                     };
                 }
                 _ => {

@@ -195,6 +195,27 @@ pub const BUILTIN_SIGS: &[BuiltinSig] = &[
         ret: TypeInfo::Unknown,
         kind: BuiltinKind::ArrayOps,
     },
+    BuiltinSig {
+        package: "arr",
+        name: "count",
+        params: &[],
+        ret: TypeInfo::Unknown,
+        kind: BuiltinKind::ArrayOps,
+    },
+    BuiltinSig {
+        package: "arr",
+        name: "first",
+        params: &[],
+        ret: TypeInfo::Unknown,
+        kind: BuiltinKind::ArrayOps,
+    },
+    BuiltinSig {
+        package: "arr",
+        name: "last",
+        params: &[],
+        ret: TypeInfo::Unknown,
+        kind: BuiltinKind::ArrayOps,
+    },
 ];
 
 pub fn find_builtin_sig(package: &str, name: &str) -> Option<&'static BuiltinSig> {
