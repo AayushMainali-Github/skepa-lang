@@ -1272,6 +1272,165 @@ fn vm_reports_arr_builtin_runtime_arity_mismatch_from_manual_bytecode() {
 }
 
 #[test]
+fn vm_reports_arr_count_runtime_errors_from_manual_bytecode() {
+    let arity_module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::LoadConst(Value::Array(vec![Value::Int(1)])),
+                    Instr::CallBuiltin {
+                        package: "arr".to_string(),
+                        name: "count".to_string(),
+                        argc: 1,
+                    },
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&arity_module).expect_err("arity mismatch");
+    assert_eq!(err.kind, VmErrorKind::ArityMismatch);
+    assert!(err.message.contains("arr.count expects 2 arguments"));
+
+    let type_module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::LoadConst(Value::Int(1)),
+                    Instr::LoadConst(Value::Int(1)),
+                    Instr::CallBuiltin {
+                        package: "arr".to_string(),
+                        name: "count".to_string(),
+                        argc: 2,
+                    },
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&type_module).expect_err("type mismatch");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
+    assert!(err.message.contains("arr.count expects Array as first argument"));
+}
+
+#[test]
+fn vm_reports_arr_first_last_runtime_errors_from_manual_bytecode() {
+    let first_arity_module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::LoadConst(Value::Array(vec![Value::Int(1)])),
+                    Instr::LoadConst(Value::Int(2)),
+                    Instr::CallBuiltin {
+                        package: "arr".to_string(),
+                        name: "first".to_string(),
+                        argc: 2,
+                    },
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&first_arity_module).expect_err("arity mismatch");
+    assert_eq!(err.kind, VmErrorKind::ArityMismatch);
+    assert!(err.message.contains("arr.first expects 1 argument"));
+
+    let first_type_module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::LoadConst(Value::String("x".to_string())),
+                    Instr::CallBuiltin {
+                        package: "arr".to_string(),
+                        name: "first".to_string(),
+                        argc: 1,
+                    },
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&first_type_module).expect_err("type mismatch");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
+    assert!(err.message.contains("arr.first expects Array argument"));
+
+    let last_arity_module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::LoadConst(Value::Array(vec![Value::Int(1)])),
+                    Instr::LoadConst(Value::Int(2)),
+                    Instr::CallBuiltin {
+                        package: "arr".to_string(),
+                        name: "last".to_string(),
+                        argc: 2,
+                    },
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&last_arity_module).expect_err("arity mismatch");
+    assert_eq!(err.kind, VmErrorKind::ArityMismatch);
+    assert!(err.message.contains("arr.last expects 1 argument"));
+
+    let last_type_module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::LoadConst(Value::String("x".to_string())),
+                    Instr::CallBuiltin {
+                        package: "arr".to_string(),
+                        name: "last".to_string(),
+                        argc: 1,
+                    },
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&last_type_module).expect_err("type mismatch");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
+    assert!(err.message.contains("arr.last expects Array argument"));
+}
+
+#[test]
 fn vm_reports_arr_sum_unsupported_runtime_element_type_from_manual_bytecode() {
     let module = BytecodeModule {
         functions: vec![(
@@ -1428,6 +1587,21 @@ fn main() -> Int {
     let err = Vm::run_module_main(&module).expect_err("negative repeat");
     assert_eq!(err.kind, VmErrorKind::IndexOutOfBounds);
     assert!(err.message.contains("str.repeat count must be >= 0"));
+}
+
+#[test]
+fn vm_reports_str_repeat_output_too_large() {
+    let src = r#"
+import str;
+fn main() -> Int {
+  let _s = str.repeat("x", 1000001);
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("repeat too large");
+    assert_eq!(err.kind, VmErrorKind::IndexOutOfBounds);
+    assert!(err.message.contains("str.repeat output too large"));
 }
 
 #[test]

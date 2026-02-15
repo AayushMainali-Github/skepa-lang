@@ -95,6 +95,7 @@ import arr;
 Runtime notes:
 - `arr.first` / `arr.last` on empty arrays -> `E-VM-INDEX-OOB`
 - `str.repeat` with negative count -> `E-VM-INDEX-OOB`
+- `str.repeat` output larger than 1,000,000 bytes -> `E-VM-INDEX-OOB`
 
 
 For full language and runtime reference, see `DOCS.md`.

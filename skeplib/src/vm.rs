@@ -7,6 +7,7 @@ use crate::bytecode::{BytecodeModule, FunctionChunk, Instr, Value};
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Vm;
 const DEFAULT_MAX_CALL_DEPTH: usize = 128;
+const MAX_STR_REPEAT_OUTPUT_BYTES: usize = 1_000_000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VmConfig {
@@ -701,7 +702,23 @@ fn builtin_str_repeat(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<V
                     "str.repeat count must be >= 0",
                 ));
             }
-            Ok(Value::String(s.repeat(*n as usize)))
+            let count = *n as usize;
+            let out_len = s
+                .len()
+                .checked_mul(count)
+                .ok_or_else(|| {
+                    VmError::new(VmErrorKind::IndexOutOfBounds, "str.repeat output too large")
+                })?;
+            if out_len > MAX_STR_REPEAT_OUTPUT_BYTES {
+                return Err(VmError::new(
+                    VmErrorKind::IndexOutOfBounds,
+                    format!(
+                        "str.repeat output too large: {} bytes exceeds limit {}",
+                        out_len, MAX_STR_REPEAT_OUTPUT_BYTES
+                    ),
+                ));
+            }
+            Ok(Value::String(s.repeat(count)))
         }
         _ => Err(VmError::new(
             VmErrorKind::TypeMismatch,

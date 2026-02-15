@@ -99,11 +99,13 @@ import arr;
 - `Array` -> concatenation/flatten one level
 
 Empty-array `arr.sum` behavior (deterministic):
-- Returns `0` at runtime.
+- Returns `0` at runtime (current uniform identity).
+- Future typed identities may be introduced (`0.0`, `""`, `[]`) once runtime identity typing is added.
 
 Runtime edge semantics:
 - `arr.first` / `arr.last` on empty arrays: runtime `E-VM-INDEX-OOB`.
 - `str.repeat` with negative `count`: runtime `E-VM-INDEX-OOB`.
+- `str.repeat` output is capped to `1,000,000` bytes; larger outputs fail with runtime `E-VM-INDEX-OOB`.
 
 ## 4. Types
 
