@@ -737,10 +737,11 @@ impl Checker {
                                 TypeInfo::Int
                                     | TypeInfo::Float
                                     | TypeInfo::String
+                                    | TypeInfo::Bool
                                     | TypeInfo::Unknown
                             ) {
                                 self.error(format!(
-                                    "arr.sort supports Int, Float, or String elements, got {:?}",
+                                    "arr.sort supports Int, Float, String, or Bool elements, got {:?}",
                                     elem_ty
                                 ));
                                 return TypeInfo::Unknown;

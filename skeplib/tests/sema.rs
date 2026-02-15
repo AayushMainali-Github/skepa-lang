@@ -1299,11 +1299,28 @@ fn main() -> Int {
 }
 
 #[test]
+fn sema_accepts_arr_sort_for_bool_elements() {
+    let src = r#"
+import arr;
+fn main() -> Int {
+  let a: [Bool; 4] = [true, false, true, false];
+  let s = arr.sort(a);
+  if (!arr.first(s) && arr.last(s)) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
 fn sema_rejects_arr_sort_for_unsupported_element_types() {
     let src = r#"
 import arr;
 fn main() -> Int {
-  let a: [Bool; 2] = [true, false];
+  let a: [[Int; 1]; 2] = [[1], [2]];
   let _s = arr.sort(a);
   return 0;
 }
@@ -1314,6 +1331,6 @@ fn main() -> Int {
         diags
             .as_slice()
             .iter()
-            .any(|d| d.message.contains("arr.sort supports Int, Float, or String elements"))
+            .any(|d| d.message.contains("arr.sort supports Int, Float, String, or Bool elements"))
     );
 }

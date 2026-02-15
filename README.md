@@ -101,6 +101,8 @@ let mid = arr.slice(xs, 1, 4); // [2, 9, 2]
 let lo = arr.min(xs);          // 2
 let hi = arr.max(xs);          // 9
 let sorted = arr.sort(xs);     // [2, 2, 5, 7, 9]
+let flags: [Bool; 4] = [true, false, true, false];
+let sf = arr.sort(flags);      // [false, false, true, true]
 ```
 
 Runtime notes:

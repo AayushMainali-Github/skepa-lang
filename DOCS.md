@@ -93,7 +93,7 @@ import arr;
 - `arr.sum(a: [T; N]) -> T`
 - `arr.min(a: [Int|Float; N]) -> Int|Float`
 - `arr.max(a: [Int|Float; N]) -> Int|Float`
-- `arr.sort(a: [Int|Float|String; N]) -> [Int|Float|String; N]`
+- `arr.sort(a: [Int|Float|String|Bool; N]) -> [Int|Float|String|Bool; N]`
 - `arr.join(a: [String; N], sep: String) -> String`
 
 Example:
@@ -105,6 +105,8 @@ let mid = arr.slice(xs, 1, 4);   // [2, 9, 2]
 let lo = arr.min(xs);             // 2
 let hi = arr.max(xs);             // 9
 let sorted = arr.sort(xs);        // [2, 2, 5, 7, 9]
+let flags: [Bool; 4] = [true, false, true, false];
+let sf = arr.sort(flags);         // [false, false, true, true]
 ```
 
 `arr.sum` element support:

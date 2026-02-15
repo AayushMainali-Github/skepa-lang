@@ -1106,7 +1106,7 @@ fn builtin_arr_sort(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Val
                 let Value::Int(x) = v else {
                     return Err(VmError::new(
                         VmErrorKind::TypeMismatch,
-                        "arr.sort supports Int, Float, or String element types",
+                        "arr.sort supports Int, Float, String, or Bool element types",
                     ));
                 };
                 nums.push(*x);
@@ -1120,7 +1120,7 @@ fn builtin_arr_sort(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Val
                 let Value::Float(x) = v else {
                     return Err(VmError::new(
                         VmErrorKind::TypeMismatch,
-                        "arr.sort supports Int, Float, or String element types",
+                        "arr.sort supports Int, Float, String, or Bool element types",
                     ));
                 };
                 nums.push(*x);
@@ -1134,7 +1134,7 @@ fn builtin_arr_sort(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Val
                 let Value::String(x) = v else {
                     return Err(VmError::new(
                         VmErrorKind::TypeMismatch,
-                        "arr.sort supports Int, Float, or String element types",
+                        "arr.sort supports Int, Float, String, or Bool element types",
                     ));
                 };
                 strs.push(x.clone());
@@ -1142,9 +1142,23 @@ fn builtin_arr_sort(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Val
             strs.sort();
             Ok(Value::Array(strs.into_iter().map(Value::String).collect()))
         }
+        Some(Value::Bool(_)) => {
+            let mut bs = Vec::with_capacity(out.len());
+            for v in &out {
+                let Value::Bool(x) = v else {
+                    return Err(VmError::new(
+                        VmErrorKind::TypeMismatch,
+                        "arr.sort supports Int, Float, String, or Bool element types",
+                    ));
+                };
+                bs.push(*x);
+            }
+            bs.sort();
+            Ok(Value::Array(bs.into_iter().map(Value::Bool).collect()))
+        }
         _ => Err(VmError::new(
             VmErrorKind::TypeMismatch,
-            "arr.sort supports Int, Float, or String element types",
+            "arr.sort supports Int, Float, String, or Bool element types",
         )),
     }
 }
