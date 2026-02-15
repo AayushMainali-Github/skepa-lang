@@ -95,6 +95,16 @@ import arr;
 - `arr.max(a: [Int|Float; N]) -> Int|Float`
 - `arr.join(a: [String; N], sep: String) -> String`
 
+Example:
+
+```sk
+import arr;
+let xs: [Int; 5] = [7, 2, 9, 2, 5];
+let mid = arr.slice(xs, 1, 4);   // [2, 9, 2]
+let lo = arr.min(xs);             // 2
+let hi = arr.max(xs);             // 9
+```
+
 `arr.sum` element support:
 - `Int` -> numeric sum
 - `Float` -> numeric sum

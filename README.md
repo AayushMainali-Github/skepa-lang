@@ -92,6 +92,16 @@ import arr;
 - `str`: `len`, `contains`, `startsWith`, `endsWith`, `trim`, `toLower`, `toUpper`, `indexOf`, `lastIndexOf`, `slice`, `replace`, `repeat`, `isEmpty`
 - `arr`: `len`, `isEmpty`, `contains`, `indexOf`, `count`, `first`, `last`, `reverse`, `slice`, `sum`, `min`, `max`, `join`
 
+Quick arr example:
+
+```sk
+import arr;
+let xs: [Int; 5] = [7, 2, 9, 2, 5];
+let mid = arr.slice(xs, 1, 4); // [2, 9, 2]
+let lo = arr.min(xs);          // 2
+let hi = arr.max(xs);          // 9
+```
+
 Runtime notes:
 - `arr.first` / `arr.last` on empty arrays -> `E-VM-INDEX-OOB`
 - `arr.min` / `arr.max` on empty arrays -> `E-VM-INDEX-OOB`
