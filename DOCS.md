@@ -89,7 +89,10 @@ import arr;
 - `arr.first(a: [T; N]) -> T`
 - `arr.last(a: [T; N]) -> T`
 - `arr.reverse(a: [T; N]) -> [T; N]`
+- `arr.slice(a: [T; N], start: Int, end: Int) -> [T; M]` (end-exclusive)
 - `arr.sum(a: [T; N]) -> T`
+- `arr.min(a: [Int|Float; N]) -> Int|Float`
+- `arr.max(a: [Int|Float; N]) -> Int|Float`
 - `arr.join(a: [String; N], sep: String) -> String`
 
 `arr.sum` element support:
@@ -104,6 +107,8 @@ Empty-array `arr.sum` behavior (deterministic):
 
 Runtime edge semantics:
 - `arr.first` / `arr.last` on empty arrays: runtime `E-VM-INDEX-OOB`.
+- `arr.min` / `arr.max` on empty arrays: runtime `E-VM-INDEX-OOB`.
+- `arr.slice` out-of-range bounds: runtime `E-VM-INDEX-OOB`.
 - `str.repeat` with negative `count`: runtime `E-VM-INDEX-OOB`.
 - `str.repeat` output is capped to `1,000,000` bytes; larger outputs fail with runtime `E-VM-INDEX-OOB`.
 

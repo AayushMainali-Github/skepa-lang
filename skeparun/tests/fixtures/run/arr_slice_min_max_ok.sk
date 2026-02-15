@@ -1,0 +1,12 @@
+import arr;
+import io;
+
+fn main() -> Int {
+  let a: [Int; 5] = [7, 2, 9, 2, 5];
+  let s = arr.slice(a, 1, 4);
+  if (arr.len(s) == 3 && arr.first(s) == 2 && arr.last(s) == 2 && arr.min(a) == 2 && arr.max(a) == 9) {
+    io.printString("arr-slice-min-max-ok");
+    return 0;
+  }
+  return 1;
+}

@@ -1223,3 +1223,60 @@ fn main() -> Int {
             .contains("arr.join argument 1 expects Array[String]")
     }));
 }
+
+#[test]
+fn sema_accepts_arr_slice_min_max() {
+    let src = r#"
+import arr;
+fn main() -> Int {
+  let a: [Int; 5] = [7, 2, 9, 2, 5];
+  let s = arr.slice(a, 1, 4);
+  if (arr.len(s) == 3 && arr.min(a) == 2 && arr.max(a) == 9) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_rejects_arr_slice_signature_mismatch() {
+    let src = r#"
+import arr;
+fn main() -> Int {
+  let a: [Int; 3] = [1, 2, 3];
+  let _s = arr.slice(a, "0", 2);
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("arr.slice argument 2 expects Int"))
+    );
+}
+
+#[test]
+fn sema_rejects_arr_min_max_for_non_numeric_elements() {
+    let src = r#"
+import arr;
+fn main() -> Int {
+  let a: [String; 2] = ["a", "b"];
+  let _m = arr.min(a);
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("arr.min supports Int or Float elements"))
+    );
+}

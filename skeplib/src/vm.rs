@@ -170,6 +170,9 @@ impl BuiltinRegistry {
         r.register("arr", "last", builtin_arr_last);
         r.register("arr", "reverse", builtin_arr_reverse);
         r.register("arr", "join", builtin_arr_join);
+        r.register("arr", "slice", builtin_arr_slice);
+        r.register("arr", "min", builtin_arr_min);
+        r.register("arr", "max", builtin_arr_max);
         r
     }
 
@@ -945,6 +948,139 @@ fn builtin_arr_join(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Val
         parts.push(s.clone());
     }
     Ok(Value::String(parts.join(sep)))
+}
+
+fn builtin_arr_slice(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+    if args.len() != 3 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "arr.slice expects 3 arguments",
+        ));
+    }
+    let (Value::Array(items), Value::Int(start), Value::Int(end)) = (&args[0], &args[1], &args[2])
+    else {
+        return Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "arr.slice expects Array, Int, Int arguments",
+        ));
+    };
+    let len = items.len() as i64;
+    if *start < 0 || *end < 0 || *start > *end || *end > len {
+        return Err(VmError::new(
+            VmErrorKind::IndexOutOfBounds,
+            format!(
+                "arr.slice bounds out of range: start={}, end={}, len={len}",
+                start, end
+            ),
+        ));
+    }
+    Ok(Value::Array(
+        items[*start as usize..*end as usize].to_vec(),
+    ))
+}
+
+fn builtin_arr_min(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+    if args.len() != 1 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "arr.min expects 1 argument",
+        ));
+    }
+    let Value::Array(items) = &args[0] else {
+        return Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "arr.min expects Array argument",
+        ));
+    };
+    let first = items
+        .first()
+        .ok_or_else(|| VmError::new(VmErrorKind::IndexOutOfBounds, "arr.min on empty array"))?;
+    match first.clone() {
+        Value::Int(mut best) => {
+            for v in items.iter().skip(1) {
+                let Value::Int(x) = v else {
+                    return Err(VmError::new(
+                        VmErrorKind::TypeMismatch,
+                        "arr.min supports Int or Float element types",
+                    ));
+                };
+                if x < &best {
+                    best = *x;
+                }
+            }
+            Ok(Value::Int(best))
+        }
+        Value::Float(mut best) => {
+            for v in items.iter().skip(1) {
+                let Value::Float(x) = v else {
+                    return Err(VmError::new(
+                        VmErrorKind::TypeMismatch,
+                        "arr.min supports Int or Float element types",
+                    ));
+                };
+                if x < &best {
+                    best = *x;
+                }
+            }
+            Ok(Value::Float(best))
+        }
+        _ => Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "arr.min supports Int or Float element types",
+        )),
+    }
+}
+
+fn builtin_arr_max(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+    if args.len() != 1 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "arr.max expects 1 argument",
+        ));
+    }
+    let Value::Array(items) = &args[0] else {
+        return Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "arr.max expects Array argument",
+        ));
+    };
+    let first = items
+        .first()
+        .ok_or_else(|| VmError::new(VmErrorKind::IndexOutOfBounds, "arr.max on empty array"))?;
+    match first.clone() {
+        Value::Int(mut best) => {
+            for v in items.iter().skip(1) {
+                let Value::Int(x) = v else {
+                    return Err(VmError::new(
+                        VmErrorKind::TypeMismatch,
+                        "arr.max supports Int or Float element types",
+                    ));
+                };
+                if x > &best {
+                    best = *x;
+                }
+            }
+            Ok(Value::Int(best))
+        }
+        Value::Float(mut best) => {
+            for v in items.iter().skip(1) {
+                let Value::Float(x) = v else {
+                    return Err(VmError::new(
+                        VmErrorKind::TypeMismatch,
+                        "arr.max supports Int or Float element types",
+                    ));
+                };
+                if x > &best {
+                    best = *x;
+                }
+            }
+            Ok(Value::Float(best))
+        }
+        _ => Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "arr.max supports Int or Float element types",
+        )),
+    }
 }
 
 impl Vm {

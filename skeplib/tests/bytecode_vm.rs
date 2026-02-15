@@ -1626,6 +1626,137 @@ fn main() -> Int {
 }
 
 #[test]
+fn runs_arr_slice_min_max() {
+    let src = r#"
+import arr;
+fn main() -> Int {
+  let a: [Int; 5] = [7, 2, 9, 2, 5];
+  let s = arr.slice(a, 1, 4);
+  if (arr.len(s) == 3 && arr.first(s) == 2 && arr.last(s) == 2 && arr.min(a) == 2 && arr.max(a) == 9) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(1));
+}
+
+#[test]
+fn vm_reports_arr_slice_bounds_out_of_range() {
+    let src = r#"
+import arr;
+fn main() -> Int {
+  let a: [Int; 3] = [1, 2, 3];
+  let _s = arr.slice(a, 2, 5);
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("slice bounds");
+    assert_eq!(err.kind, VmErrorKind::IndexOutOfBounds);
+    assert!(err.message.contains("arr.slice bounds out of range"));
+}
+
+#[test]
+fn vm_reports_arr_min_max_on_empty_array() {
+    let src = r#"
+import arr;
+fn main() -> Int {
+  let z: [Int; 0] = [];
+  let _m = arr.min(z);
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("empty");
+    assert_eq!(err.kind, VmErrorKind::IndexOutOfBounds);
+    assert!(err.message.contains("arr.min on empty array"));
+}
+
+#[test]
+fn vm_reports_arr_slice_min_max_runtime_type_mismatch_from_manual_bytecode() {
+    let slice_type_module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::LoadConst(Value::String("bad".to_string())),
+                    Instr::LoadConst(Value::Int(0)),
+                    Instr::LoadConst(Value::Int(1)),
+                    Instr::CallBuiltin {
+                        package: "arr".to_string(),
+                        name: "slice".to_string(),
+                        argc: 3,
+                    },
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&slice_type_module).expect_err("slice type mismatch");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
+    assert!(err.message.contains("arr.slice expects Array, Int, Int arguments"));
+
+    let min_type_module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::LoadConst(Value::Array(vec![Value::String("a".to_string())])),
+                    Instr::CallBuiltin {
+                        package: "arr".to_string(),
+                        name: "min".to_string(),
+                        argc: 1,
+                    },
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&min_type_module).expect_err("min type mismatch");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
+    assert!(err.message.contains("arr.min supports Int or Float element types"));
+
+    let max_arity_module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::LoadConst(Value::Array(vec![Value::Int(1)])),
+                    Instr::LoadConst(Value::Int(2)),
+                    Instr::CallBuiltin {
+                        package: "arr".to_string(),
+                        name: "max".to_string(),
+                        argc: 2,
+                    },
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&max_arity_module).expect_err("max arity mismatch");
+    assert_eq!(err.kind, VmErrorKind::ArityMismatch);
+    assert!(err.message.contains("arr.max expects 1 argument"));
+}
+
+#[test]
 fn vm_reports_arr_join_runtime_type_mismatch_for_non_string_elements() {
     let module = BytecodeModule {
         functions: vec![(

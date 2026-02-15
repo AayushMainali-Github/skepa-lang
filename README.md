@@ -90,10 +90,12 @@ import arr;
 
 - `io`: print/input/format builtins
 - `str`: `len`, `contains`, `startsWith`, `endsWith`, `trim`, `toLower`, `toUpper`, `indexOf`, `lastIndexOf`, `slice`, `replace`, `repeat`, `isEmpty`
-- `arr`: `len`, `isEmpty`, `contains`, `indexOf`, `count`, `first`, `last`, `reverse`, `sum`, `join`
+- `arr`: `len`, `isEmpty`, `contains`, `indexOf`, `count`, `first`, `last`, `reverse`, `slice`, `sum`, `min`, `max`, `join`
 
 Runtime notes:
 - `arr.first` / `arr.last` on empty arrays -> `E-VM-INDEX-OOB`
+- `arr.min` / `arr.max` on empty arrays -> `E-VM-INDEX-OOB`
+- `arr.slice` with invalid bounds -> `E-VM-INDEX-OOB`
 - `str.repeat` with negative count -> `E-VM-INDEX-OOB`
 - `str.repeat` output larger than 1,000,000 bytes -> `E-VM-INDEX-OOB`
 

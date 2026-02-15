@@ -671,7 +671,7 @@ impl Checker {
                 }
             }
             BuiltinKind::ArrayOps => match method {
-                "len" | "isEmpty" | "sum" | "first" | "last" | "reverse" => {
+                "len" | "isEmpty" | "sum" | "first" | "last" | "reverse" | "min" | "max" => {
                     if args.len() != 1 {
                         self.error(format!(
                             "{package}.{method} expects 1 argument(s), got {}",
@@ -716,6 +716,18 @@ impl Checker {
                                 return TypeInfo::Unknown;
                             }
                             return sum_ty;
+                        }
+                        "min" | "max" => {
+                            let elem_ty = *elem;
+                            if !matches!(elem_ty, TypeInfo::Int | TypeInfo::Float | TypeInfo::Unknown)
+                            {
+                                self.error(format!(
+                                    "arr.{method} supports Int or Float elements, got {:?}",
+                                    elem_ty
+                                ));
+                                return TypeInfo::Unknown;
+                            }
+                            return elem_ty;
                         }
                         _ => unreachable!(),
                     }
@@ -788,6 +800,40 @@ impl Checker {
                         return TypeInfo::Unknown;
                     }
                     return TypeInfo::String;
+                }
+                "slice" => {
+                    if args.len() != 3 {
+                        self.error(format!(
+                            "{package}.{method} expects 3 argument(s), got {}",
+                            args.len()
+                        ));
+                        return TypeInfo::Unknown;
+                    }
+                    let arr_ty = self.check_expr(&args[0], scopes);
+                    let start_ty = self.check_expr(&args[1], scopes);
+                    let end_ty = self.check_expr(&args[2], scopes);
+                    if start_ty != TypeInfo::Int && start_ty != TypeInfo::Unknown {
+                        self.error(format!(
+                            "{package}.{method} argument 2 expects Int, got {:?}",
+                            start_ty
+                        ));
+                    }
+                    if end_ty != TypeInfo::Int && end_ty != TypeInfo::Unknown {
+                        self.error(format!(
+                            "{package}.{method} argument 3 expects Int, got {:?}",
+                            end_ty
+                        ));
+                    }
+                    let TypeInfo::Array { elem, size } = arr_ty else {
+                        if arr_ty != TypeInfo::Unknown {
+                            self.error(format!(
+                                "{package}.{method} argument 1 expects Array, got {:?}",
+                                arr_ty
+                            ));
+                        }
+                        return TypeInfo::Unknown;
+                    };
+                    return TypeInfo::Array { elem, size };
                 }
                 _ => {
                     self.error(format!("Unsupported array builtin `{package}.{method}`"));
