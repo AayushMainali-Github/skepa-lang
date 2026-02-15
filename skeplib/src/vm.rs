@@ -173,6 +173,7 @@ impl BuiltinRegistry {
         r.register("arr", "slice", builtin_arr_slice);
         r.register("arr", "min", builtin_arr_min);
         r.register("arr", "max", builtin_arr_max);
+        r.register("arr", "sort", builtin_arr_sort);
         r
     }
 
@@ -1079,6 +1080,71 @@ fn builtin_arr_max(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Valu
         _ => Err(VmError::new(
             VmErrorKind::TypeMismatch,
             "arr.max supports Int or Float element types",
+        )),
+    }
+}
+
+fn builtin_arr_sort(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+    if args.len() != 1 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "arr.sort expects 1 argument",
+        ));
+    }
+    let Value::Array(items) = &args[0] else {
+        return Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "arr.sort expects Array argument",
+        ));
+    };
+    let out = items.clone();
+    match out.first() {
+        None => Ok(Value::Array(out)),
+        Some(Value::Int(_)) => {
+            let mut nums = Vec::with_capacity(out.len());
+            for v in &out {
+                let Value::Int(x) = v else {
+                    return Err(VmError::new(
+                        VmErrorKind::TypeMismatch,
+                        "arr.sort supports Int, Float, or String element types",
+                    ));
+                };
+                nums.push(*x);
+            }
+            nums.sort_unstable();
+            Ok(Value::Array(nums.into_iter().map(Value::Int).collect()))
+        }
+        Some(Value::Float(_)) => {
+            let mut nums = Vec::with_capacity(out.len());
+            for v in &out {
+                let Value::Float(x) = v else {
+                    return Err(VmError::new(
+                        VmErrorKind::TypeMismatch,
+                        "arr.sort supports Int, Float, or String element types",
+                    ));
+                };
+                nums.push(*x);
+            }
+            nums.sort_by(|a, b| a.total_cmp(b));
+            Ok(Value::Array(nums.into_iter().map(Value::Float).collect()))
+        }
+        Some(Value::String(_)) => {
+            let mut strs = Vec::with_capacity(out.len());
+            for v in &out {
+                let Value::String(x) = v else {
+                    return Err(VmError::new(
+                        VmErrorKind::TypeMismatch,
+                        "arr.sort supports Int, Float, or String element types",
+                    ));
+                };
+                strs.push(x.clone());
+            }
+            strs.sort();
+            Ok(Value::Array(strs.into_iter().map(Value::String).collect()))
+        }
+        _ => Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "arr.sort supports Int, Float, or String element types",
         )),
     }
 }

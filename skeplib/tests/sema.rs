@@ -1280,3 +1280,40 @@ fn main() -> Int {
             .any(|d| d.message.contains("arr.min supports Int or Float elements"))
     );
 }
+
+#[test]
+fn sema_accepts_arr_sort_for_supported_element_types() {
+    let src = r#"
+import arr;
+fn main() -> Int {
+  let a: [Int; 4] = [3, 1, 2, 1];
+  let b = arr.sort(a);
+  if (arr.first(b) == 1 && arr.last(b) == 3) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_rejects_arr_sort_for_unsupported_element_types() {
+    let src = r#"
+import arr;
+fn main() -> Int {
+  let a: [Bool; 2] = [true, false];
+  let _s = arr.sort(a);
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("arr.sort supports Int, Float, or String elements"))
+    );
+}

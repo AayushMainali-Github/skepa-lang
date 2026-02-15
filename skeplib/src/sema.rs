@@ -671,7 +671,8 @@ impl Checker {
                 }
             }
             BuiltinKind::ArrayOps => match method {
-                "len" | "isEmpty" | "sum" | "first" | "last" | "reverse" | "min" | "max" => {
+                "len" | "isEmpty" | "sum" | "first" | "last" | "reverse" | "min" | "max"
+                | "sort" => {
                     if args.len() != 1 {
                         self.error(format!(
                             "{package}.{method} expects 1 argument(s), got {}",
@@ -728,6 +729,26 @@ impl Checker {
                                 return TypeInfo::Unknown;
                             }
                             return elem_ty;
+                        }
+                        "sort" => {
+                            let elem_ty = *elem;
+                            if !matches!(
+                                elem_ty,
+                                TypeInfo::Int
+                                    | TypeInfo::Float
+                                    | TypeInfo::String
+                                    | TypeInfo::Unknown
+                            ) {
+                                self.error(format!(
+                                    "arr.sort supports Int, Float, or String elements, got {:?}",
+                                    elem_ty
+                                ));
+                                return TypeInfo::Unknown;
+                            }
+                            return TypeInfo::Array {
+                                elem: Box::new(elem_ty),
+                                size,
+                            };
                         }
                         _ => unreachable!(),
                     }

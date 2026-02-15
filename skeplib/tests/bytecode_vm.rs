@@ -1757,6 +1757,82 @@ fn vm_reports_arr_slice_min_max_runtime_type_mismatch_from_manual_bytecode() {
 }
 
 #[test]
+fn runs_arr_sort_for_int_float_and_string() {
+    let src = r#"
+import arr;
+fn main() -> Int {
+  let ai: [Int; 4] = [3, 1, 2, 1];
+  let af: [Float; 4] = [3.5, 1.0, 2.25, 1.0];
+  let as: [String; 3] = ["b", "a", "aa"];
+  let si = arr.sort(ai);
+  let sf = arr.sort(af);
+  let ss = arr.sort(as);
+  if (arr.first(si) == 1 && arr.last(si) == 3 && arr.first(sf) == 1.0 && arr.last(sf) == 3.5 && arr.first(ss) == "a" && arr.last(ss) == "b") {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(1));
+}
+
+#[test]
+fn vm_reports_arr_sort_runtime_errors_from_manual_bytecode() {
+    let arity_module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::LoadConst(Value::Array(vec![Value::Int(1)])),
+                    Instr::LoadConst(Value::Int(2)),
+                    Instr::CallBuiltin {
+                        package: "arr".to_string(),
+                        name: "sort".to_string(),
+                        argc: 2,
+                    },
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&arity_module).expect_err("arity mismatch");
+    assert_eq!(err.kind, VmErrorKind::ArityMismatch);
+    assert!(err.message.contains("arr.sort expects 1 argument"));
+
+    let type_module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::LoadConst(Value::Array(vec![Value::Bool(true), Value::Bool(false)])),
+                    Instr::CallBuiltin {
+                        package: "arr".to_string(),
+                        name: "sort".to_string(),
+                        argc: 1,
+                    },
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&type_module).expect_err("type mismatch");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
+    assert!(err.message.contains("arr.sort supports Int, Float, or String"));
+}
+
+#[test]
 fn vm_reports_arr_join_runtime_type_mismatch_for_non_string_elements() {
     let module = BytecodeModule {
         functions: vec![(
