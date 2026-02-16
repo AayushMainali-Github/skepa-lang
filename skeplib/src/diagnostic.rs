@@ -97,6 +97,10 @@ impl DiagnosticBag {
         self.push(Diagnostic::error(message, span));
     }
 
+    pub fn error_expected_found(&mut self, expected_message: &str, found_label: &str, span: Span) {
+        self.error(format_expected_found(expected_message, found_label), span);
+    }
+
     pub fn warning(&mut self, message: impl Into<String>, span: Span) {
         self.push(Diagnostic::warning(message, span));
     }
@@ -116,4 +120,8 @@ impl DiagnosticBag {
     pub fn into_vec(self) -> Vec<Diagnostic> {
         self.items
     }
+}
+
+pub fn format_expected_found(expected_message: &str, found_label: &str) -> String {
+    format!("{expected_message}; found {found_label}")
 }

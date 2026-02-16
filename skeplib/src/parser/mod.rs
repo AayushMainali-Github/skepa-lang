@@ -205,6 +205,6 @@ impl Parser {
     fn error_here_expected(&mut self, message: &str) {
         let found = Self::token_label(self.current());
         self.diagnostics
-            .error(format!("{message}; found {found}"), self.current().span);
+            .error_expected_found(message, &found, self.current().span);
     }
 }
