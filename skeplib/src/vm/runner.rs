@@ -50,6 +50,13 @@ pub(super) fn run_function(
         if config.trace {
             eprintln!("[trace] {}@{} {:?}", function_name, ip, chunk.code[ip]);
         }
+        let mut call_env = calls::CallEnv {
+            module,
+            host,
+            reg,
+            depth,
+            config,
+        };
         match &chunk.code[ip] {
             Instr::LoadConst(v) => state.push_const(v.clone()),
             Instr::LoadLocal(slot) => state.load_local(*slot, function_name, ip)?,
@@ -98,15 +105,10 @@ pub(super) fn run_function(
                 argc,
             } => calls::call(
                 state.stack_mut(),
-                module,
                 callee_name,
                 *argc,
-                host,
-                reg,
-                depth,
-                config,
-                function_name,
-                ip,
+                &mut call_env,
+                calls::Site { function_name, ip },
             )?,
             Instr::CallBuiltin {
                 package,
@@ -114,13 +116,11 @@ pub(super) fn run_function(
                 argc,
             } => calls::call_builtin(
                 state.stack_mut(),
-                host,
-                reg,
                 package,
                 name,
                 *argc,
-                function_name,
-                ip,
+                &mut call_env,
+                calls::Site { function_name, ip },
             )?,
             Instr::MakeArray(n) => arrays::make_array(state.stack_mut(), *n, function_name, ip)?,
             Instr::MakeArrayRepeat(n) => {

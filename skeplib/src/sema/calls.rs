@@ -81,8 +81,8 @@ impl Checker {
         };
 
         match package {
-            "io" => return io::check_io_builtin(self, method, args, scopes, &sig),
-            "str" => return str_pkg::check_str_builtin(self, method, args, scopes, &sig),
+            "io" => return io::check_io_builtin(self, method, args, scopes, sig),
+            "str" => return str_pkg::check_str_builtin(self, method, args, scopes, sig),
             "arr" => return arr::check_arr_builtin(self, method, args, scopes),
             _ => {}
         }
