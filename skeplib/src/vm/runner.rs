@@ -1,4 +1,7 @@
 mod arrays;
+mod arith;
+mod calls;
+mod control_flow;
 
 use crate::bytecode::{BytecodeModule, Instr, Value};
 
@@ -87,76 +90,9 @@ pub(super) fn run_function(
                     ));
                 }
             }
-            Instr::NegInt => {
-                let Some(v) = stack.pop() else {
-                    return Err(err_at(
-                        VmErrorKind::StackUnderflow,
-                        "NegInt expects value",
-                        function_name,
-                        ip,
-                    ));
-                };
-                match v {
-                    Value::Int(v) => stack.push(Value::Int(-v)),
-                    Value::Float(v) => stack.push(Value::Float(-v)),
-                    _ => {
-                        return Err(err_at(
-                            VmErrorKind::TypeMismatch,
-                            "NegInt expects Int or Float",
-                            function_name,
-                            ip,
-                        ));
-                    }
-                }
-            }
-            Instr::NotBool => {
-                let Some(Value::Bool(v)) = stack.pop() else {
-                    return Err(err_at(
-                        VmErrorKind::TypeMismatch,
-                        "NotBool expects Bool",
-                        function_name,
-                        ip,
-                    ));
-                };
-                stack.push(Value::Bool(!v));
-            }
-            Instr::Add => {
-                let Some(r) = stack.pop() else {
-                    return Err(err_at(
-                        VmErrorKind::StackUnderflow,
-                        "Add expects rhs",
-                        function_name,
-                        ip,
-                    ));
-                };
-                let Some(l) = stack.pop() else {
-                    return Err(err_at(
-                        VmErrorKind::StackUnderflow,
-                        "Add expects lhs",
-                        function_name,
-                        ip,
-                    ));
-                };
-                match (l, r) {
-                    (Value::Int(a), Value::Int(b)) => stack.push(Value::Int(a + b)),
-                    (Value::Float(a), Value::Float(b)) => stack.push(Value::Float(a + b)),
-                    (Value::String(a), Value::String(b)) => {
-                        stack.push(Value::String(format!("{a}{b}")))
-                    }
-                    (Value::Array(mut a), Value::Array(b)) => {
-                        a.extend(b);
-                        stack.push(Value::Array(a));
-                    }
-                    _ => {
-                        return Err(err_at(
-                            VmErrorKind::TypeMismatch,
-                            "Add supports Int+Int, Float+Float, String+String, or Array+Array",
-                            function_name,
-                            ip,
-                        ));
-                    }
-                }
-            }
+            Instr::NegInt => arith::neg(&mut stack, function_name, ip)?,
+            Instr::NotBool => arith::not_bool(&mut stack, function_name, ip)?,
+            Instr::Add => arith::add(&mut stack, function_name, ip)?,
             Instr::SubInt
             | Instr::MulInt
             | Instr::DivInt
@@ -164,236 +100,56 @@ pub(super) fn run_function(
             | Instr::LteInt
             | Instr::GtInt
             | Instr::GteInt => {
-                let Some(r) = stack.pop() else {
-                    return Err(err_at(
-                        VmErrorKind::StackUnderflow,
-                        "int binary op expects rhs",
-                        function_name,
-                        ip,
-                    ));
-                };
-                let Some(l) = stack.pop() else {
-                    return Err(err_at(
-                        VmErrorKind::StackUnderflow,
-                        "int binary op expects lhs",
-                        function_name,
-                        ip,
-                    ));
-                };
-                match (l, r) {
-                    (Value::Int(l), Value::Int(r)) => match chunk.code[ip] {
-                        Instr::SubInt => stack.push(Value::Int(l - r)),
-                        Instr::MulInt => stack.push(Value::Int(l * r)),
-                        Instr::DivInt => {
-                            if r == 0 {
-                                return Err(err_at(
-                                    VmErrorKind::DivisionByZero,
-                                    "division by zero",
-                                    function_name,
-                                    ip,
-                                ));
-                            }
-                            stack.push(Value::Int(l / r));
-                        }
-                        Instr::LtInt => stack.push(Value::Bool(l < r)),
-                        Instr::LteInt => stack.push(Value::Bool(l <= r)),
-                        Instr::GtInt => stack.push(Value::Bool(l > r)),
-                        Instr::GteInt => stack.push(Value::Bool(l >= r)),
-                        _ => unreachable!(),
-                    },
-                    (Value::Float(l), Value::Float(r)) => match chunk.code[ip] {
-                        Instr::SubInt => stack.push(Value::Float(l - r)),
-                        Instr::MulInt => stack.push(Value::Float(l * r)),
-                        Instr::DivInt => {
-                            if r == 0.0 {
-                                return Err(err_at(
-                                    VmErrorKind::DivisionByZero,
-                                    "division by zero",
-                                    function_name,
-                                    ip,
-                                ));
-                            }
-                            stack.push(Value::Float(l / r));
-                        }
-                        Instr::LtInt => stack.push(Value::Bool(l < r)),
-                        Instr::LteInt => stack.push(Value::Bool(l <= r)),
-                        Instr::GtInt => stack.push(Value::Bool(l > r)),
-                        Instr::GteInt => stack.push(Value::Bool(l >= r)),
-                        _ => unreachable!(),
-                    },
-                    _ => {
-                        return Err(err_at(
-                            VmErrorKind::TypeMismatch,
-                            "numeric binary op expects matching Int/Float operands",
-                            function_name,
-                            ip,
-                        ));
-                    }
-                }
+                arith::numeric_binop(&mut stack, &chunk.code[ip], function_name, ip)?
             }
-            Instr::ModInt => {
-                let Some(Value::Int(r)) = stack.pop() else {
-                    return Err(err_at(
-                        VmErrorKind::TypeMismatch,
-                        "ModInt expects rhs Int",
-                        function_name,
-                        ip,
-                    ));
-                };
-                let Some(Value::Int(l)) = stack.pop() else {
-                    return Err(err_at(
-                        VmErrorKind::TypeMismatch,
-                        "ModInt expects lhs Int",
-                        function_name,
-                        ip,
-                    ));
-                };
-                if r == 0 {
-                    return Err(err_at(
-                        VmErrorKind::DivisionByZero,
-                        "modulo by zero",
-                        function_name,
-                        ip,
-                    ));
-                }
-                stack.push(Value::Int(l % r));
-            }
-            Instr::Eq => {
-                let Some(r) = stack.pop() else {
-                    return Err(err_at(
-                        VmErrorKind::StackUnderflow,
-                        "Eq expects rhs",
-                        function_name,
-                        ip,
-                    ));
-                };
-                let Some(l) = stack.pop() else {
-                    return Err(err_at(
-                        VmErrorKind::StackUnderflow,
-                        "Eq expects lhs",
-                        function_name,
-                        ip,
-                    ));
-                };
-                stack.push(Value::Bool(l == r));
-            }
-            Instr::Neq => {
-                let Some(r) = stack.pop() else {
-                    return Err(err_at(
-                        VmErrorKind::StackUnderflow,
-                        "Neq expects rhs",
-                        function_name,
-                        ip,
-                    ));
-                };
-                let Some(l) = stack.pop() else {
-                    return Err(err_at(
-                        VmErrorKind::StackUnderflow,
-                        "Neq expects lhs",
-                        function_name,
-                        ip,
-                    ));
-                };
-                stack.push(Value::Bool(l != r));
-            }
+            Instr::ModInt => arith::mod_int(&mut stack, function_name, ip)?,
+            Instr::Eq => arith::eq(&mut stack, function_name, ip)?,
+            Instr::Neq => arith::neq(&mut stack, function_name, ip)?,
             Instr::AndBool | Instr::OrBool => {
-                let Some(Value::Bool(r)) = stack.pop() else {
-                    return Err(err_at(
-                        VmErrorKind::TypeMismatch,
-                        "logical op expects rhs Bool",
-                        function_name,
-                        ip,
-                    ));
-                };
-                let Some(Value::Bool(l)) = stack.pop() else {
-                    return Err(err_at(
-                        VmErrorKind::TypeMismatch,
-                        "logical op expects lhs Bool",
-                        function_name,
-                        ip,
-                    ));
-                };
-                match chunk.code[ip] {
-                    Instr::AndBool => stack.push(Value::Bool(l && r)),
-                    Instr::OrBool => stack.push(Value::Bool(l || r)),
-                    _ => unreachable!(),
-                }
+                arith::logical(&mut stack, &chunk.code[ip], function_name, ip)?
             }
             Instr::Jump(target) => {
-                ip = *target;
+                ip = control_flow::jump(*target);
                 continue;
             }
             Instr::JumpIfFalse(target) => {
-                let Some(Value::Bool(v)) = stack.pop() else {
-                    return Err(err_at(
-                        VmErrorKind::TypeMismatch,
-                        "JumpIfFalse expects Bool",
-                        function_name,
-                        ip,
-                    ));
-                };
-                if !v {
-                    ip = *target;
+                if let Some(next_ip) =
+                    control_flow::jump_if_false(&mut stack, *target, function_name, ip)?
+                {
+                    ip = next_ip;
                     continue;
                 }
             }
             Instr::JumpIfTrue(target) => {
-                let Some(Value::Bool(v)) = stack.pop() else {
-                    return Err(err_at(
-                        VmErrorKind::TypeMismatch,
-                        "JumpIfTrue expects Bool",
-                        function_name,
-                        ip,
-                    ));
-                };
-                if v {
-                    ip = *target;
+                if let Some(next_ip) =
+                    control_flow::jump_if_true(&mut stack, *target, function_name, ip)?
+                {
+                    ip = next_ip;
                     continue;
                 }
             }
-            Instr::Call {
-                name: callee_name,
-                argc,
-            } => {
-                if stack.len() < *argc {
-                    return Err(err_at(
-                        VmErrorKind::StackUnderflow,
-                        "Stack underflow on Call",
-                        function_name,
-                        ip,
-                    ));
-                }
-                let split = stack.len() - *argc;
-                let call_args = stack.split_off(split);
-                let ret = run_function(
-                    module,
-                    callee_name,
-                    call_args,
-                    host,
-                    reg,
-                    depth + 1,
-                    config,
-                )?;
-                stack.push(ret);
-            }
-            Instr::CallBuiltin {
+            Instr::Call { name: callee_name, argc } => calls::call(
+                &mut stack,
+                module,
+                callee_name,
+                *argc,
+                host,
+                reg,
+                depth,
+                config,
+                function_name,
+                ip,
+            )?,
+            Instr::CallBuiltin { package, name, argc } => calls::call_builtin(
+                &mut stack,
+                host,
+                reg,
                 package,
                 name,
-                argc,
-            } => {
-                if stack.len() < *argc {
-                    return Err(err_at(
-                        VmErrorKind::StackUnderflow,
-                        "Stack underflow on CallBuiltin",
-                        function_name,
-                        ip,
-                    ));
-                }
-                let split = stack.len() - *argc;
-                let call_args = stack.split_off(split);
-                let ret = reg.call(host, package, name, call_args)?;
-                stack.push(ret);
-            }
+                *argc,
+                function_name,
+                ip,
+            )?,
             Instr::MakeArray(n) => arrays::make_array(&mut stack, *n, function_name, ip)?,
             Instr::MakeArrayRepeat(n) => {
                 arrays::make_array_repeat(&mut stack, *n, function_name, ip)?
