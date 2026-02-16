@@ -1322,7 +1322,10 @@ fn vm_reports_arr_count_runtime_errors_from_manual_bytecode() {
     };
     let err = Vm::run_module_main(&type_module).expect_err("type mismatch");
     assert_eq!(err.kind, VmErrorKind::TypeMismatch);
-    assert!(err.message.contains("arr.count expects Array as first argument"));
+    assert!(
+        err.message
+            .contains("arr.count expects Array as first argument")
+    );
 }
 
 #[test]
@@ -1702,7 +1705,10 @@ fn vm_reports_arr_slice_min_max_runtime_type_mismatch_from_manual_bytecode() {
     };
     let err = Vm::run_module_main(&slice_type_module).expect_err("slice type mismatch");
     assert_eq!(err.kind, VmErrorKind::TypeMismatch);
-    assert!(err.message.contains("arr.slice expects Array, Int, Int arguments"));
+    assert!(
+        err.message
+            .contains("arr.slice expects Array, Int, Int arguments")
+    );
 
     let min_type_module = BytecodeModule {
         functions: vec![(
@@ -1727,7 +1733,10 @@ fn vm_reports_arr_slice_min_max_runtime_type_mismatch_from_manual_bytecode() {
     };
     let err = Vm::run_module_main(&min_type_module).expect_err("min type mismatch");
     assert_eq!(err.kind, VmErrorKind::TypeMismatch);
-    assert!(err.message.contains("arr.min supports Int or Float element types"));
+    assert!(
+        err.message
+            .contains("arr.min supports Int or Float element types")
+    );
 
     let max_arity_module = BytecodeModule {
         functions: vec![(
@@ -1850,7 +1859,10 @@ fn vm_reports_arr_sort_runtime_errors_from_manual_bytecode() {
     };
     let err = Vm::run_module_main(&type_module).expect_err("type mismatch");
     assert_eq!(err.kind, VmErrorKind::TypeMismatch);
-    assert!(err.message.contains("arr.sort supports Int, Float, String, or Bool"));
+    assert!(
+        err.message
+            .contains("arr.sort supports Int, Float, String, or Bool")
+    );
 }
 
 #[test]

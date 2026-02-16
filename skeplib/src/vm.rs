@@ -1,15 +1,24 @@
-mod error;
+//! Bytecode VM entrypoint and public VM surface.
+//!
+//! Internals are split into:
+//! - `error`: VM runtime error types
+//! - `config`: runtime execution configuration
+//! - `host_trait` + `host`: I/O boundary for builtins
+//! - `builtins`: builtin registry and package handlers
+//! - `runner`: bytecode interpreter loop and instruction handlers
+
 mod builtins;
+mod config;
+mod error;
 mod host;
 mod host_trait;
-mod config;
 mod runner;
 
 use crate::bytecode::{BytecodeModule, FunctionChunk, Value};
 pub use config::VmConfig;
 pub use error::{VmError, VmErrorKind};
-pub use host_trait::BuiltinHost;
 pub use host::{StdIoHost, TestHost};
+pub use host_trait::BuiltinHost;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Vm;

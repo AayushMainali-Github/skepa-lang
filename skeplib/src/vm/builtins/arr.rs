@@ -262,9 +262,7 @@ fn builtin_arr_slice(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Va
             ),
         ));
     }
-    Ok(Value::Array(
-        items[*start as usize..*end as usize].to_vec(),
-    ))
+    Ok(Value::Array(items[*start as usize..*end as usize].to_vec()))
 }
 
 fn builtin_arr_min(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {

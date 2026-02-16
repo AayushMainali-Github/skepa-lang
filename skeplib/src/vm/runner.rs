@@ -1,7 +1,10 @@
-mod arrays;
+//! VM interpreter loop and instruction dispatch.
+
 mod arith;
+mod arrays;
 mod calls;
 mod control_flow;
+mod state;
 
 use crate::bytecode::{BytecodeModule, Instr, Value};
 
@@ -40,13 +43,7 @@ pub(super) fn run_function(
         ));
     }
 
-    let mut stack: Vec<Value> = Vec::new();
-    let mut locals: Vec<Value> = vec![Value::Unit; chunk.locals_count.max(1)];
-    for (i, arg) in args.into_iter().enumerate() {
-        if i < locals.len() {
-            locals[i] = arg;
-        }
-    }
+    let mut state = state::VmState::new(chunk.locals_count, args);
 
     let mut ip = 0usize;
     while ip < chunk.code.len() {
@@ -54,45 +51,13 @@ pub(super) fn run_function(
             eprintln!("[trace] {}@{} {:?}", function_name, ip, chunk.code[ip]);
         }
         match &chunk.code[ip] {
-            Instr::LoadConst(v) => stack.push(v.clone()),
-            Instr::LoadLocal(slot) => {
-                let Some(v) = locals.get(*slot).cloned() else {
-                    return Err(err_at(
-                        VmErrorKind::InvalidLocal,
-                        format!("Invalid local slot {slot}"),
-                        function_name,
-                        ip,
-                    ));
-                };
-                stack.push(v);
-            }
-            Instr::StoreLocal(slot) => {
-                let Some(v) = stack.pop() else {
-                    return Err(err_at(
-                        VmErrorKind::StackUnderflow,
-                        "Stack underflow on StoreLocal",
-                        function_name,
-                        ip,
-                    ));
-                };
-                if *slot >= locals.len() {
-                    locals.resize(*slot + 1, Value::Unit);
-                }
-                locals[*slot] = v;
-            }
-            Instr::Pop => {
-                if stack.pop().is_none() {
-                    return Err(err_at(
-                        VmErrorKind::StackUnderflow,
-                        "Stack underflow on Pop",
-                        function_name,
-                        ip,
-                    ));
-                }
-            }
-            Instr::NegInt => arith::neg(&mut stack, function_name, ip)?,
-            Instr::NotBool => arith::not_bool(&mut stack, function_name, ip)?,
-            Instr::Add => arith::add(&mut stack, function_name, ip)?,
+            Instr::LoadConst(v) => state.push_const(v.clone()),
+            Instr::LoadLocal(slot) => state.load_local(*slot, function_name, ip)?,
+            Instr::StoreLocal(slot) => state.store_local(*slot, function_name, ip)?,
+            Instr::Pop => state.pop_discard(function_name, ip)?,
+            Instr::NegInt => arith::neg(state.stack_mut(), function_name, ip)?,
+            Instr::NotBool => arith::not_bool(state.stack_mut(), function_name, ip)?,
+            Instr::Add => arith::add(state.stack_mut(), function_name, ip)?,
             Instr::SubInt
             | Instr::MulInt
             | Instr::DivInt
@@ -100,13 +65,13 @@ pub(super) fn run_function(
             | Instr::LteInt
             | Instr::GtInt
             | Instr::GteInt => {
-                arith::numeric_binop(&mut stack, &chunk.code[ip], function_name, ip)?
+                arith::numeric_binop(state.stack_mut(), &chunk.code[ip], function_name, ip)?
             }
-            Instr::ModInt => arith::mod_int(&mut stack, function_name, ip)?,
-            Instr::Eq => arith::eq(&mut stack, function_name, ip)?,
-            Instr::Neq => arith::neq(&mut stack, function_name, ip)?,
+            Instr::ModInt => arith::mod_int(state.stack_mut(), function_name, ip)?,
+            Instr::Eq => arith::eq(state.stack_mut(), function_name, ip)?,
+            Instr::Neq => arith::neq(state.stack_mut(), function_name, ip)?,
             Instr::AndBool | Instr::OrBool => {
-                arith::logical(&mut stack, &chunk.code[ip], function_name, ip)?
+                arith::logical(state.stack_mut(), &chunk.code[ip], function_name, ip)?
             }
             Instr::Jump(target) => {
                 ip = control_flow::jump(*target);
@@ -114,7 +79,7 @@ pub(super) fn run_function(
             }
             Instr::JumpIfFalse(target) => {
                 if let Some(next_ip) =
-                    control_flow::jump_if_false(&mut stack, *target, function_name, ip)?
+                    control_flow::jump_if_false(state.stack_mut(), *target, function_name, ip)?
                 {
                     ip = next_ip;
                     continue;
@@ -122,14 +87,17 @@ pub(super) fn run_function(
             }
             Instr::JumpIfTrue(target) => {
                 if let Some(next_ip) =
-                    control_flow::jump_if_true(&mut stack, *target, function_name, ip)?
+                    control_flow::jump_if_true(state.stack_mut(), *target, function_name, ip)?
                 {
                     ip = next_ip;
                     continue;
                 }
             }
-            Instr::Call { name: callee_name, argc } => calls::call(
-                &mut stack,
+            Instr::Call {
+                name: callee_name,
+                argc,
+            } => calls::call(
+                state.stack_mut(),
                 module,
                 callee_name,
                 *argc,
@@ -140,8 +108,12 @@ pub(super) fn run_function(
                 function_name,
                 ip,
             )?,
-            Instr::CallBuiltin { package, name, argc } => calls::call_builtin(
-                &mut stack,
+            Instr::CallBuiltin {
+                package,
+                name,
+                argc,
+            } => calls::call_builtin(
+                state.stack_mut(),
                 host,
                 reg,
                 package,
@@ -150,18 +122,18 @@ pub(super) fn run_function(
                 function_name,
                 ip,
             )?,
-            Instr::MakeArray(n) => arrays::make_array(&mut stack, *n, function_name, ip)?,
+            Instr::MakeArray(n) => arrays::make_array(state.stack_mut(), *n, function_name, ip)?,
             Instr::MakeArrayRepeat(n) => {
-                arrays::make_array_repeat(&mut stack, *n, function_name, ip)?
+                arrays::make_array_repeat(state.stack_mut(), *n, function_name, ip)?
             }
-            Instr::ArrayGet => arrays::array_get(&mut stack, function_name, ip)?,
-            Instr::ArraySet => arrays::array_set(&mut stack, function_name, ip)?,
+            Instr::ArrayGet => arrays::array_get(state.stack_mut(), function_name, ip)?,
+            Instr::ArraySet => arrays::array_set(state.stack_mut(), function_name, ip)?,
             Instr::ArraySetChain(depth) => {
-                arrays::array_set_chain(&mut stack, *depth, function_name, ip)?
+                arrays::array_set_chain(state.stack_mut(), *depth, function_name, ip)?
             }
-            Instr::ArrayLen => arrays::array_len(&mut stack, function_name, ip)?,
+            Instr::ArrayLen => arrays::array_len(state.stack_mut(), function_name, ip)?,
             Instr::Return => {
-                return Ok(stack.pop().unwrap_or(Value::Unit));
+                return Ok(state.finish_return());
             }
         }
         ip += 1;
@@ -169,7 +141,12 @@ pub(super) fn run_function(
     Ok(Value::Unit)
 }
 
-pub(super) fn err_at(kind: VmErrorKind, message: impl Into<String>, function: &str, ip: usize) -> VmError {
+pub(super) fn err_at(
+    kind: VmErrorKind,
+    message: impl Into<String>,
+    function: &str,
+    ip: usize,
+) -> VmError {
     let msg = message.into();
     VmError::new(kind, format!("{function}@{ip}: {msg}"))
 }

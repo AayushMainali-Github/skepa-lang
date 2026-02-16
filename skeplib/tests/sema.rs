@@ -1327,12 +1327,10 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(
-        diags
-            .as_slice()
-            .iter()
-            .any(|d| d.message.contains("arr.sort supports Int, Float, String, or Bool elements"))
-    );
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("arr.sort supports Int, Float, String, or Bool elements")
+    }));
 }
 
 #[test]

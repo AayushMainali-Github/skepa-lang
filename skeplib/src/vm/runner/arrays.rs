@@ -1,7 +1,12 @@
 use crate::bytecode::Value;
 use crate::vm::{VmError, VmErrorKind};
 
-pub(super) fn make_array(stack: &mut Vec<Value>, n: usize, function_name: &str, ip: usize) -> Result<(), VmError> {
+pub(super) fn make_array(
+    stack: &mut Vec<Value>,
+    n: usize,
+    function_name: &str,
+    ip: usize,
+) -> Result<(), VmError> {
     if stack.len() < n {
         return Err(super::err_at(
             VmErrorKind::StackUnderflow,
@@ -34,7 +39,11 @@ pub(super) fn make_array_repeat(
     Ok(())
 }
 
-pub(super) fn array_get(stack: &mut Vec<Value>, function_name: &str, ip: usize) -> Result<(), VmError> {
+pub(super) fn array_get(
+    stack: &mut Vec<Value>,
+    function_name: &str,
+    ip: usize,
+) -> Result<(), VmError> {
     let Some(idx_v) = stack.pop() else {
         return Err(super::err_at(
             VmErrorKind::StackUnderflow,
@@ -79,7 +88,11 @@ pub(super) fn array_get(stack: &mut Vec<Value>, function_name: &str, ip: usize) 
     Ok(())
 }
 
-pub(super) fn array_set(stack: &mut Vec<Value>, function_name: &str, ip: usize) -> Result<(), VmError> {
+pub(super) fn array_set(
+    stack: &mut Vec<Value>,
+    function_name: &str,
+    ip: usize,
+) -> Result<(), VmError> {
     let Some(val) = stack.pop() else {
         return Err(super::err_at(
             VmErrorKind::StackUnderflow,
@@ -212,13 +225,22 @@ pub(super) fn array_set_chain(
             ));
         }
         Err(other) => {
-            return Err(super::err_at(other, "ArraySetChain failed", function_name, ip));
+            return Err(super::err_at(
+                other,
+                "ArraySetChain failed",
+                function_name,
+                ip,
+            ));
         }
     }
     Ok(())
 }
 
-pub(super) fn array_len(stack: &mut Vec<Value>, function_name: &str, ip: usize) -> Result<(), VmError> {
+pub(super) fn array_len(
+    stack: &mut Vec<Value>,
+    function_name: &str,
+    ip: usize,
+) -> Result<(), VmError> {
     let Some(arr_v) = stack.pop() else {
         return Err(super::err_at(
             VmErrorKind::StackUnderflow,

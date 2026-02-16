@@ -737,8 +737,10 @@ impl Checker {
                         }
                         "min" | "max" => {
                             let elem_ty = *elem;
-                            if !matches!(elem_ty, TypeInfo::Int | TypeInfo::Float | TypeInfo::Unknown)
-                            {
+                            if !matches!(
+                                elem_ty,
+                                TypeInfo::Int | TypeInfo::Float | TypeInfo::Unknown
+                            ) {
                                 self.error(format!(
                                     "arr.{method} supports Int or Float elements, got {:?}",
                                     elem_ty
