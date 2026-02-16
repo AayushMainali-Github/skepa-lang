@@ -1,8 +1,11 @@
-use std::collections::{HashMap, VecDeque};
-use std::fmt;
-use std::io::{self, Write};
+mod error;
+mod host;
+
+use std::collections::HashMap;
 
 use crate::bytecode::{BytecodeModule, FunctionChunk, Instr, Value};
+pub use error::{VmError, VmErrorKind};
+pub use host::{StdIoHost, TestHost};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Vm;
@@ -24,108 +27,9 @@ impl Default for VmConfig {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum VmErrorKind {
-    UnknownFunction,
-    ArityMismatch,
-    StackUnderflow,
-    TypeMismatch,
-    InvalidLocal,
-    DivisionByZero,
-    UnknownBuiltin,
-    HostError,
-    StackOverflow,
-    IndexOutOfBounds,
-}
-
-impl VmErrorKind {
-    pub fn code(self) -> &'static str {
-        match self {
-            VmErrorKind::UnknownFunction => "E-VM-UNKNOWN-FUNCTION",
-            VmErrorKind::ArityMismatch => "E-VM-ARITY",
-            VmErrorKind::StackUnderflow => "E-VM-STACK-UNDERFLOW",
-            VmErrorKind::TypeMismatch => "E-VM-TYPE",
-            VmErrorKind::InvalidLocal => "E-VM-INVALID-LOCAL",
-            VmErrorKind::DivisionByZero => "E-VM-DIV-ZERO",
-            VmErrorKind::UnknownBuiltin => "E-VM-UNKNOWN-BUILTIN",
-            VmErrorKind::HostError => "E-VM-HOST",
-            VmErrorKind::StackOverflow => "E-VM-STACK-OVERFLOW",
-            VmErrorKind::IndexOutOfBounds => "E-VM-INDEX-OOB",
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct VmError {
-    pub kind: VmErrorKind,
-    pub message: String,
-}
-
-impl VmError {
-    fn new(kind: VmErrorKind, message: impl Into<String>) -> Self {
-        Self {
-            kind,
-            message: message.into(),
-        }
-    }
-}
-
-impl fmt::Display for VmError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.message)
-    }
-}
-
 pub trait BuiltinHost {
     fn write(&mut self, s: &str, newline: bool) -> Result<(), VmError>;
     fn read_line(&mut self) -> Result<String, VmError>;
-}
-
-pub struct StdIoHost;
-
-impl BuiltinHost for StdIoHost {
-    fn write(&mut self, s: &str, newline: bool) -> Result<(), VmError> {
-        if newline {
-            println!("{s}");
-        } else {
-            print!("{s}");
-            io::stdout()
-                .flush()
-                .map_err(|e| VmError::new(VmErrorKind::HostError, e.to_string()))?;
-        }
-        Ok(())
-    }
-
-    fn read_line(&mut self) -> Result<String, VmError> {
-        let mut buf = String::new();
-        io::stdin()
-            .read_line(&mut buf)
-            .map_err(|e| VmError::new(VmErrorKind::HostError, e.to_string()))?;
-        while buf.ends_with('\n') || buf.ends_with('\r') {
-            buf.pop();
-        }
-        Ok(buf)
-    }
-}
-
-#[derive(Default)]
-pub struct TestHost {
-    pub output: String,
-    pub input: VecDeque<String>,
-}
-
-impl BuiltinHost for TestHost {
-    fn write(&mut self, s: &str, newline: bool) -> Result<(), VmError> {
-        self.output.push_str(s);
-        if newline {
-            self.output.push('\n');
-        }
-        Ok(())
-    }
-
-    fn read_line(&mut self) -> Result<String, VmError> {
-        Ok(self.input.pop_front().unwrap_or_default())
-    }
 }
 
 pub type BuiltinHandler = fn(&mut dyn BuiltinHost, Vec<Value>) -> Result<Value, VmError>;
