@@ -1,3 +1,6 @@
+mod common;
+
+use common::{assert_has_diag, parse_err, parse_ok};
 use skeplib::ast::{AssignTarget, BinaryOp, Expr, Stmt, TypeName, UnaryOp};
 use skeplib::parser::Parser;
 
@@ -10,8 +13,7 @@ fn main() -> Int {
   return 0;
 }
 "#;
-    let (program, diags) = Parser::parse_source(src);
-    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    let program = parse_ok(src);
     assert_eq!(program.imports.len(), 1);
     assert_eq!(program.imports[0].module, "io");
     assert_eq!(program.functions.len(), 1);
@@ -28,14 +30,8 @@ fn main() -> Int {
   return 0
 }
 "#;
-    let (_program, diags) = Parser::parse_source(src);
-    assert!(!diags.is_empty());
-    assert!(
-        diags
-            .as_slice()
-            .iter()
-            .any(|d| d.message.contains("Expected `;` after return statement"))
-    );
+    let diags = parse_err(src);
+    assert_has_diag(&diags, "Expected `;` after return statement");
 }
 
 #[test]
@@ -45,8 +41,7 @@ fn add(a: Int, b: Int) -> Int {
   return 0;
 }
 "#;
-    let (program, diags) = Parser::parse_source(src);
-    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    let program = parse_ok(src);
     assert_eq!(program.functions.len(), 1);
     let f = &program.functions[0];
     assert_eq!(f.name, "add");
@@ -64,8 +59,7 @@ fn sum_row(row: [Int; 4]) -> [Int; 4] {
   return row;
 }
 "#;
-    let (program, diags) = Parser::parse_source(src);
-    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    let program = parse_ok(src);
     let f = &program.functions[0];
     assert_eq!(
         f.params[0].ty,
@@ -90,8 +84,7 @@ fn mat(m: [[Int; 3]; 2]) -> [[Int; 3]; 2] {
   return m;
 }
 "#;
-    let (program, diags) = Parser::parse_source(src);
-    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    let program = parse_ok(src);
     let want = TypeName::Array {
         elem: Box::new(TypeName::Array {
             elem: Box::new(TypeName::Int),
@@ -110,14 +103,8 @@ fn add(a Int) -> Int {
   return 0;
 }
 "#;
-    let (_program, diags) = Parser::parse_source(src);
-    assert!(!diags.is_empty());
-    assert!(
-        diags
-            .as_slice()
-            .iter()
-            .any(|d| d.message.contains("Expected `:` after parameter name"))
-    );
+    let diags = parse_err(src);
+    assert_has_diag(&diags, "Expected `:` after parameter name");
 }
 
 #[test]
@@ -130,8 +117,7 @@ fn main() -> Int {
   return 0;
 }
 "#;
-    let (program, diags) = Parser::parse_source(src);
-    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    let program = parse_ok(src);
     let body = &program.functions[0].body;
     assert_eq!(body.len(), 4);
 
@@ -170,14 +156,8 @@ fn main() -> Int {
   return 0;
 }
 "#;
-    let (_program, diags) = Parser::parse_source(src);
-    assert!(!diags.is_empty());
-    assert!(
-        diags
-            .as_slice()
-            .iter()
-            .any(|d| d.message.contains("Expected `=` in let declaration"))
-    );
+    let diags = parse_err(src);
+    assert_has_diag(&diags, "Expected `=` in let declaration");
 }
 
 #[test]
@@ -187,8 +167,7 @@ fn log() -> Void {
   return;
 }
 "#;
-    let (program, diags) = Parser::parse_source(src);
-    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    let program = parse_ok(src);
     assert_eq!(program.functions.len(), 1);
     assert!(matches!(program.functions[0].body[0], Stmt::Return(None)));
 }
@@ -200,14 +179,8 @@ fn add(a:) -> Int {
   return 0;
 }
 "#;
-    let (_program, diags) = Parser::parse_source(src);
-    assert!(!diags.is_empty());
-    assert!(
-        diags
-            .as_slice()
-            .iter()
-            .any(|d| d.message.contains("Expected parameter type after `:`"))
-    );
+    let diags = parse_err(src);
+    assert_has_diag(&diags, "Expected parameter type after `:`");
 }
 
 #[test]

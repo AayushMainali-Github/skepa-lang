@@ -1,3 +1,6 @@
+mod common;
+
+use common::{assert_has_diag, compile_err, compile_ok, vm_run_ok};
 use skeplib::bytecode::{BytecodeModule, FunctionChunk, Instr, Value, compile_source};
 use skeplib::vm::{BuiltinHost, BuiltinRegistry, TestHost, Vm, VmConfig, VmErrorKind};
 use std::collections::VecDeque;
@@ -11,7 +14,7 @@ fn main() -> Int {
   return y;
 }
 "#;
-    let module = compile_source(src).expect("compile should succeed");
+    let module = compile_ok(src);
     let main = module.functions.get("main").expect("main chunk exists");
     assert!(main.locals_count >= 2);
     assert!(main.code.iter().any(|i| matches!(i, Instr::Add)));
@@ -27,8 +30,7 @@ fn main() -> Int {
   return x * 2;
 }
 "#;
-    let module = compile_source(src).expect("compile should succeed");
-    let out = Vm::run_module_main(&module).expect("vm run");
+    let out = vm_run_ok(src);
     assert_eq!(out, Value::Int(30));
 }
 
@@ -40,12 +42,8 @@ fn main() -> Int {
   return 0;
 }
 "#;
-    let err = compile_source(src).expect_err("compile should fail for unsupported path assignment");
-    assert!(
-        err.as_slice()
-            .iter()
-            .any(|d| d.message.contains("Path assignment not supported"))
-    );
+    let err = compile_err(src);
+    assert_has_diag(&err, "Path assignment not supported");
 }
 
 #[test]
@@ -56,12 +54,8 @@ fn main() -> Int {
   return 0;
 }
 "#;
-    let err = compile_source(src).expect_err("compile should fail");
-    assert!(
-        err.as_slice()
-            .iter()
-            .any(|d| d.message.contains("`break` used outside a loop"))
-    );
+    let err = compile_err(src);
+    assert_has_diag(&err, "`break` used outside a loop");
 }
 
 #[test]
@@ -72,12 +66,8 @@ fn main() -> Int {
   return 0;
 }
 "#;
-    let err = compile_source(src).expect_err("compile should fail");
-    assert!(
-        err.as_slice()
-            .iter()
-            .any(|d| d.message.contains("`continue` used outside a loop"))
-    );
+    let err = compile_err(src);
+    assert_has_diag(&err, "`continue` used outside a loop");
 }
 
 #[test]
@@ -92,8 +82,7 @@ fn main() -> Int {
   }
 }
 "#;
-    let module = compile_source(src).expect("compile should succeed");
-    let out = Vm::run_module_main(&module).expect("vm run");
+    let out = vm_run_ok(src);
     assert_eq!(out, Value::Int(10));
 }
 
@@ -110,8 +99,7 @@ fn main() -> Int {
   return acc;
 }
 "#;
-    let module = compile_source(src).expect("compile should succeed");
-    let out = Vm::run_module_main(&module).expect("vm run");
+    let out = vm_run_ok(src);
     assert_eq!(out, Value::Int(10));
 }
 

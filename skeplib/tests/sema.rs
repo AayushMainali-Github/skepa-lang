@@ -1,3 +1,6 @@
+mod common;
+
+use common::{assert_has_diag, sema_err, sema_ok};
 use skeplib::sema::analyze_source;
 
 #[test]
@@ -17,9 +20,7 @@ fn main() -> Int {
   return 0;
 }
 "#;
-    let (result, diags) = analyze_source(src);
-    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
-    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    let _ = sema_ok(src);
 }
 
 #[test]
@@ -29,14 +30,9 @@ fn main() -> Int {
   return true;
 }
 "#;
-    let (result, diags) = analyze_source(src);
+    let (result, diags) = sema_err(src);
     assert!(result.has_errors);
-    assert!(
-        diags
-            .as_slice()
-            .iter()
-            .any(|d| d.message.contains("Return type mismatch"))
-    );
+    assert_has_diag(&diags, "Return type mismatch");
 }
 
 #[test]
@@ -48,14 +44,9 @@ fn main() -> Int {
   return 0;
 }
 "#;
-    let (result, diags) = analyze_source(src);
+    let (result, diags) = sema_err(src);
     assert!(result.has_errors);
-    assert!(
-        diags
-            .as_slice()
-            .iter()
-            .any(|d| d.message.contains("Assignment type mismatch"))
-    );
+    assert_has_diag(&diags, "Assignment type mismatch");
 }
 
 #[test]
@@ -68,14 +59,9 @@ fn main() -> Int {
   return 0;
 }
 "#;
-    let (result, diags) = analyze_source(src);
+    let (result, diags) = sema_err(src);
     assert!(result.has_errors);
-    assert!(
-        diags
-            .as_slice()
-            .iter()
-            .any(|d| d.message.contains("if condition must be Bool"))
-    );
+    assert_has_diag(&diags, "if condition must be Bool");
 }
 
 #[test]
@@ -90,14 +76,9 @@ fn main() -> Int {
   return 0;
 }
 "#;
-    let (result, diags) = analyze_source(src);
+    let (result, diags) = sema_err(src);
     assert!(result.has_errors);
-    assert!(
-        diags
-            .as_slice()
-            .iter()
-            .any(|d| d.message.contains("Arity mismatch"))
-    );
+    assert_has_diag(&diags, "Arity mismatch");
 }
 
 #[test]
@@ -108,14 +89,9 @@ fn main() -> Int {
   return 0;
 }
 "#;
-    let (result, diags) = analyze_source(src);
+    let (result, diags) = sema_err(src);
     assert!(result.has_errors);
-    assert!(
-        diags
-            .as_slice()
-            .iter()
-            .any(|d| d.message.contains("without `import io;`"))
-    );
+    assert_has_diag(&diags, "without `import io;`");
 }
 
 #[test]
@@ -126,14 +102,9 @@ fn main() -> Int {
   return 0;
 }
 "#;
-    let (result, diags) = analyze_source(src);
+    let (result, diags) = sema_err(src);
     assert!(result.has_errors);
-    assert!(
-        diags
-            .as_slice()
-            .iter()
-            .any(|d| d.message.contains("Unknown variable `y`"))
-    );
+    assert_has_diag(&diags, "Unknown variable `y`");
 }
 
 #[test]
