@@ -536,7 +536,7 @@ impl Compiler {
         }
     }
 
-    fn flatten_field_expr<'a>(expr: &'a Expr) -> Option<(&'a Expr, Vec<String>)> {
+    fn flatten_field_expr(expr: &Expr) -> Option<(&Expr, Vec<String>)> {
         let mut fields = Vec::new();
         let mut cur = expr;
         loop {

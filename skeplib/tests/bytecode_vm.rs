@@ -1117,6 +1117,27 @@ fn main() -> Int {
 }
 
 #[test]
+fn bytecode_roundtrip_preserves_struct_values_and_method_dispatch() {
+    let src = r#"
+struct User { id: Int, name: String }
+impl User {
+  fn bump(self, d: Int) -> Int {
+    return self.id + d;
+  }
+}
+fn main() -> Int {
+  let u = User { id: 10, name: "sam" };
+  return u.bump(5);
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let bytes = module.to_bytes();
+    let decoded = BytecodeModule::from_bytes(&bytes).expect("decode");
+    let out = Vm::run_module_main(&decoded).expect("run");
+    assert_eq!(out, Value::Int(15));
+}
+
+#[test]
 fn runs_io_format_and_printf_with_escapes_and_percent() {
     let src = r#"
 import io;
