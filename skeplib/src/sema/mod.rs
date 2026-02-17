@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::ast::{Expr, Program, Stmt, TypeName};
+use crate::ast::{Program, Stmt, TypeName};
 use crate::diagnostic::{DiagnosticBag, Span};
 use crate::parser::Parser;
 use crate::types::{FunctionSig, TypeInfo};
@@ -40,13 +40,6 @@ struct Checker {
 }
 
 impl Checker {
-    fn const_non_negative_int(expr: &Expr) -> Option<usize> {
-        match expr {
-            Expr::IntLit(v) if *v >= 0 => Some(*v as usize),
-            _ => None,
-        }
-    }
-
     fn parse_format_specifiers(fmt: &str) -> Result<Vec<char>, String> {
         let mut specs = Vec::new();
         let chars: Vec<char> = fmt.chars().collect();

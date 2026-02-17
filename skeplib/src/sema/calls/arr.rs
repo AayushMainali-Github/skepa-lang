@@ -21,7 +21,7 @@ pub(super) fn check_arr_builtin(
                 return TypeInfo::Unknown;
             }
             let arr_ty = checker.check_expr(&args[0], scopes);
-            let TypeInfo::Array { elem, size } = arr_ty else {
+            let TypeInfo::Array { elem, .. } = arr_ty else {
                 if arr_ty != TypeInfo::Unknown {
                     checker.error(format!(
                         "arr.{method} argument 1 expects Array, got {:?}",
