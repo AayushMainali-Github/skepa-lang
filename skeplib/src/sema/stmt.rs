@@ -44,6 +44,14 @@ impl Checker {
                     TypeInfo::Unknown
                 }
             }
+            AssignTarget::Field { base, field } => {
+                let base_ty = self.check_expr(base, scopes);
+                self.error(format!(
+                    "Field assignment not supported yet in v0 checker for base {:?} and field `{}`",
+                    base_ty, field
+                ));
+                TypeInfo::Unknown
+            }
         }
     }
 

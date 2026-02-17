@@ -285,3 +285,78 @@ Decoder rejects:
 - Casting / implicit numeric promotion
 - String interpolation
 - Package manager / dependency resolver
+
+## 12. Locked v0.4.0 Syntax (Planned)
+
+The following syntax is locked for implementation in `v0.4.0`.
+
+### Struct Declarations
+
+```sk
+struct User {
+  id: Int,
+  name: String,
+  score: Int,
+}
+```
+
+### Struct Literals
+
+```sk
+let u = User { id: 1, name: "sam", score: 0 };
+```
+
+Rules:
+- all fields are required
+- field names are explicit
+- field order is not semantically significant
+
+### Field Access and Mutation
+
+```sk
+let n = u.name;
+u.score = u.score + 10;
+```
+
+### Methods (`impl`)
+
+```sk
+impl User {
+  fn greet(self) -> String {
+    return "hi " + self.name;
+  }
+
+  fn addScore(self, by: Int) -> Int {
+    self.score = self.score + by;
+    return self.score;
+  }
+}
+```
+
+Method call syntax:
+
+```sk
+let msg = u.greet();
+let now = u.addScore(5);
+```
+
+### Struct Types in Normal Functions
+
+Struct types can be used in variable annotations, function params, and returns:
+
+```sk
+fn show(u: User) -> String {
+  return u.name;
+}
+
+fn makeUser(id: Int, name: String) -> User {
+  return User { id: id, name: name, score: 0 };
+}
+```
+
+### v0.4.0 Initial Limits
+
+- no generics on structs
+- no trait/inheritance system
+- no static methods
+- no visibility modifiers (`pub`/private)

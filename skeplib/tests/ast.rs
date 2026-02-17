@@ -14,6 +14,8 @@ fn create_program_with_one_import_and_one_function() {
         imports: vec![ImportDecl {
             module: "io".to_string(),
         }],
+        structs: Vec::new(),
+        impls: Vec::new(),
         functions: vec![FnDecl {
             name: "main".to_string(),
             params: Vec::new(),
@@ -27,6 +29,68 @@ fn create_program_with_one_import_and_one_function() {
     assert_eq!(program.functions.len(), 1);
     assert_eq!(program.functions[0].name, "main");
     assert_eq!(program.functions[0].return_type, Some(TypeName::Int));
+}
+
+#[test]
+fn struct_and_impl_ast_nodes_roundtrip_data() {
+    let s = skeplib::ast::StructDecl {
+        name: "User".to_string(),
+        fields: vec![
+            skeplib::ast::FieldDecl {
+                name: "id".to_string(),
+                ty: TypeName::Int,
+            },
+            skeplib::ast::FieldDecl {
+                name: "name".to_string(),
+                ty: TypeName::String,
+            },
+        ],
+    };
+    let m = skeplib::ast::MethodDecl {
+        name: "label".to_string(),
+        params: vec![Param {
+            name: "prefix".to_string(),
+            ty: TypeName::String,
+        }],
+        return_type: Some(TypeName::String),
+        body: vec![Stmt::Return(Some(Expr::StringLit("x".to_string())))],
+    };
+    let i = skeplib::ast::ImplDecl {
+        target: "User".to_string(),
+        methods: vec![m],
+    };
+    let p = Program {
+        imports: Vec::new(),
+        structs: vec![s],
+        impls: vec![i],
+        functions: Vec::new(),
+    };
+    assert_eq!(p.structs[0].name, "User");
+    assert_eq!(p.structs[0].fields.len(), 2);
+    assert_eq!(p.impls[0].target, "User");
+    assert_eq!(p.impls[0].methods[0].name, "label");
+}
+
+#[test]
+fn struct_expression_and_field_assignment_nodes_are_supported() {
+    let lit = Expr::StructLit {
+        name: "User".to_string(),
+        fields: vec![
+            ("id".to_string(), Expr::IntLit(1)),
+            ("name".to_string(), Expr::StringLit("sam".to_string())),
+        ],
+    };
+    let get = Expr::Field {
+        base: Box::new(Expr::Ident("u".to_string())),
+        field: "name".to_string(),
+    };
+    let set = skeplib::ast::AssignTarget::Field {
+        base: Box::new(Expr::Ident("u".to_string())),
+        field: "name".to_string(),
+    };
+    assert!(matches!(lit, Expr::StructLit { .. }));
+    assert!(matches!(get, Expr::Field { .. }));
+    assert!(matches!(set, skeplib::ast::AssignTarget::Field { .. }));
 }
 
 #[test]

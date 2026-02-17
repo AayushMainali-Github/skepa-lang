@@ -1,6 +1,8 @@
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Program {
     pub imports: Vec<ImportDecl>,
+    pub structs: Vec<StructDecl>,
+    pub impls: Vec<ImplDecl>,
     pub functions: Vec<FnDecl>,
 }
 
@@ -11,6 +13,32 @@ pub struct ImportDecl {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FnDecl {
+    pub name: String,
+    pub params: Vec<Param>,
+    pub return_type: Option<TypeName>,
+    pub body: Vec<Stmt>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StructDecl {
+    pub name: String,
+    pub fields: Vec<FieldDecl>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FieldDecl {
+    pub name: String,
+    pub ty: TypeName,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImplDecl {
+    pub target: String,
+    pub methods: Vec<MethodDecl>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MethodDecl {
     pub name: String,
     pub params: Vec<Param>,
     pub return_type: Option<TypeName>,
@@ -54,6 +82,7 @@ pub enum AssignTarget {
     Ident(String),
     Path(Vec<String>),
     Index { base: Box<Expr>, index: Expr },
+    Field { base: Box<Expr>, field: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -72,6 +101,14 @@ pub enum Expr {
     Index {
         base: Box<Expr>,
         index: Box<Expr>,
+    },
+    Field {
+        base: Box<Expr>,
+        field: String,
+    },
+    StructLit {
+        name: String,
+        fields: Vec<(String, Expr)>,
     },
     Unary {
         op: UnaryOp,
@@ -102,6 +139,7 @@ pub enum TypeName {
     Bool,
     String,
     Void,
+    Named(String),
     Array { elem: Box<TypeName>, size: usize },
 }
 
@@ -135,10 +173,53 @@ impl Program {
         for import in &self.imports {
             out.push_str(&format!("import {}\n", import.module));
         }
+        for s in &self.structs {
+            pretty_struct(s, 0, &mut out);
+        }
+        for i in &self.impls {
+            pretty_impl(i, 0, &mut out);
+        }
         for func in &self.functions {
             pretty_fn(func, 0, &mut out);
         }
         out
+    }
+}
+
+fn pretty_struct(s: &StructDecl, indent: usize, out: &mut String) {
+    let pad = " ".repeat(indent);
+    out.push_str(&format!("{pad}struct {} {{\n", s.name));
+    for f in &s.fields {
+        out.push_str(&format!("{pad}  {}: {}\n", f.name, f.ty.as_str()));
+    }
+    out.push_str(&format!("{pad}}}\n"));
+}
+
+fn pretty_impl(i: &ImplDecl, indent: usize, out: &mut String) {
+    let pad = " ".repeat(indent);
+    out.push_str(&format!("{pad}impl {} {{\n", i.target));
+    for m in &i.methods {
+        pretty_method(m, indent + 2, out);
+    }
+    out.push_str(&format!("{pad}}}\n"));
+}
+
+fn pretty_method(method: &MethodDecl, indent: usize, out: &mut String) {
+    let pad = " ".repeat(indent);
+    let params = method
+        .params
+        .iter()
+        .map(|p| format!("{}: {}", p.name, p.ty.as_str()))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let ret = method
+        .return_type
+        .as_ref()
+        .map(TypeName::as_str)
+        .unwrap_or_else(|| "Void".to_string());
+    out.push_str(&format!("{pad}fn {}({}) -> {}\n", method.name, params, ret));
+    for stmt in &method.body {
+        pretty_stmt(stmt, indent + 2, out);
     }
 }
 
@@ -183,6 +264,7 @@ fn pretty_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
                 AssignTarget::Index { base, index } => {
                     format!("{}[{}]", pretty_expr(base), pretty_expr(index))
                 }
+                AssignTarget::Field { base, field } => format!("{}.{}", pretty_expr(base), field),
             };
             out.push_str(&format!(
                 "{pad}assign {} = {}\n",
@@ -263,6 +345,7 @@ fn pretty_for_clause_stmt(stmt: &Stmt) -> String {
                 AssignTarget::Index { base, index } => {
                     format!("{}[{}]", pretty_expr(base), pretty_expr(index))
                 }
+                AssignTarget::Field { base, field } => format!("{}.{}", pretty_expr(base), field),
             };
             format!("{target} = {}", pretty_expr(value))
         }
@@ -285,6 +368,15 @@ fn pretty_expr(expr: &Expr) -> String {
         }
         Expr::ArrayRepeat { value, size } => format!("[{}; {}]", pretty_expr(value), size),
         Expr::Index { base, index } => format!("{}[{}]", pretty_expr(base), pretty_expr(index)),
+        Expr::Field { base, field } => format!("{}.{}", pretty_expr(base), field),
+        Expr::StructLit { name, fields } => {
+            let fields = fields
+                .iter()
+                .map(|(n, v)| format!("{n}: {}", pretty_expr(v)))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("{name} {{ {fields} }}")
+        }
         Expr::Unary { op, expr } => {
             let symbol = match op {
                 UnaryOp::Neg => "-",
@@ -327,6 +419,7 @@ impl TypeName {
             TypeName::Bool => "Bool".to_string(),
             TypeName::String => "String".to_string(),
             TypeName::Void => "Void".to_string(),
+            TypeName::Named(name) => name.clone(),
             TypeName::Array { elem, size } => format!("[{}; {}]", elem.as_str(), size),
         }
     }

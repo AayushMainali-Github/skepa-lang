@@ -19,6 +19,7 @@ impl TypeInfo {
             TypeName::Bool => TypeInfo::Bool,
             TypeName::String => TypeInfo::String,
             TypeName::Void => TypeInfo::Void,
+            TypeName::Named(_) => TypeInfo::Unknown,
             TypeName::Array { elem, size } => TypeInfo::Array {
                 elem: Box::new(TypeInfo::from_ast(elem)),
                 size: *size,

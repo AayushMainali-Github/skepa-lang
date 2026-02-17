@@ -62,7 +62,12 @@ impl Parser {
             self.synchronize_toplevel();
         }
 
-        Program { imports, functions }
+        Program {
+            imports,
+            structs: Vec::new(),
+            impls: Vec::new(),
+            functions,
+        }
     }
 
     fn parse_import(&mut self) -> Option<ImportDecl> {

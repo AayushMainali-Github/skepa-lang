@@ -116,6 +116,10 @@ impl Compiler {
                         self.error("Unsupported index assignment target".to_string());
                     }
                 }
+                AssignTarget::Field { .. } => {
+                    self.compile_expr(value, ctx, code);
+                    self.error("Field assignment is not supported in bytecode v0".to_string());
+                }
             },
             Stmt::Expr(expr) => {
                 self.compile_expr(expr, ctx, code);
@@ -387,6 +391,16 @@ impl Compiler {
                 self.compile_expr(base, ctx, code);
                 self.compile_expr(index, ctx, code);
                 code.push(Instr::ArrayGet);
+            }
+            Expr::Field { .. } => {
+                self.error(
+                    "Field access is not supported in bytecode v0 compiler slice".to_string(),
+                );
+            }
+            Expr::StructLit { .. } => {
+                self.error(
+                    "Struct literals are not supported in bytecode v0 compiler slice".to_string(),
+                );
             }
         }
     }

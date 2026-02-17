@@ -108,6 +108,20 @@ impl Checker {
                     }
                 }
             }
+            Expr::Field { base, field } => {
+                let base_ty = self.check_expr(base, scopes);
+                self.error(format!(
+                    "Field access not supported yet in v0 checker for base {:?} and field `{}`",
+                    base_ty, field
+                ));
+                TypeInfo::Unknown
+            }
+            Expr::StructLit { name, .. } => {
+                self.error(format!(
+                    "Struct literals are not supported yet in v0 checker: `{name}`"
+                ));
+                TypeInfo::Unknown
+            }
         }
     }
 
