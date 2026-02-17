@@ -1,4 +1,6 @@
-use crate::ast::{FnDecl, ImportDecl, Param, Program};
+use crate::ast::{
+    FieldDecl, FnDecl, ImplDecl, ImportDecl, MethodDecl, Param, Program, StructDecl, TypeName,
+};
 use crate::diagnostic::{DiagnosticBag, Span};
 use crate::lexer::lex;
 use crate::token::{Token, TokenKind};
@@ -41,6 +43,8 @@ impl Parser {
 
     fn parse_program(&mut self) -> Program {
         let mut imports = Vec::new();
+        let mut structs = Vec::new();
+        let mut impls = Vec::new();
         let mut functions = Vec::new();
 
         while !self.at(TokenKind::Eof) {
@@ -57,15 +61,29 @@ impl Parser {
                 }
                 continue;
             }
+            if self.at(TokenKind::KwStruct) {
+                if let Some(s) = self.parse_struct_decl() {
+                    structs.push(s);
+                }
+                continue;
+            }
+            if self.at(TokenKind::KwImpl) {
+                if let Some(i) = self.parse_impl_decl() {
+                    impls.push(i);
+                }
+                continue;
+            }
 
-            self.error_here_expected("Expected top-level declaration (`import` or `fn`)");
+            self.error_here_expected(
+                "Expected top-level declaration (`import`, `struct`, `impl`, or `fn`)",
+            );
             self.synchronize_toplevel();
         }
 
         Program {
             imports,
-            structs: Vec::new(),
-            impls: Vec::new(),
+            structs,
+            impls,
             functions,
         }
     }
@@ -123,6 +141,108 @@ impl Parser {
         self.expect(TokenKind::RBrace, "Expected `}` after function body")?;
 
         Some(FnDecl {
+            name: name.lexeme,
+            params,
+            return_type,
+            body,
+        })
+    }
+
+    fn parse_struct_decl(&mut self) -> Option<StructDecl> {
+        self.expect(TokenKind::KwStruct, "Expected `struct`")?;
+        let name = self.expect_ident("Expected struct name after `struct`")?;
+        self.expect(TokenKind::LBrace, "Expected `{` after struct name")?;
+        let mut fields = Vec::new();
+        while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
+            let field_name = self.expect_ident("Expected field name in struct")?;
+            self.expect(TokenKind::Colon, "Expected `:` after field name")?;
+            let field_ty = self.expect_type_name("Expected field type after `:`")?;
+            fields.push(FieldDecl {
+                name: field_name.lexeme,
+                ty: field_ty,
+            });
+            if self.at(TokenKind::Comma) {
+                self.bump();
+                if self.at(TokenKind::RBrace) {
+                    break;
+                }
+            } else if !self.at(TokenKind::RBrace) {
+                self.error_here_expected("Expected `,` or `}` after struct field");
+                return None;
+            }
+        }
+        self.expect(TokenKind::RBrace, "Expected `}` after struct declaration")?;
+        Some(StructDecl {
+            name: name.lexeme,
+            fields,
+        })
+    }
+
+    fn parse_impl_decl(&mut self) -> Option<ImplDecl> {
+        self.expect(TokenKind::KwImpl, "Expected `impl`")?;
+        let target = self.expect_ident("Expected target type name after `impl`")?;
+        self.expect(TokenKind::LBrace, "Expected `{` after impl target")?;
+        let mut methods = Vec::new();
+        while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
+            methods.push(self.parse_method_decl(&target.lexeme)?);
+        }
+        self.expect(TokenKind::RBrace, "Expected `}` after impl block")?;
+        Some(ImplDecl {
+            target: target.lexeme,
+            methods,
+        })
+    }
+
+    fn parse_method_decl(&mut self, receiver_ty: &str) -> Option<MethodDecl> {
+        self.expect(TokenKind::KwFn, "Expected `fn` in impl block")?;
+        let name = self.expect_ident("Expected method name after `fn`")?;
+        self.expect(TokenKind::LParen, "Expected `(` after method name")?;
+        let mut params = Vec::new();
+        if !self.at(TokenKind::RParen) {
+            loop {
+                let param_name = self.expect_ident("Expected parameter name")?;
+                if param_name.lexeme == "self" {
+                    params.push(Param {
+                        name: "self".to_string(),
+                        ty: TypeName::Named(receiver_ty.to_string()),
+                    });
+                } else {
+                    self.expect(TokenKind::Colon, "Expected `:` after parameter name")?;
+                    let param_ty = self.expect_type_name("Expected parameter type after `:`")?;
+                    params.push(Param {
+                        name: param_name.lexeme,
+                        ty: param_ty,
+                    });
+                }
+
+                if self.at(TokenKind::Comma) {
+                    self.bump();
+                    if self.at(TokenKind::RParen) {
+                        break;
+                    }
+                    continue;
+                }
+                break;
+            }
+        }
+        self.expect(TokenKind::RParen, "Expected `)` after parameters")?;
+
+        let mut return_type = None;
+        if self.at(TokenKind::Arrow) {
+            self.bump();
+            return_type = Some(self.expect_type_name("Expected return type after `->`")?);
+        }
+
+        self.expect(TokenKind::LBrace, "Expected `{` before method body")?;
+        let mut body = Vec::new();
+        while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
+            match self.parse_stmt() {
+                Some(stmt) => body.push(stmt),
+                None => self.synchronize_stmt(),
+            }
+        }
+        self.expect(TokenKind::RBrace, "Expected `}` after method body")?;
+        Some(MethodDecl {
             name: name.lexeme,
             params,
             return_type,
@@ -190,7 +310,11 @@ impl Parser {
 
     fn synchronize_toplevel(&mut self) {
         while !self.at(TokenKind::Eof) {
-            if self.at(TokenKind::KwImport) || self.at(TokenKind::KwFn) {
+            if self.at(TokenKind::KwImport)
+                || self.at(TokenKind::KwFn)
+                || self.at(TokenKind::KwStruct)
+                || self.at(TokenKind::KwImpl)
+            {
                 return;
             }
             self.bump();

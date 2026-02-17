@@ -9,6 +9,8 @@ pub enum TokenKind {
     StringLit,
     KwImport,
     KwFn,
+    KwStruct,
+    KwImpl,
     KwLet,
     KwIf,
     KwElse,

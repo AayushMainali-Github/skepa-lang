@@ -30,6 +30,10 @@ impl Parser {
             TokenKind::TyBool => TypeName::Bool,
             TokenKind::TyString => TypeName::String,
             TokenKind::TyVoid => TypeName::Void,
+            TokenKind::Ident => {
+                let name = self.bump().lexeme;
+                return Some(TypeName::Named(name));
+            }
             _ => {
                 self.error_here_expected(message);
                 return None;

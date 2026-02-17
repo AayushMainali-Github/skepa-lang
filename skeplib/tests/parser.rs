@@ -1120,3 +1120,67 @@ fn main() -> Int {
         _ => panic!("expected let"),
     }
 }
+
+#[test]
+fn parses_struct_declaration_with_typed_fields() {
+    let src = r#"
+struct User {
+  id: Int,
+  name: String,
+}
+
+fn main() -> Int {
+  return 0;
+}
+"#;
+    let program = parse_ok(src);
+    assert_eq!(program.structs.len(), 1);
+    let s = &program.structs[0];
+    assert_eq!(s.name, "User");
+    assert_eq!(s.fields.len(), 2);
+    assert_eq!(s.fields[0].name, "id");
+    assert_eq!(s.fields[1].name, "name");
+}
+
+#[test]
+fn parses_impl_methods_with_self_and_params() {
+    let src = r#"
+struct User { id: Int, name: String }
+
+impl User {
+  fn greet(self) -> String {
+    return self.name;
+  }
+
+  fn label(self, prefix: String) -> String {
+    return prefix + self.name;
+  }
+}
+
+fn main() -> Int { return 0; }
+"#;
+    let program = parse_ok(src);
+    assert_eq!(program.impls.len(), 1);
+    let imp = &program.impls[0];
+    assert_eq!(imp.target, "User");
+    assert_eq!(imp.methods.len(), 2);
+    assert_eq!(imp.methods[0].params[0].name, "self");
+    assert_eq!(
+        imp.methods[0].params[0].ty,
+        TypeName::Named("User".to_string())
+    );
+    assert_eq!(imp.methods[1].params.len(), 2);
+}
+
+#[test]
+fn reports_invalid_struct_field_missing_colon() {
+    let src = r#"
+struct User {
+  id Int,
+}
+
+fn main() -> Int { return 0; }
+"#;
+    let diags = parse_err(src);
+    assert_has_diag(&diags, "Expected `:` after field name");
+}

@@ -159,6 +159,8 @@ impl Lexer {
         let kind = match lexeme.as_str() {
             "import" => TokenKind::KwImport,
             "fn" => TokenKind::KwFn,
+            "struct" => TokenKind::KwStruct,
+            "impl" => TokenKind::KwImpl,
             "let" => TokenKind::KwLet,
             "if" => TokenKind::KwIf,
             "else" => TokenKind::KwElse,
