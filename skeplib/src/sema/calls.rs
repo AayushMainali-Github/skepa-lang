@@ -8,6 +8,7 @@ use super::Checker;
 mod arr;
 mod datetime;
 mod io;
+mod random;
 mod str_pkg;
 
 impl Checker {
@@ -35,7 +36,8 @@ impl Checker {
             && (parts[0] == "io"
                 || parts[0] == "str"
                 || parts[0] == "arr"
-                || parts[0] == "datetime")
+                || parts[0] == "datetime"
+                || parts[0] == "random")
         {
             return self.check_builtin_call(&parts[0], &parts[1], args, scopes);
         }
@@ -179,6 +181,9 @@ impl Checker {
             "arr" => return arr::check_arr_builtin(self, method, args, scopes),
             "datetime" => {
                 return datetime::check_datetime_builtin(self, method, args, scopes, sig);
+            }
+            "random" => {
+                return random::check_random_builtin(self, method, args, scopes, sig);
             }
             _ => {}
         }

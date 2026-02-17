@@ -3,7 +3,10 @@ use std::io::{self, Write};
 
 use super::{BuiltinHost, VmError, VmErrorKind};
 
-pub struct StdIoHost;
+#[derive(Default)]
+pub struct StdIoHost {
+    rng_state: u64,
+}
 
 impl BuiltinHost for StdIoHost {
     fn write(&mut self, s: &str, newline: bool) -> Result<(), VmError> {
@@ -28,12 +31,18 @@ impl BuiltinHost for StdIoHost {
         }
         Ok(buf)
     }
+
+    fn set_random_seed(&mut self, seed: u64) -> Result<(), VmError> {
+        self.rng_state = seed;
+        Ok(())
+    }
 }
 
 #[derive(Default)]
 pub struct TestHost {
     pub output: String,
     pub input: VecDeque<String>,
+    pub rng_state: u64,
 }
 
 impl BuiltinHost for TestHost {
@@ -47,5 +56,10 @@ impl BuiltinHost for TestHost {
 
     fn read_line(&mut self) -> Result<String, VmError> {
         Ok(self.input.pop_front().unwrap_or_default())
+    }
+
+    fn set_random_seed(&mut self, seed: u64) -> Result<(), VmError> {
+        self.rng_state = seed;
+        Ok(())
     }
 }

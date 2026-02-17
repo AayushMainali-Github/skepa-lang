@@ -732,6 +732,7 @@ fn main() -> Int {
     let mut host = TestHost {
         output: String::new(),
         input: VecDeque::from([String::from("sam")]),
+        rng_state: 0,
     };
     let out = Vm::run_module_main_with_host(&module, &mut host).expect("vm run");
     assert_eq!(out, Value::Int(0));
@@ -2142,4 +2143,72 @@ fn main() -> Int {
     let e2 = Vm::run_module_main(&m2).expect_err("month out of range");
     assert_eq!(e2.kind, VmErrorKind::TypeMismatch);
     assert!(e2.message.contains("datetime.parseUnix month out of range"));
+}
+
+#[test]
+fn runs_random_seed_and_updates_host_state() {
+    let src = r#"
+import random;
+fn main() -> Int {
+  random.seed(12345);
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let mut host = TestHost::default();
+    let out = Vm::run_module_main_with_host(&module, &mut host).expect("run");
+    assert_eq!(out, Value::Int(0));
+    assert_eq!(host.rng_state, 12345u64);
+}
+
+#[test]
+fn vm_reports_random_seed_runtime_errors_from_manual_bytecode() {
+    let arity_module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::CallBuiltin {
+                        package: "random".to_string(),
+                        name: "seed".to_string(),
+                        argc: 0,
+                    },
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&arity_module).expect_err("arity mismatch");
+    assert_eq!(err.kind, VmErrorKind::ArityMismatch);
+    assert!(err.message.contains("random.seed expects 1 argument"));
+
+    let type_module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::LoadConst(Value::String("bad".to_string())),
+                    Instr::CallBuiltin {
+                        package: "random".to_string(),
+                        name: "seed".to_string(),
+                        argc: 1,
+                    },
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&type_module).expect_err("type mismatch");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
+    assert!(err.message.contains("random.seed expects Int argument"));
 }

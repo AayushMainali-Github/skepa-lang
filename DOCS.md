@@ -45,6 +45,7 @@ import io;
 import str;
 import arr;
 import datetime;
+import random;
 ```
 
 ### `io` package
@@ -106,6 +107,10 @@ import datetime;
 - `datetime.hour(ts: Int) -> Int` (UTC hour `0..23`)
 - `datetime.minute(ts: Int) -> Int` (UTC minute `0..59`)
 - `datetime.second(ts: Int) -> Int` (UTC second `0..59`)
+
+### `random` package
+
+- `random.seed(seed: Int) -> Void`
 
 Example:
 

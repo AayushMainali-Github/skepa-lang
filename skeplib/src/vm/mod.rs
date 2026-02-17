@@ -34,7 +34,7 @@ impl Vm {
         module: &BytecodeModule,
         config: VmConfig,
     ) -> Result<Value, VmError> {
-        let mut host = StdIoHost;
+        let mut host = StdIoHost::default();
         let reg = BuiltinRegistry::with_defaults();
         runner::run_function(module, "main", Vec::new(), &mut host, &reg, 0, config)
     }

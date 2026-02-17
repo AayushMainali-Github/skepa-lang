@@ -3,6 +3,7 @@ use crate::types::TypeInfo;
 mod arr;
 mod datetime;
 mod io;
+mod random;
 mod str_pkg;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -27,5 +28,6 @@ pub fn find_builtin_sig(package: &str, name: &str) -> Option<&'static BuiltinSig
         .chain(str_pkg::SIGS.iter())
         .chain(arr::SIGS.iter())
         .chain(datetime::SIGS.iter())
+        .chain(random::SIGS.iter())
         .find(|s| s.package == package && s.name == name)
 }

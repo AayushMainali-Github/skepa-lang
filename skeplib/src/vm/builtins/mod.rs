@@ -1,6 +1,7 @@
 mod arr;
 mod datetime;
 mod io;
+mod random;
 mod str;
 
 use std::collections::HashMap;
@@ -23,6 +24,7 @@ impl BuiltinRegistry {
         str::register(&mut r);
         arr::register(&mut r);
         datetime::register(&mut r);
+        random::register(&mut r);
         r
     }
 
