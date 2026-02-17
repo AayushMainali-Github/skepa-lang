@@ -1,4 +1,5 @@
 mod arr;
+mod datetime;
 mod io;
 mod str;
 
@@ -21,6 +22,7 @@ impl BuiltinRegistry {
         io::register(&mut r);
         str::register(&mut r);
         arr::register(&mut r);
+        datetime::register(&mut r);
         r
     }
 

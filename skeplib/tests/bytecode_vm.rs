@@ -1754,3 +1754,80 @@ fn vm_reports_arr_join_runtime_type_mismatch_for_non_string_elements() {
     assert_eq!(err.kind, VmErrorKind::TypeMismatch);
     assert!(err.message.contains("arr.join expects Array[String]"));
 }
+
+#[test]
+fn runs_datetime_now_builtins() {
+    let src = r#"
+import datetime;
+fn main() -> Int {
+  let s = datetime.nowUnix();
+  let ms = datetime.nowMillis();
+  if (s < 0) {
+    return 1;
+  }
+  if (ms < s * 1000) {
+    return 2;
+  }
+  if (ms > (s + 2) * 1000) {
+    return 3;
+  }
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(0));
+}
+
+#[test]
+fn vm_reports_datetime_runtime_arity_mismatch_from_manual_bytecode() {
+    let unix_arity_module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::LoadConst(Value::Int(1)),
+                    Instr::CallBuiltin {
+                        package: "datetime".to_string(),
+                        name: "nowUnix".to_string(),
+                        argc: 1,
+                    },
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&unix_arity_module).expect_err("arity mismatch");
+    assert_eq!(err.kind, VmErrorKind::ArityMismatch);
+    assert!(err.message.contains("datetime.nowUnix expects 0 arguments"));
+
+    let millis_arity_module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::LoadConst(Value::Int(1)),
+                    Instr::CallBuiltin {
+                        package: "datetime".to_string(),
+                        name: "nowMillis".to_string(),
+                        argc: 1,
+                    },
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&millis_arity_module).expect_err("arity mismatch");
+    assert_eq!(err.kind, VmErrorKind::ArityMismatch);
+    assert!(err.message.contains("datetime.nowMillis expects 0 arguments"));
+}

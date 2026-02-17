@@ -1163,6 +1163,54 @@ fn main() -> Int {
 }
 
 #[test]
+fn sema_accepts_datetime_now_builtins() {
+    let src = r#"
+import datetime;
+fn main() -> Int {
+  let s: Int = datetime.nowUnix();
+  let ms: Int = datetime.nowMillis();
+  if (ms >= s * 1000) {
+    return 0;
+  }
+  return 1;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_rejects_datetime_without_import() {
+    let src = r#"
+fn main() -> Int {
+  return datetime.nowUnix();
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("`datetime.*` used without `import datetime;`")
+    }));
+}
+
+#[test]
+fn sema_rejects_datetime_nowunix_arity_mismatch() {
+    let src = r#"
+import datetime;
+fn main() -> Int {
+  return datetime.nowUnix(1);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("datetime.nowUnix expects 0 argument(s), got 1")
+    }));
+}
+
+#[test]
 fn sema_rejects_duplicate_struct_declarations() {
     let src = r#"
 struct User { id: Int }

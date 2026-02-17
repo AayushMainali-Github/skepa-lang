@@ -44,6 +44,7 @@ Imports are explicit:
 import io;
 import str;
 import arr;
+import datetime;
 ```
 
 ### `io` package
@@ -91,6 +92,11 @@ import arr;
 - `arr.first(a: [T; N]) -> T`
 - `arr.last(a: [T; N]) -> T`
 - `arr.join(a: [String; N], sep: String) -> String`
+
+### `datetime` package
+
+- `datetime.nowUnix() -> Int`
+- `datetime.nowMillis() -> Int`
 
 Example:
 

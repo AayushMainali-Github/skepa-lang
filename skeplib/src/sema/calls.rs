@@ -6,6 +6,7 @@ use crate::types::TypeInfo;
 
 use super::Checker;
 mod arr;
+mod datetime;
 mod io;
 mod str_pkg;
 
@@ -31,7 +32,10 @@ impl Checker {
     ) -> TypeInfo {
         if let Some(parts) = Self::expr_to_parts(callee)
             && parts.len() == 2
-            && (parts[0] == "io" || parts[0] == "str" || parts[0] == "arr")
+            && (parts[0] == "io"
+                || parts[0] == "str"
+                || parts[0] == "arr"
+                || parts[0] == "datetime")
         {
             return self.check_builtin_call(&parts[0], &parts[1], args, scopes);
         }
@@ -173,6 +177,9 @@ impl Checker {
             "io" => return io::check_io_builtin(self, method, args, scopes, sig),
             "str" => return str_pkg::check_str_builtin(self, method, args, scopes, sig),
             "arr" => return arr::check_arr_builtin(self, method, args, scopes),
+            "datetime" => {
+                return datetime::check_datetime_builtin(self, method, args, scopes, sig);
+            }
             _ => {}
         }
 
