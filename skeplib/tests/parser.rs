@@ -239,10 +239,7 @@ fn main() -> Int {
     assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
     match &program.functions[0].body[0] {
         Stmt::Assign { target, value } => {
-            assert_eq!(
-                *target,
-                AssignTarget::Path(vec!["obj".to_string(), "field".to_string()])
-            );
+            assert!(matches!(target, AssignTarget::Field { .. }));
             assert_eq!(*value, Expr::IntLit(2));
         }
         _ => panic!("expected assignment"),
@@ -307,9 +304,7 @@ fn main() -> Int {
     }
     match &program.functions[0].body[1] {
         Stmt::Expr(Expr::Call { callee, args }) => {
-            assert!(
-                matches!(&**callee, Expr::Path(parts) if parts == &vec!["io".to_string(), "println".to_string()])
-            );
+            assert!(matches!(&**callee, Expr::Field { .. }));
             assert_eq!(args.len(), 1);
         }
         _ => panic!("expected path call"),
@@ -1183,4 +1178,29 @@ fn main() -> Int { return 0; }
 "#;
     let diags = parse_err(src);
     assert_has_diag(&diags, "Expected `:` after field name");
+}
+
+#[test]
+fn parses_struct_literal_field_access_and_field_assignment_target() {
+    let src = r#"
+fn main() -> Int {
+  let u = User { id: 1, name: "sam" };
+  let n = u.name;
+  u.name = "max";
+  return 0;
+}
+"#;
+    let program = parse_ok(src);
+    match &program.functions[0].body[0] {
+        Stmt::Let { value, .. } => assert!(matches!(value, Expr::StructLit { .. })),
+        _ => panic!("expected struct literal"),
+    }
+    match &program.functions[0].body[1] {
+        Stmt::Let { value, .. } => assert!(matches!(value, Expr::Field { .. })),
+        _ => panic!("expected field access"),
+    }
+    match &program.functions[0].body[2] {
+        Stmt::Assign { target, .. } => assert!(matches!(target, AssignTarget::Field { .. })),
+        _ => panic!("expected field assignment target"),
+    }
 }

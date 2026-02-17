@@ -31,6 +31,19 @@ struct Compiler {
 }
 
 impl Compiler {
+    fn expr_to_parts(expr: &Expr) -> Option<Vec<String>> {
+        match expr {
+            Expr::Ident(name) => Some(vec![name.clone()]),
+            Expr::Path(parts) => Some(parts.clone()),
+            Expr::Field { base, field } => {
+                let mut parts = Self::expr_to_parts(base)?;
+                parts.push(field.clone());
+                Some(parts)
+            }
+            _ => None,
+        }
+    }
+
     fn compile_program(&mut self, program: &Program) -> BytecodeModule {
         let mut module = BytecodeModule::default();
         for func in &program.functions {
@@ -118,7 +131,7 @@ impl Compiler {
                 }
                 AssignTarget::Field { .. } => {
                     self.compile_expr(value, ctx, code);
-                    self.error("Field assignment is not supported in bytecode v0".to_string());
+                    self.error("Path assignment not supported in bytecode v0".to_string());
                 }
             },
             Stmt::Expr(expr) => {
@@ -336,7 +349,7 @@ impl Compiler {
                 }
             },
             Expr::Call { callee, args } => {
-                if let Expr::Path(parts) = &**callee {
+                if let Some(parts) = Self::expr_to_parts(callee) {
                     if parts.len() == 2 {
                         for arg in args {
                             self.compile_expr(arg, ctx, code);
@@ -348,8 +361,12 @@ impl Compiler {
                         });
                         return;
                     }
-                    self.error("Only `package.function(...)` builtins are supported".to_string());
-                    return;
+                    if parts.len() > 2 {
+                        self.error(
+                            "Only `package.function(...)` builtins are supported".to_string(),
+                        );
+                        return;
+                    }
                 }
 
                 let name = match &**callee {

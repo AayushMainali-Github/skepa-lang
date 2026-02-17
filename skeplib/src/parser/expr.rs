@@ -196,6 +196,16 @@ impl Parser {
                 continue;
             }
 
+            if self.at(TokenKind::Dot) {
+                self.bump();
+                let field = self.expect_ident("Expected identifier after `.`")?;
+                expr = Expr::Field {
+                    base: Box::new(expr),
+                    field: field.lexeme,
+                };
+                continue;
+            }
+
             break;
         }
         Some(expr)
@@ -231,16 +241,30 @@ impl Parser {
             return Some(Expr::StringLit(s));
         }
         if self.at(TokenKind::Ident) {
-            let mut parts = vec![self.bump().lexeme];
-            while self.at(TokenKind::Dot) {
+            let name = self.bump().lexeme;
+            if self.at(TokenKind::LBrace) {
                 self.bump();
-                let part = self.expect_ident("Expected identifier after `.`")?;
-                parts.push(part.lexeme);
+                let mut fields = Vec::new();
+                if !self.at(TokenKind::RBrace) {
+                    loop {
+                        let field = self.expect_ident("Expected field name in struct literal")?;
+                        self.expect(TokenKind::Colon, "Expected `:` after field name")?;
+                        let value = self.parse_expr()?;
+                        fields.push((field.lexeme, value));
+                        if self.at(TokenKind::Comma) {
+                            self.bump();
+                            if self.at(TokenKind::RBrace) {
+                                break;
+                            }
+                            continue;
+                        }
+                        break;
+                    }
+                }
+                self.expect(TokenKind::RBrace, "Expected `}` after struct literal")?;
+                return Some(Expr::StructLit { name, fields });
             }
-            if parts.len() == 1 {
-                return Some(Expr::Ident(parts.remove(0)));
-            }
-            return Some(Expr::Path(parts));
+            return Some(Expr::Ident(name));
         }
         if self.at(TokenKind::LBracket) {
             self.bump();

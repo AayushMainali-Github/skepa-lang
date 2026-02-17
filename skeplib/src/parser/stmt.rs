@@ -211,17 +211,16 @@ impl Parser {
     }
 
     fn parse_assignment_target(&mut self) -> Option<AssignTarget> {
-        let mut parts = vec![self.expect_ident("Expected assignment target")?.lexeme];
+        let mut base = Expr::Ident(self.expect_ident("Expected assignment target")?.lexeme);
+
         while self.at(TokenKind::Dot) {
             self.bump();
             let part = self.expect_ident("Expected identifier after `.` in assignment target")?;
-            parts.push(part.lexeme);
+            base = Expr::Field {
+                base: Box::new(base),
+                field: part.lexeme,
+            };
         }
-        let mut base = if parts.len() == 1 {
-            Expr::Ident(parts.remove(0))
-        } else {
-            Expr::Path(parts)
-        };
 
         let mut index_target = None;
         while self.at(TokenKind::LBracket) {
@@ -243,7 +242,7 @@ impl Parser {
         } else {
             match base {
                 Expr::Ident(n) => Some(AssignTarget::Ident(n)),
-                Expr::Path(p) => Some(AssignTarget::Path(p)),
+                Expr::Field { base, field } => Some(AssignTarget::Field { base, field }),
                 _ => None,
             }
         }

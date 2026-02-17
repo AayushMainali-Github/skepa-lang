@@ -10,13 +10,26 @@ mod io;
 mod str_pkg;
 
 impl Checker {
+    fn expr_to_parts(expr: &Expr) -> Option<Vec<String>> {
+        match expr {
+            Expr::Ident(name) => Some(vec![name.clone()]),
+            Expr::Path(parts) => Some(parts.clone()),
+            Expr::Field { base, field } => {
+                let mut parts = Self::expr_to_parts(base)?;
+                parts.push(field.clone());
+                Some(parts)
+            }
+            _ => None,
+        }
+    }
+
     pub(super) fn check_call(
         &mut self,
         callee: &Expr,
         args: &[Expr],
         scopes: &mut [HashMap<String, TypeInfo>],
     ) -> TypeInfo {
-        if let Expr::Path(parts) = callee
+        if let Some(parts) = Self::expr_to_parts(callee)
             && parts.len() == 2
         {
             return self.check_builtin_call(&parts[0], &parts[1], args, scopes);
@@ -25,6 +38,9 @@ impl Checker {
         let fn_name = match callee {
             Expr::Ident(name) => name.clone(),
             Expr::Path(parts) => parts.join("."),
+            Expr::Field { .. } => Self::expr_to_parts(callee)
+                .map(|p| p.join("."))
+                .unwrap_or_else(|| "<invalid>".to_string()),
             _ => {
                 self.error("Invalid call target".to_string());
                 return TypeInfo::Unknown;
