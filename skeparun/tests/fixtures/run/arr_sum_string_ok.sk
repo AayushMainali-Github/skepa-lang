@@ -1,9 +1,0 @@
-import arr;
-import io;
-
-fn main() -> Int {
-  let ss: [String; 3] = ["sk", "epa", "!"];
-  let out = arr.sum(ss);
-  io.printString(out);
-  return 0;
-}

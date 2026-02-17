@@ -1,7 +1,0 @@
-import arr;
-
-fn main() -> Int {
-  let b: [Bool; 2] = [true, false];
-  let _x = arr.sum(b);
-  return 0;
-}

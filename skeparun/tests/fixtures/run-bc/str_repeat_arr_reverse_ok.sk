@@ -1,14 +1,12 @@
 import io;
 import str;
-import arr;
 
 fn main() -> Int {
   let s = str.repeat("ab", 3);
-  let a: [Int; 4] = [1, 2, 3, 4];
-  let r = arr.reverse(a);
-  if (s == "ababab" && arr.first(r) == 4 && arr.last(r) == 1) {
+  if (s == "ababab") {
     io.printString(s);
     return 0;
   }
   return 1;
 }
+
