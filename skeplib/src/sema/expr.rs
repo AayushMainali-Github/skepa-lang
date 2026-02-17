@@ -110,17 +110,66 @@ impl Checker {
             }
             Expr::Field { base, field } => {
                 let base_ty = self.check_expr(base, scopes);
-                self.error(format!(
-                    "Field access not supported yet in v0 checker for base {:?} and field `{}`",
-                    base_ty, field
-                ));
-                TypeInfo::Unknown
+                match base_ty {
+                    TypeInfo::Named(struct_name) => {
+                        if let Some(field_ty) = self.field_type(&struct_name, field) {
+                            field_ty
+                        } else {
+                            self.error(format!(
+                                "Unknown field `{}` on struct `{}`",
+                                field, struct_name
+                            ));
+                            TypeInfo::Unknown
+                        }
+                    }
+                    TypeInfo::Unknown => TypeInfo::Unknown,
+                    other => {
+                        self.error(format!(
+                            "Field access requires struct value, got {:?}",
+                            other
+                        ));
+                        TypeInfo::Unknown
+                    }
+                }
             }
-            Expr::StructLit { name, .. } => {
-                self.error(format!(
-                    "Struct literals are not supported yet in v0 checker: `{name}`"
-                ));
-                TypeInfo::Unknown
+            Expr::StructLit { name, fields } => {
+                let Some(expected_fields) = self.struct_fields.get(name).cloned() else {
+                    self.error(format!("Unknown struct `{name}`"));
+                    for (_, expr) in fields {
+                        self.check_expr(expr, scopes);
+                    }
+                    return TypeInfo::Unknown;
+                };
+
+                let mut seen = HashMap::new();
+                for (field_name, expr) in fields {
+                    let value_ty = self.check_expr(expr, scopes);
+                    let Some(expected_ty) = expected_fields.get(field_name).cloned() else {
+                        self.error(format!("Unknown field `{field_name}` in struct `{name}` literal"));
+                        continue;
+                    };
+                    if seen.insert(field_name.clone(), ()).is_some() {
+                        self.error(format!(
+                            "Duplicate field `{field_name}` in struct `{name}` literal"
+                        ));
+                    }
+                    if value_ty != TypeInfo::Unknown && value_ty != expected_ty {
+                        self.error(format!(
+                            "Type mismatch for field `{field_name}` in struct `{name}` literal: expected {:?}, got {:?}",
+                            expected_ty, value_ty
+                        ));
+                    }
+                }
+
+                for expected_name in expected_fields.keys() {
+                    if !seen.contains_key(expected_name) {
+                        self.error(format!(
+                            "Missing field `{expected_name}` in struct `{name}` literal"
+                        ));
+                    }
+                }
+
+                TypeInfo::Named(name.clone())
             }
         }
     }

@@ -1491,3 +1491,84 @@ fn main() -> Int { return 0; }
             .contains("Unknown type in method `setProfile` parameter `p`: `Profile`")
     }));
 }
+
+#[test]
+fn sema_accepts_struct_literal_field_access_and_field_assignment() {
+    let src = r#"
+struct User {
+  id: Int,
+  name: String,
+}
+
+fn main() -> Int {
+  let u: User = User { id: 7, name: "sam" };
+  let v = u.id;
+  if (v != 7) {
+    return 1;
+  }
+  u.id = 9;
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_rejects_struct_literal_unknown_and_missing_fields() {
+    let src = r#"
+struct User {
+  id: Int,
+  name: String,
+}
+
+fn main() -> Int {
+  let _u = User { id: 7, nope: "x" };
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("Unknown field `nope` in struct `User` literal")
+    }));
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("Missing field `name` in struct `User` literal")
+    }));
+}
+
+#[test]
+fn sema_rejects_struct_literal_field_type_mismatch() {
+    let src = r#"
+struct User { id: Int }
+fn main() -> Int {
+  let _u = User { id: "x" };
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message.contains("Type mismatch for field `id` in struct `User` literal")
+    }));
+}
+
+#[test]
+fn sema_rejects_unknown_field_access_and_assignment() {
+    let src = r#"
+struct User { id: Int }
+fn main() -> Int {
+  let u = User { id: 1 };
+  let _x = u.nope;
+  u.nope = 2;
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message.contains("Unknown field `nope` on struct `User`")
+    }));
+}

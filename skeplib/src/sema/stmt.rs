@@ -46,11 +46,27 @@ impl Checker {
             }
             AssignTarget::Field { base, field } => {
                 let base_ty = self.check_expr(base, scopes);
-                self.error(format!(
-                    "Field assignment not supported yet in v0 checker for base {:?} and field `{}`",
-                    base_ty, field
-                ));
-                TypeInfo::Unknown
+                match base_ty {
+                    TypeInfo::Named(struct_name) => {
+                        if let Some(field_ty) = self.field_type(&struct_name, field) {
+                            field_ty
+                        } else {
+                            self.error(format!(
+                                "Unknown field `{}` on struct `{}`",
+                                field, struct_name
+                            ));
+                            TypeInfo::Unknown
+                        }
+                    }
+                    TypeInfo::Unknown => TypeInfo::Unknown,
+                    other => {
+                        self.error(format!(
+                            "Field assignment requires struct value, got {:?}",
+                            other
+                        ));
+                        TypeInfo::Unknown
+                    }
+                }
             }
         }
     }

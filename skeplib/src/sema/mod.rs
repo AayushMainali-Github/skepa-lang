@@ -34,6 +34,7 @@ struct Checker {
     functions: HashMap<String, FunctionSig>,
     imported_modules: HashSet<String>,
     struct_names: HashSet<String>,
+    struct_fields: HashMap<String, HashMap<String, TypeInfo>>,
     loop_depth: usize,
 }
 
@@ -79,6 +80,7 @@ impl Checker {
             functions: HashMap::new(),
             imported_modules,
             struct_names: HashSet::new(),
+            struct_fields: HashMap::new(),
             loop_depth: 0,
         }
     }
@@ -122,6 +124,7 @@ impl Checker {
 
         for s in &program.structs {
             let mut seen_fields = HashSet::new();
+            let mut field_types = HashMap::new();
             for field in &s.fields {
                 if !seen_fields.insert(field.name.clone()) {
                     self.error(format!(
@@ -133,7 +136,9 @@ impl Checker {
                     &field.ty,
                     format!("Unknown type in struct `{}` field `{}`", s.name, field.name),
                 );
+                field_types.insert(field.name.clone(), TypeInfo::from_ast(&field.ty));
             }
+            self.struct_fields.insert(s.name.clone(), field_types);
         }
     }
 
@@ -181,6 +186,13 @@ impl Checker {
                 }
             }
         }
+    }
+
+    pub(super) fn field_type(&self, struct_name: &str, field: &str) -> Option<TypeInfo> {
+        self.struct_fields
+            .get(struct_name)
+            .and_then(|f| f.get(field))
+            .cloned()
     }
 
     fn check_function(&mut self, f: &crate::ast::FnDecl) {

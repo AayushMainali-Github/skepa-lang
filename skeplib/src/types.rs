@@ -7,6 +7,7 @@ pub enum TypeInfo {
     Bool,
     String,
     Void,
+    Named(String),
     Array { elem: Box<TypeInfo>, size: usize },
     Unknown,
 }
@@ -19,7 +20,7 @@ impl TypeInfo {
             TypeName::Bool => TypeInfo::Bool,
             TypeName::String => TypeInfo::String,
             TypeName::Void => TypeInfo::Void,
-            TypeName::Named(_) => TypeInfo::Unknown,
+            TypeName::Named(name) => TypeInfo::Named(name.clone()),
             TypeName::Array { elem, size } => TypeInfo::Array {
                 elem: Box::new(TypeInfo::from_ast(elem)),
                 size: *size,
