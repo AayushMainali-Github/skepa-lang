@@ -152,18 +152,36 @@ impl Checker {
     }
 
     fn check_impl_declarations(&mut self, program: &Program) {
+        let mut global_seen_methods: HashMap<String, HashSet<String>> = HashMap::new();
         for imp in &program.impls {
             if !self.struct_names.contains(&imp.target) {
                 self.error(format!("Unknown impl target struct `{}`", imp.target));
             }
 
-            let mut seen_methods = HashSet::new();
+            let seen_methods = global_seen_methods.entry(imp.target.clone()).or_default();
             for method in &imp.methods {
                 if !seen_methods.insert(method.name.clone()) {
                     self.error(format!(
                         "Duplicate method `{}` in impl `{}`",
                         method.name, imp.target
                     ));
+                }
+
+                if method.params.is_empty() {
+                    self.error(format!(
+                        "Method `{}.{}` must declare `self` as first parameter",
+                        imp.target, method.name
+                    ));
+                } else {
+                    let first = &method.params[0];
+                    let expected_self_ty = TypeInfo::Named(imp.target.clone());
+                    let actual_self_ty = TypeInfo::from_ast(&first.ty);
+                    if first.name != "self" || actual_self_ty != expected_self_ty {
+                        self.error(format!(
+                            "Method `{}.{}` must declare `self: {}` as first parameter",
+                            imp.target, method.name, imp.target
+                        ));
+                    }
                 }
 
                 for param in &method.params {

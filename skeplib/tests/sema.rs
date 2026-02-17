@@ -1493,6 +1493,62 @@ fn main() -> Int { return 0; }
 }
 
 #[test]
+fn sema_rejects_duplicate_method_across_multiple_impl_blocks() {
+    let src = r#"
+struct User { id: Int }
+impl User {
+  fn id(self) -> Int { return self.id; }
+}
+impl User {
+  fn id(self) -> Int { return 0; }
+}
+fn main() -> Int { return 0; }
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Duplicate method `id` in impl `User`"))
+    );
+}
+
+#[test]
+fn sema_rejects_method_without_self_first_param() {
+    let src = r#"
+struct User { id: Int }
+impl User {
+  fn bad(x: Int) -> Int { return x; }
+}
+fn main() -> Int { return 0; }
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("Method `User.bad` must declare `self: User` as first parameter")
+    }));
+}
+
+#[test]
+fn sema_rejects_method_with_non_self_first_param_name() {
+    let src = r#"
+struct User { id: Int }
+impl User {
+  fn bad(this: User) -> Int { return this.id; }
+}
+fn main() -> Int { return 0; }
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("Method `User.bad` must declare `self: User` as first parameter")
+    }));
+}
+
+#[test]
 fn sema_accepts_struct_literal_field_access_and_field_assignment() {
     let src = r#"
 struct User {
