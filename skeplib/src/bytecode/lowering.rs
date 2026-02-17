@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::ast::{AssignTarget, BinaryOp, Expr, Program, Stmt, UnaryOp};
+use crate::ast::{AssignTarget, BinaryOp, Expr, Program, Stmt, TypeName, UnaryOp};
 use crate::diagnostic::{DiagnosticBag, Span};
 use crate::parser::Parser;
 
@@ -31,6 +31,10 @@ struct Compiler {
 }
 
 impl Compiler {
+    fn mangle_method_name(target: &str, method: &str) -> String {
+        format!("__impl_{}__{}", target, method)
+    }
+
     fn expr_to_parts(expr: &Expr) -> Option<Vec<String>> {
         match expr {
             Expr::Ident(name) => Some(vec![name.clone()]),
@@ -50,6 +54,13 @@ impl Compiler {
             let chunk = self.compile_function(func);
             module.functions.insert(func.name.clone(), chunk);
         }
+        for imp in &program.impls {
+            for method in &imp.methods {
+                let mangled = Self::mangle_method_name(&imp.target, &method.name);
+                let chunk = self.compile_method(&mangled, method);
+                module.functions.insert(mangled, chunk);
+            }
+        }
         module
     }
 
@@ -59,7 +70,11 @@ impl Compiler {
         let mut code = Vec::new();
 
         for param in &func.params {
-            ctx.alloc_local(param.name.clone());
+            if let TypeName::Named(type_name) = &param.ty {
+                ctx.alloc_local_with_named_type(param.name.clone(), type_name.clone());
+            } else {
+                ctx.alloc_local(param.name.clone());
+            }
         }
 
         for stmt in &func.body {
@@ -79,6 +94,36 @@ impl Compiler {
         }
     }
 
+    fn compile_method(&mut self, name: &str, method: &crate::ast::MethodDecl) -> FunctionChunk {
+        let mut ctx = FnCtx::default();
+        let mut loops: Vec<LoopCtx> = Vec::new();
+        let mut code = Vec::new();
+
+        for param in &method.params {
+            if let TypeName::Named(type_name) = &param.ty {
+                ctx.alloc_local_with_named_type(param.name.clone(), type_name.clone());
+            } else {
+                ctx.alloc_local(param.name.clone());
+            }
+        }
+
+        for stmt in &method.body {
+            self.compile_stmt(stmt, &mut ctx, &mut loops, &mut code);
+        }
+
+        if !matches!(code.last(), Some(Instr::Return)) {
+            code.push(Instr::LoadConst(Value::Unit));
+            code.push(Instr::Return);
+        }
+
+        FunctionChunk {
+            name: name.to_string(),
+            code,
+            locals_count: ctx.next_local,
+            param_count: method.params.len(),
+        }
+    }
+
     fn compile_stmt(
         &mut self,
         stmt: &Stmt,
@@ -87,9 +132,18 @@ impl Compiler {
         code: &mut Vec<Instr>,
     ) {
         match stmt {
-            Stmt::Let { name, value, .. } => {
+            Stmt::Let { name, ty, value } => {
                 self.compile_expr(value, ctx, code);
-                let slot = ctx.alloc_local(name.clone());
+                let explicit_named = match ty {
+                    Some(TypeName::Named(type_name)) => Some(type_name.clone()),
+                    _ => None,
+                };
+                let inferred_named = Self::infer_expr_named_type(value, ctx);
+                let slot = if let Some(type_name) = explicit_named.or(inferred_named) {
+                    ctx.alloc_local_with_named_type(name.clone(), type_name)
+                } else {
+                    ctx.alloc_local(name.clone())
+                };
                 code.push(Instr::StoreLocal(slot));
             }
             Stmt::Assign { target, value } => match target {
@@ -130,8 +184,21 @@ impl Compiler {
                     }
                 }
                 AssignTarget::Field { .. } => {
-                    self.compile_expr(value, ctx, code);
-                    self.error("Path assignment not supported in bytecode v0".to_string());
+                    if let Some((root, fields)) = Self::flatten_field_target(target) {
+                        if let Some(slot) = ctx.lookup(&root) {
+                            code.push(Instr::LoadLocal(slot));
+                            self.compile_expr(value, ctx, code);
+                            code.push(Instr::StructSetPath(fields));
+                            code.push(Instr::StoreLocal(slot));
+                        } else {
+                            self.error("Path assignment not supported in bytecode v0".to_string());
+                        }
+                    } else {
+                        self.compile_expr(value, ctx, code);
+                        self.error(
+                            "Unsupported field assignment target in bytecode compiler".to_string(),
+                        );
+                    }
                 }
             },
             Stmt::Expr(expr) => {
@@ -349,43 +416,72 @@ impl Compiler {
                 }
             },
             Expr::Call { callee, args } => {
-                if let Some(parts) = Self::expr_to_parts(callee) {
-                    if parts.len() == 2 {
+                match &**callee {
+                    Expr::Ident(name) => {
                         for arg in args {
                             self.compile_expr(arg, ctx, code);
                         }
-                        code.push(Instr::CallBuiltin {
-                            package: parts[0].clone(),
-                            name: parts[1].clone(),
+                        code.push(Instr::Call {
+                            name: name.clone(),
                             argc: args.len(),
                         });
-                        return;
                     }
-                    if parts.len() > 2 {
-                        self.error(
-                            "Only `package.function(...)` builtins are supported".to_string(),
-                        );
-                        return;
-                    }
-                }
+                    Expr::Field { base, field } => {
+                        if let Expr::Ident(recv_name) = &**base
+                            && ctx.lookup(recv_name).is_some()
+                        {
+                            let recv_struct = Self::infer_expr_named_type(base, ctx);
+                            self.compile_expr(base, ctx, code);
+                            for arg in args {
+                                self.compile_expr(arg, ctx, code);
+                            }
+                            if let Some(struct_name) = recv_struct {
+                                code.push(Instr::Call {
+                                    name: Self::mangle_method_name(&struct_name, field),
+                                    argc: args.len() + 1,
+                                });
+                            } else {
+                                self.error(
+                                    "Method call lowering requires struct-typed receiver local"
+                                        .to_string(),
+                                );
+                            }
+                            return;
+                        }
 
-                let name = match &**callee {
-                    Expr::Ident(name) => name.clone(),
-                    _ => {
+                        if let Some(parts) = Self::expr_to_parts(callee)
+                            && parts.len() == 2
+                        {
+                            for arg in args {
+                                self.compile_expr(arg, ctx, code);
+                            }
+                            code.push(Instr::CallBuiltin {
+                                package: parts[0].clone(),
+                                name: parts[1].clone(),
+                                argc: args.len(),
+                            });
+                            return;
+                        }
+                        if let Some(parts) = Self::expr_to_parts(callee)
+                            && parts.len() > 2
+                        {
+                            self.error(
+                                "Only `package.function(...)` builtins are supported".to_string(),
+                            );
+                            return;
+                        }
                         self.error(
-                            "Only direct function calls are supported in bytecode v0 slice"
+                            "Only direct function and method calls are supported in bytecode compiler"
                                 .to_string(),
                         );
-                        return;
                     }
-                };
-                for arg in args {
-                    self.compile_expr(arg, ctx, code);
+                    _ => {
+                        self.error(
+                            "Only direct function and method calls are supported in bytecode compiler"
+                                .to_string(),
+                        );
+                    }
                 }
-                code.push(Instr::Call {
-                    name,
-                    argc: args.len(),
-                });
             }
             Expr::Group(inner) => self.compile_expr(inner, ctx, code),
             Expr::Path(_) => {
@@ -410,14 +506,23 @@ impl Compiler {
                 code.push(Instr::ArrayGet);
             }
             Expr::Field { .. } => {
-                self.error(
-                    "Field access is not supported in bytecode v0 compiler slice".to_string(),
-                );
+                if let Some((base, fields)) = Self::flatten_field_expr(expr) {
+                    self.compile_expr(base, ctx, code);
+                    for field in fields {
+                        code.push(Instr::StructGet(field));
+                    }
+                } else {
+                    self.error("Unsupported field access shape in bytecode compiler".to_string());
+                }
             }
-            Expr::StructLit { .. } => {
-                self.error(
-                    "Struct literals are not supported in bytecode v0 compiler slice".to_string(),
-                );
+            Expr::StructLit { name, fields } => {
+                for (_, value) in fields {
+                    self.compile_expr(value, ctx, code);
+                }
+                code.push(Instr::MakeStruct {
+                    name: name.clone(),
+                    fields: fields.iter().map(|(k, _)| k.clone()).collect(),
+                });
             }
         }
     }
@@ -446,6 +551,52 @@ impl Compiler {
             }
         }
     }
+
+    fn flatten_field_expr<'a>(expr: &'a Expr) -> Option<(&'a Expr, Vec<String>)> {
+        let mut fields = Vec::new();
+        let mut cur = expr;
+        loop {
+            match cur {
+                Expr::Field { base, field } => {
+                    fields.push(field.clone());
+                    cur = base;
+                }
+                _ => {
+                    fields.reverse();
+                    return Some((cur, fields));
+                }
+            }
+        }
+    }
+
+    fn flatten_field_target(target: &AssignTarget) -> Option<(String, Vec<String>)> {
+        let AssignTarget::Field { base, field } = target else {
+            return None;
+        };
+        let mut fields = vec![field.clone()];
+        let mut cur = base.as_ref();
+        loop {
+            match cur {
+                Expr::Field { base, field } => {
+                    fields.push(field.clone());
+                    cur = base;
+                }
+                Expr::Ident(name) => {
+                    fields.reverse();
+                    return Some((name.clone(), fields));
+                }
+                _ => return None,
+            }
+        }
+    }
+
+    fn infer_expr_named_type(expr: &Expr, ctx: &FnCtx) -> Option<String> {
+        match expr {
+            Expr::Ident(name) => ctx.named_type(name),
+            Expr::StructLit { name, .. } => Some(name.clone()),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -457,6 +608,7 @@ struct LoopCtx {
 #[derive(Default)]
 struct FnCtx {
     locals: HashMap<String, usize>,
+    local_named_types: HashMap<String, String>,
     next_local: usize,
 }
 
@@ -468,7 +620,17 @@ impl FnCtx {
         slot
     }
 
+    fn alloc_local_with_named_type(&mut self, name: String, type_name: String) -> usize {
+        let slot = self.alloc_local(name.clone());
+        self.local_named_types.insert(name, type_name);
+        slot
+    }
+
     fn lookup(&self, name: &str) -> Option<usize> {
         self.locals.get(name).copied()
+    }
+
+    fn named_type(&self, name: &str) -> Option<String> {
+        self.local_named_types.get(name).cloned()
     }
 }

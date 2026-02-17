@@ -103,6 +103,15 @@ fn encode_value(v: &Value, out: &mut Vec<u8>) {
             }
         }
         Value::Unit => write_u8(out, 5),
+        Value::Struct { name, fields } => {
+            write_u8(out, 6);
+            write_str(out, name);
+            write_u32(out, fields.len() as u32);
+            for (k, v) in fields {
+                write_str(out, k);
+                encode_value(v, out);
+            }
+        }
     }
 }
 
@@ -179,6 +188,25 @@ fn encode_instr(i: &Instr, out: &mut Vec<u8>) {
         }
         Instr::ArrayLen => write_u8(out, 29),
         Instr::Return => write_u8(out, 30),
+        Instr::MakeStruct { name, fields } => {
+            write_u8(out, 31);
+            write_str(out, name);
+            write_u32(out, fields.len() as u32);
+            for f in fields {
+                write_str(out, f);
+            }
+        }
+        Instr::StructGet(field) => {
+            write_u8(out, 32);
+            write_str(out, field);
+        }
+        Instr::StructSetPath(path) => {
+            write_u8(out, 33);
+            write_u32(out, path.len() as u32);
+            for p in path {
+                write_str(out, p);
+            }
+        }
     }
 }
 
@@ -239,6 +267,17 @@ fn decode_value(rd: &mut Reader<'_>) -> Result<Value, String> {
             Ok(Value::Array(items))
         }
         5 => Ok(Value::Unit),
+        6 => {
+            let name = rd.read_str()?;
+            let n = rd.read_u32()? as usize;
+            let mut fields = Vec::with_capacity(n);
+            for _ in 0..n {
+                let key = rd.read_str()?;
+                let value = decode_value(rd)?;
+                fields.push((key, value));
+            }
+            Ok(Value::Struct { name, fields })
+        }
         t => Err(format!("Unknown value tag {t}")),
     }
 }
@@ -283,6 +322,24 @@ fn decode_instr(rd: &mut Reader<'_>) -> Result<Instr, String> {
         28 => Instr::ArraySetChain(rd.read_u32()? as usize),
         29 => Instr::ArrayLen,
         30 => Instr::Return,
+        31 => {
+            let name = rd.read_str()?;
+            let n = rd.read_u32()? as usize;
+            let mut fields = Vec::with_capacity(n);
+            for _ in 0..n {
+                fields.push(rd.read_str()?);
+            }
+            Instr::MakeStruct { name, fields }
+        }
+        32 => Instr::StructGet(rd.read_str()?),
+        33 => {
+            let n = rd.read_u32()? as usize;
+            let mut path = Vec::with_capacity(n);
+            for _ in 0..n {
+                path.push(rd.read_str()?);
+            }
+            Instr::StructSetPath(path)
+        }
         t => return Err(format!("Unknown instruction tag {t}")),
     })
 }

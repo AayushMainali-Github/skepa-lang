@@ -13,6 +13,10 @@ pub enum Value {
     Bool(bool),
     String(String),
     Array(Vec<Value>),
+    Struct {
+        name: String,
+        fields: Vec<(String, Value)>,
+    },
     Unit,
 }
 
@@ -55,6 +59,12 @@ pub enum Instr {
     ArraySet,
     ArraySetChain(usize),
     ArrayLen,
+    MakeStruct {
+        name: String,
+        fields: Vec<String>,
+    },
+    StructGet(String),
+    StructSetPath(Vec<String>),
     Return,
 }
 

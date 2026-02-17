@@ -5,6 +5,7 @@ mod arrays;
 mod calls;
 mod control_flow;
 mod state;
+mod structs;
 
 use crate::bytecode::{BytecodeModule, Instr, Value};
 
@@ -132,6 +133,15 @@ pub(super) fn run_function(
                 arrays::array_set_chain(state.stack_mut(), *depth, function_name, ip)?
             }
             Instr::ArrayLen => arrays::array_len(state.stack_mut(), function_name, ip)?,
+            Instr::MakeStruct { name, fields } => {
+                structs::make_struct(state.stack_mut(), name, fields, function_name, ip)?
+            }
+            Instr::StructGet(field) => {
+                structs::struct_get(state.stack_mut(), field, function_name, ip)?
+            }
+            Instr::StructSetPath(path) => {
+                structs::struct_set_path(state.stack_mut(), path, function_name, ip)?
+            }
             Instr::Return => {
                 return Ok(state.finish_return());
             }

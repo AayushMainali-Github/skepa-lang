@@ -403,6 +403,29 @@ fn vm_reports_type_mismatch_for_len_on_non_collection_value() {
 }
 
 #[test]
+fn vm_reports_struct_get_type_mismatch_on_non_struct() {
+    let module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::LoadConst(Value::Int(1)),
+                    Instr::StructGet("id".to_string()),
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&module).expect_err("type mismatch");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
+}
+
+#[test]
 fn for_bytecode_has_expected_jump_shape() {
     let src = r#"
 fn main() -> Int {
@@ -520,6 +543,44 @@ fn main() -> Int {
     let module = compile_source(src).expect("compile should succeed");
     let out = Vm::run_module_main(&module).expect("vm run");
     assert_eq!(out, Value::Int(14));
+}
+
+#[test]
+fn runs_struct_literal_field_access_assignment_and_method_call() {
+    let src = r#"
+struct User { id: Int, name: String }
+impl User {
+  fn bump(self, delta: Int) -> Int {
+    return self.id + delta;
+  }
+}
+fn main() -> Int {
+  let u = User { id: 7, name: "sam" };
+  let before = u.id;
+  u.id = before + 5;
+  return u.bump(3);
+}
+"#;
+    let module = compile_source(src).expect("compile should succeed");
+    let out = Vm::run_module_main(&module).expect("vm run");
+    assert_eq!(out, Value::Int(15));
+}
+
+#[test]
+fn runs_nested_struct_field_assignment() {
+    let src = r#"
+struct Profile { age: Int }
+struct User { profile: Profile, name: String }
+
+fn main() -> Int {
+  let u = User { profile: Profile { age: 20 }, name: "a" };
+  u.profile.age = 42;
+  return u.profile.age;
+}
+"#;
+    let module = compile_source(src).expect("compile should succeed");
+    let out = Vm::run_module_main(&module).expect("vm run");
+    assert_eq!(out, Value::Int(42));
 }
 
 #[test]

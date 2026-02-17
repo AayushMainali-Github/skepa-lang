@@ -25,6 +25,7 @@ fn fmt_value(v: &Value) -> String {
         Value::Bool(b) => format!("Bool({b})"),
         Value::String(s) => format!("String({s:?})"),
         Value::Array(items) => format!("Array(len={})", items.len()),
+        Value::Struct { name, fields } => format!("Struct({name}, fields={})", fields.len()),
         Value::Unit => "Unit".to_string(),
     }
 }
@@ -65,6 +66,11 @@ fn fmt_instr(i: &Instr) -> String {
         Instr::ArraySet => "ArraySet".to_string(),
         Instr::ArraySetChain(n) => format!("ArraySetChain {n}"),
         Instr::ArrayLen => "ArrayLen".to_string(),
+        Instr::MakeStruct { name, fields } => {
+            format!("MakeStruct {name} fields={}", fields.join(","))
+        }
+        Instr::StructGet(field) => format!("StructGet {field}"),
+        Instr::StructSetPath(path) => format!("StructSetPath {}", path.join(".")),
         Instr::Return => "Return".to_string(),
     }
 }
