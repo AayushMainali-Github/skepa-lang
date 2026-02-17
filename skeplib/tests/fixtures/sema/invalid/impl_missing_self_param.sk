@@ -1,0 +1,11 @@
+struct User { id: Int }
+
+impl User {
+  fn bad(x: Int) -> Int {
+    return x;
+  }
+}
+
+fn main() -> Int {
+  return 0;
+}

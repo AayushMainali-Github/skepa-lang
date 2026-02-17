@@ -1,0 +1,20 @@
+struct User {
+  id: Int,
+  name: String,
+}
+
+impl User {
+  fn bump(self, d: Int) -> Int {
+    return self.id + d;
+  }
+}
+
+fn makeUser(x: Int) -> User {
+  return User { id: x, name: "sam" };
+}
+
+fn main() -> Int {
+  let u = makeUser(9);
+  u.id = u.bump(1);
+  return u.id;
+}

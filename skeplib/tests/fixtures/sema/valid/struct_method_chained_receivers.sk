@@ -1,0 +1,18 @@
+struct User { id: Int }
+
+impl User {
+  fn bump(self, d: Int) -> Int {
+    return self.id + d;
+  }
+}
+
+fn mk(x: Int) -> User {
+  return User { id: x };
+}
+
+fn main() -> Int {
+  let users: [User; 2] = [User { id: 2 }, User { id: 5 }];
+  let a = mk(9).bump(4);
+  let b = users[1].bump(7);
+  return a + b;
+}
