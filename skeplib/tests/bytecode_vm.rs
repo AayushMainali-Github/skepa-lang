@@ -2066,3 +2066,80 @@ fn vm_reports_datetime_component_runtime_errors_from_manual_bytecode() {
     assert_eq!(err.kind, VmErrorKind::TypeMismatch);
     assert!(err.message.contains("datetime.second expects Int argument"));
 }
+
+#[test]
+fn runs_datetime_roundtrip_from_unix_and_parse_unix() {
+    let src = r#"
+import datetime;
+fn main() -> Int {
+  let a = 0;
+  let b = -1;
+  let c = 1704112496;
+  if (datetime.parseUnix(datetime.fromUnix(a)) == a
+      && datetime.parseUnix(datetime.fromUnix(b)) == b
+      && datetime.parseUnix(datetime.fromUnix(c)) == c) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(1));
+}
+
+#[test]
+fn runs_datetime_parse_unix_leap_year_and_rejects_invalid_date() {
+    let ok_src = r#"
+import datetime;
+fn main() -> Int {
+  let ts = datetime.parseUnix("2024-02-29T00:00:00Z");
+  if (datetime.month(ts) == 2 && datetime.day(ts) == 29) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let ok_module = compile_source(ok_src).expect("compile");
+    let out = Vm::run_module_main(&ok_module).expect("run");
+    assert_eq!(out, Value::Int(1));
+
+    let bad_src = r#"
+import datetime;
+fn main() -> Int {
+  let _x = datetime.parseUnix("2023-02-29T00:00:00Z");
+  return 0;
+}
+"#;
+    let bad_module = compile_source(bad_src).expect("compile");
+    let err = Vm::run_module_main(&bad_module).expect_err("invalid date");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
+    assert!(err.message.contains("datetime.parseUnix day out of range"));
+}
+
+#[test]
+fn vm_reports_datetime_parse_unix_invalid_time_ranges() {
+    let bad_hour = r#"
+import datetime;
+fn main() -> Int {
+  let _x = datetime.parseUnix("2026-01-01T24:00:00Z");
+  return 0;
+}
+"#;
+    let m1 = compile_source(bad_hour).expect("compile");
+    let e1 = Vm::run_module_main(&m1).expect_err("hour out of range");
+    assert_eq!(e1.kind, VmErrorKind::TypeMismatch);
+    assert!(e1.message.contains("datetime.parseUnix time out of range"));
+
+    let bad_month = r#"
+import datetime;
+fn main() -> Int {
+  let _x = datetime.parseUnix("2026-13-01T00:00:00Z");
+  return 0;
+}
+"#;
+    let m2 = compile_source(bad_month).expect("compile");
+    let e2 = Vm::run_module_main(&m2).expect_err("month out of range");
+    assert_eq!(e2.kind, VmErrorKind::TypeMismatch);
+    assert!(e2.message.contains("datetime.parseUnix month out of range"));
+}

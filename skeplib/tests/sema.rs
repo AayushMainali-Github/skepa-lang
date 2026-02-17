@@ -1314,6 +1314,39 @@ fn main() -> Int {
 }
 
 #[test]
+fn sema_rejects_datetime_frommillis_arity_mismatch() {
+    let src = r#"
+import datetime;
+fn main() -> Int {
+  let _x = datetime.fromMillis();
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("datetime.fromMillis expects 1 argument(s), got 0")
+    }));
+}
+
+#[test]
+fn sema_rejects_datetime_month_arity_mismatch() {
+    let src = r#"
+import datetime;
+fn main() -> Int {
+  return datetime.month(1, 2);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("datetime.month expects 1 argument(s), got 2")
+    }));
+}
+
+#[test]
 fn sema_rejects_duplicate_struct_declarations() {
     let src = r#"
 struct User { id: Int }
