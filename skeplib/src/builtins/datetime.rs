@@ -4,6 +4,7 @@ use super::{BuiltinKind, BuiltinSig};
 
 const DATETIME_NOW_PARAMS: &[TypeInfo] = &[];
 const DATETIME_UNIX_PARAMS: &[TypeInfo] = &[TypeInfo::Int];
+const DATETIME_PARSE_PARAMS: &[TypeInfo] = &[TypeInfo::String];
 
 pub(super) const SIGS: &[BuiltinSig] = &[
     BuiltinSig {
@@ -32,6 +33,13 @@ pub(super) const SIGS: &[BuiltinSig] = &[
         name: "fromMillis",
         params: DATETIME_UNIX_PARAMS,
         ret: TypeInfo::String,
+        kind: BuiltinKind::FixedArity,
+    },
+    BuiltinSig {
+        package: "datetime",
+        name: "parseUnix",
+        params: DATETIME_PARSE_PARAMS,
+        ret: TypeInfo::Int,
         kind: BuiltinKind::FixedArity,
     },
 ];

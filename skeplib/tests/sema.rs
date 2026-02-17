@@ -1245,6 +1245,35 @@ fn main() -> Int {
 }
 
 #[test]
+fn sema_accepts_datetime_parse_unix() {
+    let src = r#"
+import datetime;
+fn main() -> Int {
+  let ts: Int = datetime.parseUnix("1970-01-01T00:00:00Z");
+  return ts;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_rejects_datetime_parse_unix_type_mismatch() {
+    let src = r#"
+import datetime;
+fn main() -> Int {
+  return datetime.parseUnix(1);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("datetime.parseUnix argument 1 expects String")
+    }));
+}
+
+#[test]
 fn sema_rejects_duplicate_struct_declarations() {
     let src = r#"
 struct User { id: Int }

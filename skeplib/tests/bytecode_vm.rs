@@ -1906,3 +1906,89 @@ fn vm_reports_datetime_from_runtime_errors_from_manual_bytecode() {
     assert_eq!(err.kind, VmErrorKind::TypeMismatch);
     assert!(err.message.contains("datetime.fromMillis expects Int argument"));
 }
+
+#[test]
+fn runs_datetime_parse_unix() {
+    let src = r#"
+import datetime;
+fn main() -> Int {
+  let z = datetime.parseUnix("1970-01-01T00:00:00Z");
+  let p = datetime.parseUnix("1970-01-01T00:00:01Z");
+  let n = datetime.parseUnix("1969-12-31T23:59:59Z");
+  if (z == 0 && p == 1 && n == -1) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(1));
+}
+
+#[test]
+fn vm_reports_datetime_parse_unix_invalid_format() {
+    let src = r#"
+import datetime;
+fn main() -> Int {
+  let _x = datetime.parseUnix("2026-02-17 12:34:56");
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("invalid datetime format");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
+    assert!(err.message.contains("datetime.parseUnix expects format"));
+}
+
+#[test]
+fn vm_reports_datetime_parse_unix_runtime_errors_from_manual_bytecode() {
+    let arity_module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::CallBuiltin {
+                        package: "datetime".to_string(),
+                        name: "parseUnix".to_string(),
+                        argc: 0,
+                    },
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&arity_module).expect_err("arity mismatch");
+    assert_eq!(err.kind, VmErrorKind::ArityMismatch);
+    assert!(err.message.contains("datetime.parseUnix expects 1 argument"));
+
+    let type_module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::LoadConst(Value::Int(1)),
+                    Instr::CallBuiltin {
+                        package: "datetime".to_string(),
+                        name: "parseUnix".to_string(),
+                        argc: 1,
+                    },
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&type_module).expect_err("type mismatch");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
+    assert!(err.message.contains("datetime.parseUnix expects String argument"));
+}

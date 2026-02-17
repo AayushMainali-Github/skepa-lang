@@ -99,6 +99,7 @@ import datetime;
 - `datetime.nowMillis() -> Int`
 - `datetime.fromUnix(ts: Int) -> String` (UTC, ISO-like)
 - `datetime.fromMillis(ms: Int) -> String` (UTC, ISO-like with milliseconds)
+- `datetime.parseUnix(s: String) -> Int` (expects `YYYY-MM-DDTHH:MM:SSZ`)
 
 Example:
 
