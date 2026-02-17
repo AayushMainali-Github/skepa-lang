@@ -426,6 +426,48 @@ fn vm_reports_struct_get_type_mismatch_on_non_struct() {
 }
 
 #[test]
+fn vm_reports_unknown_method_on_struct_receiver() {
+    let src = r#"
+struct User { id: Int }
+fn main() -> Int {
+  let u = User { id: 1 };
+  return u.nope(2);
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("unknown method");
+    assert_eq!(err.kind, VmErrorKind::UnknownFunction);
+    assert!(err.message.contains("Unknown method `nope` on struct `User`"));
+}
+
+#[test]
+fn vm_reports_unknown_struct_field_with_clear_message() {
+    let module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::LoadConst(Value::Struct {
+                        name: "User".to_string(),
+                        fields: vec![("id".to_string(), Value::Int(1))],
+                    }),
+                    Instr::StructGet("name".to_string()),
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&module).expect_err("unknown field");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
+    assert!(err.message.contains("Unknown struct field `name` on `User`"));
+}
+
+#[test]
 fn for_bytecode_has_expected_jump_shape() {
     let src = r#"
 fn main() -> Int {

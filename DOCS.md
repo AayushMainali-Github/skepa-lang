@@ -1,10 +1,12 @@
-# Skepa Language Docs (v0.3.x)
+# Skepa Language Docs (v0.4.0)
 
 ## 1. Source Model
 
 - File extension: `.sk`
 - Top-level declarations:
   - `import <module>;`
+  - `struct <Name> { ... }`
+  - `impl <Name> { ... }`
   - `fn <name>(...) -> <Type> { ... }`
 
 ## 2. Lexical Rules
@@ -17,7 +19,7 @@
 
 ### Keywords
 
-`import`, `fn`, `let`, `if`, `else`, `while`, `for`, `break`, `continue`, `return`, `true`, `false`
+`import`, `struct`, `impl`, `fn`, `let`, `if`, `else`, `while`, `for`, `break`, `continue`, `return`, `true`, `false`
 
 ### Built-in Type Names
 
@@ -140,6 +142,7 @@ Runtime edge semantics:
 - `String`
 - `Void`
 - Static arrays: `[T; N]`
+- Named struct types: `User`, `Profile`, etc.
 
 Rules:
 - `N` is compile-time fixed.
@@ -200,7 +203,10 @@ Supported:
 - array literals: `[1, 2, 3]`, repeat `[0; 8]`
 - indexing and index assignment: `a[i]`, `a[i] = v`
 - multidimensional indexing/assignment: `m[i][j]`, `t[a][b][c] = v`
+- struct literals: `User { id: 1, name: "sam" }`
+- field access/assignment: `u.id`, `u.id = 3`, nested `u.profile.age = 42`
 - calls: `f(x)`, `io.println("ok")`, `arr.sum(xs)`
+- method calls: `u.bump(1)`, `makeUser(9).bump(4)`, `users[i].bump(7)`
 - unary: `+`, `-`, `!`
 - binary: `* / %`, `+ -`, comparisons, equality, `&&`, `||`
 
@@ -230,6 +236,13 @@ Array concat typing:
 - Unary `+` / `-` require numeric operands.
 - Numeric operations are strict (no implicit promotion).
 - `%` supports `Int % Int` only.
+- Struct literal rules:
+  - all fields are required
+  - unknown/duplicate fields are rejected
+- Method rules:
+  - methods are declared in `impl <Struct>`
+  - first parameter must be exactly `self: <Struct>`
+  - duplicate method names on the same struct (including across multiple `impl` blocks) are rejected
 
 ## 9. Runtime and CLI Contract
 
@@ -279,84 +292,9 @@ Decoder rejects:
 
 ## 11. Out of Scope (Current)
 
-- User-defined structs/enums
+- Enums
 - Dynamic collections (`Vec`, map, set)
 - Dynamic array mutation (`push`, `pop`, etc.)
 - Casting / implicit numeric promotion
 - String interpolation
 - Package manager / dependency resolver
-
-## 12. Locked v0.4.0 Syntax (Planned)
-
-The following syntax is locked for implementation in `v0.4.0`.
-
-### Struct Declarations
-
-```sk
-struct User {
-  id: Int,
-  name: String,
-  score: Int,
-}
-```
-
-### Struct Literals
-
-```sk
-let u = User { id: 1, name: "sam", score: 0 };
-```
-
-Rules:
-- all fields are required
-- field names are explicit
-- field order is not semantically significant
-
-### Field Access and Mutation
-
-```sk
-let n = u.name;
-u.score = u.score + 10;
-```
-
-### Methods (`impl`)
-
-```sk
-impl User {
-  fn greet(self) -> String {
-    return "hi " + self.name;
-  }
-
-  fn addScore(self, by: Int) -> Int {
-    self.score = self.score + by;
-    return self.score;
-  }
-}
-```
-
-Method call syntax:
-
-```sk
-let msg = u.greet();
-let now = u.addScore(5);
-```
-
-### Struct Types in Normal Functions
-
-Struct types can be used in variable annotations, function params, and returns:
-
-```sk
-fn show(u: User) -> String {
-  return u.name;
-}
-
-fn makeUser(id: Int, name: String) -> User {
-  return User { id: id, name: name, score: 0 };
-}
-```
-
-### v0.4.0 Initial Limits
-
-- no generics on structs
-- no trait/inheritance system
-- no static methods
-- no visibility modifiers (`pub`/private)

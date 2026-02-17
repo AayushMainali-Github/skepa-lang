@@ -50,7 +50,7 @@ pub(super) fn struct_get(
     };
     let Some((_, value)) = fields.iter().find(|(k, _)| k == field) else {
         return Err(super::err_at(
-            VmErrorKind::UnknownFunction,
+            VmErrorKind::TypeMismatch,
             format!("Unknown struct field `{field}` on `{name}`"),
             function_name,
             ip,

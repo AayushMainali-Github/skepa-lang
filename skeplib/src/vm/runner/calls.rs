@@ -92,7 +92,7 @@ pub(super) fn call_method(
             site.ip,
         ));
     };
-    let Value::Struct { name: struct_name, .. } = &receiver else {
+    let Value::Struct { name, .. } = &receiver else {
         return Err(super::err_at(
             VmErrorKind::TypeMismatch,
             "CallMethod receiver must be Struct",
@@ -100,6 +100,7 @@ pub(super) fn call_method(
             site.ip,
         ));
     };
+    let struct_name = name.clone();
 
     let callee_name = format!("__impl_{}__{}", struct_name, method_name);
     let mut full_args = Vec::with_capacity(argc + 1);
@@ -113,7 +114,18 @@ pub(super) fn call_method(
         env.reg,
         env.depth + 1,
         env.config,
-    )?;
+    )
+    .map_err(|e| {
+        if e.kind == VmErrorKind::UnknownFunction {
+            return super::err_at(
+                VmErrorKind::UnknownFunction,
+                format!("Unknown method `{}` on struct `{}`", method_name, struct_name),
+                site.function_name,
+                site.ip,
+            );
+        }
+        e
+    })?;
     stack.push(ret);
     Ok(())
 }
