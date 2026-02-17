@@ -92,9 +92,6 @@ import arr;
 - `arr.last(a: [T; N]) -> T`
 - `arr.reverse(a: [T; N]) -> [T; N]`
 - `arr.slice(a: [T; N], start: Int, end: Int) -> [T; M]` (end-exclusive)
-- `arr.sum(a: [T; N]) -> T`
-- `arr.min(a: [Int|Float; N]) -> Int|Float`
-- `arr.max(a: [Int|Float; N]) -> Int|Float`
 - `arr.sort(a: [Int|Float|String|Bool; N]) -> [Int|Float|String|Bool; N]`
 - `arr.join(a: [String; N], sep: String) -> String`
 
@@ -104,32 +101,18 @@ Example:
 import arr;
 let xs: [Int; 5] = [7, 2, 9, 2, 5];
 let mid = arr.slice(xs, 1, 4);   // [2, 9, 2]
-let lo = arr.min(xs);             // 2
-let hi = arr.max(xs);             // 9
 let sorted = arr.sort(xs);        // [2, 2, 5, 7, 9]
 let flags: [Bool; 4] = [true, false, true, false];
 let sf = arr.sort(flags);         // [false, false, true, true]
 ```
 
-`arr.sum` element support:
-- `Int` -> numeric sum
-- `Float` -> numeric sum
-- `String` -> concatenation
-- `Array` -> concatenation/flatten one level
-
 Static-size constraints:
 - `arr.slice` currently requires `start` and `end` to be non-negative `Int` literals.
 - `arr.slice` result size is inferred at compile time as `end - start`.
-- For nested arrays, `arr.sum([[T; A]; B])` infers `[T; A*B]`.
 - Array concat infers exact size: `[T; N] + [T; M] -> [T; N+M]`.
-
-Empty-array `arr.sum` behavior (deterministic):
-- Returns `0` at runtime (current uniform identity).
-- Future typed identities may be introduced (`0.0`, `""`, `[]`) once runtime identity typing is added.
 
 Runtime edge semantics:
 - `arr.first` / `arr.last` on empty arrays: runtime `E-VM-INDEX-OOB`.
-- `arr.min` / `arr.max` on empty arrays: runtime `E-VM-INDEX-OOB`.
 - `arr.slice` out-of-range bounds: runtime `E-VM-INDEX-OOB`.
 - `str.repeat` with negative `count`: runtime `E-VM-INDEX-OOB`.
 - `str.repeat` output is capped to `1,000,000` bytes; larger outputs fail with runtime `E-VM-INDEX-OOB`.
@@ -205,7 +188,7 @@ Supported:
 - multidimensional indexing/assignment: `m[i][j]`, `t[a][b][c] = v`
 - struct literals: `User { id: 1, name: "sam" }`
 - field access/assignment: `u.id`, `u.id = 3`, nested `u.profile.age = 42`
-- calls: `f(x)`, `io.println("ok")`, `arr.sum(xs)`
+- calls: `f(x)`, `io.println("ok")`, `arr.slice(xs, 1, 3)`
 - method calls: `u.bump(1)`, `makeUser(9).bump(4)`, `users[i].bump(7)`
 - unary: `+`, `-`, `!`
 - binary: `* / %`, `+ -`, comparisons, equality, `&&`, `||`

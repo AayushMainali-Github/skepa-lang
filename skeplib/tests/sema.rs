@@ -947,7 +947,7 @@ fn main() -> Int {
   let a: [Int; 4] = [1, 2, 3, 2];
   let b: [Int; 2] = [9, 8];
   let c = a + b;
-  if (arr.len(c) == 6 && !arr.isEmpty(c) && arr.contains(c, 8) && arr.indexOf(c, 2) == 1 && arr.sum(c) == 25) {
+  if (arr.len(c) == 6 && !arr.isEmpty(c) && arr.contains(c, 8) && arr.indexOf(c, 2) == 1) {
     return 1;
   }
   return 0;
@@ -957,19 +957,6 @@ fn main() -> Int {
     assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
 }
 
-#[test]
-fn sema_accepts_arr_sum_for_nested_arrays() {
-    let src = r#"
-import arr;
-fn main() -> Int {
-  let rows: [[Int; 2]; 3] = [[1, 2], [3, 4], [5, 6]];
-  let flat = arr.sum(rows);
-  return arr.len(flat);
-}
-"#;
-    let (result, diags) = analyze_source(src);
-    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
-}
 
 #[test]
 fn sema_rejects_arr_without_import() {
@@ -1011,23 +998,6 @@ fn main() -> Int {
     );
 }
 
-#[test]
-fn sema_rejects_arr_sum_for_bool_elements() {
-    let src = r#"
-import arr;
-fn main() -> Int {
-  let b: [Bool; 2] = [true, false];
-  let _x = arr.sum(b);
-  return 0;
-}
-"#;
-    let (result, diags) = analyze_source(src);
-    assert!(result.has_errors);
-    assert!(diags.as_slice().iter().any(|d| {
-        d.message
-            .contains("arr.sum supports Int, Float, String, or Array")
-    }));
-}
 
 #[test]
 fn sema_rejects_array_add_with_different_element_types() {
@@ -1195,22 +1165,6 @@ fn main() -> Int {
     }));
 }
 
-#[test]
-fn sema_accepts_arr_slice_min_max() {
-    let src = r#"
-import arr;
-fn main() -> Int {
-  let a: [Int; 5] = [7, 2, 9, 2, 5];
-  let s = arr.slice(a, 1, 4);
-  if (arr.len(s) == 3 && arr.min(a) == 2 && arr.max(a) == 9) {
-    return 1;
-  }
-  return 0;
-}
-"#;
-    let (result, diags) = analyze_source(src);
-    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
-}
 
 #[test]
 fn sema_rejects_arr_slice_signature_mismatch() {
@@ -1232,25 +1186,6 @@ fn main() -> Int {
     );
 }
 
-#[test]
-fn sema_rejects_arr_min_max_for_non_numeric_elements() {
-    let src = r#"
-import arr;
-fn main() -> Int {
-  let a: [String; 2] = ["a", "b"];
-  let _m = arr.min(a);
-  return 0;
-}
-"#;
-    let (result, diags) = analyze_source(src);
-    assert!(result.has_errors);
-    assert!(
-        diags
-            .as_slice()
-            .iter()
-            .any(|d| d.message.contains("arr.min supports Int or Float elements"))
-    );
-}
 
 #[test]
 fn sema_accepts_arr_sort_for_supported_element_types() {
@@ -1324,17 +1259,14 @@ fn main() -> Int {
 }
 
 #[test]
-fn sema_infers_precise_arr_slice_and_arr_sum_array_sizes() {
+fn sema_infers_precise_arr_slice_array_sizes() {
     let src = r#"
 import arr;
 fn main() -> Int {
   let a: [Int; 5] = [7, 2, 9, 2, 5];
   let s = arr.slice(a, 1, 4);
-  let rows: [[Int; 2]; 3] = [[1, 2], [3, 4], [5, 6]];
-  let flat = arr.sum(rows);
   let ok1: [Int; 3] = s;
-  let ok2: [Int; 6] = flat;
-  return arr.len(ok1) + arr.len(ok2);
+  return arr.len(ok1);
 }
 "#;
     let (result, diags) = analyze_source(src);
@@ -1358,23 +1290,6 @@ fn main() -> Int {
     assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
 }
 
-#[test]
-fn sema_accepts_sum_slice_concat_pipeline() {
-    let src = r#"
-import arr;
-fn main() -> Int {
-  let rows: [[Int; 2]; 3] = [[1, 2], [3, 4], [5, 6]];
-  let flat = arr.sum(rows);
-  let head = arr.slice(flat, 0, 2);
-  let tail = arr.slice(flat, 4, 6);
-  let mix = head + tail;
-  let typed: [Int; 4] = mix;
-  return arr.len(typed);
-}
-"#;
-    let (result, diags) = analyze_source(src);
-    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
-}
 
 #[test]
 fn sema_rejects_duplicate_struct_declarations() {

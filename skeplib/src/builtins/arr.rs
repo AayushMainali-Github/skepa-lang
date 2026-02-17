@@ -33,13 +33,6 @@ pub(super) const SIGS: &[BuiltinSig] = &[
     },
     BuiltinSig {
         package: "arr",
-        name: "sum",
-        params: &[],
-        ret: TypeInfo::Unknown,
-        kind: BuiltinKind::ArrayOps,
-    },
-    BuiltinSig {
-        package: "arr",
         name: "count",
         params: &[],
         ret: TypeInfo::Unknown,
@@ -76,20 +69,6 @@ pub(super) const SIGS: &[BuiltinSig] = &[
     BuiltinSig {
         package: "arr",
         name: "slice",
-        params: &[],
-        ret: TypeInfo::Unknown,
-        kind: BuiltinKind::ArrayOps,
-    },
-    BuiltinSig {
-        package: "arr",
-        name: "min",
-        params: &[],
-        ret: TypeInfo::Unknown,
-        kind: BuiltinKind::ArrayOps,
-    },
-    BuiltinSig {
-        package: "arr",
-        name: "max",
         params: &[],
         ret: TypeInfo::Unknown,
         kind: BuiltinKind::ArrayOps,

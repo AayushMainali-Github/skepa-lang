@@ -1349,7 +1349,7 @@ fn main() -> Int {
   let a: [Int; 4] = [1, 2, 3, 2];
   let b: [Int; 2] = [9, 8];
   let c = a + b;
-  if (arr.len(c) == 6 && !arr.isEmpty(c) && arr.contains(c, 8) && arr.indexOf(c, 2) == 1 && arr.sum(c) == 25) {
+  if (arr.len(c) == 6 && !arr.isEmpty(c) && arr.contains(c, 8) && arr.indexOf(c, 2) == 1) {
     return 1;
   }
   return 0;
@@ -1361,47 +1361,13 @@ fn main() -> Int {
 }
 
 #[test]
-fn runs_arr_sum_on_nested_arrays_to_concatenate_rows() {
+fn runs_arr_slice_and_query_pipeline() {
     let src = r#"
 import arr;
 fn main() -> Int {
-  let rows: [[Int; 2]; 3] = [[1, 2], [3, 4], [5, 6]];
-  let flat = arr.sum(rows);
-  if (arr.len(flat) == 6 && arr.indexOf(flat, 4) == 3 && arr.contains(flat, 6)) {
-    return 1;
-  }
-  return 0;
-}
-"#;
-    let module = compile_source(src).expect("compile");
-    let out = Vm::run_module_main(&module).expect("run");
-    assert_eq!(out, Value::Int(1));
-}
-
-#[test]
-fn vm_returns_identity_for_arr_sum_empty_array() {
-    let src = r#"
-import arr;
-fn main() -> Int {
-  let xs: [Int; 0] = [];
-  return arr.sum(xs);
-}
-"#;
-    let module = compile_source(src).expect("compile");
-    let out = Vm::run_module_main(&module).expect("identity");
-    assert_eq!(out, Value::Int(0));
-}
-
-#[test]
-fn runs_arr_sum_for_float_and_string() {
-    let src = r#"
-import arr;
-fn main() -> Int {
-  let fs: [Float; 3] = [1.25, 2.0, 0.75];
-  let ss: [String; 3] = ["sk", "epa", "!"];
-  let f = arr.sum(fs);
-  let s = arr.sum(ss);
-  if (f == 4.0 && s == "skepa!") {
+  let a: [Int; 6] = [1, 2, 3, 4, 5, 6];
+  let mid = arr.slice(a, 1, 5);
+  if (arr.len(mid) == 4 && arr.first(mid) == 2 && arr.last(mid) == 5 && arr.contains(mid, 4)) {
     return 1;
   }
   return 0;
@@ -1638,58 +1604,7 @@ fn vm_reports_arr_first_last_runtime_errors_from_manual_bytecode() {
 }
 
 #[test]
-fn vm_reports_arr_sum_unsupported_runtime_element_type_from_manual_bytecode() {
-    let module = BytecodeModule {
-        functions: vec![(
-            "main".to_string(),
-            FunctionChunk {
-                name: "main".to_string(),
-                code: vec![
-                    Instr::LoadConst(Value::Array(vec![Value::Bool(true), Value::Bool(false)])),
-                    Instr::CallBuiltin {
-                        package: "arr".to_string(),
-                        name: "sum".to_string(),
-                        argc: 1,
-                    },
-                    Instr::Return,
-                ],
-                locals_count: 0,
-                param_count: 0,
-            },
-        )]
-        .into_iter()
-        .collect(),
-    };
-    let err = Vm::run_module_main(&module).expect_err("unsupported element type");
-    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
-    assert!(
-        err.message
-            .contains("arr.sum supports Int, Float, String, or Array")
-    );
-}
-
-#[test]
-fn regression_arr_sum_large_int_array() {
-    let n = 4000usize;
-    let mut src = String::from("import arr;\nfn main() -> Int {\n  let a: [Int; ");
-    src.push_str(&n.to_string());
-    src.push_str("] = [");
-    for i in 0..n {
-        if i > 0 {
-            src.push_str(", ");
-        }
-        src.push_str(&(i as i64).to_string());
-    }
-    src.push_str("];\n  return arr.sum(a);\n}\n");
-
-    let expected = ((n as i64 - 1) * n as i64) / 2;
-    let module = compile_source(&src).expect("compile");
-    let out = Vm::run_module_main(&module).expect("run");
-    assert_eq!(out, Value::Int(expected));
-}
-
-#[test]
-fn regression_arr_concat_large_arrays_and_sum() {
+fn regression_arr_concat_large_arrays() {
     let n = 1500usize;
     let mut src = String::from("import arr;\nfn main() -> Int {\n  let a: [Int; ");
     src.push_str(&n.to_string());
@@ -1702,11 +1617,11 @@ fn regression_arr_concat_large_arrays_and_sum() {
     src.push_str("];\n  let c = a + b;\n");
     src.push_str("  if (arr.len(c) != ");
     src.push_str(&(2 * n).to_string());
-    src.push_str(") { return 1; }\n  return arr.sum(c);\n}\n");
+    src.push_str(") { return 1; }\n  return arr.first(c) + arr.last(c);\n}\n");
 
     let module = compile_source(&src).expect("compile");
     let out = Vm::run_module_main(&module).expect("run");
-    assert_eq!(out, Value::Int((n as i64) * 3));
+    assert_eq!(out, Value::Int(3));
 }
 
 #[test]
@@ -1833,13 +1748,13 @@ fn main() -> Int {
 }
 
 #[test]
-fn runs_arr_slice_min_max() {
+fn runs_arr_slice() {
     let src = r#"
 import arr;
 fn main() -> Int {
   let a: [Int; 5] = [7, 2, 9, 2, 5];
   let s = arr.slice(a, 1, 4);
-  if (arr.len(s) == 3 && arr.first(s) == 2 && arr.last(s) == 2 && arr.min(a) == 2 && arr.max(a) == 9) {
+  if (arr.len(s) == 3 && arr.first(s) == 2 && arr.last(s) == 2) {
     return 1;
   }
   return 0;
@@ -1867,23 +1782,7 @@ fn main() -> Int {
 }
 
 #[test]
-fn vm_reports_arr_min_max_on_empty_array() {
-    let src = r#"
-import arr;
-fn main() -> Int {
-  let z: [Int; 0] = [];
-  let _m = arr.min(z);
-  return 0;
-}
-"#;
-    let module = compile_source(src).expect("compile");
-    let err = Vm::run_module_main(&module).expect_err("empty");
-    assert_eq!(err.kind, VmErrorKind::IndexOutOfBounds);
-    assert!(err.message.contains("arr.min on empty array"));
-}
-
-#[test]
-fn vm_reports_arr_slice_min_max_runtime_type_mismatch_from_manual_bytecode() {
+fn vm_reports_arr_slice_runtime_type_mismatch_from_manual_bytecode() {
     let slice_type_module = BytecodeModule {
         functions: vec![(
             "main".to_string(),
@@ -1914,59 +1813,6 @@ fn vm_reports_arr_slice_min_max_runtime_type_mismatch_from_manual_bytecode() {
             .contains("arr.slice expects Array, Int, Int arguments")
     );
 
-    let min_type_module = BytecodeModule {
-        functions: vec![(
-            "main".to_string(),
-            FunctionChunk {
-                name: "main".to_string(),
-                code: vec![
-                    Instr::LoadConst(Value::Array(vec![Value::String("a".to_string())])),
-                    Instr::CallBuiltin {
-                        package: "arr".to_string(),
-                        name: "min".to_string(),
-                        argc: 1,
-                    },
-                    Instr::Return,
-                ],
-                locals_count: 0,
-                param_count: 0,
-            },
-        )]
-        .into_iter()
-        .collect(),
-    };
-    let err = Vm::run_module_main(&min_type_module).expect_err("min type mismatch");
-    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
-    assert!(
-        err.message
-            .contains("arr.min supports Int or Float element types")
-    );
-
-    let max_arity_module = BytecodeModule {
-        functions: vec![(
-            "main".to_string(),
-            FunctionChunk {
-                name: "main".to_string(),
-                code: vec![
-                    Instr::LoadConst(Value::Array(vec![Value::Int(1)])),
-                    Instr::LoadConst(Value::Int(2)),
-                    Instr::CallBuiltin {
-                        package: "arr".to_string(),
-                        name: "max".to_string(),
-                        argc: 2,
-                    },
-                    Instr::Return,
-                ],
-                locals_count: 0,
-                param_count: 0,
-            },
-        )]
-        .into_iter()
-        .collect(),
-    };
-    let err = Vm::run_module_main(&max_arity_module).expect_err("max arity mismatch");
-    assert_eq!(err.kind, VmErrorKind::ArityMismatch);
-    assert!(err.message.contains("arr.max expects 1 argument"));
 }
 
 #[test]
@@ -2119,14 +1965,13 @@ fn main() -> Int {
 }
 
 #[test]
-fn runs_sum_slice_concat_pipeline() {
+fn runs_slice_concat_pipeline() {
     let src = r#"
 import arr;
 fn main() -> Int {
-  let rows: [[Int; 2]; 3] = [[1, 2], [3, 4], [5, 6]];
-  let flat = arr.sum(rows);
-  let head = arr.slice(flat, 0, 2);
-  let tail = arr.slice(flat, 4, 6);
+  let a: [Int; 6] = [1, 2, 3, 4, 5, 6];
+  let head = arr.slice(a, 0, 2);
+  let tail = arr.slice(a, 4, 6);
   let mix = head + tail;
   if (arr.len(mix) == 4 && arr.first(mix) == 1 && arr.last(mix) == 6) {
     return 1;

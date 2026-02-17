@@ -12,7 +12,7 @@ pub(super) fn check_arr_builtin(
     scopes: &mut [HashMap<String, TypeInfo>],
 ) -> TypeInfo {
     match method {
-        "len" | "isEmpty" | "sum" | "first" | "last" | "reverse" | "min" | "max" | "sort" => {
+        "len" | "isEmpty" | "first" | "last" | "reverse" | "sort" => {
             if args.len() != 1 {
                 checker.error(format!(
                     "arr.{method} expects 1 argument(s), got {}",
@@ -38,45 +38,6 @@ pub(super) fn check_arr_builtin(
                     size,
                 },
                 "first" | "last" => *elem,
-                "sum" => {
-                    let sum_ty = *elem;
-                    if !matches!(
-                        sum_ty,
-                        TypeInfo::Int
-                            | TypeInfo::Float
-                            | TypeInfo::String
-                            | TypeInfo::Array { .. }
-                            | TypeInfo::Unknown
-                    ) {
-                        checker.error(format!(
-                            "arr.sum supports Int, Float, String, or Array elements, got {:?}",
-                            sum_ty
-                        ));
-                        return TypeInfo::Unknown;
-                    }
-                    if let TypeInfo::Array {
-                        elem: inner_elem,
-                        size: inner_size,
-                    } = sum_ty
-                    {
-                        return TypeInfo::Array {
-                            elem: inner_elem,
-                            size: inner_size.saturating_mul(size),
-                        };
-                    }
-                    sum_ty
-                }
-                "min" | "max" => {
-                    let elem_ty = *elem;
-                    if !matches!(elem_ty, TypeInfo::Int | TypeInfo::Float | TypeInfo::Unknown) {
-                        checker.error(format!(
-                            "arr.{method} supports Int or Float elements, got {:?}",
-                            elem_ty
-                        ));
-                        return TypeInfo::Unknown;
-                    }
-                    elem_ty
-                }
                 "sort" => {
                     let elem_ty = *elem;
                     if !matches!(
