@@ -54,28 +54,7 @@ pub(super) const SIGS: &[BuiltinSig] = &[
     },
     BuiltinSig {
         package: "arr",
-        name: "reverse",
-        params: &[],
-        ret: TypeInfo::Unknown,
-        kind: BuiltinKind::ArrayOps,
-    },
-    BuiltinSig {
-        package: "arr",
         name: "join",
-        params: &[],
-        ret: TypeInfo::Unknown,
-        kind: BuiltinKind::ArrayOps,
-    },
-    BuiltinSig {
-        package: "arr",
-        name: "slice",
-        params: &[],
-        ret: TypeInfo::Unknown,
-        kind: BuiltinKind::ArrayOps,
-    },
-    BuiltinSig {
-        package: "arr",
-        name: "sort",
         params: &[],
         ret: TypeInfo::Unknown,
         kind: BuiltinKind::ArrayOps,

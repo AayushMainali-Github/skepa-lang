@@ -1095,15 +1095,12 @@ fn main() -> Int {
 }
 
 #[test]
-fn sema_accepts_str_repeat_and_arr_reverse() {
+fn sema_accepts_str_repeat() {
     let src = r#"
 import str;
-import arr;
 fn main() -> Int {
   let s = str.repeat("ab", 3);
-  let a: [Int; 4] = [1, 2, 3, 4];
-  let r = arr.reverse(a);
-  if (s == "ababab" && arr.first(r) == 4 && arr.last(r) == 1) {
+  if (s == "ababab") {
     return 1;
   }
   return 0;
@@ -1164,132 +1161,6 @@ fn main() -> Int {
             .contains("arr.join argument 1 expects Array[String]")
     }));
 }
-
-
-#[test]
-fn sema_rejects_arr_slice_signature_mismatch() {
-    let src = r#"
-import arr;
-fn main() -> Int {
-  let a: [Int; 3] = [1, 2, 3];
-  let _s = arr.slice(a, "0", 2);
-  return 0;
-}
-"#;
-    let (result, diags) = analyze_source(src);
-    assert!(result.has_errors);
-    assert!(
-        diags
-            .as_slice()
-            .iter()
-            .any(|d| d.message.contains("arr.slice argument 2 expects Int"))
-    );
-}
-
-
-#[test]
-fn sema_accepts_arr_sort_for_supported_element_types() {
-    let src = r#"
-import arr;
-fn main() -> Int {
-  let a: [Int; 4] = [3, 1, 2, 1];
-  let b = arr.sort(a);
-  if (arr.first(b) == 1 && arr.last(b) == 3) {
-    return 1;
-  }
-  return 0;
-}
-"#;
-    let (result, diags) = analyze_source(src);
-    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
-}
-
-#[test]
-fn sema_accepts_arr_sort_for_bool_elements() {
-    let src = r#"
-import arr;
-fn main() -> Int {
-  let a: [Bool; 4] = [true, false, true, false];
-  let s = arr.sort(a);
-  if (!arr.first(s) && arr.last(s)) {
-    return 1;
-  }
-  return 0;
-}
-"#;
-    let (result, diags) = analyze_source(src);
-    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
-}
-
-#[test]
-fn sema_rejects_arr_sort_for_unsupported_element_types() {
-    let src = r#"
-import arr;
-fn main() -> Int {
-  let a: [[Int; 1]; 2] = [[1], [2]];
-  let _s = arr.sort(a);
-  return 0;
-}
-"#;
-    let (result, diags) = analyze_source(src);
-    assert!(result.has_errors);
-    assert!(diags.as_slice().iter().any(|d| {
-        d.message
-            .contains("arr.sort supports Int, Float, String, or Bool elements")
-    }));
-}
-
-#[test]
-fn sema_rejects_arr_slice_non_literal_bounds_for_static_arrays() {
-    let src = r#"
-import arr;
-fn main() -> Int {
-  let a: [Int; 4] = [1, 2, 3, 4];
-  let i = 1;
-  let _s = arr.slice(a, i, 3);
-  return 0;
-}
-"#;
-    let (result, diags) = analyze_source(src);
-    assert!(result.has_errors);
-    assert!(diags.as_slice().iter().any(|d| {
-        d.message
-            .contains("arr.slice argument 2 must be a non-negative Int literal")
-    }));
-}
-
-#[test]
-fn sema_infers_precise_arr_slice_array_sizes() {
-    let src = r#"
-import arr;
-fn main() -> Int {
-  let a: [Int; 5] = [7, 2, 9, 2, 5];
-  let s = arr.slice(a, 1, 4);
-  let ok1: [Int; 3] = s;
-  return arr.len(ok1);
-}
-"#;
-    let (result, diags) = analyze_source(src);
-    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
-}
-
-#[test]
-fn sema_accepts_slice_sort_concat_pipeline() {
-    let src = r#"
-import arr;
-fn main() -> Int {
-  let a: [Int; 5] = [7, 2, 9, 2, 5];
-  let mid = arr.slice(a, 1, 4);
-  let s = arr.sort(mid);
-  let out = s + arr.slice(a, 4, 5);
-  let typed: [Int; 4] = out;
-  return arr.len(typed);
-}
-"#;
-    let (result, diags) = analyze_source(src);
-    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
-}
-
 
 #[test]
 fn sema_rejects_duplicate_struct_declarations() {

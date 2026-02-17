@@ -90,9 +90,6 @@ import arr;
 - `arr.count(a: [T; N], x: T) -> Int`
 - `arr.first(a: [T; N]) -> T`
 - `arr.last(a: [T; N]) -> T`
-- `arr.reverse(a: [T; N]) -> [T; N]`
-- `arr.slice(a: [T; N], start: Int, end: Int) -> [T; M]` (end-exclusive)
-- `arr.sort(a: [Int|Float|String|Bool; N]) -> [Int|Float|String|Bool; N]`
 - `arr.join(a: [String; N], sep: String) -> String`
 
 Example:
@@ -100,20 +97,16 @@ Example:
 ```sk
 import arr;
 let xs: [Int; 5] = [7, 2, 9, 2, 5];
-let mid = arr.slice(xs, 1, 4);   // [2, 9, 2]
-let sorted = arr.sort(xs);        // [2, 2, 5, 7, 9]
-let flags: [Bool; 4] = [true, false, true, false];
-let sf = arr.sort(flags);         // [false, false, true, true]
+let c = arr.count(xs, 2);         // 2
+let first = arr.first(xs);        // 7
+let last = arr.last(xs);          // 5
 ```
 
 Static-size constraints:
-- `arr.slice` currently requires `start` and `end` to be non-negative `Int` literals.
-- `arr.slice` result size is inferred at compile time as `end - start`.
 - Array concat infers exact size: `[T; N] + [T; M] -> [T; N+M]`.
 
 Runtime edge semantics:
 - `arr.first` / `arr.last` on empty arrays: runtime `E-VM-INDEX-OOB`.
-- `arr.slice` out-of-range bounds: runtime `E-VM-INDEX-OOB`.
 - `str.repeat` with negative `count`: runtime `E-VM-INDEX-OOB`.
 - `str.repeat` output is capped to `1,000,000` bytes; larger outputs fail with runtime `E-VM-INDEX-OOB`.
 
@@ -188,7 +181,7 @@ Supported:
 - multidimensional indexing/assignment: `m[i][j]`, `t[a][b][c] = v`
 - struct literals: `User { id: 1, name: "sam" }`
 - field access/assignment: `u.id`, `u.id = 3`, nested `u.profile.age = 42`
-- calls: `f(x)`, `io.println("ok")`, `arr.slice(xs, 1, 3)`
+- calls: `f(x)`, `io.println("ok")`, `arr.count(xs, 2)`
 - method calls: `u.bump(1)`, `makeUser(9).bump(4)`, `users[i].bump(7)`
 - unary: `+`, `-`, `!`
 - binary: `* / %`, `+ -`, comparisons, equality, `&&`, `||`

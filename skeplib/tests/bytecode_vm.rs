@@ -1361,24 +1361,6 @@ fn main() -> Int {
 }
 
 #[test]
-fn runs_arr_slice_and_query_pipeline() {
-    let src = r#"
-import arr;
-fn main() -> Int {
-  let a: [Int; 6] = [1, 2, 3, 4, 5, 6];
-  let mid = arr.slice(a, 1, 5);
-  if (arr.len(mid) == 4 && arr.first(mid) == 2 && arr.last(mid) == 5 && arr.contains(mid, 4)) {
-    return 1;
-  }
-  return 0;
-}
-"#;
-    let module = compile_source(src).expect("compile");
-    let out = Vm::run_module_main(&module).expect("run");
-    assert_eq!(out, Value::Int(1));
-}
-
-#[test]
 fn runs_arr_contains_and_indexof_for_nested_arrays() {
     let src = r#"
 import arr;
@@ -1677,15 +1659,12 @@ fn main() -> Int {
 }
 
 #[test]
-fn runs_str_repeat_and_arr_reverse() {
+fn runs_str_repeat() {
     let src = r#"
 import str;
-import arr;
 fn main() -> Int {
   let s = str.repeat("ab", 3);
-  let a: [Int; 4] = [1, 2, 3, 4];
-  let r = arr.reverse(a);
-  if (s == "ababab" && arr.first(r) == 4 && arr.last(r) == 1) {
+  if (s == "ababab") {
     return 1;
   }
   return 0;
@@ -1748,174 +1727,6 @@ fn main() -> Int {
 }
 
 #[test]
-fn runs_arr_slice() {
-    let src = r#"
-import arr;
-fn main() -> Int {
-  let a: [Int; 5] = [7, 2, 9, 2, 5];
-  let s = arr.slice(a, 1, 4);
-  if (arr.len(s) == 3 && arr.first(s) == 2 && arr.last(s) == 2) {
-    return 1;
-  }
-  return 0;
-}
-"#;
-    let module = compile_source(src).expect("compile");
-    let out = Vm::run_module_main(&module).expect("run");
-    assert_eq!(out, Value::Int(1));
-}
-
-#[test]
-fn vm_reports_arr_slice_bounds_out_of_range() {
-    let src = r#"
-import arr;
-fn main() -> Int {
-  let a: [Int; 3] = [1, 2, 3];
-  let _s = arr.slice(a, 2, 5);
-  return 0;
-}
-"#;
-    let module = compile_source(src).expect("compile");
-    let err = Vm::run_module_main(&module).expect_err("slice bounds");
-    assert_eq!(err.kind, VmErrorKind::IndexOutOfBounds);
-    assert!(err.message.contains("arr.slice bounds out of range"));
-}
-
-#[test]
-fn vm_reports_arr_slice_runtime_type_mismatch_from_manual_bytecode() {
-    let slice_type_module = BytecodeModule {
-        functions: vec![(
-            "main".to_string(),
-            FunctionChunk {
-                name: "main".to_string(),
-                code: vec![
-                    Instr::LoadConst(Value::String("bad".to_string())),
-                    Instr::LoadConst(Value::Int(0)),
-                    Instr::LoadConst(Value::Int(1)),
-                    Instr::CallBuiltin {
-                        package: "arr".to_string(),
-                        name: "slice".to_string(),
-                        argc: 3,
-                    },
-                    Instr::Return,
-                ],
-                locals_count: 0,
-                param_count: 0,
-            },
-        )]
-        .into_iter()
-        .collect(),
-    };
-    let err = Vm::run_module_main(&slice_type_module).expect_err("slice type mismatch");
-    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
-    assert!(
-        err.message
-            .contains("arr.slice expects Array, Int, Int arguments")
-    );
-
-}
-
-#[test]
-fn runs_arr_sort_for_int_float_and_string() {
-    let src = r#"
-import arr;
-fn main() -> Int {
-  let ai: [Int; 4] = [3, 1, 2, 1];
-  let af: [Float; 4] = [3.5, 1.0, 2.25, 1.0];
-  let as: [String; 3] = ["b", "a", "aa"];
-  let si = arr.sort(ai);
-  let sf = arr.sort(af);
-  let ss = arr.sort(as);
-  if (arr.first(si) == 1 && arr.last(si) == 3 && arr.first(sf) == 1.0 && arr.last(sf) == 3.5 && arr.first(ss) == "a" && arr.last(ss) == "b") {
-    return 1;
-  }
-  return 0;
-}
-"#;
-    let module = compile_source(src).expect("compile");
-    let out = Vm::run_module_main(&module).expect("run");
-    assert_eq!(out, Value::Int(1));
-}
-
-#[test]
-fn runs_arr_sort_for_bool_false_first() {
-    let src = r#"
-import arr;
-fn main() -> Int {
-  let ab: [Bool; 5] = [true, false, true, false, false];
-  let sb = arr.sort(ab);
-  if (!arr.first(sb) && arr.last(sb)) {
-    return 1;
-  }
-  return 0;
-}
-"#;
-    let module = compile_source(src).expect("compile");
-    let out = Vm::run_module_main(&module).expect("run");
-    assert_eq!(out, Value::Int(1));
-}
-
-#[test]
-fn vm_reports_arr_sort_runtime_errors_from_manual_bytecode() {
-    let arity_module = BytecodeModule {
-        functions: vec![(
-            "main".to_string(),
-            FunctionChunk {
-                name: "main".to_string(),
-                code: vec![
-                    Instr::LoadConst(Value::Array(vec![Value::Int(1)])),
-                    Instr::LoadConst(Value::Int(2)),
-                    Instr::CallBuiltin {
-                        package: "arr".to_string(),
-                        name: "sort".to_string(),
-                        argc: 2,
-                    },
-                    Instr::Return,
-                ],
-                locals_count: 0,
-                param_count: 0,
-            },
-        )]
-        .into_iter()
-        .collect(),
-    };
-    let err = Vm::run_module_main(&arity_module).expect_err("arity mismatch");
-    assert_eq!(err.kind, VmErrorKind::ArityMismatch);
-    assert!(err.message.contains("arr.sort expects 1 argument"));
-
-    let type_module = BytecodeModule {
-        functions: vec![(
-            "main".to_string(),
-            FunctionChunk {
-                name: "main".to_string(),
-                code: vec![
-                    Instr::LoadConst(Value::Array(vec![
-                        Value::Array(vec![Value::Int(1)]),
-                        Value::Array(vec![Value::Int(2)]),
-                    ])),
-                    Instr::CallBuiltin {
-                        package: "arr".to_string(),
-                        name: "sort".to_string(),
-                        argc: 1,
-                    },
-                    Instr::Return,
-                ],
-                locals_count: 0,
-                param_count: 0,
-            },
-        )]
-        .into_iter()
-        .collect(),
-    };
-    let err = Vm::run_module_main(&type_module).expect_err("type mismatch");
-    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
-    assert!(
-        err.message
-            .contains("arr.sort supports Int, Float, String, or Bool")
-    );
-}
-
-#[test]
 fn vm_reports_arr_join_runtime_type_mismatch_for_non_string_elements() {
     let module = BytecodeModule {
         functions: vec![(
@@ -1942,44 +1753,4 @@ fn vm_reports_arr_join_runtime_type_mismatch_for_non_string_elements() {
     let err = Vm::run_module_main(&module).expect_err("join type mismatch");
     assert_eq!(err.kind, VmErrorKind::TypeMismatch);
     assert!(err.message.contains("arr.join expects Array[String]"));
-}
-
-#[test]
-fn runs_slice_sort_concat_pipeline() {
-    let src = r#"
-import arr;
-fn main() -> Int {
-  let a: [Int; 5] = [7, 2, 9, 2, 5];
-  let mid = arr.slice(a, 1, 4);
-  let s = arr.sort(mid);
-  let out = s + arr.slice(a, 4, 5);
-  if (arr.len(out) == 4 && arr.first(out) == 2 && arr.last(out) == 5) {
-    return 1;
-  }
-  return 0;
-}
-"#;
-    let module = compile_source(src).expect("compile");
-    let out = Vm::run_module_main(&module).expect("run");
-    assert_eq!(out, Value::Int(1));
-}
-
-#[test]
-fn runs_slice_concat_pipeline() {
-    let src = r#"
-import arr;
-fn main() -> Int {
-  let a: [Int; 6] = [1, 2, 3, 4, 5, 6];
-  let head = arr.slice(a, 0, 2);
-  let tail = arr.slice(a, 4, 6);
-  let mix = head + tail;
-  if (arr.len(mix) == 4 && arr.first(mix) == 1 && arr.last(mix) == 6) {
-    return 1;
-  }
-  return 0;
-}
-"#;
-    let module = compile_source(src).expect("compile");
-    let out = Vm::run_module_main(&module).expect("run");
-    assert_eq!(out, Value::Int(1));
 }
