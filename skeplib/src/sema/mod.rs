@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::ast::{Expr, Program, Stmt};
+use crate::ast::{Expr, Program, Stmt, TypeName};
 use crate::diagnostic::{DiagnosticBag, Span};
 use crate::parser::Parser;
 use crate::types::{FunctionSig, TypeInfo};
@@ -33,6 +33,7 @@ struct Checker {
     diagnostics: DiagnosticBag,
     functions: HashMap<String, FunctionSig>,
     imported_modules: HashSet<String>,
+    struct_names: HashSet<String>,
     loop_depth: usize,
 }
 
@@ -77,11 +78,15 @@ impl Checker {
             diagnostics: DiagnosticBag::new(),
             functions: HashMap::new(),
             imported_modules,
+            struct_names: HashSet::new(),
             loop_depth: 0,
         }
     }
 
     fn check_program(&mut self, program: &Program) {
+        self.check_struct_declarations(program);
+        self.check_impl_declarations(program);
+
         for f in &program.functions {
             let params = f
                 .params
@@ -105,6 +110,76 @@ impl Checker {
 
         for f in &program.functions {
             self.check_function(f);
+        }
+    }
+
+    fn check_struct_declarations(&mut self, program: &Program) {
+        for s in &program.structs {
+            if !self.struct_names.insert(s.name.clone()) {
+                self.error(format!("Duplicate struct declaration `{}`", s.name));
+            }
+        }
+
+        for s in &program.structs {
+            let mut seen_fields = HashSet::new();
+            for field in &s.fields {
+                if !seen_fields.insert(field.name.clone()) {
+                    self.error(format!(
+                        "Duplicate field `{}` in struct `{}`",
+                        field.name, s.name
+                    ));
+                }
+                self.check_decl_type_exists(
+                    &field.ty,
+                    format!("Unknown type in struct `{}` field `{}`", s.name, field.name),
+                );
+            }
+        }
+    }
+
+    fn check_impl_declarations(&mut self, program: &Program) {
+        for imp in &program.impls {
+            if !self.struct_names.contains(&imp.target) {
+                self.error(format!("Unknown impl target struct `{}`", imp.target));
+            }
+
+            let mut seen_methods = HashSet::new();
+            for method in &imp.methods {
+                if !seen_methods.insert(method.name.clone()) {
+                    self.error(format!(
+                        "Duplicate method `{}` in impl `{}`",
+                        method.name, imp.target
+                    ));
+                }
+
+                for param in &method.params {
+                    self.check_decl_type_exists(
+                        &param.ty,
+                        format!(
+                            "Unknown type in method `{}` parameter `{}`",
+                            method.name, param.name
+                        ),
+                    );
+                }
+                if let Some(ret) = &method.return_type {
+                    self.check_decl_type_exists(
+                        ret,
+                        format!("Unknown return type in method `{}`", method.name),
+                    );
+                }
+            }
+        }
+    }
+
+    fn check_decl_type_exists(&mut self, ty: &TypeName, err_prefix: String) {
+        match ty {
+            TypeName::Int | TypeName::Float | TypeName::Bool | TypeName::String | TypeName::Void => {}
+            TypeName::Array { elem, .. } => self.check_decl_type_exists(elem, err_prefix),
+            TypeName::Named(name) => {
+                if !self.struct_names.contains(name) {
+                    self.error(format!("{err_prefix}: `{name}`"));
+                }
+            }
         }
     }
 

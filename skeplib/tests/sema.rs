@@ -1375,3 +1375,119 @@ fn main() -> Int {
     let (result, diags) = analyze_source(src);
     assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
 }
+
+#[test]
+fn sema_rejects_duplicate_struct_declarations() {
+    let src = r#"
+struct User { id: Int }
+struct User { name: String }
+fn main() -> Int { return 0; }
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Duplicate struct declaration `User`"))
+    );
+}
+
+#[test]
+fn sema_rejects_duplicate_fields_in_struct() {
+    let src = r#"
+struct User {
+  id: Int,
+  id: Int,
+}
+fn main() -> Int { return 0; }
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Duplicate field `id` in struct `User`"))
+    );
+}
+
+#[test]
+fn sema_rejects_unknown_type_in_struct_field() {
+    let src = r#"
+struct User {
+  profile: Profile,
+}
+fn main() -> Int { return 0; }
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("Unknown type in struct `User` field `profile`: `Profile`")
+    }));
+}
+
+#[test]
+fn sema_accepts_struct_field_type_referencing_other_struct() {
+    let src = r#"
+struct Profile { age: Int }
+struct User { profile: Profile }
+fn main() -> Int { return 0; }
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_rejects_unknown_impl_target() {
+    let src = r#"
+impl User {
+  fn id(self) -> Int { return 1; }
+}
+fn main() -> Int { return 0; }
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Unknown impl target struct `User`"))
+    );
+}
+
+#[test]
+fn sema_rejects_duplicate_methods_in_impl_block() {
+    let src = r#"
+struct User { id: Int }
+impl User {
+  fn id(self) -> Int { return 1; }
+  fn id(self) -> Int { return 2; }
+}
+fn main() -> Int { return 0; }
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("Duplicate method `id` in impl `User`")
+    }));
+}
+
+#[test]
+fn sema_rejects_unknown_type_in_method_signature() {
+    let src = r#"
+struct User { id: Int }
+impl User {
+  fn setProfile(self, p: Profile) -> Void { return; }
+}
+fn main() -> Int { return 0; }
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("Unknown type in method `setProfile` parameter `p`: `Profile`")
+    }));
+}
