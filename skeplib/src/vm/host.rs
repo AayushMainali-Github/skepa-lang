@@ -36,6 +36,15 @@ impl BuiltinHost for StdIoHost {
         self.rng_state = seed;
         Ok(())
     }
+
+    fn next_random_u64(&mut self) -> Result<u64, VmError> {
+        // LCG step for deterministic pseudo-random sequence.
+        self.rng_state = self
+            .rng_state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1);
+        Ok(self.rng_state)
+    }
 }
 
 #[derive(Default)]
@@ -61,5 +70,14 @@ impl BuiltinHost for TestHost {
     fn set_random_seed(&mut self, seed: u64) -> Result<(), VmError> {
         self.rng_state = seed;
         Ok(())
+    }
+
+    fn next_random_u64(&mut self) -> Result<u64, VmError> {
+        // Match StdIoHost sequence exactly for reproducible tests.
+        self.rng_state = self
+            .rng_state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1);
+        Ok(self.rng_state)
     }
 }

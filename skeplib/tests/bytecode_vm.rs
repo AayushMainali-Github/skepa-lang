@@ -2212,3 +2212,78 @@ fn vm_reports_random_seed_runtime_errors_from_manual_bytecode() {
     assert_eq!(err.kind, VmErrorKind::TypeMismatch);
     assert!(err.message.contains("random.seed expects Int argument"));
 }
+
+#[test]
+fn runs_random_int_and_float_with_seed_determinism_and_ranges() {
+    let src = r#"
+import random;
+fn main() -> Int {
+  random.seed(42);
+  let i1 = random.int();
+  let f1 = random.float();
+  random.seed(42);
+  let i2 = random.int();
+  let f2 = random.float();
+  if (i1 == i2 && f1 == f2 && i1 >= 0 && f1 >= 0.0 && f1 < 1.0) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(1));
+}
+
+#[test]
+fn vm_reports_random_int_float_runtime_arity_errors_from_manual_bytecode() {
+    let int_arity = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::LoadConst(Value::Int(1)),
+                    Instr::CallBuiltin {
+                        package: "random".to_string(),
+                        name: "int".to_string(),
+                        argc: 1,
+                    },
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&int_arity).expect_err("arity mismatch");
+    assert_eq!(err.kind, VmErrorKind::ArityMismatch);
+    assert!(err.message.contains("random.int expects 0 arguments"));
+
+    let float_arity = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::LoadConst(Value::Int(1)),
+                    Instr::CallBuiltin {
+                        package: "random".to_string(),
+                        name: "float".to_string(),
+                        argc: 1,
+                    },
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&float_arity).expect_err("arity mismatch");
+    assert_eq!(err.kind, VmErrorKind::ArityMismatch);
+    assert!(err.message.contains("random.float expects 0 arguments"));
+}

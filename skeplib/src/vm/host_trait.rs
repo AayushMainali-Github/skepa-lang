@@ -7,4 +7,5 @@ pub trait BuiltinHost {
         let _ = seed;
         Ok(())
     }
+    fn next_random_u64(&mut self) -> Result<u64, VmError>;
 }

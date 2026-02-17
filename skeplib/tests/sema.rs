@@ -1395,6 +1395,40 @@ fn main() -> Int {
 }
 
 #[test]
+fn sema_accepts_random_int_and_float() {
+    let src = r#"
+import random;
+fn main() -> Int {
+  random.seed(7);
+  let i: Int = random.int();
+  let f: Float = random.float();
+  if (i >= 0 && f >= 0.0 && f < 1.0) {
+    return 0;
+  }
+  return 1;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_rejects_random_int_arity_mismatch() {
+    let src = r#"
+import random;
+fn main() -> Int {
+  return random.int(1);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("random.int expects 0 argument(s), got 1")
+    }));
+}
+
+#[test]
 fn sema_rejects_duplicate_struct_declarations() {
     let src = r#"
 struct User { id: Int }
