@@ -1788,3 +1788,55 @@ fn main() -> Int {
     let (result, diags) = analyze_source(src);
     assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
 }
+
+#[test]
+fn sema_accepts_method_call_on_call_expression_receiver() {
+    let src = r#"
+struct User { id: Int }
+impl User {
+  fn bump(self, d: Int) -> Int { return self.id + d; }
+}
+fn makeUser(x: Int) -> User {
+  return User { id: x };
+}
+fn main() -> Int {
+  return makeUser(9).bump(4);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_accepts_method_call_on_index_expression_receiver() {
+    let src = r#"
+struct User { id: Int }
+impl User {
+  fn bump(self, d: Int) -> Int { return self.id + d; }
+}
+fn main() -> Int {
+  let users: [User; 2] = [User { id: 2 }, User { id: 5 }];
+  return users[1].bump(7);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_rejects_method_call_on_non_struct_chained_receiver() {
+    let src = r#"
+fn num() -> Int { return 1; }
+fn main() -> Int {
+  return num().bump(2);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Method call requires struct receiver"))
+    );
+}
