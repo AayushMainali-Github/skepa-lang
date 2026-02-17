@@ -10,6 +10,12 @@ pub(super) fn register(r: &mut BuiltinRegistry) {
     r.register("datetime", "fromUnix", builtin_datetime_from_unix);
     r.register("datetime", "fromMillis", builtin_datetime_from_millis);
     r.register("datetime", "parseUnix", builtin_datetime_parse_unix);
+    r.register("datetime", "year", builtin_datetime_year);
+    r.register("datetime", "month", builtin_datetime_month);
+    r.register("datetime", "day", builtin_datetime_day);
+    r.register("datetime", "hour", builtin_datetime_hour);
+    r.register("datetime", "minute", builtin_datetime_minute);
+    r.register("datetime", "second", builtin_datetime_second);
 }
 
 fn now_duration_since_epoch() -> Result<std::time::Duration, VmError> {
@@ -125,6 +131,16 @@ fn format_utc_from_unix_seconds(unix_secs: i64) -> String {
     let minute = (sod % 3_600) / 60;
     let second = sod % 60;
     format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}Z")
+}
+
+fn utc_parts_from_unix_seconds(unix_secs: i64) -> (i32, u32, u32, u32, u32, u32) {
+    let days = unix_secs.div_euclid(86_400);
+    let sod = unix_secs.rem_euclid(86_400);
+    let (year, month, day) = civil_from_days(days);
+    let hour = (sod / 3_600) as u32;
+    let minute = ((sod % 3_600) / 60) as u32;
+    let second = (sod % 60) as u32;
+    (year, month, day, hour, minute, second)
 }
 
 fn builtin_datetime_from_unix(
@@ -264,4 +280,65 @@ fn builtin_datetime_parse_unix(
         ));
     };
     Ok(Value::Int(parse_unix_seconds_utc(s)?))
+}
+
+fn expect_single_int_arg(args: Vec<Value>, name: &str) -> Result<i64, VmError> {
+    if args.len() != 1 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            format!("datetime.{name} expects 1 argument"),
+        ));
+    }
+    let Value::Int(ts) = args[0] else {
+        return Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            format!("datetime.{name} expects Int argument"),
+        ));
+    };
+    Ok(ts)
+}
+
+fn builtin_datetime_year(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+    let ts = expect_single_int_arg(args, "year")?;
+    let (year, _, _, _, _, _) = utc_parts_from_unix_seconds(ts);
+    Ok(Value::Int(i64::from(year)))
+}
+
+fn builtin_datetime_month(
+    _host: &mut dyn BuiltinHost,
+    args: Vec<Value>,
+) -> Result<Value, VmError> {
+    let ts = expect_single_int_arg(args, "month")?;
+    let (_, month, _, _, _, _) = utc_parts_from_unix_seconds(ts);
+    Ok(Value::Int(i64::from(month)))
+}
+
+fn builtin_datetime_day(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+    let ts = expect_single_int_arg(args, "day")?;
+    let (_, _, day, _, _, _) = utc_parts_from_unix_seconds(ts);
+    Ok(Value::Int(i64::from(day)))
+}
+
+fn builtin_datetime_hour(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+    let ts = expect_single_int_arg(args, "hour")?;
+    let (_, _, _, hour, _, _) = utc_parts_from_unix_seconds(ts);
+    Ok(Value::Int(i64::from(hour)))
+}
+
+fn builtin_datetime_minute(
+    _host: &mut dyn BuiltinHost,
+    args: Vec<Value>,
+) -> Result<Value, VmError> {
+    let ts = expect_single_int_arg(args, "minute")?;
+    let (_, _, _, _, minute, _) = utc_parts_from_unix_seconds(ts);
+    Ok(Value::Int(i64::from(minute)))
+}
+
+fn builtin_datetime_second(
+    _host: &mut dyn BuiltinHost,
+    args: Vec<Value>,
+) -> Result<Value, VmError> {
+    let ts = expect_single_int_arg(args, "second")?;
+    let (_, _, _, _, _, second) = utc_parts_from_unix_seconds(ts);
+    Ok(Value::Int(i64::from(second)))
 }

@@ -100,6 +100,12 @@ import datetime;
 - `datetime.fromUnix(ts: Int) -> String` (UTC, ISO-like)
 - `datetime.fromMillis(ms: Int) -> String` (UTC, ISO-like with milliseconds)
 - `datetime.parseUnix(s: String) -> Int` (expects `YYYY-MM-DDTHH:MM:SSZ`)
+- `datetime.year(ts: Int) -> Int` (UTC year)
+- `datetime.month(ts: Int) -> Int` (UTC month `1..12`)
+- `datetime.day(ts: Int) -> Int` (UTC day `1..31`)
+- `datetime.hour(ts: Int) -> Int` (UTC hour `0..23`)
+- `datetime.minute(ts: Int) -> Int` (UTC minute `0..59`)
+- `datetime.second(ts: Int) -> Int` (UTC second `0..59`)
 
 Example:
 

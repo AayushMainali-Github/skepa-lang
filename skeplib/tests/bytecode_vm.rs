@@ -1992,3 +1992,77 @@ fn vm_reports_datetime_parse_unix_runtime_errors_from_manual_bytecode() {
     assert_eq!(err.kind, VmErrorKind::TypeMismatch);
     assert!(err.message.contains("datetime.parseUnix expects String argument"));
 }
+
+#[test]
+fn runs_datetime_component_extractors() {
+    let src = r#"
+import datetime;
+fn main() -> Int {
+  let ts = 1704112496; // 2024-01-01T12:34:56Z
+  if (datetime.year(ts) == 2024
+      && datetime.month(ts) == 1
+      && datetime.day(ts) == 1
+      && datetime.hour(ts) == 12
+      && datetime.minute(ts) == 34
+      && datetime.second(ts) == 56) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(1));
+}
+
+#[test]
+fn vm_reports_datetime_component_runtime_errors_from_manual_bytecode() {
+    let arity_module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::CallBuiltin {
+                        package: "datetime".to_string(),
+                        name: "year".to_string(),
+                        argc: 0,
+                    },
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&arity_module).expect_err("arity mismatch");
+    assert_eq!(err.kind, VmErrorKind::ArityMismatch);
+    assert!(err.message.contains("datetime.year expects 1 argument"));
+
+    let type_module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::LoadConst(Value::String("bad".to_string())),
+                    Instr::CallBuiltin {
+                        package: "datetime".to_string(),
+                        name: "second".to_string(),
+                        argc: 1,
+                    },
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&type_module).expect_err("type mismatch");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
+    assert!(err.message.contains("datetime.second expects Int argument"));
+}

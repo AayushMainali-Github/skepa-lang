@@ -1274,6 +1274,46 @@ fn main() -> Int {
 }
 
 #[test]
+fn sema_accepts_datetime_component_extractors() {
+    let src = r#"
+import datetime;
+fn main() -> Int {
+  let ts: Int = 1704112496;
+  let y: Int = datetime.year(ts);
+  let m: Int = datetime.month(ts);
+  let d: Int = datetime.day(ts);
+  let h: Int = datetime.hour(ts);
+  let mi: Int = datetime.minute(ts);
+  let s: Int = datetime.second(ts);
+  if (y == 2024 && m == 1 && d == 1 && h == 12 && mi == 34 && s == 56) {
+    return 0;
+  }
+  return 1;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_rejects_datetime_year_type_mismatch() {
+    let src = r#"
+import datetime;
+fn main() -> Int {
+  return datetime.year("0");
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("datetime.year argument 1 expects Int"))
+    );
+}
+
+#[test]
 fn sema_rejects_duplicate_struct_declarations() {
     let src = r#"
 struct User { id: Int }
