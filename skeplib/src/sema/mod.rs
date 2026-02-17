@@ -32,6 +32,7 @@ pub fn analyze_source(source: &str) -> (SemaResult, DiagnosticBag) {
 struct Checker {
     diagnostics: DiagnosticBag,
     functions: HashMap<String, FunctionSig>,
+    methods: HashMap<String, HashMap<String, FunctionSig>>,
     imported_modules: HashSet<String>,
     struct_names: HashSet<String>,
     struct_fields: HashMap<String, HashMap<String, TypeInfo>>,
@@ -78,6 +79,7 @@ impl Checker {
         Self {
             diagnostics: DiagnosticBag::new(),
             functions: HashMap::new(),
+            methods: HashMap::new(),
             imported_modules,
             struct_names: HashSet::new(),
             struct_fields: HashMap::new(),
@@ -88,6 +90,7 @@ impl Checker {
     fn check_program(&mut self, program: &Program) {
         self.check_struct_declarations(program);
         self.check_impl_declarations(program);
+        self.collect_method_signatures(program);
 
         for f in &program.functions {
             let params = f
@@ -176,6 +179,29 @@ impl Checker {
         }
     }
 
+    fn collect_method_signatures(&mut self, program: &Program) {
+        for imp in &program.impls {
+            let methods = self.methods.entry(imp.target.clone()).or_default();
+            for method in &imp.methods {
+                let params = method
+                    .params
+                    .iter()
+                    .map(|p| TypeInfo::from_ast(&p.ty))
+                    .collect::<Vec<_>>();
+                let ret = method
+                    .return_type
+                    .as_ref()
+                    .map(TypeInfo::from_ast)
+                    .unwrap_or(TypeInfo::Void);
+                methods.entry(method.name.clone()).or_insert(FunctionSig {
+                    name: method.name.clone(),
+                    params,
+                    ret,
+                });
+            }
+        }
+    }
+
     fn check_decl_type_exists(&mut self, ty: &TypeName, err_prefix: String) {
         match ty {
             TypeName::Int | TypeName::Float | TypeName::Bool | TypeName::String | TypeName::Void => {}
@@ -192,6 +218,13 @@ impl Checker {
         self.struct_fields
             .get(struct_name)
             .and_then(|f| f.get(field))
+            .cloned()
+    }
+
+    pub(super) fn method_sig(&self, struct_name: &str, method: &str) -> Option<FunctionSig> {
+        self.methods
+            .get(struct_name)
+            .and_then(|m| m.get(method))
             .cloned()
     }
 

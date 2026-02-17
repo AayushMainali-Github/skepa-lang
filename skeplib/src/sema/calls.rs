@@ -31,16 +31,18 @@ impl Checker {
     ) -> TypeInfo {
         if let Some(parts) = Self::expr_to_parts(callee)
             && parts.len() == 2
+            && (parts[0] == "io" || parts[0] == "str" || parts[0] == "arr")
         {
             return self.check_builtin_call(&parts[0], &parts[1], args, scopes);
+        }
+
+        if let Expr::Field { base, field } = callee {
+            return self.check_method_call(base, field, args, scopes);
         }
 
         let fn_name = match callee {
             Expr::Ident(name) => name.clone(),
             Expr::Path(parts) => parts.join("."),
-            Expr::Field { .. } => Self::expr_to_parts(callee)
-                .map(|p| p.join("."))
-                .unwrap_or_else(|| "<invalid>".to_string()),
             _ => {
                 self.error("Invalid call target".to_string());
                 return TypeInfo::Unknown;
@@ -70,6 +72,77 @@ impl Checker {
                     "Argument {} for `{}`: expected {:?}, got {:?}",
                     i + 1,
                     sig.name,
+                    expected,
+                    got
+                ));
+            }
+        }
+
+        sig.ret
+    }
+
+    fn check_method_call(
+        &mut self,
+        base: &Expr,
+        method: &str,
+        args: &[Expr],
+        scopes: &mut [HashMap<String, TypeInfo>],
+    ) -> TypeInfo {
+        let recv_ty = self.check_expr(base, scopes);
+        let TypeInfo::Named(struct_name) = recv_ty else {
+            if recv_ty != TypeInfo::Unknown {
+                self.error(format!(
+                    "Method call requires struct receiver, got {:?}",
+                    recv_ty
+                ));
+            }
+            for arg in args {
+                self.check_expr(arg, scopes);
+            }
+            return TypeInfo::Unknown;
+        };
+
+        let Some(sig) = self.method_sig(&struct_name, method) else {
+            self.error(format!(
+                "Unknown method `{}` on struct `{}`",
+                method, struct_name
+            ));
+            for arg in args {
+                self.check_expr(arg, scopes);
+            }
+            return TypeInfo::Unknown;
+        };
+
+        let mut expected_params = sig.params.clone();
+        if let Some(TypeInfo::Named(self_ty)) = expected_params.first()
+            && self_ty == &struct_name
+        {
+            expected_params.remove(0);
+        }
+
+        if expected_params.len() != args.len() {
+            self.error(format!(
+                "Arity mismatch for method `{}.{}`: expected {}, got {}",
+                struct_name,
+                method,
+                expected_params.len(),
+                args.len()
+            ));
+            for arg in args {
+                self.check_expr(arg, scopes);
+            }
+            return sig.ret;
+        }
+
+        for (i, arg) in args.iter().enumerate() {
+            let got = self.check_expr(arg, scopes);
+            let expected = expected_params[i].clone();
+            if got != TypeInfo::Unknown && got != expected {
+                self.error(format!(
+                    "Argument {} for method `{}.{}`: expected {:?}, got {:?}",
+                    i + 1,
+                    struct_name,
+                    method,
                     expected,
                     got
                 ));

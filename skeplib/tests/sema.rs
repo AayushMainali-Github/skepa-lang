@@ -1572,3 +1572,90 @@ fn main() -> Int {
         d.message.contains("Unknown field `nope` on struct `User`")
     }));
 }
+
+#[test]
+fn sema_accepts_struct_method_calls() {
+    let src = r#"
+struct User { id: Int }
+impl User {
+  fn add(self, x: Int) -> Int {
+    return self.id + x;
+  }
+}
+fn main() -> Int {
+  let u = User { id: 7 };
+  return u.add(5);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_rejects_unknown_struct_method() {
+    let src = r#"
+struct User { id: Int }
+fn main() -> Int {
+  let u = User { id: 7 };
+  return u.nope(1);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message.contains("Unknown method `nope` on struct `User`")
+    }));
+}
+
+#[test]
+fn sema_rejects_struct_method_arity_mismatch() {
+    let src = r#"
+struct User { id: Int }
+impl User {
+  fn add(self, x: Int) -> Int { return self.id + x; }
+}
+fn main() -> Int {
+  let u = User { id: 7 };
+  return u.add();
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message.contains("Arity mismatch for method `User.add`")
+    }));
+}
+
+#[test]
+fn sema_rejects_struct_method_argument_type_mismatch() {
+    let src = r#"
+struct User { id: Int }
+impl User {
+  fn add(self, x: Int) -> Int { return self.id + x; }
+}
+fn main() -> Int {
+  let u = User { id: 7 };
+  return u.add("x");
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message.contains("Argument 1 for method `User.add`")
+    }));
+}
+
+#[test]
+fn sema_rejects_method_call_on_non_struct_value() {
+    let src = r#"
+fn main() -> Int {
+  let x: Int = 1;
+  return x.add(2);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message.contains("Method call requires struct receiver")
+    }));
+}
