@@ -48,6 +48,10 @@ pub enum Instr {
         name: String,
         argc: usize,
     },
+    CallMethod {
+        name: String,
+        argc: usize,
+    },
     CallBuiltin {
         package: String,
         name: String,

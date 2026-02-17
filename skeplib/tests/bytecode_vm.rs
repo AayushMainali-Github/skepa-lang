@@ -584,6 +584,42 @@ fn main() -> Int {
 }
 
 #[test]
+fn runs_method_call_on_call_expression_receiver() {
+    let src = r#"
+struct User { id: Int }
+impl User {
+  fn bump(self, d: Int) -> Int { return self.id + d; }
+}
+fn makeUser(x: Int) -> User {
+  return User { id: x };
+}
+fn main() -> Int {
+  return makeUser(9).bump(4);
+}
+"#;
+    let module = compile_source(src).expect("compile should succeed");
+    let out = Vm::run_module_main(&module).expect("vm run");
+    assert_eq!(out, Value::Int(13));
+}
+
+#[test]
+fn runs_method_call_on_index_expression_receiver() {
+    let src = r#"
+struct User { id: Int }
+impl User {
+  fn bump(self, d: Int) -> Int { return self.id + d; }
+}
+fn main() -> Int {
+  let users: [User; 2] = [User { id: 2 }, User { id: 5 }];
+  return users[1].bump(7);
+}
+"#;
+    let module = compile_source(src).expect("compile should succeed");
+    let out = Vm::run_module_main(&module).expect("vm run");
+    assert_eq!(out, Value::Int(12));
+}
+
+#[test]
 fn runs_io_println_and_readline_through_builtin_registry() {
     let src = r#"
 import io;

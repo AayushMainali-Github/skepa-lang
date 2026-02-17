@@ -55,6 +55,7 @@ fn fmt_instr(i: &Instr) -> String {
         Instr::JumpIfFalse(t) => format!("JumpIfFalse {t}"),
         Instr::JumpIfTrue(t) => format!("JumpIfTrue {t}"),
         Instr::Call { name, argc } => format!("Call {name} argc={argc}"),
+        Instr::CallMethod { name, argc } => format!("CallMethod {name} argc={argc}"),
         Instr::CallBuiltin {
             package,
             name,

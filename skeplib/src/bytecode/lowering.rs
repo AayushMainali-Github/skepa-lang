@@ -427,30 +427,9 @@ impl Compiler {
                         });
                     }
                     Expr::Field { base, field } => {
-                        if let Expr::Ident(recv_name) = &**base
-                            && ctx.lookup(recv_name).is_some()
-                        {
-                            let recv_struct = Self::infer_expr_named_type(base, ctx);
-                            self.compile_expr(base, ctx, code);
-                            for arg in args {
-                                self.compile_expr(arg, ctx, code);
-                            }
-                            if let Some(struct_name) = recv_struct {
-                                code.push(Instr::Call {
-                                    name: Self::mangle_method_name(&struct_name, field),
-                                    argc: args.len() + 1,
-                                });
-                            } else {
-                                self.error(
-                                    "Method call lowering requires struct-typed receiver local"
-                                        .to_string(),
-                                );
-                            }
-                            return;
-                        }
-
                         if let Some(parts) = Self::expr_to_parts(callee)
                             && parts.len() == 2
+                            && matches!(&**base, Expr::Ident(pkg) if ctx.lookup(pkg).is_none())
                         {
                             for arg in args {
                                 self.compile_expr(arg, ctx, code);
@@ -470,10 +449,15 @@ impl Compiler {
                             );
                             return;
                         }
-                        self.error(
-                            "Only direct function and method calls are supported in bytecode compiler"
-                                .to_string(),
-                        );
+
+                        self.compile_expr(base, ctx, code);
+                        for arg in args {
+                            self.compile_expr(arg, ctx, code);
+                        }
+                        code.push(Instr::CallMethod {
+                            name: field.clone(),
+                            argc: args.len(),
+                        });
                     }
                     _ => {
                         self.error(

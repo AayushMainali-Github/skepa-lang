@@ -162,6 +162,11 @@ fn encode_instr(i: &Instr, out: &mut Vec<u8>) {
             write_str(out, name);
             write_u32(out, *argc as u32);
         }
+        Instr::CallMethod { name, argc } => {
+            write_u8(out, 34);
+            write_str(out, name);
+            write_u32(out, *argc as u32);
+        }
         Instr::CallBuiltin {
             package,
             name,
@@ -307,6 +312,10 @@ fn decode_instr(rd: &mut Reader<'_>) -> Result<Instr, String> {
         20 => Instr::JumpIfFalse(rd.read_u32()? as usize),
         21 => Instr::JumpIfTrue(rd.read_u32()? as usize),
         22 => Instr::Call {
+            name: rd.read_str()?,
+            argc: rd.read_u32()? as usize,
+        },
+        34 => Instr::CallMethod {
             name: rd.read_str()?,
             argc: rd.read_u32()? as usize,
         },

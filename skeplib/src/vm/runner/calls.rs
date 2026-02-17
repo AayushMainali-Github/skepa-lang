@@ -66,3 +66,54 @@ pub(super) fn call_builtin(
     stack.push(ret);
     Ok(())
 }
+
+pub(super) fn call_method(
+    stack: &mut Vec<Value>,
+    method_name: &str,
+    argc: usize,
+    env: &mut CallEnv<'_>,
+    site: Site<'_>,
+) -> Result<(), VmError> {
+    if stack.len() < argc + 1 {
+        return Err(super::err_at(
+            VmErrorKind::StackUnderflow,
+            "Stack underflow on CallMethod",
+            site.function_name,
+            site.ip,
+        ));
+    }
+    let split = stack.len() - argc;
+    let mut call_args = stack.split_off(split);
+    let Some(receiver) = stack.pop() else {
+        return Err(super::err_at(
+            VmErrorKind::StackUnderflow,
+            "CallMethod expects receiver",
+            site.function_name,
+            site.ip,
+        ));
+    };
+    let Value::Struct { name: struct_name, .. } = &receiver else {
+        return Err(super::err_at(
+            VmErrorKind::TypeMismatch,
+            "CallMethod receiver must be Struct",
+            site.function_name,
+            site.ip,
+        ));
+    };
+
+    let callee_name = format!("__impl_{}__{}", struct_name, method_name);
+    let mut full_args = Vec::with_capacity(argc + 1);
+    full_args.push(receiver);
+    full_args.append(&mut call_args);
+    let ret = super::run_function(
+        env.module,
+        &callee_name,
+        full_args,
+        env.host,
+        env.reg,
+        env.depth + 1,
+        env.config,
+    )?;
+    stack.push(ret);
+    Ok(())
+}
