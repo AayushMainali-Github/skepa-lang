@@ -1659,3 +1659,76 @@ fn main() -> Int {
         d.message.contains("Method call requires struct receiver")
     }));
 }
+
+#[test]
+fn sema_rejects_method_return_type_mismatch() {
+    let src = r#"
+struct User { id: Int }
+impl User {
+  fn bad(self) -> Int {
+    return "x";
+  }
+}
+fn main() -> Int { return 0; }
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message.contains("Return type mismatch")
+    }));
+}
+
+#[test]
+fn sema_rejects_method_missing_return_for_non_void() {
+    let src = r#"
+struct User { id: Int }
+impl User {
+  fn bad(self) -> Int {
+    let x = self.id + 1;
+  }
+}
+fn main() -> Int { return 0; }
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message.contains("Method `User.bad` may exit without returning")
+    }));
+}
+
+#[test]
+fn sema_rejects_unknown_variable_inside_method_body() {
+    let src = r#"
+struct User { id: Int }
+impl User {
+  fn bad(self) -> Int {
+    return nope;
+  }
+}
+fn main() -> Int { return 0; }
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message.contains("Unknown variable `nope`")
+    }));
+}
+
+#[test]
+fn sema_accepts_method_using_self_field_in_body() {
+    let src = r#"
+struct User { id: Int }
+impl User {
+  fn add(self, delta: Int) -> Int {
+    let n: Int = self.id + delta;
+    return n;
+  }
+}
+fn main() -> Int {
+  let u = User { id: 5 };
+  return u.add(3);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}

@@ -116,6 +116,12 @@ impl Checker {
         for f in &program.functions {
             self.check_function(f);
         }
+
+        for imp in &program.impls {
+            for method in &imp.methods {
+                self.check_method(imp.target.as_str(), method);
+            }
+        }
     }
 
     fn check_struct_declarations(&mut self, program: &Program) {
@@ -246,6 +252,31 @@ impl Checker {
             self.error(format!(
                 "Function `{}` may exit without returning {:?}",
                 f.name, expected_ret
+            ));
+        }
+    }
+
+    fn check_method(&mut self, target: &str, m: &crate::ast::MethodDecl) {
+        let expected_ret = m
+            .return_type
+            .as_ref()
+            .map(TypeInfo::from_ast)
+            .unwrap_or(TypeInfo::Void);
+        let mut scopes = vec![HashMap::<String, TypeInfo>::new()];
+        for p in &m.params {
+            scopes[0].insert(p.name.clone(), TypeInfo::from_ast(&p.ty));
+        }
+        if !scopes[0].contains_key("self") {
+            scopes[0].insert("self".to_string(), TypeInfo::Named(target.to_string()));
+        }
+
+        for stmt in &m.body {
+            self.check_stmt(stmt, &mut scopes, &expected_ret);
+        }
+        if expected_ret != TypeInfo::Void && !Self::block_must_return(&m.body) {
+            self.error(format!(
+                "Method `{}.{}` may exit without returning {:?}",
+                target, m.name, expected_ret
             ));
         }
     }
