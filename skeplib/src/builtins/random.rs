@@ -3,6 +3,7 @@ use crate::types::TypeInfo;
 use super::{BuiltinKind, BuiltinSig};
 
 const RANDOM_SEED_PARAMS: &[TypeInfo] = &[TypeInfo::Int];
+const RANDOM_INT_PARAMS: &[TypeInfo] = &[TypeInfo::Int, TypeInfo::Int];
 const RANDOM_NO_PARAMS: &[TypeInfo] = &[];
 
 pub(super) const SIGS: &[BuiltinSig] = &[
@@ -16,7 +17,7 @@ pub(super) const SIGS: &[BuiltinSig] = &[
     BuiltinSig {
         package: "random",
         name: "int",
-        params: RANDOM_NO_PARAMS,
+        params: RANDOM_INT_PARAMS,
         ret: TypeInfo::Int,
         kind: BuiltinKind::FixedArity,
     },

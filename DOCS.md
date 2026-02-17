@@ -111,7 +111,7 @@ import random;
 ### `random` package
 
 - `random.seed(seed: Int) -> Void`
-- `random.int() -> Int` (non-negative pseudo-random integer)
+- `random.int(min: Int, max: Int) -> Int` (inclusive range `[min, max]`)
 - `random.float() -> Float` (range `[0.0, 1.0)`)
 
 Example:

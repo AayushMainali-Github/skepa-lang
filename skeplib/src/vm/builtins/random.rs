@@ -26,14 +26,34 @@ fn builtin_random_seed(host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<V
 }
 
 fn builtin_random_int(host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
-    if !args.is_empty() {
+    if args.len() != 2 {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,
-            "random.int expects 0 arguments",
+            "random.int expects 2 arguments",
         ));
     }
+    let Value::Int(min) = args[0] else {
+        return Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "random.int argument 1 expects Int",
+        ));
+    };
+    let Value::Int(max) = args[1] else {
+        return Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "random.int argument 2 expects Int",
+        ));
+    };
+    if min > max {
+        return Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "random.int expects min <= max",
+        ));
+    }
+    let span = (max - min) as u64 + 1;
     let r = host.next_random_u64()?;
-    Ok(Value::Int((r >> 1) as i64))
+    let offset = (r % span) as i64;
+    Ok(Value::Int(min + offset))
 }
 
 fn builtin_random_float(host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {

@@ -1400,9 +1400,9 @@ fn sema_accepts_random_int_and_float() {
 import random;
 fn main() -> Int {
   random.seed(7);
-  let i: Int = random.int();
+  let i: Int = random.int(10, 20);
   let f: Float = random.float();
-  if (i >= 0 && f >= 0.0 && f < 1.0) {
+  if (i >= 10 && i <= 20 && f >= 0.0 && f < 1.0) {
     return 0;
   }
   return 1;
@@ -1424,7 +1424,7 @@ fn main() -> Int {
     assert!(result.has_errors);
     assert!(diags.as_slice().iter().any(|d| {
         d.message
-            .contains("random.int expects 0 argument(s), got 1")
+            .contains("random.int expects 2 argument(s), got 1")
     }));
 }
 

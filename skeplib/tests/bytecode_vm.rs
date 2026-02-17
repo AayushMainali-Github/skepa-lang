@@ -2219,12 +2219,12 @@ fn runs_random_int_and_float_with_seed_determinism_and_ranges() {
 import random;
 fn main() -> Int {
   random.seed(42);
-  let i1 = random.int();
+  let i1 = random.int(10, 20);
   let f1 = random.float();
   random.seed(42);
-  let i2 = random.int();
+  let i2 = random.int(10, 20);
   let f2 = random.float();
-  if (i1 == i2 && f1 == f2 && i1 >= 0 && f1 >= 0.0 && f1 < 1.0) {
+  if (i1 == i2 && f1 == f2 && i1 >= 10 && i1 <= 20 && f1 >= 0.0 && f1 < 1.0) {
     return 1;
   }
   return 0;
@@ -2260,7 +2260,7 @@ fn vm_reports_random_int_float_runtime_arity_errors_from_manual_bytecode() {
     };
     let err = Vm::run_module_main(&int_arity).expect_err("arity mismatch");
     assert_eq!(err.kind, VmErrorKind::ArityMismatch);
-    assert!(err.message.contains("random.int expects 0 arguments"));
+    assert!(err.message.contains("random.int expects 2 arguments"));
 
     let float_arity = BytecodeModule {
         functions: vec![(
@@ -2286,4 +2286,45 @@ fn vm_reports_random_int_float_runtime_arity_errors_from_manual_bytecode() {
     let err = Vm::run_module_main(&float_arity).expect_err("arity mismatch");
     assert_eq!(err.kind, VmErrorKind::ArityMismatch);
     assert!(err.message.contains("random.float expects 0 arguments"));
+}
+
+#[test]
+fn vm_reports_random_int_runtime_type_and_bounds_errors() {
+    let src = r#"
+import random;
+fn main() -> Int {
+  let _x = random.int(10, 5);
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("invalid bounds");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
+    assert!(err.message.contains("random.int expects min <= max"));
+
+    let type_module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::LoadConst(Value::String("x".to_string())),
+                    Instr::LoadConst(Value::Int(2)),
+                    Instr::CallBuiltin {
+                        package: "random".to_string(),
+                        name: "int".to_string(),
+                        argc: 2,
+                    },
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&type_module).expect_err("type mismatch");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
+    assert!(err.message.contains("random.int argument 1 expects Int"));
 }
