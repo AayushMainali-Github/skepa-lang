@@ -97,6 +97,8 @@ import datetime;
 
 - `datetime.nowUnix() -> Int`
 - `datetime.nowMillis() -> Int`
+- `datetime.fromUnix(ts: Int) -> String` (UTC, ISO-like)
+- `datetime.fromMillis(ms: Int) -> String` (UTC, ISO-like with milliseconds)
 
 Example:
 

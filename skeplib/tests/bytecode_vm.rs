@@ -1831,3 +1831,78 @@ fn vm_reports_datetime_runtime_arity_mismatch_from_manual_bytecode() {
     assert_eq!(err.kind, VmErrorKind::ArityMismatch);
     assert!(err.message.contains("datetime.nowMillis expects 0 arguments"));
 }
+
+#[test]
+fn runs_datetime_from_unix_and_millis() {
+    let src = r#"
+import datetime;
+fn main() -> Int {
+  let a = datetime.fromUnix(0);
+  let b = datetime.fromMillis(1234);
+  let c = datetime.fromUnix(-1);
+  let d = datetime.fromMillis(-1);
+  if (a == "1970-01-01T00:00:00Z"
+      && b == "1970-01-01T00:00:01.234Z"
+      && c == "1969-12-31T23:59:59Z"
+      && d == "1969-12-31T23:59:59.999Z") {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(1));
+}
+
+#[test]
+fn vm_reports_datetime_from_runtime_errors_from_manual_bytecode() {
+    let from_unix_arity_module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::CallBuiltin {
+                        package: "datetime".to_string(),
+                        name: "fromUnix".to_string(),
+                        argc: 0,
+                    },
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&from_unix_arity_module).expect_err("arity mismatch");
+    assert_eq!(err.kind, VmErrorKind::ArityMismatch);
+    assert!(err.message.contains("datetime.fromUnix expects 1 argument"));
+
+    let from_millis_type_module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::LoadConst(Value::String("bad".to_string())),
+                    Instr::CallBuiltin {
+                        package: "datetime".to_string(),
+                        name: "fromMillis".to_string(),
+                        argc: 1,
+                    },
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&from_millis_type_module).expect_err("type mismatch");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
+    assert!(err.message.contains("datetime.fromMillis expects Int argument"));
+}

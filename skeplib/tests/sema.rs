@@ -1211,6 +1211,40 @@ fn main() -> Int {
 }
 
 #[test]
+fn sema_accepts_datetime_from_unix_and_millis() {
+    let src = r#"
+import datetime;
+fn main() -> Int {
+  let a: String = datetime.fromUnix(0);
+  let b: String = datetime.fromMillis(1234);
+  if (a == "1970-01-01T00:00:00Z" && b == "1970-01-01T00:00:01.234Z") {
+    return 0;
+  }
+  return 1;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_rejects_datetime_fromunix_type_mismatch() {
+    let src = r#"
+import datetime;
+fn main() -> Int {
+  let _x = datetime.fromUnix("0");
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("datetime.fromUnix argument 1 expects Int")
+    }));
+}
+
+#[test]
 fn sema_rejects_duplicate_struct_declarations() {
     let src = r#"
 struct User { id: Int }
