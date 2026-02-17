@@ -468,6 +468,62 @@ fn vm_reports_unknown_struct_field_with_clear_message() {
 }
 
 #[test]
+fn vm_reports_struct_set_path_with_non_struct_intermediate() {
+    let module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::LoadConst(Value::Struct {
+                        name: "User".to_string(),
+                        fields: vec![("id".to_string(), Value::Int(1))],
+                    }),
+                    Instr::LoadConst(Value::Int(42)),
+                    Instr::StructSetPath(vec!["id".to_string(), "x".to_string()]),
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&module).expect_err("invalid nested set path");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
+    assert!(err.message.contains("StructSetPath failed"));
+}
+
+#[test]
+fn vm_reports_struct_set_path_with_empty_path() {
+    let module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::LoadConst(Value::Struct {
+                        name: "User".to_string(),
+                        fields: vec![("id".to_string(), Value::Int(1))],
+                    }),
+                    Instr::LoadConst(Value::Int(42)),
+                    Instr::StructSetPath(vec![]),
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&module).expect_err("empty set path");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
+    assert!(err.message.contains("requires non-empty field path"));
+}
+
+#[test]
 fn for_bytecode_has_expected_jump_shape() {
     let src = r#"
 fn main() -> Int {
