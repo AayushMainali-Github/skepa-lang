@@ -108,11 +108,31 @@ import random;
 - `datetime.minute(ts: Int) -> Int` (UTC minute `0..59`)
 - `datetime.second(ts: Int) -> Int` (UTC second `0..59`)
 
+Example:
+
+```sk
+import datetime;
+let ts = datetime.nowUnix();
+let iso = datetime.fromUnix(ts);
+let back = datetime.parseUnix(iso);
+let y = datetime.year(ts);
+let h = datetime.hour(ts);
+```
+
 ### `random` package
 
 - `random.seed(seed: Int) -> Void`
 - `random.int(min: Int, max: Int) -> Int` (inclusive range `[min, max]`)
 - `random.float() -> Float` (range `[0.0, 1.0)`)
+
+Example:
+
+```sk
+import random;
+random.seed(42);
+let die = random.int(1, 6);
+let p = random.float();
+```
 
 Example:
 
@@ -131,6 +151,8 @@ Runtime edge semantics:
 - `arr.first` / `arr.last` on empty arrays: runtime `E-VM-INDEX-OOB`.
 - `str.repeat` with negative `count`: runtime `E-VM-INDEX-OOB`.
 - `str.repeat` output is capped to `1,000,000` bytes; larger outputs fail with runtime `E-VM-INDEX-OOB`.
+- `datetime.parseUnix` rejects invalid format/ranges with runtime `E-VM-TYPE`.
+- `random.int(min, max)` rejects `min > max` with runtime `E-VM-TYPE`.
 
 ## 4. Types
 

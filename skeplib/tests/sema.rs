@@ -1429,6 +1429,55 @@ fn main() -> Int {
 }
 
 #[test]
+fn sema_rejects_random_int_arg2_type_mismatch() {
+    let src = r#"
+import random;
+fn main() -> Int {
+  return random.int(1, "2");
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("random.int argument 2 expects Int")
+    }));
+}
+
+#[test]
+fn sema_rejects_random_float_arity_mismatch() {
+    let src = r#"
+import random;
+fn main() -> Int {
+  let _x = random.float(1);
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("random.float expects 0 argument(s), got 1")
+    }));
+}
+
+#[test]
+fn sema_rejects_datetime_parseunix_arity_mismatch() {
+    let src = r#"
+import datetime;
+fn main() -> Int {
+  return datetime.parseUnix();
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("datetime.parseUnix expects 1 argument(s), got 0")
+    }));
+}
+
+#[test]
 fn sema_rejects_duplicate_struct_declarations() {
     let src = r#"
 struct User { id: Int }

@@ -2328,3 +2328,59 @@ fn main() -> Int {
     assert_eq!(err.kind, VmErrorKind::TypeMismatch);
     assert!(err.message.contains("random.int argument 1 expects Int"));
 }
+
+#[test]
+fn runs_random_int_single_point_range_is_constant() {
+    let src = r#"
+import random;
+fn main() -> Int {
+  random.seed(999);
+  let a = random.int(5, 5);
+  let b = random.int(5, 5);
+  if (a == 5 && b == 5) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(1));
+}
+
+#[test]
+fn runs_datetime_component_extractors_for_negative_timestamp() {
+    let src = r#"
+import datetime;
+fn main() -> Int {
+  let ts = -1;
+  if (datetime.year(ts) == 1969
+      && datetime.month(ts) == 12
+      && datetime.day(ts) == 31
+      && datetime.hour(ts) == 23
+      && datetime.minute(ts) == 59
+      && datetime.second(ts) == 59) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(1));
+}
+
+#[test]
+fn vm_reports_datetime_parse_unix_invalid_non_digit_fields() {
+    let src = r#"
+import datetime;
+fn main() -> Int {
+  let _x = datetime.parseUnix("202A-01-01T00:00:00Z");
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("invalid year");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
+    assert!(err.message.contains("datetime.parseUnix invalid year"));
+}
