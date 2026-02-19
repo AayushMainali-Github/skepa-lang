@@ -304,10 +304,7 @@ fn builtin_datetime_year(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Resul
     Ok(Value::Int(i64::from(year)))
 }
 
-fn builtin_datetime_month(
-    _host: &mut dyn BuiltinHost,
-    args: Vec<Value>,
-) -> Result<Value, VmError> {
+fn builtin_datetime_month(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
     let ts = expect_single_int_arg(args, "month")?;
     let (_, month, _, _, _, _) = utc_parts_from_unix_seconds(ts);
     Ok(Value::Int(i64::from(month)))

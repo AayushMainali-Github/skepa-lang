@@ -221,7 +221,11 @@ impl Checker {
 
     fn check_decl_type_exists(&mut self, ty: &TypeName, err_prefix: String) {
         match ty {
-            TypeName::Int | TypeName::Float | TypeName::Bool | TypeName::String | TypeName::Void => {}
+            TypeName::Int
+            | TypeName::Float
+            | TypeName::Bool
+            | TypeName::String
+            | TypeName::Void => {}
             TypeName::Array { elem, .. } => self.check_decl_type_exists(elem, err_prefix),
             TypeName::Named(name) => {
                 if !self.struct_names.contains(name) {

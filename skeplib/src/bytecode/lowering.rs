@@ -415,58 +415,56 @@ impl Compiler {
                     }
                 }
             },
-            Expr::Call { callee, args } => {
-                match &**callee {
-                    Expr::Ident(name) => {
-                        for arg in args {
-                            self.compile_expr(arg, ctx, code);
-                        }
-                        code.push(Instr::Call {
-                            name: name.clone(),
-                            argc: args.len(),
-                        });
+            Expr::Call { callee, args } => match &**callee {
+                Expr::Ident(name) => {
+                    for arg in args {
+                        self.compile_expr(arg, ctx, code);
                     }
-                    Expr::Field { base, field } => {
-                        if let Some(parts) = Self::expr_to_parts(callee)
-                            && parts.len() == 2
-                            && matches!(&**base, Expr::Ident(pkg) if ctx.lookup(pkg).is_none())
-                        {
-                            for arg in args {
-                                self.compile_expr(arg, ctx, code);
-                            }
-                            code.push(Instr::CallBuiltin {
-                                package: parts[0].clone(),
-                                name: parts[1].clone(),
-                                argc: args.len(),
-                            });
-                            return;
-                        }
-                        if let Some(parts) = Self::expr_to_parts(callee)
-                            && parts.len() > 2
-                        {
-                            self.error(
-                                "Only `package.function(...)` builtins are supported".to_string(),
-                            );
-                            return;
-                        }
-
-                        self.compile_expr(base, ctx, code);
-                        for arg in args {
-                            self.compile_expr(arg, ctx, code);
-                        }
-                        code.push(Instr::CallMethod {
-                            name: field.clone(),
-                            argc: args.len(),
-                        });
-                    }
-                    _ => {
-                        self.error(
-                            "Only direct function and method calls are supported in bytecode compiler"
-                                .to_string(),
-                        );
-                    }
+                    code.push(Instr::Call {
+                        name: name.clone(),
+                        argc: args.len(),
+                    });
                 }
-            }
+                Expr::Field { base, field } => {
+                    if let Some(parts) = Self::expr_to_parts(callee)
+                        && parts.len() == 2
+                        && matches!(&**base, Expr::Ident(pkg) if ctx.lookup(pkg).is_none())
+                    {
+                        for arg in args {
+                            self.compile_expr(arg, ctx, code);
+                        }
+                        code.push(Instr::CallBuiltin {
+                            package: parts[0].clone(),
+                            name: parts[1].clone(),
+                            argc: args.len(),
+                        });
+                        return;
+                    }
+                    if let Some(parts) = Self::expr_to_parts(callee)
+                        && parts.len() > 2
+                    {
+                        self.error(
+                            "Only `package.function(...)` builtins are supported".to_string(),
+                        );
+                        return;
+                    }
+
+                    self.compile_expr(base, ctx, code);
+                    for arg in args {
+                        self.compile_expr(arg, ctx, code);
+                    }
+                    code.push(Instr::CallMethod {
+                        name: field.clone(),
+                        argc: args.len(),
+                    });
+                }
+                _ => {
+                    self.error(
+                        "Only direct function and method calls are supported in bytecode compiler"
+                            .to_string(),
+                    );
+                }
+            },
             Expr::Group(inner) => self.compile_expr(inner, ctx, code),
             Expr::Path(_) => {
                 self.error(

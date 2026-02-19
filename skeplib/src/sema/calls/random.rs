@@ -20,4 +20,3 @@ pub(super) fn check_random_builtin(
         BuiltinKind::FormatVariadic | BuiltinKind::ArrayOps => sig.ret.clone(),
     }
 }
-

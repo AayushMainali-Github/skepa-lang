@@ -119,7 +119,10 @@ pub(super) fn call_method(
         if e.kind == VmErrorKind::UnknownFunction {
             return super::err_at(
                 VmErrorKind::UnknownFunction,
-                format!("Unknown method `{}` on struct `{}`", method_name, struct_name),
+                format!(
+                    "Unknown method `{}` on struct `{}`",
+                    method_name, struct_name
+                ),
                 site.function_name,
                 site.ip,
             );

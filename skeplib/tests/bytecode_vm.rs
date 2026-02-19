@@ -437,7 +437,10 @@ fn main() -> Int {
     let module = compile_source(src).expect("compile");
     let err = Vm::run_module_main(&module).expect_err("unknown method");
     assert_eq!(err.kind, VmErrorKind::UnknownFunction);
-    assert!(err.message.contains("Unknown method `nope` on struct `User`"));
+    assert!(
+        err.message
+            .contains("Unknown method `nope` on struct `User`")
+    );
 }
 
 #[test]
@@ -464,7 +467,10 @@ fn vm_reports_unknown_struct_field_with_clear_message() {
     };
     let err = Vm::run_module_main(&module).expect_err("unknown field");
     assert_eq!(err.kind, VmErrorKind::TypeMismatch);
-    assert!(err.message.contains("Unknown struct field `name` on `User`"));
+    assert!(
+        err.message
+            .contains("Unknown struct field `name` on `User`")
+    );
 }
 
 #[test]
@@ -1830,7 +1836,10 @@ fn vm_reports_datetime_runtime_arity_mismatch_from_manual_bytecode() {
     };
     let err = Vm::run_module_main(&millis_arity_module).expect_err("arity mismatch");
     assert_eq!(err.kind, VmErrorKind::ArityMismatch);
-    assert!(err.message.contains("datetime.nowMillis expects 0 arguments"));
+    assert!(
+        err.message
+            .contains("datetime.nowMillis expects 0 arguments")
+    );
 }
 
 #[test]
@@ -1905,7 +1914,10 @@ fn vm_reports_datetime_from_runtime_errors_from_manual_bytecode() {
     };
     let err = Vm::run_module_main(&from_millis_type_module).expect_err("type mismatch");
     assert_eq!(err.kind, VmErrorKind::TypeMismatch);
-    assert!(err.message.contains("datetime.fromMillis expects Int argument"));
+    assert!(
+        err.message
+            .contains("datetime.fromMillis expects Int argument")
+    );
 }
 
 #[test]
@@ -1966,7 +1978,10 @@ fn vm_reports_datetime_parse_unix_runtime_errors_from_manual_bytecode() {
     };
     let err = Vm::run_module_main(&arity_module).expect_err("arity mismatch");
     assert_eq!(err.kind, VmErrorKind::ArityMismatch);
-    assert!(err.message.contains("datetime.parseUnix expects 1 argument"));
+    assert!(
+        err.message
+            .contains("datetime.parseUnix expects 1 argument")
+    );
 
     let type_module = BytecodeModule {
         functions: vec![(
@@ -1991,7 +2006,10 @@ fn vm_reports_datetime_parse_unix_runtime_errors_from_manual_bytecode() {
     };
     let err = Vm::run_module_main(&type_module).expect_err("type mismatch");
     assert_eq!(err.kind, VmErrorKind::TypeMismatch);
-    assert!(err.message.contains("datetime.parseUnix expects String argument"));
+    assert!(
+        err.message
+            .contains("datetime.parseUnix expects String argument")
+    );
 }
 
 #[test]

@@ -103,11 +103,7 @@ pub(super) fn struct_set_path(
 }
 
 fn set_field_path(cur: Value, path: &[String], value: Value) -> Result<Value, String> {
-    let Value::Struct {
-        name,
-        mut fields,
-    } = cur
-    else {
+    let Value::Struct { name, mut fields } = cur else {
         return Err("expected Struct along field path".to_string());
     };
     let key = &path[0];

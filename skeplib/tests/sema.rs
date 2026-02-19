@@ -957,7 +957,6 @@ fn main() -> Int {
     assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
 }
 
-
 #[test]
 fn sema_rejects_arr_without_import() {
     let src = r#"
@@ -997,7 +996,6 @@ fn main() -> Int {
             .any(|d| d.message.contains("arr.contains argument 2 expects Int"))
     );
 }
-
 
 #[test]
 fn sema_rejects_array_add_with_different_element_types() {
@@ -1438,10 +1436,12 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags.as_slice().iter().any(|d| {
-        d.message
-            .contains("random.int argument 2 expects Int")
-    }));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| { d.message.contains("random.int argument 2 expects Int") })
+    );
 }
 
 #[test]
@@ -1570,10 +1570,12 @@ fn main() -> Int { return 0; }
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags.as_slice().iter().any(|d| {
-        d.message
-            .contains("Duplicate method `id` in impl `User`")
-    }));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| { d.message.contains("Duplicate method `id` in impl `User`") })
+    );
 }
 
 #[test]
@@ -1708,7 +1710,8 @@ fn main() -> Int {
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
     assert!(diags.as_slice().iter().any(|d| {
-        d.message.contains("Type mismatch for field `id` in struct `User` literal")
+        d.message
+            .contains("Type mismatch for field `id` in struct `User` literal")
     }));
 }
 
@@ -1725,9 +1728,12 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags.as_slice().iter().any(|d| {
-        d.message.contains("Unknown field `nope` on struct `User`")
-    }));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| { d.message.contains("Unknown field `nope` on struct `User`") })
+    );
 }
 
 #[test]
@@ -1759,9 +1765,12 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags.as_slice().iter().any(|d| {
-        d.message.contains("Unknown method `nope` on struct `User`")
-    }));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| { d.message.contains("Unknown method `nope` on struct `User`") })
+    );
 }
 
 #[test]
@@ -1778,9 +1787,12 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags.as_slice().iter().any(|d| {
-        d.message.contains("Arity mismatch for method `User.add`")
-    }));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| { d.message.contains("Arity mismatch for method `User.add`") })
+    );
 }
 
 #[test]
@@ -1797,9 +1809,12 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags.as_slice().iter().any(|d| {
-        d.message.contains("Argument 1 for method `User.add`")
-    }));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| { d.message.contains("Argument 1 for method `User.add`") })
+    );
 }
 
 #[test]
@@ -1812,9 +1827,12 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags.as_slice().iter().any(|d| {
-        d.message.contains("Method call requires struct receiver")
-    }));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| { d.message.contains("Method call requires struct receiver") })
+    );
 }
 
 #[test]
@@ -1830,9 +1848,12 @@ fn main() -> Int { return 0; }
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags.as_slice().iter().any(|d| {
-        d.message.contains("Return type mismatch")
-    }));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| { d.message.contains("Return type mismatch") })
+    );
 }
 
 #[test]
@@ -1849,7 +1870,8 @@ fn main() -> Int { return 0; }
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
     assert!(diags.as_slice().iter().any(|d| {
-        d.message.contains("Method `User.bad` may exit without returning")
+        d.message
+            .contains("Method `User.bad` may exit without returning")
     }));
 }
 
@@ -1866,9 +1888,12 @@ fn main() -> Int { return 0; }
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags.as_slice().iter().any(|d| {
-        d.message.contains("Unknown variable `nope`")
-    }));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| { d.message.contains("Unknown variable `nope`") })
+    );
 }
 
 #[test]

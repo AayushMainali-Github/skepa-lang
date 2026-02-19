@@ -145,7 +145,9 @@ impl Checker {
                 for (field_name, expr) in fields {
                     let value_ty = self.check_expr(expr, scopes);
                     let Some(expected_ty) = expected_fields.get(field_name).cloned() else {
-                        self.error(format!("Unknown field `{field_name}` in struct `{name}` literal"));
+                        self.error(format!(
+                            "Unknown field `{field_name}` in struct `{name}` literal"
+                        ));
                         continue;
                     };
                     if seen.insert(field_name.clone(), ()).is_some() {
