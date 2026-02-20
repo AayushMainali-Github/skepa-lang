@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+use crate::ast::{ImportDecl, Program};
+
 pub type ModuleId = String;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -87,4 +89,24 @@ pub fn module_id_from_relative_path(path: &Path) -> Result<ModuleId, ResolveErro
         ));
     }
     Ok(parts.join("."))
+}
+
+pub fn module_path_from_import(root: &Path, import_path: &[String]) -> PathBuf {
+    let mut path = root.to_path_buf();
+    for part in import_path {
+        path.push(part);
+    }
+    path.set_extension("sk");
+    path
+}
+
+pub fn collect_import_module_paths(program: &Program) -> Vec<Vec<String>> {
+    let mut out = Vec::new();
+    for import in &program.imports {
+        match import {
+            ImportDecl::ImportModule { path, .. } => out.push(path.clone()),
+            ImportDecl::ImportFrom { path, .. } => out.push(path.clone()),
+        }
+    }
+    out
 }

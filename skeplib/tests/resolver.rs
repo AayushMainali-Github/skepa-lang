@@ -1,6 +1,8 @@
 use skeplib::resolver::{
-    module_id_from_relative_path, resolve_project, ModuleGraph, ModuleUnit, ResolveErrorKind,
+    collect_import_module_paths, module_id_from_relative_path, module_path_from_import,
+    resolve_project, ModuleGraph, ModuleUnit, ResolveErrorKind,
 };
+use skeplib::parser::Parser;
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -42,4 +44,31 @@ fn module_id_from_relative_path_uses_dot_notation() {
 fn module_id_from_relative_path_rejects_non_sk_extension() {
     let err = module_id_from_relative_path(Path::new("utils/math.txt")).expect_err("must fail");
     assert_eq!(err.kind, ResolveErrorKind::MissingModule);
+}
+
+#[test]
+fn module_path_from_import_maps_dotted_path_to_sk_file() {
+    let root = Path::new("project");
+    let import_path = vec!["utils".to_string(), "math".to_string()];
+    let got = module_path_from_import(root, &import_path);
+    assert_eq!(got, Path::new("project").join("utils").join("math.sk"));
+}
+
+#[test]
+fn collect_import_module_paths_includes_import_and_from_import() {
+    let src = r#"
+import alpha.beta;
+from gamma.delta import x as y;
+fn main() -> Int { return 0; }
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    let paths = collect_import_module_paths(&program);
+    assert_eq!(
+        paths,
+        vec![
+            vec!["alpha".to_string(), "beta".to_string()],
+            vec!["gamma".to_string(), "delta".to_string()]
+        ]
+    );
 }
