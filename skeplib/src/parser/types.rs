@@ -6,6 +6,33 @@ use super::Parser;
 
 impl Parser {
     pub(super) fn expect_type_name(&mut self, message: &str) -> Option<TypeName> {
+        if self.at(TokenKind::Ident) && self.current().lexeme == "Fn" {
+            self.bump();
+            self.expect(TokenKind::LParen, "Expected `(` after `Fn`")?;
+            let mut params = Vec::new();
+            if !self.at(TokenKind::RParen) {
+                loop {
+                    let ty = self.expect_type_name("Expected function parameter type")?;
+                    params.push(ty);
+                    if self.at(TokenKind::Comma) {
+                        self.bump();
+                        if self.at(TokenKind::RParen) {
+                            break;
+                        }
+                        continue;
+                    }
+                    break;
+                }
+            }
+            self.expect(TokenKind::RParen, "Expected `)` after function type parameters")?;
+            self.expect(TokenKind::Arrow, "Expected `->` after function type parameters")?;
+            let ret = self.expect_type_name("Expected function return type after `->`")?;
+            return Some(TypeName::Fn {
+                params,
+                ret: Box::new(ret),
+            });
+        }
+
         if self.at(TokenKind::LBracket) {
             self.bump();
             let elem = self.expect_type_name("Expected element type in array type")?;

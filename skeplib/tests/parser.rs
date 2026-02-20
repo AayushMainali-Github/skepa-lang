@@ -97,6 +97,42 @@ fn mat(m: [[Int; 3]; 2]) -> [[Int; 3]; 2] {
 }
 
 #[test]
+fn parses_function_type_annotations_in_params_and_return() {
+    let src = r#"
+fn apply(f: Fn(Int, Int) -> Int) -> Fn(Int, Int) -> Int {
+  return f;
+}
+"#;
+    let program = parse_ok(src);
+    let f = &program.functions[0];
+    assert_eq!(
+        f.params[0].ty,
+        TypeName::Fn {
+            params: vec![TypeName::Int, TypeName::Int],
+            ret: Box::new(TypeName::Int),
+        }
+    );
+    assert_eq!(
+        f.return_type,
+        Some(TypeName::Fn {
+            params: vec![TypeName::Int, TypeName::Int],
+            ret: Box::new(TypeName::Int),
+        })
+    );
+}
+
+#[test]
+fn reports_missing_arrow_in_function_type() {
+    let src = r#"
+fn bad(f: Fn(Int, Int) Int) -> Int {
+  return 0;
+}
+"#;
+    let diags = parse_err(src);
+    assert_has_diag(&diags, "Expected `->` after function type parameters");
+}
+
+#[test]
 fn reports_missing_colon_in_parameter() {
     let src = r#"
 fn add(a Int) -> Int {

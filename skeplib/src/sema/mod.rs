@@ -227,6 +227,12 @@ impl Checker {
             | TypeName::String
             | TypeName::Void => {}
             TypeName::Array { elem, .. } => self.check_decl_type_exists(elem, err_prefix),
+            TypeName::Fn { params, ret } => {
+                for p in params {
+                    self.check_decl_type_exists(p, err_prefix.clone());
+                }
+                self.check_decl_type_exists(ret, err_prefix);
+            }
             TypeName::Named(name) => {
                 if !self.struct_names.contains(name) {
                     self.error(format!("{err_prefix}: `{name}`"));

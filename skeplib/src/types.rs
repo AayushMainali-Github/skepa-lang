@@ -9,6 +9,10 @@ pub enum TypeInfo {
     Void,
     Named(String),
     Array { elem: Box<TypeInfo>, size: usize },
+    Fn {
+        params: Vec<TypeInfo>,
+        ret: Box<TypeInfo>,
+    },
     Unknown,
 }
 
@@ -24,6 +28,10 @@ impl TypeInfo {
             TypeName::Array { elem, size } => TypeInfo::Array {
                 elem: Box::new(TypeInfo::from_ast(elem)),
                 size: *size,
+            },
+            TypeName::Fn { params, ret } => TypeInfo::Fn {
+                params: params.iter().map(TypeInfo::from_ast).collect(),
+                ret: Box::new(TypeInfo::from_ast(ret)),
             },
         }
     }

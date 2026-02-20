@@ -141,6 +141,10 @@ pub enum TypeName {
     Void,
     Named(String),
     Array { elem: Box<TypeName>, size: usize },
+    Fn {
+        params: Vec<TypeName>,
+        ret: Box<TypeName>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -421,6 +425,14 @@ impl TypeName {
             TypeName::Void => "Void".to_string(),
             TypeName::Named(name) => name.clone(),
             TypeName::Array { elem, size } => format!("[{}; {}]", elem.as_str(), size),
+            TypeName::Fn { params, ret } => {
+                let params = params
+                    .iter()
+                    .map(TypeName::as_str)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("Fn({params}) -> {}", ret.as_str())
+            }
         }
     }
 }
