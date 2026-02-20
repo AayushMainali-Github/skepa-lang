@@ -213,6 +213,34 @@ fn main() -> Int {
 }
 
 #[test]
+fn parses_struct_field_with_function_type() {
+    let src = r#"
+struct Op {
+  apply: Fn(Int, Int) -> Int
+}
+
+fn add(a: Int, b: Int) -> Int { return a + b; }
+
+fn main() -> Int {
+  let op: Op = Op { apply: add };
+  return (op.apply)(2, 3);
+}
+"#;
+    let program = parse_ok(src);
+    assert_eq!(program.structs.len(), 1);
+    let s = &program.structs[0];
+    assert_eq!(s.fields.len(), 1);
+    assert_eq!(s.fields[0].name, "apply");
+    assert_eq!(
+        s.fields[0].ty,
+        TypeName::Fn {
+            params: vec![TypeName::Int, TypeName::Int],
+            ret: Box::new(TypeName::Int),
+        }
+    );
+}
+
+#[test]
 fn reports_missing_colon_in_parameter() {
     let src = r#"
 fn add(a Int) -> Int {

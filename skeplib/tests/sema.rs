@@ -302,6 +302,65 @@ fn main() -> Int {
 }
 
 #[test]
+fn sema_accepts_function_type_inside_struct_field_and_call_via_grouping() {
+    let src = r#"
+struct Op {
+  apply: Fn(Int, Int) -> Int
+}
+
+fn add(a: Int, b: Int) -> Int { return a + b; }
+
+fn main() -> Int {
+  let op: Op = Op { apply: add };
+  return (op.apply)(20, 22);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_accepts_function_type_inside_array_and_returned_array_of_functions() {
+    let src = r#"
+fn add(a: Int, b: Int) -> Int { return a + b; }
+fn mul(a: Int, b: Int) -> Int { return a * b; }
+
+fn makeOps() -> [Fn(Int, Int) -> Int; 2] {
+  return [add, mul];
+}
+
+fn main() -> Int {
+  let ops = makeOps();
+  return ops[0](2, 3) + ops[1](2, 3);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_rejects_method_style_call_on_function_field() {
+    let src = r#"
+struct Op {
+  apply: Fn(Int, Int) -> Int
+}
+
+fn add(a: Int, b: Int) -> Int { return a + b; }
+
+fn main() -> Int {
+  let op: Op = Op { apply: add };
+  return op.apply(1, 2);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("Unknown method `apply` on struct `Op`")));
+}
+
+#[test]
 fn sema_reports_io_print_type_error() {
     let src = r#"
 import io;

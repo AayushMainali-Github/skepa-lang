@@ -1166,6 +1166,65 @@ fn main() -> Int {
 }
 
 #[test]
+fn runs_function_type_in_struct_field_and_call_via_grouping() {
+    let src = r#"
+struct Op {
+  apply: Fn(Int, Int) -> Int
+}
+
+fn add(a: Int, b: Int) -> Int { return a + b; }
+
+fn main() -> Int {
+  let op: Op = Op { apply: add };
+  return (op.apply)(20, 22);
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(42));
+}
+
+#[test]
+fn runs_array_of_functions_returned_from_function() {
+    let src = r#"
+fn add(a: Int, b: Int) -> Int { return a + b; }
+fn mul(a: Int, b: Int) -> Int { return a * b; }
+
+fn makeOps() -> [Fn(Int, Int) -> Int; 2] {
+  return [add, mul];
+}
+
+fn main() -> Int {
+  let ops = makeOps();
+  return ops[0](2, 3) + ops[1](2, 3);
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(11));
+}
+
+#[test]
+fn vm_reports_unknown_method_for_method_style_call_on_function_field() {
+    let src = r#"
+struct Op {
+  apply: Fn(Int, Int) -> Int
+}
+
+fn add(a: Int, b: Int) -> Int { return a + b; }
+
+fn main() -> Int {
+  let op: Op = Op { apply: add };
+  return op.apply(1, 2);
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("unknown method");
+    assert_eq!(err.kind, VmErrorKind::UnknownFunction);
+    assert!(err.message.contains("Unknown method `apply` on struct `Op`"));
+}
+
+#[test]
 fn bytecode_roundtrip_preserves_function_value_and_callvalue_instr() {
     let module = BytecodeModule {
         functions: vec![
