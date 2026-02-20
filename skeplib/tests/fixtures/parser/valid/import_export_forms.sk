@@ -1,0 +1,10 @@
+import io;
+import utils.math;
+import utils.math as m;
+from utils.math import add, sub as minus;
+
+export { add as plus, minus, version };
+
+fn main() -> Int {
+  return 0;
+}

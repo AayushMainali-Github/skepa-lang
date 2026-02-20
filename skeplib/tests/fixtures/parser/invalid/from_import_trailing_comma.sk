@@ -1,0 +1,5 @@
+from utils.math import add,;
+
+fn main() -> Int {
+  return 0;
+}

@@ -1,0 +1,4 @@
+fn main() -> Int {
+  export { nope };
+  return 0;
+}
