@@ -279,7 +279,10 @@ fn main() -> Int { return 0; }
     fs::write(root.join("main.sk"), main_src).expect("write main");
 
     let errs = resolve_project(&root.join("main.sk")).expect_err("missing module expected");
-    assert!(errs.iter().any(|e| e.kind == ResolveErrorKind::MissingModule));
+    assert!(errs.iter().any(|e| {
+        e.kind == ResolveErrorKind::MissingModule
+            && e.message.contains("while resolving import `missing.dep` in module `main`")
+    }));
     let _ = fs::remove_dir_all(root);
 }
 

@@ -110,6 +110,7 @@ pub fn resolve_project(entry: &Path) -> Result<ModuleGraph, Vec<ResolveError>> {
         let mut imports = Vec::new();
 
         for import_path in import_paths {
+            let import_text = import_path.join(".");
             match resolve_import_target(&root, &import_path) {
                 Ok(ImportTarget::File(target_file)) => {
                     let target_rel = match target_file.strip_prefix(&root) {
@@ -130,10 +131,10 @@ pub fn resolve_project(entry: &Path) -> Result<ModuleGraph, Vec<ResolveError>> {
                                 queue.push_back(dep_path);
                             }
                         }
-                        Err(e) => errors.push(e),
+                        Err(e) => errors.push(with_importer_context(e, &id, &path, &import_text)),
                     }
                 }
-                Err(e) => errors.push(e),
+                Err(e) => errors.push(with_importer_context(e, &id, &path, &import_text)),
             }
         }
 
@@ -152,6 +153,22 @@ pub fn resolve_project(entry: &Path) -> Result<ModuleGraph, Vec<ResolveError>> {
         errors.extend(detect_cycles(&graph));
     }
     if errors.is_empty() { Ok(graph) } else { Err(errors) }
+}
+
+fn with_importer_context(
+    mut err: ResolveError,
+    importer_id: &str,
+    importer_path: &Path,
+    import_text: &str,
+) -> ResolveError {
+    err.message = format!(
+        "{} (while resolving import `{}` in module `{}` at {})",
+        err.message,
+        import_text,
+        importer_id,
+        importer_path.display()
+    );
+    err
 }
 
 pub fn module_id_from_relative_path(path: &Path) -> Result<ModuleId, ResolveError> {
