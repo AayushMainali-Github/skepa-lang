@@ -196,6 +196,20 @@ fn main() -> Int { return 0; }
 }
 
 #[test]
+fn reports_multiple_export_blocks_in_one_file() {
+    let src = r#"
+export { a };
+export { b };
+fn main() -> Int { return 0; }
+"#;
+    let diags = parse_err(src);
+    assert_has_diag(
+        &diags,
+        "Only one `export { ... };` block is allowed per file",
+    );
+}
+
+#[test]
 fn reports_export_inside_function_body() {
     let src = r#"
 fn main() -> Int {
@@ -302,6 +316,36 @@ fn main() -> Int { return 0; }
 "#;
     let diags = parse_err(src);
     assert_has_diag(&diags, "Expected identifier after `.` in module path");
+}
+
+#[test]
+fn reports_from_import_missing_item() {
+    let src = r#"
+from a.b import;
+fn main() -> Int { return 0; }
+"#;
+    let diags = parse_err(src);
+    assert_has_diag(&diags, "Expected imported symbol name after `import`");
+}
+
+#[test]
+fn reports_import_alias_missing_identifier() {
+    let src = r#"
+import a.b as;
+fn main() -> Int { return 0; }
+"#;
+    let diags = parse_err(src);
+    assert_has_diag(&diags, "Expected alias name after `as`");
+}
+
+#[test]
+fn reports_export_alias_missing_identifier() {
+    let src = r#"
+export { a as };
+fn main() -> Int { return 0; }
+"#;
+    let diags = parse_err(src);
+    assert_has_diag(&diags, "Expected alias name after `as`");
 }
 
 #[test]

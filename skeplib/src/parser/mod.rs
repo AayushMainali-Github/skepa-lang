@@ -46,6 +46,7 @@ impl Parser {
     fn parse_program(&mut self) -> Program {
         let mut imports = Vec::new();
         let mut exports = Vec::new();
+        let mut seen_export_decl = false;
         let mut structs = Vec::new();
         let mut impls = Vec::new();
         let mut functions = Vec::new();
@@ -65,7 +66,15 @@ impl Parser {
             }
             if self.at(TokenKind::KwExport) {
                 if let Some(e) = self.parse_export_decl() {
-                    exports.push(e);
+                    if seen_export_decl {
+                        self.diagnostics.error(
+                            "Only one `export { ... };` block is allowed per file",
+                            self.current().span,
+                        );
+                    } else {
+                        exports.push(e);
+                        seen_export_decl = true;
+                    }
                 }
                 continue;
             }
