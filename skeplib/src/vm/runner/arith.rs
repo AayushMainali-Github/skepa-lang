@@ -204,6 +204,14 @@ pub(super) fn eq(stack: &mut Vec<Value>, function_name: &str, ip: usize) -> Resu
             ip,
         ));
     };
+    if matches!(l, Value::Function(_)) || matches!(r, Value::Function(_)) {
+        return Err(super::err_at(
+            VmErrorKind::TypeMismatch,
+            "Eq does not support Function values",
+            function_name,
+            ip,
+        ));
+    }
     stack.push(Value::Bool(l == r));
     Ok(())
 }
@@ -225,6 +233,14 @@ pub(super) fn neq(stack: &mut Vec<Value>, function_name: &str, ip: usize) -> Res
             ip,
         ));
     };
+    if matches!(l, Value::Function(_)) || matches!(r, Value::Function(_)) {
+        return Err(super::err_at(
+            VmErrorKind::TypeMismatch,
+            "Neq does not support Function values",
+            function_name,
+            ip,
+        ));
+    }
     stack.push(Value::Bool(l != r));
     Ok(())
 }

@@ -277,6 +277,10 @@ impl Checker {
                 }
             }
             EqEq | Neq => {
+                if matches!(lt, TypeInfo::Fn { .. }) || matches!(rt, TypeInfo::Fn { .. }) {
+                    self.error("Function values cannot be compared with `==` or `!=`".to_string());
+                    return TypeInfo::Unknown;
+                }
                 if lt == rt || lt == TypeInfo::Unknown || rt == TypeInfo::Unknown {
                     TypeInfo::Bool
                 } else {

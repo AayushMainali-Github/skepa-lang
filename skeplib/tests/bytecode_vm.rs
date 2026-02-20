@@ -1012,6 +1012,54 @@ fn vm_reports_callvalue_type_mismatch_for_non_function_callee() {
 }
 
 #[test]
+fn vm_reports_type_mismatch_for_function_value_equality() {
+    let module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::LoadConst(Value::Function("f".to_string())),
+                    Instr::LoadConst(Value::Function("f".to_string())),
+                    Instr::Eq,
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&module).expect_err("type mismatch");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
+}
+
+#[test]
+fn vm_reports_type_mismatch_for_function_value_inequality() {
+    let module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::LoadConst(Value::Function("f".to_string())),
+                    Instr::LoadConst(Value::Function("g".to_string())),
+                    Instr::Neq,
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&module).expect_err("type mismatch");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
+}
+
+#[test]
 fn runs_function_value_call_via_grouped_callee_expr() {
     let src = r#"
 fn add(a: Int, b: Int) -> Int {

@@ -279,6 +279,29 @@ fn main() -> Int {
 }
 
 #[test]
+fn sema_rejects_function_value_equality() {
+    let src = r#"
+fn add(a: Int, b: Int) -> Int { return a + b; }
+
+fn main() -> Int {
+  let f: Fn(Int, Int) -> Int = add;
+  if (f == add) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d
+            .message
+            .contains("Function values cannot be compared with `==` or `!=`")));
+}
+
+#[test]
 fn sema_reports_io_print_type_error() {
     let src = r#"
 import io;
