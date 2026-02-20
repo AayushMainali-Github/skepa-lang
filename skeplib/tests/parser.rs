@@ -196,6 +196,32 @@ fn main() -> Int { return 0; }
 }
 
 #[test]
+fn reports_export_inside_function_body() {
+    let src = r#"
+fn main() -> Int {
+  export { add };
+  return 0;
+}
+"#;
+    let diags = parse_err(src);
+    assert_has_diag(&diags, "`export` is only allowed at top-level");
+}
+
+#[test]
+fn reports_export_inside_if_block() {
+    let src = r#"
+fn main() -> Int {
+  if (true) {
+    export { add };
+  }
+  return 0;
+}
+"#;
+    let diags = parse_err(src);
+    assert_has_diag(&diags, "`export` is only allowed at top-level");
+}
+
+#[test]
 fn reports_malformed_dotted_import_path() {
     let src = r#"
 import a..b;

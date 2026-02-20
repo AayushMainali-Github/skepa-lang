@@ -85,6 +85,17 @@ impl Parser {
             self.expect(TokenKind::Semi, "Expected `;` after `continue`")?;
             return Some(Stmt::Continue);
         }
+        if self.at(TokenKind::KwExport) {
+            self.bump();
+            self.error_here_expected("`export` is only allowed at top-level");
+            while !self.at(TokenKind::Semi) && !self.at(TokenKind::Eof) && !self.at(TokenKind::RBrace) {
+                self.bump();
+            }
+            if self.at(TokenKind::Semi) {
+                self.bump();
+            }
+            return None;
+        }
 
         if self.at(TokenKind::KwLet) {
             self.bump();
