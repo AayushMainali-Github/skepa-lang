@@ -1,6 +1,7 @@
 use skeplib::resolver::{
     collect_import_module_paths, module_id_from_relative_path, module_path_from_import,
-    resolve_import_target, resolve_project, ImportTarget, ModuleGraph, ModuleUnit, ResolveErrorKind,
+    resolve_import_target, resolve_project, scan_folder_modules, ImportTarget, ModuleGraph,
+    ModuleUnit, ResolveErrorKind,
 };
 use skeplib::parser::Parser;
 use std::collections::HashMap;
@@ -112,5 +113,39 @@ fn resolve_import_target_reports_ambiguity_when_file_and_folder_exist() {
     fs::create_dir_all(root.join("a")).expect("create folder");
     let err = resolve_import_target(&root, &[String::from("a")]).expect_err("must be ambiguous");
     assert_eq!(err.kind, ResolveErrorKind::AmbiguousModule);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn scan_folder_modules_recursively_collects_sk_files_with_prefixed_ids() {
+    let root = make_temp_dir("scan_recursive");
+    let folder = root.join("string");
+    fs::create_dir_all(folder.join("nested")).expect("create nested folder");
+    fs::write(folder.join("case.sk"), "fn main() -> Int { return 0; }").expect("write case");
+    fs::write(folder.join("nested").join("trim.sk"), "fn main() -> Int { return 0; }")
+        .expect("write trim");
+    fs::write(folder.join("README.md"), "ignore").expect("write ignored file");
+
+    let entries = scan_folder_modules(&folder, &[String::from("string")]).expect("scan");
+    let mut ids = entries.into_iter().map(|(id, _)| id).collect::<Vec<_>>();
+    ids.sort();
+    assert_eq!(
+        ids,
+        vec!["string.case".to_string(), "string.nested.trim".to_string()]
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn scan_folder_modules_ignores_non_sk_files() {
+    let root = make_temp_dir("scan_filter");
+    let folder = root.join("pkg");
+    fs::create_dir_all(&folder).expect("create folder");
+    fs::write(folder.join("a.txt"), "ignore").expect("write txt");
+    fs::write(folder.join("b.sk"), "fn main() -> Int { return 0; }").expect("write sk");
+
+    let entries = scan_folder_modules(&folder, &[String::from("pkg")]).expect("scan");
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0].0, "pkg.b");
     let _ = fs::remove_dir_all(root);
 }

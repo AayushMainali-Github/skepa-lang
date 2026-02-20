@@ -168,3 +168,85 @@ pub fn resolve_import_target(root: &Path, import_path: &[String]) -> Result<Impo
         )),
     }
 }
+
+pub fn scan_folder_modules(
+    folder_root: &Path,
+    import_prefix: &[String],
+) -> Result<Vec<(ModuleId, PathBuf)>, ResolveError> {
+    let mut out = Vec::new();
+    scan_folder_modules_inner(folder_root, folder_root, import_prefix, &mut out)?;
+    Ok(out)
+}
+
+fn scan_folder_modules_inner(
+    folder_root: &Path,
+    dir: &Path,
+    import_prefix: &[String],
+    out: &mut Vec<(ModuleId, PathBuf)>,
+) -> Result<(), ResolveError> {
+    let entries = fs::read_dir(dir).map_err(|e| {
+        ResolveError::new(
+            ResolveErrorKind::Io,
+            format!("Failed to read directory {}: {}", dir.display(), e),
+            Some(dir.to_path_buf()),
+        )
+    })?;
+    for entry in entries {
+        let entry = entry.map_err(|e| {
+            ResolveError::new(
+                ResolveErrorKind::Io,
+                format!("Failed to read directory entry in {}: {}", dir.display(), e),
+                Some(dir.to_path_buf()),
+            )
+        })?;
+        let path = entry.path();
+        let file_type = entry.file_type().map_err(|e| {
+            ResolveError::new(
+                ResolveErrorKind::Io,
+                format!("Failed to read file type for {}: {}", path.display(), e),
+                Some(path.clone()),
+            )
+        })?;
+        if file_type.is_dir() {
+            scan_folder_modules_inner(folder_root, &path, import_prefix, out)?;
+            continue;
+        }
+        if !file_type.is_file() {
+            continue;
+        }
+        if path.extension().and_then(|e| e.to_str()) != Some("sk") {
+            continue;
+        }
+        let rel = path.strip_prefix(folder_root).map_err(|_| {
+            ResolveError::new(
+                ResolveErrorKind::Io,
+                format!(
+                    "Failed to strip folder prefix {} from {}",
+                    folder_root.display(),
+                    path.display()
+                ),
+                Some(path.clone()),
+            )
+        })?;
+        let rel_no_ext = rel.with_extension("");
+        let mut parts: Vec<String> = import_prefix.to_vec();
+        for comp in rel_no_ext.components() {
+            let s = comp.as_os_str().to_str().ok_or_else(|| {
+                ResolveError::new(
+                    ResolveErrorKind::NonUtf8Path,
+                    format!("Non-UTF8 path component in {}", path.display()),
+                    Some(path.clone()),
+                )
+            })?;
+            if s.is_empty() || s == "." {
+                continue;
+            }
+            parts.push(s.to_string());
+        }
+        if parts.is_empty() {
+            continue;
+        }
+        out.push((parts.join("."), path));
+    }
+    Ok(())
+}
