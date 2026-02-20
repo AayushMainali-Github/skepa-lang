@@ -1,9 +1,9 @@
-use skeplib::resolver::{
-    collect_import_module_paths, module_id_from_relative_path, module_path_from_import,
-    resolve_import_target, resolve_project, scan_folder_modules, ImportTarget, ModuleGraph,
-    ModuleUnit, ResolveErrorKind,
-};
 use skeplib::parser::Parser;
+use skeplib::resolver::{
+    ImportTarget, ModuleGraph, ModuleUnit, ResolveErrorKind, collect_import_module_paths,
+    module_id_from_relative_path, module_path_from_import, resolve_import_target, resolve_project,
+    scan_folder_modules,
+};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
@@ -122,8 +122,11 @@ fn scan_folder_modules_recursively_collects_sk_files_with_prefixed_ids() {
     let folder = root.join("string");
     fs::create_dir_all(folder.join("nested")).expect("create nested folder");
     fs::write(folder.join("case.sk"), "fn main() -> Int { return 0; }").expect("write case");
-    fs::write(folder.join("nested").join("trim.sk"), "fn main() -> Int { return 0; }")
-        .expect("write trim");
+    fs::write(
+        folder.join("nested").join("trim.sk"),
+        "fn main() -> Int { return 0; }",
+    )
+    .expect("write trim");
     fs::write(folder.join("README.md"), "ignore").expect("write ignored file");
 
     let entries = scan_folder_modules(&folder, &[String::from("string")]).expect("scan");
@@ -230,10 +233,10 @@ fn fb() -> Int { return 1; }
     fs::write(root.join("b.sk"), b_src).expect("write b");
 
     let errs = resolve_project(&root.join("main.sk")).expect_err("cycle expected");
-    assert!(errs.iter().any(|e| {
-        e.kind == ResolveErrorKind::Cycle
-            && e.message.contains("a -> b -> a")
-    }));
+    assert!(
+        errs.iter()
+            .any(|e| { e.kind == ResolveErrorKind::Cycle && e.message.contains("a -> b -> a") })
+    );
     let _ = fs::remove_dir_all(root);
 }
 
@@ -262,10 +265,11 @@ fn fc() -> Int { return 1; }
     fs::write(root.join("c.sk"), c_src).expect("write c");
 
     let errs = resolve_project(&root.join("main.sk")).expect_err("cycle expected");
-    assert!(errs.iter().any(|e| {
-        e.kind == ResolveErrorKind::Cycle
-            && e.message.contains("a -> b -> c -> a")
-    }));
+    assert!(
+        errs.iter().any(|e| {
+            e.kind == ResolveErrorKind::Cycle && e.message.contains("a -> b -> c -> a")
+        })
+    );
     let _ = fs::remove_dir_all(root);
 }
 
@@ -281,7 +285,8 @@ fn main() -> Int { return 0; }
     let errs = resolve_project(&root.join("main.sk")).expect_err("missing module expected");
     assert!(errs.iter().any(|e| {
         e.kind == ResolveErrorKind::MissingModule
-            && e.message.contains("while resolving import `missing.dep` in module `main`")
+            && e.message
+                .contains("while resolving import `missing.dep` in module `main`")
     }));
     let _ = fs::remove_dir_all(root);
 }
@@ -307,12 +312,16 @@ fn main() -> Int { return 0; }
     fs::create_dir_all(root.join("a").join("b")).expect("create nested");
     fs::write(root.join("main.sk"), main_src).expect("write main");
     fs::write(root.join("a").join("b.c.sk"), "fn x() -> Int { return 1; }").expect("write file");
-    fs::write(root.join("a").join("b").join("c.sk"), "fn y() -> Int { return 2; }")
-        .expect("write file");
+    fs::write(
+        root.join("a").join("b").join("c.sk"),
+        "fn y() -> Int { return 2; }",
+    )
+    .expect("write file");
 
     let errs = resolve_project(&root.join("main.sk")).expect_err("duplicate id expected");
-    assert!(errs
-        .iter()
-        .any(|e| e.kind == ResolveErrorKind::DuplicateModuleId));
+    assert!(
+        errs.iter()
+            .any(|e| e.kind == ResolveErrorKind::DuplicateModuleId)
+    );
     let _ = fs::remove_dir_all(root);
 }

@@ -1,6 +1,6 @@
 mod common;
 
-use skeplib::resolver::{resolve_project, ResolveErrorKind};
+use skeplib::resolver::{ResolveErrorKind, resolve_project};
 use std::fs;
 use std::path::PathBuf;
 

@@ -152,7 +152,11 @@ pub fn resolve_project(entry: &Path) -> Result<ModuleGraph, Vec<ResolveError>> {
     if errors.is_empty() {
         errors.extend(detect_cycles(&graph));
     }
-    if errors.is_empty() { Ok(graph) } else { Err(errors) }
+    if errors.is_empty() {
+        Ok(graph)
+    } else {
+        Err(errors)
+    }
 }
 
 fn with_importer_context(
@@ -232,7 +236,10 @@ pub enum ImportTarget {
     Folder(PathBuf),
 }
 
-pub fn resolve_import_target(root: &Path, import_path: &[String]) -> Result<ImportTarget, ResolveError> {
+pub fn resolve_import_target(
+    root: &Path,
+    import_path: &[String],
+) -> Result<ImportTarget, ResolveError> {
     let file_path = module_path_from_import(root, import_path);
     let mut folder_path = root.to_path_buf();
     for part in import_path {
@@ -247,7 +254,7 @@ pub fn resolve_import_target(root: &Path, import_path: &[String]) -> Result<Impo
                 ResolveErrorKind::Io,
                 format!("Failed to read metadata for {}: {}", file_path.display(), e),
                 Some(file_path),
-            ))
+            ));
         }
     };
     let folder_exists = match fs::metadata(&folder_path) {
@@ -256,9 +263,13 @@ pub fn resolve_import_target(root: &Path, import_path: &[String]) -> Result<Impo
         Err(e) => {
             return Err(ResolveError::new(
                 ResolveErrorKind::Io,
-                format!("Failed to read metadata for {}: {}", folder_path.display(), e),
+                format!(
+                    "Failed to read metadata for {}: {}",
+                    folder_path.display(),
+                    e
+                ),
                 Some(folder_path),
-            ))
+            ));
         }
     };
 
