@@ -81,6 +81,51 @@ fn main() -> Int { return 0; }
 }
 
 #[test]
+fn parses_from_import_multiple_items_with_aliases() {
+    let src = r#"
+from utils.math import add, sub as minus;
+fn main() -> Int { return 0; }
+"#;
+    let program = parse_ok(src);
+    assert_eq!(
+        program.imports[0],
+        skeplib::ast::ImportDecl::ImportFrom {
+            path: vec!["utils".to_string(), "math".to_string()],
+            items: vec![
+                skeplib::ast::ImportItem {
+                    name: "add".to_string(),
+                    alias: None,
+                },
+                skeplib::ast::ImportItem {
+                    name: "sub".to_string(),
+                    alias: Some("minus".to_string()),
+                }
+            ],
+        }
+    );
+}
+
+#[test]
+fn reports_duplicate_alias_in_same_from_import_clause() {
+    let src = r#"
+from utils.math import add as x, sub as x;
+fn main() -> Int { return 0; }
+"#;
+    let diags = parse_err(src);
+    assert_has_diag(&diags, "Duplicate import alias `x` in from-import clause");
+}
+
+#[test]
+fn reports_duplicate_name_in_same_from_import_clause() {
+    let src = r#"
+from utils.math import add, add;
+fn main() -> Int { return 0; }
+"#;
+    let diags = parse_err(src);
+    assert_has_diag(&diags, "Duplicate imported symbol `add` in from-import clause");
+}
+
+#[test]
 fn reports_malformed_dotted_import_path() {
     let src = r#"
 import a..b;

@@ -5,6 +5,7 @@ use crate::ast::{
 use crate::diagnostic::{DiagnosticBag, Span};
 use crate::lexer::lex;
 use crate::token::{Token, TokenKind};
+use std::collections::HashSet;
 
 mod expr;
 mod stmt;
@@ -117,20 +118,42 @@ impl Parser {
         self.expect(TokenKind::KwFrom, "Expected `from`")?;
         let path = self.parse_dotted_path("Expected module path after `from`")?;
         self.expect(TokenKind::KwImport, "Expected `import` after module path in from-import")?;
-        let name = self
-            .expect_ident("Expected imported symbol name after `import`")?
-            .lexeme;
-        let alias = if self.at(TokenKind::KwAs) {
-            self.bump();
-            Some(self.expect_ident("Expected alias name after `as`")?.lexeme)
-        } else {
-            None
-        };
+        let mut items = Vec::new();
+        let mut seen_names: HashSet<String> = HashSet::new();
+        let mut seen_aliases: HashSet<String> = HashSet::new();
+        loop {
+            let name = self
+                .expect_ident("Expected imported symbol name after `import`")?
+                .lexeme;
+            let alias = if self.at(TokenKind::KwAs) {
+                self.bump();
+                Some(self.expect_ident("Expected alias name after `as`")?.lexeme)
+            } else {
+                None
+            };
+            if !seen_names.insert(name.clone()) {
+                self.diagnostics.error(
+                    format!("Duplicate imported symbol `{name}` in from-import clause"),
+                    self.current().span,
+                );
+            }
+            if let Some(a) = &alias
+                && !seen_aliases.insert(a.clone())
+            {
+                self.diagnostics.error(
+                    format!("Duplicate import alias `{a}` in from-import clause"),
+                    self.current().span,
+                );
+            }
+            items.push(ImportItem { name, alias });
+            if self.at(TokenKind::Comma) {
+                self.bump();
+                continue;
+            }
+            break;
+        }
         self.expect(TokenKind::Semi, "Expected `;` after from-import")?;
-        Some(ImportDecl::ImportFrom {
-            path,
-            items: vec![ImportItem { name, alias }],
-        })
+        Some(ImportDecl::ImportFrom { path, items })
     }
 
     fn parse_dotted_path(&mut self, first_err: &str) -> Option<Vec<String>> {
