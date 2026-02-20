@@ -1,0 +1,18 @@
+fn add(a: Int, b: Int) -> Int {
+  return a + b;
+}
+
+struct Op {
+  apply: Fn(Int, Int) -> Int
+}
+
+fn makeOps() -> [Fn(Int, Int) -> Int; 2] {
+  return [add, fn(x: Int, y: Int) -> Int { return x * y; }];
+}
+
+fn main() -> Int {
+  let f: Fn(Int, Int) -> Int = add;
+  let ops = makeOps();
+  let op: Op = Op { apply: add };
+  return f(1, 2) + ops[1](2, 3) + (op.apply)(3, 4);
+}
