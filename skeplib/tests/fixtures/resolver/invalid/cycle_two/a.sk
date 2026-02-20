@@ -1,0 +1,5 @@
+import b;
+
+fn fa() -> Int {
+  return 1;
+}

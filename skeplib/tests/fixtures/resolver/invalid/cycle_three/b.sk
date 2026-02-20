@@ -1,0 +1,5 @@
+import c;
+
+fn fb() -> Int {
+  return 1;
+}

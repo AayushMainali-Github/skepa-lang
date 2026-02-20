@@ -1,0 +1,5 @@
+import nope.missing;
+
+fn main() -> Int {
+  return 0;
+}

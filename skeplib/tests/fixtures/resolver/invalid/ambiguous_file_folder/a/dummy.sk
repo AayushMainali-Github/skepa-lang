@@ -1,0 +1,3 @@
+fn folder_mod() -> Int {
+  return 1;
+}
