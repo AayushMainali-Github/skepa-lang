@@ -149,3 +149,63 @@ fn scan_folder_modules_ignores_non_sk_files() {
     assert_eq!(entries[0].0, "pkg.b");
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn resolve_project_builds_multi_hop_graph() {
+    let root = make_temp_dir("graph_multihop");
+    let main_src = r#"
+import a;
+fn main() -> Int { return 0; }
+"#;
+    let a_src = r#"
+import b;
+fn run() -> Int { return 1; }
+"#;
+    let b_src = r#"
+fn util() -> Int { return 2; }
+"#;
+    fs::write(root.join("main.sk"), main_src).expect("write main");
+    fs::write(root.join("a.sk"), a_src).expect("write a");
+    fs::write(root.join("b.sk"), b_src).expect("write b");
+
+    let graph = resolve_project(&root.join("main.sk")).expect("resolve");
+    assert!(graph.modules.contains_key("main"));
+    assert!(graph.modules.contains_key("a"));
+    assert!(graph.modules.contains_key("b"));
+    assert_eq!(graph.modules["main"].imports, vec!["a".to_string()]);
+    assert_eq!(graph.modules["a"].imports, vec!["b".to_string()]);
+    assert!(graph.modules["b"].imports.is_empty());
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn resolve_project_loads_shared_dependency_once() {
+    let root = make_temp_dir("graph_shared");
+    let main_src = r#"
+import a;
+import b;
+fn main() -> Int { return 0; }
+"#;
+    let a_src = r#"
+import c;
+fn fa() -> Int { return 1; }
+"#;
+    let b_src = r#"
+import c;
+fn fb() -> Int { return 1; }
+"#;
+    let c_src = r#"
+fn fc() -> Int { return 1; }
+"#;
+    fs::write(root.join("main.sk"), main_src).expect("write main");
+    fs::write(root.join("a.sk"), a_src).expect("write a");
+    fs::write(root.join("b.sk"), b_src).expect("write b");
+    fs::write(root.join("c.sk"), c_src).expect("write c");
+
+    let graph = resolve_project(&root.join("main.sk")).expect("resolve");
+    assert!(graph.modules.contains_key("c"));
+    assert_eq!(graph.modules.len(), 4);
+    let c_count = graph.modules.keys().filter(|id| id.as_str() == "c").count();
+    assert_eq!(c_count, 1);
+    let _ = fs::remove_dir_all(root);
+}

@@ -1,8 +1,10 @@
 use std::collections::HashMap;
+use std::collections::VecDeque;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::ast::{ImportDecl, Program};
+use crate::parser::Parser;
 
 pub type ModuleId = String;
 
@@ -54,7 +56,103 @@ pub fn resolve_project(entry: &Path) -> Result<ModuleGraph, Vec<ResolveError>> {
             Some(entry.to_path_buf()),
         )]);
     }
-    Ok(ModuleGraph::default())
+    let root = entry
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| PathBuf::from("."));
+    let mut graph = ModuleGraph::default();
+    let mut errors = Vec::new();
+    let mut queue = VecDeque::new();
+    queue.push_back(entry.to_path_buf());
+
+    while let Some(path) = queue.pop_front() {
+        let rel = match path.strip_prefix(&root) {
+            Ok(r) => r.to_path_buf(),
+            Err(_) => path.clone(),
+        };
+        let id = match module_id_from_relative_path(&rel) {
+            Ok(id) => id,
+            Err(e) => {
+                errors.push(e);
+                continue;
+            }
+        };
+
+        if let Some(existing) = graph.modules.get(&id) {
+            if existing.path != path {
+                errors.push(ResolveError::new(
+                    ResolveErrorKind::DuplicateModuleId,
+                    format!(
+                        "Duplicate module id `{}` from {} and {}",
+                        id,
+                        existing.path.display(),
+                        path.display()
+                    ),
+                    Some(path.clone()),
+                ));
+            }
+            continue;
+        }
+
+        let source = match fs::read_to_string(&path) {
+            Ok(s) => s,
+            Err(e) => {
+                errors.push(ResolveError::new(
+                    ResolveErrorKind::Io,
+                    format!("Failed to read {}: {}", path.display(), e),
+                    Some(path.clone()),
+                ));
+                continue;
+            }
+        };
+        let (program, _diags) = Parser::parse_source(&source);
+        let import_paths = collect_import_module_paths(&program);
+        let mut imports = Vec::new();
+
+        for import_path in import_paths {
+            match resolve_import_target(&root, &import_path) {
+                Ok(ImportTarget::File(target_file)) => {
+                    let target_rel = match target_file.strip_prefix(&root) {
+                        Ok(r) => r.to_path_buf(),
+                        Err(_) => target_file.clone(),
+                    };
+                    match module_id_from_relative_path(&target_rel) {
+                        Ok(dep_id) => imports.push(dep_id),
+                        Err(e) => errors.push(e),
+                    }
+                    queue.push_back(target_file);
+                }
+                Ok(ImportTarget::Folder(target_folder)) => {
+                    match scan_folder_modules(&target_folder, &import_path) {
+                        Ok(entries) => {
+                            for (dep_id, dep_path) in entries {
+                                imports.push(dep_id);
+                                queue.push_back(dep_path);
+                            }
+                        }
+                        Err(e) => errors.push(e),
+                    }
+                }
+                Err(e) => errors.push(e),
+            }
+        }
+
+        graph.modules.insert(
+            id.clone(),
+            ModuleUnit {
+                id,
+                path,
+                source,
+                imports,
+            },
+        );
+    }
+
+    if errors.is_empty() {
+        Ok(graph)
+    } else {
+        Err(errors)
+    }
 }
 
 pub fn module_id_from_relative_path(path: &Path) -> Result<ModuleId, ResolveError> {
