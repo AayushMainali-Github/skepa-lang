@@ -1012,6 +1012,80 @@ fn vm_reports_callvalue_type_mismatch_for_non_function_callee() {
 }
 
 #[test]
+fn runs_function_value_call_via_grouped_callee_expr() {
+    let src = r#"
+fn add(a: Int, b: Int) -> Int {
+  return a + b;
+}
+
+fn main() -> Int {
+  return (add)(8, 9);
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(17));
+}
+
+#[test]
+fn runs_function_value_call_via_array_index_callee_expr() {
+    let src = r#"
+fn add(a: Int, b: Int) -> Int { return a + b; }
+fn mul(a: Int, b: Int) -> Int { return a * b; }
+
+fn main() -> Int {
+  let ops: [Fn(Int, Int) -> Int; 2] = [add, mul];
+  return ops[1](6, 7);
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(42));
+}
+
+#[test]
+fn bytecode_roundtrip_preserves_function_value_and_callvalue_instr() {
+    let module = BytecodeModule {
+        functions: vec![
+            (
+                "inc".to_string(),
+                FunctionChunk {
+                    name: "inc".to_string(),
+                    code: vec![
+                        Instr::LoadLocal(0),
+                        Instr::LoadConst(Value::Int(1)),
+                        Instr::Add,
+                        Instr::Return,
+                    ],
+                    locals_count: 1,
+                    param_count: 1,
+                },
+            ),
+            (
+                "main".to_string(),
+                FunctionChunk {
+                    name: "main".to_string(),
+                    code: vec![
+                        Instr::LoadConst(Value::Function("inc".to_string())),
+                        Instr::LoadConst(Value::Int(41)),
+                        Instr::CallValue { argc: 1 },
+                        Instr::Return,
+                    ],
+                    locals_count: 0,
+                    param_count: 0,
+                },
+            ),
+        ]
+        .into_iter()
+        .collect(),
+    };
+    let bytes = module.to_bytes();
+    let decoded = BytecodeModule::from_bytes(&bytes).expect("decode");
+    let out = Vm::run_module_main(&decoded).expect("run");
+    assert_eq!(out, Value::Int(42));
+}
+
+#[test]
 fn vm_supports_string_concat_and_equality() {
     let src = r#"
 fn main() -> Int {
