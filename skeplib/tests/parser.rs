@@ -186,6 +186,33 @@ fn main() -> Int {
 }
 
 #[test]
+fn parses_function_returning_function_literal_and_chained_call() {
+    let src = r#"
+fn makeInc() -> Fn(Int) -> Int {
+  return fn(x: Int) -> Int { return x + 1; };
+}
+
+fn main() -> Int {
+  return makeInc()(2);
+}
+"#;
+    let program = parse_ok(src);
+    assert_eq!(program.functions.len(), 2);
+    match &program.functions[0].body[0] {
+        Stmt::Return(Some(Expr::FnLit { .. })) => {}
+        _ => panic!("expected function literal return in makeInc"),
+    }
+    match &program.functions[1].body[0] {
+        Stmt::Return(Some(Expr::Call { callee, args })) => {
+            assert_eq!(args.len(), 1);
+            assert!(matches!(args[0], Expr::IntLit(2)));
+            assert!(matches!(callee.as_ref(), Expr::Call { .. }));
+        }
+        _ => panic!("expected chained call in main"),
+    }
+}
+
+#[test]
 fn reports_missing_colon_in_parameter() {
     let src = r#"
 fn add(a Int) -> Int {

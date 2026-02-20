@@ -227,6 +227,40 @@ fn main() -> Int {
 }
 
 #[test]
+fn sema_accepts_function_returning_function_literal_and_chained_call() {
+    let src = r#"
+fn makeInc() -> Fn(Int) -> Int {
+  return fn(x: Int) -> Int { return x + 1; };
+}
+
+fn main() -> Int {
+  return makeInc()(41);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_rejects_returned_function_literal_type_mismatch() {
+    let src = r#"
+fn makeBad() -> Fn(Int) -> Int {
+  return fn(x: Int) -> Float { return 1.0; };
+}
+
+fn main() -> Int {
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("Return type mismatch")));
+}
+
+#[test]
 fn sema_reports_io_print_type_error() {
     let src = r#"
 import io;
