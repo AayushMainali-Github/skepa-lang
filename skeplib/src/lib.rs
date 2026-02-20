@@ -4,6 +4,7 @@ pub mod bytecode;
 pub mod diagnostic;
 pub mod lexer;
 pub mod parser;
+pub mod resolver;
 pub mod sema;
 pub mod token;
 pub mod types;
