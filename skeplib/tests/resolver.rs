@@ -1,10 +1,12 @@
 use skeplib::resolver::{
     collect_import_module_paths, module_id_from_relative_path, module_path_from_import,
-    resolve_project, ModuleGraph, ModuleUnit, ResolveErrorKind,
+    resolve_import_target, resolve_project, ImportTarget, ModuleGraph, ModuleUnit, ResolveErrorKind,
 };
 use skeplib::parser::Parser;
 use std::collections::HashMap;
+use std::fs;
 use std::path::Path;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[test]
 fn resolver_graph_types_construct_cleanly() {
@@ -71,4 +73,44 @@ fn main() -> Int { return 0; }
             vec!["gamma".to_string(), "delta".to_string()]
         ]
     );
+}
+
+fn make_temp_dir(label: &str) -> std::path::PathBuf {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock")
+        .as_nanos();
+    let dir = std::env::temp_dir().join(format!("skepa_resolver_{label}_{nanos}"));
+    fs::create_dir_all(&dir).expect("create temp dir");
+    dir
+}
+
+#[test]
+fn resolve_import_target_prefers_file_when_only_file_exists() {
+    let root = make_temp_dir("file");
+    fs::write(root.join("a.sk"), "fn main() -> Int { return 0; }").expect("write file");
+    let target =
+        resolve_import_target(&root, &[String::from("a")]).expect("file target should resolve");
+    assert!(matches!(target, ImportTarget::File(_)));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn resolve_import_target_returns_folder_when_only_folder_exists() {
+    let root = make_temp_dir("folder");
+    fs::create_dir_all(root.join("a")).expect("create folder");
+    let target =
+        resolve_import_target(&root, &[String::from("a")]).expect("folder target should resolve");
+    assert!(matches!(target, ImportTarget::Folder(_)));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn resolve_import_target_reports_ambiguity_when_file_and_folder_exist() {
+    let root = make_temp_dir("ambig");
+    fs::write(root.join("a.sk"), "fn main() -> Int { return 0; }").expect("write file");
+    fs::create_dir_all(root.join("a")).expect("create folder");
+    let err = resolve_import_target(&root, &[String::from("a")]).expect_err("must be ambiguous");
+    assert_eq!(err.kind, ResolveErrorKind::AmbiguousModule);
+    let _ = fs::remove_dir_all(root);
 }

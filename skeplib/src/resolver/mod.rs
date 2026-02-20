@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::ast::{ImportDecl, Program};
@@ -109,4 +110,61 @@ pub fn collect_import_module_paths(program: &Program) -> Vec<Vec<String>> {
         }
     }
     out
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ImportTarget {
+    File(PathBuf),
+    Folder(PathBuf),
+}
+
+pub fn resolve_import_target(root: &Path, import_path: &[String]) -> Result<ImportTarget, ResolveError> {
+    let file_path = module_path_from_import(root, import_path);
+    let mut folder_path = root.to_path_buf();
+    for part in import_path {
+        folder_path.push(part);
+    }
+
+    let file_exists = match fs::metadata(&file_path) {
+        Ok(meta) => meta.is_file(),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => false,
+        Err(e) => {
+            return Err(ResolveError::new(
+                ResolveErrorKind::Io,
+                format!("Failed to read metadata for {}: {}", file_path.display(), e),
+                Some(file_path),
+            ))
+        }
+    };
+    let folder_exists = match fs::metadata(&folder_path) {
+        Ok(meta) => meta.is_dir(),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => false,
+        Err(e) => {
+            return Err(ResolveError::new(
+                ResolveErrorKind::Io,
+                format!("Failed to read metadata for {}: {}", folder_path.display(), e),
+                Some(folder_path),
+            ))
+        }
+    };
+
+    match (file_exists, folder_exists) {
+        (true, true) => Err(ResolveError::new(
+            ResolveErrorKind::AmbiguousModule,
+            format!(
+                "Ambiguous import `{}`: both {} and {} exist",
+                import_path.join("."),
+                file_path.display(),
+                folder_path.display()
+            ),
+            Some(root.to_path_buf()),
+        )),
+        (true, false) => Ok(ImportTarget::File(file_path)),
+        (false, true) => Ok(ImportTarget::Folder(folder_path)),
+        (false, false) => Err(ResolveError::new(
+            ResolveErrorKind::MissingModule,
+            format!("Module not found for import `{}`", import_path.join(".")),
+            Some(root.to_path_buf()),
+        )),
+    }
 }
