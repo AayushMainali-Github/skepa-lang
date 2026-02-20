@@ -53,3 +53,38 @@ pub fn resolve_project(entry: &Path) -> Result<ModuleGraph, Vec<ResolveError>> {
     }
     Ok(ModuleGraph::default())
 }
+
+pub fn module_id_from_relative_path(path: &Path) -> Result<ModuleId, ResolveError> {
+    if path.extension().and_then(|e| e.to_str()) != Some("sk") {
+        return Err(ResolveError::new(
+            ResolveErrorKind::MissingModule,
+            format!("Expected .sk module path, got {}", path.display()),
+            Some(path.to_path_buf()),
+        ));
+    }
+
+    let no_ext = path.with_extension("");
+    let mut parts = Vec::new();
+    for comp in no_ext.components() {
+        let s = comp.as_os_str().to_str().ok_or_else(|| {
+            ResolveError::new(
+                ResolveErrorKind::NonUtf8Path,
+                format!("Non-UTF8 path component in {}", path.display()),
+                Some(path.to_path_buf()),
+            )
+        })?;
+        if s.is_empty() || s == "." {
+            continue;
+        }
+        parts.push(s.to_string());
+    }
+
+    if parts.is_empty() {
+        return Err(ResolveError::new(
+            ResolveErrorKind::MissingModule,
+            format!("Cannot derive module id from path {}", path.display()),
+            Some(path.to_path_buf()),
+        ));
+    }
+    Ok(parts.join("."))
+}
