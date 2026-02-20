@@ -122,7 +122,10 @@ from utils.math import add, add;
 fn main() -> Int { return 0; }
 "#;
     let diags = parse_err(src);
-    assert_has_diag(&diags, "Duplicate imported symbol `add` in from-import clause");
+    assert_has_diag(
+        &diags,
+        "Duplicate imported symbol `add` in from-import clause",
+    );
 }
 
 #[test]

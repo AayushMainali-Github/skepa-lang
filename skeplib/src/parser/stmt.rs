@@ -88,7 +88,10 @@ impl Parser {
         if self.at(TokenKind::KwExport) {
             self.bump();
             self.error_here_expected("`export` is only allowed at top-level");
-            while !self.at(TokenKind::Semi) && !self.at(TokenKind::Eof) && !self.at(TokenKind::RBrace) {
+            while !self.at(TokenKind::Semi)
+                && !self.at(TokenKind::Eof)
+                && !self.at(TokenKind::RBrace)
+            {
                 self.bump();
             }
             if self.at(TokenKind::Semi) {

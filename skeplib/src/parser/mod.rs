@@ -1,6 +1,6 @@
 use crate::ast::{
-    ExportDecl, ExportItem, FieldDecl, FnDecl, ImplDecl, ImportDecl, ImportItem, MethodDecl,
-    Param, Program, StructDecl, TypeName,
+    ExportDecl, ExportItem, FieldDecl, FnDecl, ImplDecl, ImportDecl, ImportItem, MethodDecl, Param,
+    Program, StructDecl, TypeName,
 };
 use crate::diagnostic::{DiagnosticBag, Span};
 use crate::lexer::lex;
@@ -123,16 +123,16 @@ impl Parser {
             None
         };
         self.expect(TokenKind::Semi, "Expected `;` after import")?;
-        Some(ImportDecl::ImportModule {
-            path,
-            alias,
-        })
+        Some(ImportDecl::ImportModule { path, alias })
     }
 
     fn parse_from_import(&mut self) -> Option<ImportDecl> {
         self.expect(TokenKind::KwFrom, "Expected `from`")?;
         let path = self.parse_dotted_path("Expected module path after `from`")?;
-        self.expect(TokenKind::KwImport, "Expected `import` after module path in from-import")?;
+        self.expect(
+            TokenKind::KwImport,
+            "Expected `import` after module path in from-import",
+        )?;
         let mut items = Vec::new();
         let mut seen_names: HashSet<String> = HashSet::new();
         let mut seen_aliases: HashSet<String> = HashSet::new();
