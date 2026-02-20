@@ -126,6 +126,61 @@ fn main() -> Int {
 }
 
 #[test]
+fn sema_accepts_function_typed_param_and_indirect_call() {
+    let src = r#"
+fn add(a: Int, b: Int) -> Int {
+  return a + b;
+}
+
+fn apply(f: Fn(Int, Int) -> Int, x: Int, y: Int) -> Int {
+  return f(x, y);
+}
+
+fn main() -> Int {
+  return apply(add, 2, 3);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_accepts_function_typed_local_and_indirect_call() {
+    let src = r#"
+fn add(a: Int, b: Int) -> Int {
+  return a + b;
+}
+
+fn main() -> Int {
+  let f: Fn(Int, Int) -> Int = add;
+  return f(4, 5);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_rejects_function_value_call_with_wrong_arity() {
+    let src = r#"
+fn add(a: Int, b: Int) -> Int {
+  return a + b;
+}
+
+fn main() -> Int {
+  let f: Fn(Int, Int) -> Int = add;
+  return f(1);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("Arity mismatch for function value call: expected 2, got 1")
+    }));
+}
+
+#[test]
 fn sema_reports_io_print_type_error() {
     let src = r#"
 import io;

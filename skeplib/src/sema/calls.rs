@@ -46,45 +46,80 @@ impl Checker {
             return self.check_method_call(base, field, args, scopes);
         }
 
-        let fn_name = match callee {
-            Expr::Ident(name) => name.clone(),
-            Expr::Path(parts) => parts.join("."),
-            _ => {
-                self.error("Invalid call target".to_string());
-                return TypeInfo::Unknown;
-            }
+        let callee_name = match callee {
+            Expr::Ident(name) => Some(name.clone()),
+            Expr::Path(parts) => Some(parts.join(".")),
+            _ => None,
         };
 
-        let Some(sig) = self.functions.get(&fn_name).cloned() else {
-            self.error(format!("Unknown function `{fn_name}`"));
-            return TypeInfo::Unknown;
-        };
-
-        if sig.params.len() != args.len() {
-            self.error(format!(
-                "Arity mismatch for `{}`: expected {}, got {}",
-                sig.name,
-                sig.params.len(),
-                args.len()
-            ));
-            return sig.ret.clone();
-        }
-
-        for (i, arg) in args.iter().enumerate() {
-            let got = self.check_expr(arg, scopes);
-            let expected = sig.params[i].clone();
-            if got != TypeInfo::Unknown && got != expected {
+        if let Some(fn_name) = &callee_name
+            && let Some(sig) = self.functions.get(fn_name).cloned()
+        {
+            if sig.params.len() != args.len() {
                 self.error(format!(
-                    "Argument {} for `{}`: expected {:?}, got {:?}",
-                    i + 1,
+                    "Arity mismatch for `{}`: expected {}, got {}",
                     sig.name,
-                    expected,
-                    got
+                    sig.params.len(),
+                    args.len()
                 ));
+                return sig.ret.clone();
             }
+
+            for (i, arg) in args.iter().enumerate() {
+                let got = self.check_expr(arg, scopes);
+                let expected = sig.params[i].clone();
+                if got != TypeInfo::Unknown && got != expected {
+                    self.error(format!(
+                        "Argument {} for `{}`: expected {:?}, got {:?}",
+                        i + 1,
+                        sig.name,
+                        expected,
+                        got
+                    ));
+                }
+            }
+
+            return sig.ret;
         }
 
-        sig.ret
+        let callee_ty = self.check_expr(callee, scopes);
+        if let TypeInfo::Fn { params, ret } = callee_ty {
+            if params.len() != args.len() {
+                self.error(format!(
+                    "Arity mismatch for function value call: expected {}, got {}",
+                    params.len(),
+                    args.len()
+                ));
+                return *ret;
+            }
+            for (i, arg) in args.iter().enumerate() {
+                let got = self.check_expr(arg, scopes);
+                let expected = params[i].clone();
+                if got != TypeInfo::Unknown && got != expected {
+                    self.error(format!(
+                        "Argument {} for function value call: expected {:?}, got {:?}",
+                        i + 1,
+                        expected,
+                        got
+                    ));
+                }
+            }
+            return *ret;
+        }
+
+        if let Some(fn_name) = callee_name {
+            self.error(format!("Unknown function `{fn_name}`"));
+            for arg in args {
+                self.check_expr(arg, scopes);
+            }
+            return TypeInfo::Unknown;
+        }
+
+        self.error("Invalid call target".to_string());
+        for arg in args {
+            self.check_expr(arg, scopes);
+        }
+        TypeInfo::Unknown
     }
 
     fn check_method_call(

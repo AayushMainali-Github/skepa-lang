@@ -333,6 +333,12 @@ impl Checker {
                 return t.clone();
             }
         }
+        if let Some(sig) = self.functions.get(name) {
+            return TypeInfo::Fn {
+                params: sig.params.clone(),
+                ret: Box::new(sig.ret.clone()),
+            };
+        }
         self.error(format!("Unknown variable `{name}`"));
         TypeInfo::Unknown
     }
