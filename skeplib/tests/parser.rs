@@ -275,6 +275,36 @@ fn main() -> Int { return 0; }
 }
 
 #[test]
+fn reports_import_path_starting_with_dot() {
+    let src = r#"
+import .a;
+fn main() -> Int { return 0; }
+"#;
+    let diags = parse_err(src);
+    assert_has_diag(&diags, "Expected module path after `import`");
+}
+
+#[test]
+fn reports_import_path_ending_with_dot() {
+    let src = r#"
+import a.;
+fn main() -> Int { return 0; }
+"#;
+    let diags = parse_err(src);
+    assert_has_diag(&diags, "Expected identifier after `.` in module path");
+}
+
+#[test]
+fn reports_malformed_dotted_from_import_path() {
+    let src = r#"
+from a..b import x;
+fn main() -> Int { return 0; }
+"#;
+    let diags = parse_err(src);
+    assert_has_diag(&diags, "Expected identifier after `.` in module path");
+}
+
+#[test]
 fn reports_missing_semicolon_after_return() {
     let src = r#"
 fn main() -> Int {
