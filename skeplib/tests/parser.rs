@@ -222,6 +222,49 @@ fn main() -> Int {
 }
 
 #[test]
+fn reports_from_import_leading_comma() {
+    let src = r#"
+from utils.math import , add;
+fn main() -> Int { return 0; }
+"#;
+    let diags = parse_err(src);
+    assert_has_diag(
+        &diags,
+        "Expected imported symbol name before `,` in from-import",
+    );
+}
+
+#[test]
+fn reports_from_import_trailing_comma() {
+    let src = r#"
+from utils.math import add,;
+fn main() -> Int { return 0; }
+"#;
+    let diags = parse_err(src);
+    assert_has_diag(&diags, "Trailing `,` is not allowed in from-import");
+}
+
+#[test]
+fn reports_export_leading_comma() {
+    let src = r#"
+export { , add };
+fn main() -> Int { return 0; }
+"#;
+    let diags = parse_err(src);
+    assert_has_diag(&diags, "Expected export symbol name before `,`");
+}
+
+#[test]
+fn reports_export_trailing_comma() {
+    let src = r#"
+export { add, };
+fn main() -> Int { return 0; }
+"#;
+    let diags = parse_err(src);
+    assert_has_diag(&diags, "Trailing `,` is not allowed in export list");
+}
+
+#[test]
 fn reports_malformed_dotted_import_path() {
     let src = r#"
 import a..b;

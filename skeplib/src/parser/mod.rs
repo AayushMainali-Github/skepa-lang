@@ -127,6 +127,10 @@ impl Parser {
         let mut items = Vec::new();
         let mut seen_names: HashSet<String> = HashSet::new();
         let mut seen_aliases: HashSet<String> = HashSet::new();
+        if self.at(TokenKind::Comma) {
+            self.error_here_expected("Expected imported symbol name before `,` in from-import");
+            return None;
+        }
         loop {
             let name = self
                 .expect_ident("Expected imported symbol name after `import`")?
@@ -154,6 +158,16 @@ impl Parser {
             items.push(ImportItem { name, alias });
             if self.at(TokenKind::Comma) {
                 self.bump();
+                if self.at(TokenKind::Semi) {
+                    self.error_here_expected("Trailing `,` is not allowed in from-import");
+                    return None;
+                }
+                if self.at(TokenKind::Comma) {
+                    self.error_here_expected(
+                        "Expected imported symbol name before `,` in from-import",
+                    );
+                    return None;
+                }
                 continue;
             }
             break;
@@ -179,6 +193,10 @@ impl Parser {
             self.error_here_expected("Expected at least one export item");
             return None;
         }
+        if self.at(TokenKind::Comma) {
+            self.error_here_expected("Expected export symbol name before `,`");
+            return None;
+        }
         let mut items = Vec::new();
         loop {
             let name = self.expect_ident("Expected export symbol name")?.lexeme;
@@ -191,6 +209,14 @@ impl Parser {
             items.push(ExportItem { name, alias });
             if self.at(TokenKind::Comma) {
                 self.bump();
+                if self.at(TokenKind::RBrace) {
+                    self.error_here_expected("Trailing `,` is not allowed in export list");
+                    return None;
+                }
+                if self.at(TokenKind::Comma) {
+                    self.error_here_expected("Expected export symbol name before `,`");
+                    return None;
+                }
                 continue;
             }
             break;
