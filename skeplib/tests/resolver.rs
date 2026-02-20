@@ -209,3 +209,62 @@ fn fc() -> Int { return 1; }
     assert_eq!(c_count, 1);
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn resolve_project_reports_two_node_cycle_with_chain() {
+    let root = make_temp_dir("cycle2");
+    let main_src = r#"
+import a;
+fn main() -> Int { return 0; }
+"#;
+    let a_src = r#"
+import b;
+fn fa() -> Int { return 1; }
+"#;
+    let b_src = r#"
+import a;
+fn fb() -> Int { return 1; }
+"#;
+    fs::write(root.join("main.sk"), main_src).expect("write main");
+    fs::write(root.join("a.sk"), a_src).expect("write a");
+    fs::write(root.join("b.sk"), b_src).expect("write b");
+
+    let errs = resolve_project(&root.join("main.sk")).expect_err("cycle expected");
+    assert!(errs.iter().any(|e| {
+        e.kind == ResolveErrorKind::Cycle
+            && e.message.contains("a -> b -> a")
+    }));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn resolve_project_reports_three_node_cycle_with_chain() {
+    let root = make_temp_dir("cycle3");
+    let main_src = r#"
+import a;
+fn main() -> Int { return 0; }
+"#;
+    let a_src = r#"
+import b;
+fn fa() -> Int { return 1; }
+"#;
+    let b_src = r#"
+import c;
+fn fb() -> Int { return 1; }
+"#;
+    let c_src = r#"
+import a;
+fn fc() -> Int { return 1; }
+"#;
+    fs::write(root.join("main.sk"), main_src).expect("write main");
+    fs::write(root.join("a.sk"), a_src).expect("write a");
+    fs::write(root.join("b.sk"), b_src).expect("write b");
+    fs::write(root.join("c.sk"), c_src).expect("write c");
+
+    let errs = resolve_project(&root.join("main.sk")).expect_err("cycle expected");
+    assert!(errs.iter().any(|e| {
+        e.kind == ResolveErrorKind::Cycle
+            && e.message.contains("a -> b -> c -> a")
+    }));
+    let _ = fs::remove_dir_all(root);
+}

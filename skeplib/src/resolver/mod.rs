@@ -149,10 +149,9 @@ pub fn resolve_project(entry: &Path) -> Result<ModuleGraph, Vec<ResolveError>> {
     }
 
     if errors.is_empty() {
-        Ok(graph)
-    } else {
-        Err(errors)
+        errors.extend(detect_cycles(&graph));
     }
+    if errors.is_empty() { Ok(graph) } else { Err(errors) }
 }
 
 pub fn module_id_from_relative_path(path: &Path) -> Result<ModuleId, ResolveError> {
@@ -347,4 +346,69 @@ fn scan_folder_modules_inner(
         out.push((parts.join("."), path));
     }
     Ok(())
+}
+
+pub fn detect_cycles(graph: &ModuleGraph) -> Vec<ResolveError> {
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum Color {
+        White,
+        Gray,
+        Black,
+    }
+
+    fn dfs(
+        node: &str,
+        graph: &ModuleGraph,
+        colors: &mut HashMap<String, Color>,
+        stack: &mut Vec<String>,
+        errors: &mut Vec<ResolveError>,
+    ) {
+        colors.insert(node.to_string(), Color::Gray);
+        stack.push(node.to_string());
+
+        let imports = graph
+            .modules
+            .get(node)
+            .map(|m| m.imports.clone())
+            .unwrap_or_default();
+        for dep in imports {
+            if !graph.modules.contains_key(&dep) {
+                continue;
+            }
+            match colors.get(dep.as_str()).copied().unwrap_or(Color::White) {
+                Color::White => dfs(&dep, graph, colors, stack, errors),
+                Color::Gray => {
+                    if let Some(pos) = stack.iter().position(|s| s == &dep) {
+                        let mut cycle = stack[pos..].to_vec();
+                        cycle.push(dep.clone());
+                        let chain = cycle.join(" -> ");
+                        errors.push(ResolveError::new(
+                            ResolveErrorKind::Cycle,
+                            format!("Import cycle detected: {chain}"),
+                            None,
+                        ));
+                    }
+                }
+                Color::Black => {}
+            }
+        }
+
+        stack.pop();
+        colors.insert(node.to_string(), Color::Black);
+    }
+
+    let mut colors = HashMap::<String, Color>::new();
+    for id in graph.modules.keys() {
+        colors.insert(id.clone(), Color::White);
+    }
+    let mut stack = Vec::<String>::new();
+    let mut errors = Vec::<ResolveError>::new();
+    let mut ids = graph.modules.keys().cloned().collect::<Vec<_>>();
+    ids.sort();
+    for id in ids {
+        if colors.get(id.as_str()).copied() == Some(Color::White) {
+            dfs(&id, graph, &mut colors, &mut stack, &mut errors);
+        }
+    }
+    errors
 }
