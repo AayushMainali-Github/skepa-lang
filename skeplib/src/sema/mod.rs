@@ -37,6 +37,7 @@ struct Checker {
     struct_names: HashSet<String>,
     struct_fields: HashMap<String, HashMap<String, TypeInfo>>,
     loop_depth: usize,
+    fn_lit_scope_floors: Vec<usize>,
 }
 
 impl Checker {
@@ -77,6 +78,7 @@ impl Checker {
             struct_names: HashSet::new(),
             struct_fields: HashMap::new(),
             loop_depth: 0,
+            fn_lit_scope_floors: Vec::new(),
         }
     }
 
@@ -328,7 +330,11 @@ impl Checker {
     }
 
     fn lookup_var(&mut self, name: &str, scopes: &mut [HashMap<String, TypeInfo>]) -> TypeInfo {
-        for scope in scopes.iter().rev() {
+        let floor = self.fn_lit_scope_floors.last().copied().unwrap_or(0);
+        for (idx, scope) in scopes.iter().enumerate().rev() {
+            if idx < floor {
+                continue;
+            }
             if let Some(t) = scope.get(name) {
                 return t.clone();
             }
@@ -338,6 +344,12 @@ impl Checker {
                 params: sig.params.clone(),
                 ret: Box::new(sig.ret.clone()),
             };
+        }
+        if !self.fn_lit_scope_floors.is_empty() {
+            self.error(format!(
+                "Function literals cannot capture outer variable `{name}`"
+            ));
+            return TypeInfo::Unknown;
         }
         self.error(format!("Unknown variable `{name}`"));
         TypeInfo::Unknown

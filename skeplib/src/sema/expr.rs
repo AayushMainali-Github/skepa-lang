@@ -190,13 +190,17 @@ impl Checker {
                 );
 
                 let expected_ret = TypeInfo::from_ast(return_type);
-                let mut inner_scopes = vec![HashMap::<String, TypeInfo>::new()];
+                let mut inner_scopes = scopes.to_vec();
+                let outer_scope_len = inner_scopes.len();
+                inner_scopes.push(HashMap::<String, TypeInfo>::new());
                 for p in params {
-                    inner_scopes[0].insert(p.name.clone(), TypeInfo::from_ast(&p.ty));
+                    inner_scopes[outer_scope_len].insert(p.name.clone(), TypeInfo::from_ast(&p.ty));
                 }
+                self.fn_lit_scope_floors.push(outer_scope_len);
                 for stmt in body {
                     self.check_stmt(stmt, &mut inner_scopes, &expected_ret);
                 }
+                self.fn_lit_scope_floors.pop();
                 if expected_ret != TypeInfo::Void && !Self::block_must_return(body) {
                     self.error(format!(
                         "Function literal may exit without returning {:?}",

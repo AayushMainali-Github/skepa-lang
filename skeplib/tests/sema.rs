@@ -211,7 +211,9 @@ fn main() -> Int {
         diags
             .as_slice()
             .iter()
-            .any(|d| d.message.contains("Unknown variable `y`"))
+            .any(|d| d
+                .message
+                .contains("Function literals cannot capture outer variable `y`"))
     );
 }
 
@@ -258,6 +260,22 @@ fn main() -> Int {
         .as_slice()
         .iter()
         .any(|d| d.message.contains("Return type mismatch")));
+}
+
+#[test]
+fn sema_function_literal_allows_calling_named_functions_without_capture() {
+    let src = r#"
+fn plus1(x: Int) -> Int { return x + 1; }
+
+fn main() -> Int {
+  let f: Fn(Int) -> Int = fn(v: Int) -> Int {
+    return plus1(v);
+  };
+  return f(41);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
 }
 
 #[test]
