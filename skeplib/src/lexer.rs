@@ -160,6 +160,7 @@ impl Lexer {
             "import" => TokenKind::KwImport,
             "from" => TokenKind::KwFrom,
             "as" => TokenKind::KwAs,
+            "export" => TokenKind::KwExport,
             "fn" => TokenKind::KwFn,
             "struct" => TokenKind::KwStruct,
             "impl" => TokenKind::KwImpl,

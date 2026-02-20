@@ -1,6 +1,6 @@
 use crate::ast::{
-    FieldDecl, FnDecl, ImplDecl, ImportDecl, ImportItem, MethodDecl, Param, Program, StructDecl,
-    TypeName,
+    ExportDecl, ExportItem, FieldDecl, FnDecl, ImplDecl, ImportDecl, ImportItem, MethodDecl,
+    Param, Program, StructDecl, TypeName,
 };
 use crate::diagnostic::{DiagnosticBag, Span};
 use crate::lexer::lex;
@@ -45,7 +45,7 @@ impl Parser {
 
     fn parse_program(&mut self) -> Program {
         let mut imports = Vec::new();
-        let exports = Vec::new();
+        let mut exports = Vec::new();
         let mut structs = Vec::new();
         let mut impls = Vec::new();
         let mut functions = Vec::new();
@@ -60,6 +60,12 @@ impl Parser {
             if self.at(TokenKind::KwFrom) {
                 if let Some(i) = self.parse_from_import() {
                     imports.push(i);
+                }
+                continue;
+            }
+            if self.at(TokenKind::KwExport) {
+                if let Some(e) = self.parse_export_decl() {
+                    exports.push(e);
                 }
                 continue;
             }
@@ -84,7 +90,7 @@ impl Parser {
             }
 
             self.error_here_expected(
-                "Expected top-level declaration (`import`, `from`, `struct`, `impl`, or `fn`)",
+                "Expected top-level declaration (`import`, `from`, `export`, `struct`, `impl`, or `fn`)",
             );
             self.synchronize_toplevel();
         }
@@ -164,6 +170,34 @@ impl Parser {
             path.push(next.lexeme);
         }
         Some(path)
+    }
+
+    fn parse_export_decl(&mut self) -> Option<ExportDecl> {
+        self.expect(TokenKind::KwExport, "Expected `export`")?;
+        self.expect(TokenKind::LBrace, "Expected `{` after `export`")?;
+        if self.at(TokenKind::RBrace) {
+            self.error_here_expected("Expected at least one export item");
+            return None;
+        }
+        let mut items = Vec::new();
+        loop {
+            let name = self.expect_ident("Expected export symbol name")?.lexeme;
+            let alias = if self.at(TokenKind::KwAs) {
+                self.bump();
+                Some(self.expect_ident("Expected alias name after `as`")?.lexeme)
+            } else {
+                None
+            };
+            items.push(ExportItem { name, alias });
+            if self.at(TokenKind::Comma) {
+                self.bump();
+                continue;
+            }
+            break;
+        }
+        self.expect(TokenKind::RBrace, "Expected `}` after export list")?;
+        self.expect(TokenKind::Semi, "Expected `;` after export declaration")?;
+        Some(ExportDecl { items })
     }
 
     fn parse_function(&mut self) -> Option<FnDecl> {
@@ -381,6 +415,7 @@ impl Parser {
         while !self.at(TokenKind::Eof) {
             if self.at(TokenKind::KwImport)
                 || self.at(TokenKind::KwFrom)
+                || self.at(TokenKind::KwExport)
                 || self.at(TokenKind::KwFn)
                 || self.at(TokenKind::KwStruct)
                 || self.at(TokenKind::KwImpl)

@@ -10,6 +10,7 @@ pub enum TokenKind {
     KwImport,
     KwFrom,
     KwAs,
+    KwExport,
     KwFn,
     KwStruct,
     KwImpl,

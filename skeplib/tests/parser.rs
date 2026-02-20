@@ -126,6 +126,76 @@ fn main() -> Int { return 0; }
 }
 
 #[test]
+fn parses_export_clause_basic() {
+    let src = r#"
+export { add, User, version };
+fn main() -> Int { return 0; }
+"#;
+    let program = parse_ok(src);
+    assert_eq!(program.exports.len(), 1);
+    assert_eq!(
+        program.exports[0].items,
+        vec![
+            skeplib::ast::ExportItem {
+                name: "add".to_string(),
+                alias: None,
+            },
+            skeplib::ast::ExportItem {
+                name: "User".to_string(),
+                alias: None,
+            },
+            skeplib::ast::ExportItem {
+                name: "version".to_string(),
+                alias: None,
+            },
+        ]
+    );
+}
+
+#[test]
+fn parses_export_clause_with_aliases() {
+    let src = r#"
+export { add as plus, sub };
+fn main() -> Int { return 0; }
+"#;
+    let program = parse_ok(src);
+    assert_eq!(program.exports.len(), 1);
+    assert_eq!(
+        program.exports[0].items,
+        vec![
+            skeplib::ast::ExportItem {
+                name: "add".to_string(),
+                alias: Some("plus".to_string()),
+            },
+            skeplib::ast::ExportItem {
+                name: "sub".to_string(),
+                alias: None,
+            },
+        ]
+    );
+}
+
+#[test]
+fn reports_empty_export_clause() {
+    let src = r#"
+export { };
+fn main() -> Int { return 0; }
+"#;
+    let diags = parse_err(src);
+    assert_has_diag(&diags, "Expected at least one export item");
+}
+
+#[test]
+fn reports_export_missing_brace_or_semicolon() {
+    let src = r#"
+export { add
+fn main() -> Int { return 0; }
+"#;
+    let diags = parse_err(src);
+    assert_has_diag(&diags, "Expected `}` after export list");
+}
+
+#[test]
 fn reports_malformed_dotted_import_path() {
     let src = r#"
 import a..b;
