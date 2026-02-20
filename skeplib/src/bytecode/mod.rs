@@ -13,6 +13,7 @@ pub enum Value {
     Bool(bool),
     String(String),
     Array(Vec<Value>),
+    Function(String),
     Struct {
         name: String,
         fields: Vec<(String, Value)>,
@@ -46,6 +47,9 @@ pub enum Instr {
     JumpIfTrue(usize),
     Call {
         name: String,
+        argc: usize,
+    },
+    CallValue {
         argc: usize,
     },
     CallMethod {

@@ -44,6 +44,51 @@ pub(super) fn call(
     Ok(())
 }
 
+pub(super) fn call_value(
+    stack: &mut Vec<Value>,
+    argc: usize,
+    env: &mut CallEnv<'_>,
+    site: Site<'_>,
+) -> Result<(), VmError> {
+    if stack.len() < argc + 1 {
+        return Err(super::err_at(
+            VmErrorKind::StackUnderflow,
+            "Stack underflow on CallValue",
+            site.function_name,
+            site.ip,
+        ));
+    }
+    let split = stack.len() - argc;
+    let call_args = stack.split_off(split);
+    let Some(callee) = stack.pop() else {
+        return Err(super::err_at(
+            VmErrorKind::StackUnderflow,
+            "CallValue expects callable on stack",
+            site.function_name,
+            site.ip,
+        ));
+    };
+    let Value::Function(callee_name) = callee else {
+        return Err(super::err_at(
+            VmErrorKind::TypeMismatch,
+            "CallValue callee must be Function",
+            site.function_name,
+            site.ip,
+        ));
+    };
+    let ret = super::run_function(
+        env.module,
+        &callee_name,
+        call_args,
+        env.host,
+        env.reg,
+        env.depth + 1,
+        env.config,
+    )?;
+    stack.push(ret);
+    Ok(())
+}
+
 pub(super) fn call_builtin(
     stack: &mut Vec<Value>,
     package: &str,

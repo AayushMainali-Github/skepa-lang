@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::ast::{AssignTarget, BinaryOp, Expr, Program, Stmt, TypeName, UnaryOp};
 use crate::diagnostic::{DiagnosticBag, Span};
@@ -28,6 +28,7 @@ pub fn compile_source(source: &str) -> Result<BytecodeModule, DiagnosticBag> {
 #[derive(Default)]
 struct Compiler {
     diags: DiagnosticBag,
+    function_names: HashSet<String>,
 }
 
 impl Compiler {
@@ -49,6 +50,16 @@ impl Compiler {
     }
 
     fn compile_program(&mut self, program: &Program) -> BytecodeModule {
+        self.function_names.clear();
+        for func in &program.functions {
+            self.function_names.insert(func.name.clone());
+        }
+        for imp in &program.impls {
+            for method in &imp.methods {
+                self.function_names
+                    .insert(Self::mangle_method_name(&imp.target, &method.name));
+            }
+        }
         let mut module = BytecodeModule::default();
         for func in &program.functions {
             let chunk = self.compile_function(func);
@@ -351,6 +362,8 @@ impl Compiler {
             Expr::Ident(name) => {
                 if let Some(slot) = ctx.lookup(name) {
                     code.push(Instr::LoadLocal(slot));
+                } else if self.function_names.contains(name) {
+                    code.push(Instr::LoadConst(Value::Function(name.clone())));
                 } else {
                     self.error(format!("Unknown local `{name}`"));
                     code.push(Instr::LoadConst(Value::Int(0)));
@@ -417,13 +430,21 @@ impl Compiler {
             },
             Expr::Call { callee, args } => match &**callee {
                 Expr::Ident(name) => {
-                    for arg in args {
-                        self.compile_expr(arg, ctx, code);
+                    if ctx.lookup(name).is_some() {
+                        self.compile_expr(callee, ctx, code);
+                        for arg in args {
+                            self.compile_expr(arg, ctx, code);
+                        }
+                        code.push(Instr::CallValue { argc: args.len() });
+                    } else {
+                        for arg in args {
+                            self.compile_expr(arg, ctx, code);
+                        }
+                        code.push(Instr::Call {
+                            name: name.clone(),
+                            argc: args.len(),
+                        });
                     }
-                    code.push(Instr::Call {
-                        name: name.clone(),
-                        argc: args.len(),
-                    });
                 }
                 Expr::Field { base, field } => {
                     if let Some(parts) = Self::expr_to_parts(callee)
@@ -459,10 +480,11 @@ impl Compiler {
                     });
                 }
                 _ => {
-                    self.error(
-                        "Only direct function and method calls are supported in bytecode compiler"
-                            .to_string(),
-                    );
+                    self.compile_expr(callee, ctx, code);
+                    for arg in args {
+                        self.compile_expr(arg, ctx, code);
+                    }
+                    code.push(Instr::CallValue { argc: args.len() });
                 }
             },
             Expr::Group(inner) => self.compile_expr(inner, ctx, code),

@@ -952,6 +952,66 @@ fn main() -> Int {
 }
 
 #[test]
+fn runs_function_value_call_from_local_binding() {
+    let src = r#"
+fn add(a: Int, b: Int) -> Int {
+  return a + b;
+}
+
+fn main() -> Int {
+  let f: Fn(Int, Int) -> Int = add;
+  return f(20, 22);
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(42));
+}
+
+#[test]
+fn runs_function_value_call_through_parameter() {
+    let src = r#"
+fn apply(f: Fn(Int, Int) -> Int, x: Int, y: Int) -> Int {
+  return f(x, y);
+}
+
+fn add(a: Int, b: Int) -> Int {
+  return a + b;
+}
+
+fn main() -> Int {
+  return apply(add, 3, 7);
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(10));
+}
+
+#[test]
+fn vm_reports_callvalue_type_mismatch_for_non_function_callee() {
+    let module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::LoadConst(Value::Int(7)),
+                    Instr::CallValue { argc: 0 },
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&module).expect_err("type mismatch");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
+}
+
+#[test]
 fn vm_supports_string_concat_and_equality() {
     let src = r#"
 fn main() -> Int {

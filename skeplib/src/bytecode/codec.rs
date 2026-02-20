@@ -102,9 +102,13 @@ fn encode_value(v: &Value, out: &mut Vec<u8>) {
                 encode_value(item, out);
             }
         }
-        Value::Unit => write_u8(out, 5),
+        Value::Function(name) => {
+            write_u8(out, 5);
+            write_str(out, name);
+        }
+        Value::Unit => write_u8(out, 6),
         Value::Struct { name, fields } => {
-            write_u8(out, 6);
+            write_u8(out, 7);
             write_str(out, name);
             write_u32(out, fields.len() as u32);
             for (k, v) in fields {
@@ -160,6 +164,10 @@ fn encode_instr(i: &Instr, out: &mut Vec<u8>) {
         Instr::Call { name, argc } => {
             write_u8(out, 22);
             write_str(out, name);
+            write_u32(out, *argc as u32);
+        }
+        Instr::CallValue { argc } => {
+            write_u8(out, 35);
             write_u32(out, *argc as u32);
         }
         Instr::CallMethod { name, argc } => {
@@ -271,8 +279,9 @@ fn decode_value(rd: &mut Reader<'_>) -> Result<Value, String> {
             }
             Ok(Value::Array(items))
         }
-        5 => Ok(Value::Unit),
-        6 => {
+        5 => Ok(Value::Function(rd.read_str()?)),
+        6 => Ok(Value::Unit),
+        7 => {
             let name = rd.read_str()?;
             let n = rd.read_u32()? as usize;
             let mut fields = Vec::with_capacity(n);
@@ -313,6 +322,9 @@ fn decode_instr(rd: &mut Reader<'_>) -> Result<Instr, String> {
         21 => Instr::JumpIfTrue(rd.read_u32()? as usize),
         22 => Instr::Call {
             name: rd.read_str()?,
+            argc: rd.read_u32()? as usize,
+        },
+        35 => Instr::CallValue {
             argc: rd.read_u32()? as usize,
         },
         34 => Instr::CallMethod {

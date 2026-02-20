@@ -25,6 +25,7 @@ fn fmt_value(v: &Value) -> String {
         Value::Bool(b) => format!("Bool({b})"),
         Value::String(s) => format!("String({s:?})"),
         Value::Array(items) => format!("Array(len={})", items.len()),
+        Value::Function(name) => format!("Function({name})"),
         Value::Struct { name, fields } => format!("Struct({name}, fields={})", fields.len()),
         Value::Unit => "Unit".to_string(),
     }
@@ -55,6 +56,7 @@ fn fmt_instr(i: &Instr) -> String {
         Instr::JumpIfFalse(t) => format!("JumpIfFalse {t}"),
         Instr::JumpIfTrue(t) => format!("JumpIfTrue {t}"),
         Instr::Call { name, argc } => format!("Call {name} argc={argc}"),
+        Instr::CallValue { argc } => format!("CallValue argc={argc}"),
         Instr::CallMethod { name, argc } => format!("CallMethod {name} argc={argc}"),
         Instr::CallBuiltin {
             package,

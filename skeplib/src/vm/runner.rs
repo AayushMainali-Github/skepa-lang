@@ -111,6 +111,12 @@ pub(super) fn run_function(
                 &mut call_env,
                 calls::Site { function_name, ip },
             )?,
+            Instr::CallValue { argc } => calls::call_value(
+                state.stack_mut(),
+                *argc,
+                &mut call_env,
+                calls::Site { function_name, ip },
+            )?,
             Instr::CallMethod {
                 name: method_name,
                 argc,
