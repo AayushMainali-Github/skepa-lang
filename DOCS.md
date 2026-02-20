@@ -161,6 +161,7 @@ Runtime edge semantics:
 - `Bool`
 - `String`
 - `Void`
+- Function types: `Fn(T1, T2, ...) -> R`
 - Static arrays: `[T; N]`
 - Named struct types: `User`, `Profile`, etc.
 
@@ -190,6 +191,34 @@ fn main() -> Int {
 ```
 
 On successful execution, `main()` return value is used as process exit code (low 8 bits).
+
+Function values:
+
+```sk
+fn add(a: Int, b: Int) -> Int {
+  return a + b;
+}
+
+fn apply(f: Fn(Int, Int) -> Int, x: Int, y: Int) -> Int {
+  return f(x, y);
+}
+```
+
+Function literals (non-capturing only):
+
+```sk
+fn main() -> Int {
+  let inc: Fn(Int) -> Int = fn(x: Int) -> Int {
+    return x + 1;
+  };
+  return inc(41);
+}
+```
+
+Notes:
+- Function literals cannot capture outer local variables.
+- Calling named global functions from inside function literals is allowed.
+- Function literals can be passed/returned where `Fn(...) -> ...` is expected.
 
 ## 6. Statements
 
@@ -226,6 +255,7 @@ Supported:
 - struct literals: `User { id: 1, name: "sam" }`
 - field access/assignment: `u.id`, `u.id = 3`, nested `u.profile.age = 42`
 - calls: `f(x)`, `io.println("ok")`, `arr.count(xs, 2)`
+- first-class function calls: `(add)(1, 2)`, `ops[i](3, 4)`, `makeInc()(5)`
 - method calls: `u.bump(1)`, `makeUser(9).bump(4)`, `users[i].bump(7)`
 - unary: `+`, `-`, `!`
 - binary: `* / %`, `+ -`, comparisons, equality, `&&`, `||`
@@ -251,6 +281,7 @@ Array concat typing:
 - Array index type must be `Int`.
 - `if` / `while` / `for` condition type must be `Bool`.
 - Function arity and argument types must match signatures.
+- Function values are not comparable (`==` / `!=` are invalid on `Fn`).
 - Return type must match declared function return type.
 - Non-`Void` functions must return on all paths.
 - Unary `+` / `-` require numeric operands.
