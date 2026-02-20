@@ -181,6 +181,41 @@ fn main() -> Int {
 }
 
 #[test]
+fn sema_accepts_non_capturing_function_literal() {
+    let src = r#"
+fn main() -> Int {
+  let f: Fn(Int) -> Int = fn(x: Int) -> Int {
+    return x + 1;
+  };
+  return f(41);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_rejects_capturing_function_literal() {
+    let src = r#"
+fn main() -> Int {
+  let y = 2;
+  let f: Fn(Int) -> Int = fn(x: Int) -> Int {
+    return x + y;
+  };
+  return f(1);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Unknown variable `y`"))
+    );
+}
+
+#[test]
 fn sema_reports_io_print_type_error() {
     let src = r#"
 import io;

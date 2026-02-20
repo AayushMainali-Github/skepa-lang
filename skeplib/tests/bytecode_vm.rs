@@ -1044,6 +1044,36 @@ fn main() -> Int {
 }
 
 #[test]
+fn runs_non_capturing_function_literal() {
+    let src = r#"
+fn main() -> Int {
+  let f: Fn(Int) -> Int = fn(x: Int) -> Int {
+    return x + 2;
+  };
+  return f(40);
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(42));
+}
+
+#[test]
+fn compile_rejects_capturing_function_literal() {
+    let src = r#"
+fn main() -> Int {
+  let y = 5;
+  let f: Fn(Int) -> Int = fn(x: Int) -> Int {
+    return x + y;
+  };
+  return f(1);
+}
+"#;
+    let err = compile_err(src);
+    assert_has_diag(&err, "Unknown local `y`");
+}
+
+#[test]
 fn bytecode_roundtrip_preserves_function_value_and_callvalue_instr() {
     let module = BytecodeModule {
         functions: vec![

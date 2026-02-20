@@ -173,6 +173,42 @@ impl Checker {
 
                 TypeInfo::Named(name.clone())
             }
+            Expr::FnLit {
+                params,
+                return_type,
+                body,
+            } => {
+                for p in params {
+                    self.check_decl_type_exists(
+                        &p.ty,
+                        format!("Unknown type in function literal parameter `{}`", p.name),
+                    );
+                }
+                self.check_decl_type_exists(
+                    return_type,
+                    "Unknown function literal return type".to_string(),
+                );
+
+                let expected_ret = TypeInfo::from_ast(return_type);
+                let mut inner_scopes = vec![HashMap::<String, TypeInfo>::new()];
+                for p in params {
+                    inner_scopes[0].insert(p.name.clone(), TypeInfo::from_ast(&p.ty));
+                }
+                for stmt in body {
+                    self.check_stmt(stmt, &mut inner_scopes, &expected_ret);
+                }
+                if expected_ret != TypeInfo::Void && !Self::block_must_return(body) {
+                    self.error(format!(
+                        "Function literal may exit without returning {:?}",
+                        expected_ret
+                    ));
+                }
+
+                TypeInfo::Fn {
+                    params: params.iter().map(|p| TypeInfo::from_ast(&p.ty)).collect(),
+                    ret: Box::new(expected_ret),
+                }
+            }
         }
     }
 

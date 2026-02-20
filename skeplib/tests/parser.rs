@@ -133,6 +133,37 @@ fn bad(f: Fn(Int, Int) Int) -> Int {
 }
 
 #[test]
+fn parses_function_literal_expression() {
+    let src = r#"
+fn main() -> Int {
+  let f: Fn(Int) -> Int = fn(x: Int) -> Int {
+    return x + 1;
+  };
+  return f(2);
+}
+"#;
+    let program = parse_ok(src);
+    let body = &program.functions[0].body;
+    match &body[0] {
+        Stmt::Let { value, .. } => match value {
+            Expr::FnLit {
+                params,
+                return_type,
+                body,
+            } => {
+                assert_eq!(params.len(), 1);
+                assert_eq!(params[0].name, "x");
+                assert_eq!(params[0].ty, TypeName::Int);
+                assert_eq!(*return_type, TypeName::Int);
+                assert!(matches!(body[0], Stmt::Return(_)));
+            }
+            _ => panic!("expected fn literal in let value"),
+        },
+        _ => panic!("expected let statement"),
+    }
+}
+
+#[test]
 fn reports_missing_colon_in_parameter() {
     let src = r#"
 fn add(a Int) -> Int {

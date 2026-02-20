@@ -129,7 +129,7 @@ impl Parser {
         Some(Stmt::Expr(expr))
     }
 
-    fn parse_block(&mut self, open_err: &str) -> Option<Vec<Stmt>> {
+    pub(super) fn parse_block(&mut self, open_err: &str) -> Option<Vec<Stmt>> {
         self.expect(TokenKind::LBrace, open_err)?;
         let mut body = Vec::new();
         while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {

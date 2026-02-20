@@ -110,6 +110,11 @@ pub enum Expr {
         name: String,
         fields: Vec<(String, Expr)>,
     },
+    FnLit {
+        params: Vec<Param>,
+        return_type: TypeName,
+        body: Vec<Stmt>,
+    },
     Unary {
         op: UnaryOp,
         expr: Box<Expr>,
@@ -380,6 +385,18 @@ fn pretty_expr(expr: &Expr) -> String {
                 .collect::<Vec<_>>()
                 .join(", ");
             format!("{name} {{ {fields} }}")
+        }
+        Expr::FnLit {
+            params,
+            return_type,
+            ..
+        } => {
+            let params = params
+                .iter()
+                .map(|p| format!("{}: {}", p.name, p.ty.as_str()))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("fn({params}) -> {}", return_type.as_str())
         }
         Expr::Unary { op, expr } => {
             let symbol = match op {

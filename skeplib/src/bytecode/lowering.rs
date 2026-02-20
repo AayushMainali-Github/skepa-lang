@@ -29,6 +29,8 @@ pub fn compile_source(source: &str) -> Result<BytecodeModule, DiagnosticBag> {
 struct Compiler {
     diags: DiagnosticBag,
     function_names: HashSet<String>,
+    lifted_functions: Vec<FunctionChunk>,
+    fn_lit_counter: usize,
 }
 
 impl Compiler {
@@ -51,6 +53,8 @@ impl Compiler {
 
     fn compile_program(&mut self, program: &Program) -> BytecodeModule {
         self.function_names.clear();
+        self.lifted_functions.clear();
+        self.fn_lit_counter = 0;
         for func in &program.functions {
             self.function_names.insert(func.name.clone());
         }
@@ -72,7 +76,45 @@ impl Compiler {
                 module.functions.insert(mangled, chunk);
             }
         }
+        for chunk in self.lifted_functions.drain(..) {
+            module.functions.insert(chunk.name.clone(), chunk);
+        }
         module
+    }
+
+    fn compile_fn_lit(&mut self, params: &[crate::ast::Param], body: &[Stmt]) -> String {
+        self.fn_lit_counter += 1;
+        let name = format!("__fn_lit_{}", self.fn_lit_counter);
+        self.function_names.insert(name.clone());
+
+        let mut ctx = FnCtx::default();
+        let mut loops: Vec<LoopCtx> = Vec::new();
+        let mut code = Vec::new();
+
+        for param in params {
+            if let TypeName::Named(type_name) = &param.ty {
+                ctx.alloc_local_with_named_type(param.name.clone(), type_name.clone());
+            } else {
+                ctx.alloc_local(param.name.clone());
+            }
+        }
+
+        for stmt in body {
+            self.compile_stmt(stmt, &mut ctx, &mut loops, &mut code);
+        }
+
+        if !matches!(code.last(), Some(Instr::Return)) {
+            code.push(Instr::LoadConst(Value::Unit));
+            code.push(Instr::Return);
+        }
+
+        self.lifted_functions.push(FunctionChunk {
+            name: name.clone(),
+            code,
+            locals_count: ctx.next_local,
+            param_count: params.len(),
+        });
+        name
     }
 
     fn compile_function(&mut self, func: &crate::ast::FnDecl) -> FunctionChunk {
@@ -527,6 +569,10 @@ impl Compiler {
                     name: name.clone(),
                     fields: fields.iter().map(|(k, _)| k.clone()).collect(),
                 });
+            }
+            Expr::FnLit { params, body, .. } => {
+                let fn_name = self.compile_fn_lit(params, body);
+                code.push(Instr::LoadConst(Value::Function(fn_name)));
             }
         }
     }
