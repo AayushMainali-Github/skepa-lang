@@ -158,6 +158,8 @@ impl Lexer {
         let lexeme = self.slice(start, self.idx);
         let kind = match lexeme.as_str() {
             "import" => TokenKind::KwImport,
+            "from" => TokenKind::KwFrom,
+            "as" => TokenKind::KwAs,
             "fn" => TokenKind::KwFn,
             "struct" => TokenKind::KwStruct,
             "impl" => TokenKind::KwImpl,

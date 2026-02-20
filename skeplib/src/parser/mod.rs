@@ -1,5 +1,6 @@
 use crate::ast::{
-    FieldDecl, FnDecl, ImplDecl, ImportDecl, MethodDecl, Param, Program, StructDecl, TypeName,
+    FieldDecl, FnDecl, ImplDecl, ImportDecl, ImportItem, MethodDecl, Param, Program, StructDecl,
+    TypeName,
 };
 use crate::diagnostic::{DiagnosticBag, Span};
 use crate::lexer::lex;
@@ -55,6 +56,12 @@ impl Parser {
                 }
                 continue;
             }
+            if self.at(TokenKind::KwFrom) {
+                if let Some(i) = self.parse_from_import() {
+                    imports.push(i);
+                }
+                continue;
+            }
 
             if self.at(TokenKind::KwFn) {
                 if let Some(f) = self.parse_function() {
@@ -76,7 +83,7 @@ impl Parser {
             }
 
             self.error_here_expected(
-                "Expected top-level declaration (`import`, `struct`, `impl`, or `fn`)",
+                "Expected top-level declaration (`import`, `from`, `struct`, `impl`, or `fn`)",
             );
             self.synchronize_toplevel();
         }
@@ -92,12 +99,48 @@ impl Parser {
 
     fn parse_import(&mut self) -> Option<ImportDecl> {
         self.expect(TokenKind::KwImport, "Expected `import`")?;
-        let module = self.expect_ident("Expected module name after `import`")?;
+        let path = self.parse_dotted_path("Expected module path after `import`")?;
+        let alias = if self.at(TokenKind::KwAs) {
+            self.bump();
+            Some(self.expect_ident("Expected alias name after `as`")?.lexeme)
+        } else {
+            None
+        };
         self.expect(TokenKind::Semi, "Expected `;` after import")?;
         Some(ImportDecl::ImportModule {
-            path: vec![module.lexeme],
-            alias: None,
+            path,
+            alias,
         })
+    }
+
+    fn parse_from_import(&mut self) -> Option<ImportDecl> {
+        self.expect(TokenKind::KwFrom, "Expected `from`")?;
+        let path = self.parse_dotted_path("Expected module path after `from`")?;
+        self.expect(TokenKind::KwImport, "Expected `import` after module path in from-import")?;
+        let name = self
+            .expect_ident("Expected imported symbol name after `import`")?
+            .lexeme;
+        let alias = if self.at(TokenKind::KwAs) {
+            self.bump();
+            Some(self.expect_ident("Expected alias name after `as`")?.lexeme)
+        } else {
+            None
+        };
+        self.expect(TokenKind::Semi, "Expected `;` after from-import")?;
+        Some(ImportDecl::ImportFrom {
+            path,
+            items: vec![ImportItem { name, alias }],
+        })
+    }
+
+    fn parse_dotted_path(&mut self, first_err: &str) -> Option<Vec<String>> {
+        let mut path = vec![self.expect_ident(first_err)?.lexeme];
+        while self.at(TokenKind::Dot) {
+            self.bump();
+            let next = self.expect_ident("Expected identifier after `.` in module path")?;
+            path.push(next.lexeme);
+        }
+        Some(path)
     }
 
     fn parse_function(&mut self) -> Option<FnDecl> {
@@ -314,6 +357,7 @@ impl Parser {
     fn synchronize_toplevel(&mut self) {
         while !self.at(TokenKind::Eof) {
             if self.at(TokenKind::KwImport)
+                || self.at(TokenKind::KwFrom)
                 || self.at(TokenKind::KwFn)
                 || self.at(TokenKind::KwStruct)
                 || self.at(TokenKind::KwImpl)

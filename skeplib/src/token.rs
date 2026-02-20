@@ -8,6 +8,8 @@ pub enum TokenKind {
     FloatLit,
     StringLit,
     KwImport,
+    KwFrom,
+    KwAs,
     KwFn,
     KwStruct,
     KwImpl,

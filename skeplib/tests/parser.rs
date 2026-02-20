@@ -30,6 +30,67 @@ fn main() -> Int {
 }
 
 #[test]
+fn parses_import_module_dotted_path() {
+    let src = r#"
+import utils.math;
+fn main() -> Int { return 0; }
+"#;
+    let program = parse_ok(src);
+    assert_eq!(
+        program.imports[0],
+        skeplib::ast::ImportDecl::ImportModule {
+            path: vec!["utils".to_string(), "math".to_string()],
+            alias: None,
+        }
+    );
+}
+
+#[test]
+fn parses_import_module_with_alias() {
+    let src = r#"
+import utils.math as m;
+fn main() -> Int { return 0; }
+"#;
+    let program = parse_ok(src);
+    assert_eq!(
+        program.imports[0],
+        skeplib::ast::ImportDecl::ImportModule {
+            path: vec!["utils".to_string(), "math".to_string()],
+            alias: Some("m".to_string()),
+        }
+    );
+}
+
+#[test]
+fn parses_from_import_single_item() {
+    let src = r#"
+from utils.math import add;
+fn main() -> Int { return 0; }
+"#;
+    let program = parse_ok(src);
+    assert_eq!(
+        program.imports[0],
+        skeplib::ast::ImportDecl::ImportFrom {
+            path: vec!["utils".to_string(), "math".to_string()],
+            items: vec![skeplib::ast::ImportItem {
+                name: "add".to_string(),
+                alias: None,
+            }],
+        }
+    );
+}
+
+#[test]
+fn reports_malformed_dotted_import_path() {
+    let src = r#"
+import a..b;
+fn main() -> Int { return 0; }
+"#;
+    let diags = parse_err(src);
+    assert_has_diag(&diags, "Expected identifier after `.` in module path");
+}
+
+#[test]
 fn reports_missing_semicolon_after_return() {
     let src = r#"
 fn main() -> Int {
