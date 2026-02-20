@@ -1074,6 +1074,34 @@ fn main() -> Int {
 }
 
 #[test]
+fn runs_immediate_function_literal_call() {
+    let src = r#"
+fn main() -> Int {
+  return (fn(x: Int) -> Int { return x + 1; })(41);
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(42));
+}
+
+#[test]
+fn runs_function_literal_passed_as_argument() {
+    let src = r#"
+fn apply(f: Fn(Int) -> Int, x: Int) -> Int {
+  return f(x);
+}
+
+fn main() -> Int {
+  return apply(fn(x: Int) -> Int { return x + 2; }, 40);
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(42));
+}
+
+#[test]
 fn bytecode_roundtrip_preserves_function_value_and_callvalue_instr() {
     let module = BytecodeModule {
         functions: vec![

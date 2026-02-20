@@ -164,6 +164,28 @@ fn main() -> Int {
 }
 
 #[test]
+fn parses_immediate_function_literal_call() {
+    let src = r#"
+fn main() -> Int {
+  return (fn(x: Int) -> Int { return x + 1; })(2);
+}
+"#;
+    let program = parse_ok(src);
+    let body = &program.functions[0].body;
+    match &body[0] {
+        Stmt::Return(Some(Expr::Call { callee, args })) => {
+            assert_eq!(args.len(), 1);
+            assert!(matches!(args[0], Expr::IntLit(2)));
+            match callee.as_ref() {
+                Expr::Group(inner) => assert!(matches!(inner.as_ref(), Expr::FnLit { .. })),
+                _ => panic!("expected grouped fn literal callee"),
+            }
+        }
+        _ => panic!("expected return call expression"),
+    }
+}
+
+#[test]
 fn reports_missing_colon_in_parameter() {
     let src = r#"
 fn add(a Int) -> Int {

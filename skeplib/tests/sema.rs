@@ -216,6 +216,17 @@ fn main() -> Int {
 }
 
 #[test]
+fn sema_accepts_immediate_function_literal_call() {
+    let src = r#"
+fn main() -> Int {
+  return (fn(x: Int) -> Int { return x + 1; })(41);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
 fn sema_reports_io_print_type_error() {
     let src = r#"
 import io;
