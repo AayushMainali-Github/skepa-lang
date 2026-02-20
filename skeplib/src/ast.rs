@@ -1,14 +1,39 @@
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Program {
     pub imports: Vec<ImportDecl>,
+    pub exports: Vec<ExportDecl>,
     pub structs: Vec<StructDecl>,
     pub impls: Vec<ImplDecl>,
     pub functions: Vec<FnDecl>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ImportDecl {
-    pub module: String,
+pub enum ImportDecl {
+    ImportModule {
+        path: Vec<String>,
+        alias: Option<String>,
+    },
+    ImportFrom {
+        path: Vec<String>,
+        items: Vec<ImportItem>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImportItem {
+    pub name: String,
+    pub alias: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExportDecl {
+    pub items: Vec<ExportItem>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExportItem {
+    pub name: String,
+    pub alias: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -183,7 +208,38 @@ impl Program {
     pub fn pretty(&self) -> String {
         let mut out = String::new();
         for import in &self.imports {
-            out.push_str(&format!("import {}\n", import.module));
+            match import {
+                ImportDecl::ImportModule { path, alias } => {
+                    out.push_str(&format!("import {}", path.join(".")));
+                    if let Some(alias) = alias {
+                        out.push_str(&format!(" as {alias}"));
+                    }
+                    out.push('\n');
+                }
+                ImportDecl::ImportFrom { path, items } => {
+                    let items = items
+                        .iter()
+                        .map(|item| match &item.alias {
+                            Some(alias) => format!("{} as {}", item.name, alias),
+                            None => item.name.clone(),
+                        })
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    out.push_str(&format!("from {} import {items}\n", path.join(".")));
+                }
+            }
+        }
+        for export in &self.exports {
+            let items = export
+                .items
+                .iter()
+                .map(|item| match &item.alias {
+                    Some(alias) => format!("{} as {}", item.name, alias),
+                    None => item.name.clone(),
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            out.push_str(&format!("export {{ {items} }}\n"));
         }
         for s in &self.structs {
             pretty_struct(s, 0, &mut out);

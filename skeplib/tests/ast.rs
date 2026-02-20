@@ -11,9 +11,11 @@ fn create_empty_program() {
 #[test]
 fn create_program_with_one_import_and_one_function() {
     let program = Program {
-        imports: vec![ImportDecl {
-            module: "io".to_string(),
+        imports: vec![ImportDecl::ImportModule {
+            path: vec!["io".to_string()],
+            alias: None,
         }],
+        exports: Vec::new(),
         structs: Vec::new(),
         impls: Vec::new(),
         functions: vec![FnDecl {
@@ -25,7 +27,13 @@ fn create_program_with_one_import_and_one_function() {
     };
 
     assert_eq!(program.imports.len(), 1);
-    assert_eq!(program.imports[0].module, "io");
+    assert_eq!(
+        program.imports[0],
+        ImportDecl::ImportModule {
+            path: vec!["io".to_string()],
+            alias: None
+        }
+    );
     assert_eq!(program.functions.len(), 1);
     assert_eq!(program.functions[0].name, "main");
     assert_eq!(program.functions[0].return_type, Some(TypeName::Int));
@@ -61,6 +69,7 @@ fn struct_and_impl_ast_nodes_roundtrip_data() {
     };
     let p = Program {
         imports: Vec::new(),
+        exports: Vec::new(),
         structs: vec![s],
         impls: vec![i],
         functions: Vec::new(),

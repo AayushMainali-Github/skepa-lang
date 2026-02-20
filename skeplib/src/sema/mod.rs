@@ -68,7 +68,10 @@ impl Checker {
         let imported_modules = program
             .imports
             .iter()
-            .map(|i| i.module.clone())
+            .filter_map(|i| match i {
+                crate::ast::ImportDecl::ImportModule { path, .. } => Some(path.join(".")),
+                crate::ast::ImportDecl::ImportFrom { .. } => None,
+            })
             .collect::<HashSet<_>>();
         Self {
             diagnostics: DiagnosticBag::new(),

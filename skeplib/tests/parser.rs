@@ -15,7 +15,13 @@ fn main() -> Int {
 "#;
     let program = parse_ok(src);
     assert_eq!(program.imports.len(), 1);
-    assert_eq!(program.imports[0].module, "io");
+    assert_eq!(
+        program.imports[0],
+        skeplib::ast::ImportDecl::ImportModule {
+            path: vec!["io".to_string()],
+            alias: None
+        }
+    );
     assert_eq!(program.functions.len(), 1);
     assert_eq!(program.functions[0].name, "main");
     assert_eq!(program.functions[0].params.len(), 0);

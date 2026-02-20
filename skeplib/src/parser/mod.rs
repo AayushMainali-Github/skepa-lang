@@ -43,6 +43,7 @@ impl Parser {
 
     fn parse_program(&mut self) -> Program {
         let mut imports = Vec::new();
+        let exports = Vec::new();
         let mut structs = Vec::new();
         let mut impls = Vec::new();
         let mut functions = Vec::new();
@@ -82,6 +83,7 @@ impl Parser {
 
         Program {
             imports,
+            exports,
             structs,
             impls,
             functions,
@@ -92,8 +94,9 @@ impl Parser {
         self.expect(TokenKind::KwImport, "Expected `import`")?;
         let module = self.expect_ident("Expected module name after `import`")?;
         self.expect(TokenKind::Semi, "Expected `;` after import")?;
-        Some(ImportDecl {
-            module: module.lexeme,
+        Some(ImportDecl::ImportModule {
+            path: vec![module.lexeme],
+            alias: None,
         })
     }
 
