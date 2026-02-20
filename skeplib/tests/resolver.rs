@@ -268,3 +268,48 @@ fn fc() -> Int { return 1; }
     }));
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn resolve_project_reports_missing_imported_module() {
+    let root = make_temp_dir("missing_dep");
+    let main_src = r#"
+import missing.dep;
+fn main() -> Int { return 0; }
+"#;
+    fs::write(root.join("main.sk"), main_src).expect("write main");
+
+    let errs = resolve_project(&root.join("main.sk")).expect_err("missing module expected");
+    assert!(errs.iter().any(|e| e.kind == ResolveErrorKind::MissingModule));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn resolve_project_reports_io_error_for_directory_entry_path() {
+    let root = make_temp_dir("io_dir_entry");
+    let entry_dir = root.join("entry.sk");
+    fs::create_dir_all(&entry_dir).expect("create directory");
+
+    let errs = resolve_project(&entry_dir).expect_err("io expected");
+    assert!(errs.iter().any(|e| e.kind == ResolveErrorKind::Io));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn resolve_project_reports_duplicate_module_id_collision() {
+    let root = make_temp_dir("dup_module_id");
+    let main_src = r#"
+import a;
+fn main() -> Int { return 0; }
+"#;
+    fs::create_dir_all(root.join("a").join("b")).expect("create nested");
+    fs::write(root.join("main.sk"), main_src).expect("write main");
+    fs::write(root.join("a").join("b.c.sk"), "fn x() -> Int { return 1; }").expect("write file");
+    fs::write(root.join("a").join("b").join("c.sk"), "fn y() -> Int { return 2; }")
+        .expect("write file");
+
+    let errs = resolve_project(&root.join("main.sk")).expect_err("duplicate id expected");
+    assert!(errs
+        .iter()
+        .any(|e| e.kind == ResolveErrorKind::DuplicateModuleId));
+    let _ = fs::remove_dir_all(root);
+}
