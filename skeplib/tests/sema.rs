@@ -207,14 +207,10 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(
-        diags
-            .as_slice()
-            .iter()
-            .any(|d| d
-                .message
-                .contains("Function literals cannot capture outer variable `y`"))
-    );
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("Function literals cannot capture outer variable `y`")
+    }));
 }
 
 #[test]
@@ -256,10 +252,12 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("Return type mismatch")));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Return type mismatch"))
+    );
 }
 
 #[test]
@@ -293,12 +291,10 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d
-            .message
-            .contains("Function values cannot be compared with `==` or `!=`")));
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("Function values cannot be compared with `==` or `!=`")
+    }));
 }
 
 #[test]
@@ -354,10 +350,12 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("Unknown method `apply` on struct `Op`")));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Unknown method `apply` on struct `Op`"))
+    );
 }
 
 #[test]

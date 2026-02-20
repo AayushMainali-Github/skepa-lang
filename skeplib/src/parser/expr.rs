@@ -214,12 +214,14 @@ impl Parser {
     fn parse_primary(&mut self) -> Option<Expr> {
         if self.at(TokenKind::KwFn) {
             self.bump();
-            self.expect(TokenKind::LParen, "Expected `(` after `fn` in function literal")?;
+            self.expect(
+                TokenKind::LParen,
+                "Expected `(` after `fn` in function literal",
+            )?;
             let mut params = Vec::new();
             if !self.at(TokenKind::RParen) {
                 loop {
-                    let name =
-                        self.expect_ident("Expected parameter name in function literal")?;
+                    let name = self.expect_ident("Expected parameter name in function literal")?;
                     self.expect(TokenKind::Colon, "Expected `:` after parameter name")?;
                     let ty = self.expect_type_name("Expected parameter type")?;
                     params.push(crate::ast::Param {
@@ -236,8 +238,14 @@ impl Parser {
                     break;
                 }
             }
-            self.expect(TokenKind::RParen, "Expected `)` after function literal parameters")?;
-            self.expect(TokenKind::Arrow, "Expected `->` after function literal parameters")?;
+            self.expect(
+                TokenKind::RParen,
+                "Expected `)` after function literal parameters",
+            )?;
+            self.expect(
+                TokenKind::Arrow,
+                "Expected `->` after function literal parameters",
+            )?;
             let return_type = self.expect_type_name("Expected function literal return type")?;
             let body = self.parse_block("Expected `{` before function literal body")?;
             return Some(Expr::FnLit {

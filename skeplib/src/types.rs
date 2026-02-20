@@ -8,7 +8,10 @@ pub enum TypeInfo {
     String,
     Void,
     Named(String),
-    Array { elem: Box<TypeInfo>, size: usize },
+    Array {
+        elem: Box<TypeInfo>,
+        size: usize,
+    },
     Fn {
         params: Vec<TypeInfo>,
         ret: Box<TypeInfo>,

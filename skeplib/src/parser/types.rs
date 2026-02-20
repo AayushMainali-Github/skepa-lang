@@ -24,8 +24,14 @@ impl Parser {
                     break;
                 }
             }
-            self.expect(TokenKind::RParen, "Expected `)` after function type parameters")?;
-            self.expect(TokenKind::Arrow, "Expected `->` after function type parameters")?;
+            self.expect(
+                TokenKind::RParen,
+                "Expected `)` after function type parameters",
+            )?;
+            self.expect(
+                TokenKind::Arrow,
+                "Expected `->` after function type parameters",
+            )?;
             let ret = self.expect_type_name("Expected function return type after `->`")?;
             return Some(TypeName::Fn {
                 params,

@@ -1221,7 +1221,10 @@ fn main() -> Int {
     let module = compile_source(src).expect("compile");
     let err = Vm::run_module_main(&module).expect_err("unknown method");
     assert_eq!(err.kind, VmErrorKind::UnknownFunction);
-    assert!(err.message.contains("Unknown method `apply` on struct `Op`"));
+    assert!(
+        err.message
+            .contains("Unknown method `apply` on struct `Op`")
+    );
 }
 
 #[test]

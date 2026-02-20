@@ -145,7 +145,10 @@ pub enum TypeName {
     String,
     Void,
     Named(String),
-    Array { elem: Box<TypeName>, size: usize },
+    Array {
+        elem: Box<TypeName>,
+        size: usize,
+    },
     Fn {
         params: Vec<TypeName>,
         ret: Box<TypeName>,
