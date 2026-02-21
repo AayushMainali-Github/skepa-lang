@@ -192,14 +192,15 @@ fn print_resolve_errors(errs: &[ResolveError]) {
             let line = e.line.unwrap_or(0);
             let col = e.col.unwrap_or(0);
             eprintln!(
-                "[E-RESOLVE][resolve] {}:{}:{}: {}",
+                "[{}][resolve] {}:{}:{}: {}",
+                e.code,
                 path.display(),
                 line,
                 col,
                 e.message
             );
         } else {
-            eprintln!("[E-RESOLVE][resolve] {}", e.message);
+            eprintln!("[{}][resolve] {}", e.code, e.message);
         }
     }
 }

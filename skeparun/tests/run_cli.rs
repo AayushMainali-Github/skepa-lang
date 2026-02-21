@@ -251,7 +251,7 @@ fn main() -> Int { return 0; }
 
     assert_eq!(output.status.code(), Some(15));
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("[E-RESOLVE][resolve]"));
+    assert!(stderr.contains("[E-MOD-NOT-FOUND][resolve]"));
     assert!(stderr.contains("while resolving import `missing.dep`"));
 }
 

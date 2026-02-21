@@ -358,8 +358,33 @@ fn main() -> Int { return 0; }
         .expect("run check");
     assert_eq!(output.status.code(), Some(15));
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("[E-RESOLVE][resolve]"));
+    assert!(stderr.contains("[E-MOD-NOT-FOUND][resolve]"));
     assert!(stderr.contains("while resolving import `missing.dep`"));
+}
+
+#[test]
+fn build_resolver_error_uses_resolver_code_not_io_code() {
+    let tmp = make_temp_dir("skepac_build_resolve_err");
+    let main = tmp.join("main.sk");
+    let out = tmp.join("main.skbc");
+    fs::write(
+        &main,
+        r#"
+import missing.dep;
+fn main() -> Int { return 0; }
+"#,
+    )
+    .expect("write main");
+
+    let output = Command::new(skepac_bin())
+        .arg("build")
+        .arg(&main)
+        .arg(&out)
+        .output()
+        .expect("run build");
+    assert_eq!(output.status.code(), Some(15));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("[E-MOD-NOT-FOUND][resolve]"));
 }
 
 fn skepac_bin() -> &'static str {
