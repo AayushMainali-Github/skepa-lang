@@ -135,6 +135,33 @@ fn main() -> Int {
 }
 
 #[test]
+fn build_malformed_source_is_reported_as_parse_error() {
+    let tmp = make_temp_dir("skepac_build_parse_bad");
+    let source = tmp.join("bad.sk");
+    let out = tmp.join("bad.skbc");
+    fs::write(
+        &source,
+        r#"
+fn main( -> Int {
+  return 0;
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("build")
+        .arg(&source)
+        .arg(&out)
+        .output()
+        .expect("run skepac build");
+
+    assert_eq!(output.status.code(), Some(10));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("[E-PARSE][parse]"));
+}
+
+#[test]
 fn disasm_source_prints_bytecode_text() {
     let tmp = make_temp_dir("skepac_disasm_src");
     let source = tmp.join("main.sk");
@@ -158,6 +185,31 @@ fn main() -> Int {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("fn main"));
     assert!(stdout.contains("Add"));
+}
+
+#[test]
+fn disasm_malformed_source_is_reported_as_parse_error() {
+    let tmp = make_temp_dir("skepac_disasm_parse_bad");
+    let source = tmp.join("bad.sk");
+    fs::write(
+        &source,
+        r#"
+fn main( -> Int {
+  return 0;
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("disasm")
+        .arg(&source)
+        .output()
+        .expect("run skepac disasm");
+
+    assert_eq!(output.status.code(), Some(10));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("[E-PARSE][parse]"));
 }
 
 #[test]
