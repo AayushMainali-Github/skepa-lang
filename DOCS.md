@@ -256,3 +256,7 @@ Resolver messages include module/path context and may include `did you mean ...`
 - `skepac disasm <entry.sk | out.skbc>`
 - `skeparun run <entry.sk>`
 - `skeparun run-bc <out.skbc>`
+
+Runtime env config:
+- `SKEPA_MAX_CALL_DEPTH`: maximum VM call depth, required to be an integer `>= 1` when set.
+- `--trace` on `skeparun` enables instruction trace output.

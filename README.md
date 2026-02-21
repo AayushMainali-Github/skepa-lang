@@ -52,6 +52,10 @@ skeparun run-bc app.skbc
 skepac disasm app.sk
 ```
 
+Runtime options:
+- `skeparun run --trace app.sk` enables VM trace output.
+- `SKEPA_MAX_CALL_DEPTH` can be set to control call depth and must be an integer `>= 1`.
+
 ## Quickstart (multi-file project)
 
 ```text
