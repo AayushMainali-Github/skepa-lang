@@ -1,10 +1,12 @@
 use std::env;
 use std::fs;
+use std::path::Path;
 use std::process::ExitCode;
 
-use skeplib::bytecode::{BytecodeModule, compile_source};
+use skeplib::bytecode::{BytecodeModule, compile_project_entry};
 use skeplib::diagnostic::Diagnostic;
-use skeplib::sema::analyze_source;
+use skeplib::resolver::ResolveError;
+use skeplib::sema::analyze_project_entry;
 use skeplib::vm::{Vm, VmConfig};
 
 const EXIT_OK: u8 = 0;
@@ -14,6 +16,7 @@ const EXIT_SEMA: u8 = 11;
 const EXIT_CODEGEN: u8 = 12;
 const EXIT_DECODE: u8 = 13;
 const EXIT_RUNTIME: u8 = 14;
+const EXIT_RESOLVE: u8 = 15;
 
 fn main() -> ExitCode {
     match run() {
@@ -81,28 +84,29 @@ fn parse_run_args(
 }
 
 fn run_file(path: &str, config: VmConfig) -> Result<ExitCode, String> {
-    let source = match fs::read_to_string(path) {
-        Ok(s) => s,
-        Err(e) => {
-            eprintln!("Failed to read `{path}`: {e}");
-            return Ok(ExitCode::from(EXIT_IO));
+    if let Err(e) = fs::read_to_string(path) {
+        eprintln!("Failed to read `{path}`: {e}");
+        return Ok(ExitCode::from(EXIT_IO));
+    }
+    match analyze_project_entry(Path::new(path)) {
+        Ok((_sema, sema_diags)) => {
+            if !sema_diags.is_empty() {
+                for d in sema_diags.as_slice() {
+                    print_diag("sema", d);
+                }
+                return Ok(ExitCode::from(EXIT_SEMA));
+            }
         }
-    };
-
-    let (_sema, sema_diags) = analyze_source(&source);
-    if !sema_diags.is_empty() {
-        for d in sema_diags.as_slice() {
-            print_diag("sema", d);
+        Err(errs) => {
+            print_resolve_errors(&errs);
+            return Ok(ExitCode::from(EXIT_RESOLVE));
         }
-        return Ok(ExitCode::from(EXIT_SEMA));
     }
 
-    let module = match compile_source(&source) {
+    let module = match compile_project_entry(Path::new(path)) {
         Ok(m) => m,
-        Err(diags) => {
-            for d in diags.as_slice() {
-                print_diag("codegen", d);
-            }
+        Err(errs) => {
+            print_resolve_errors(&errs);
             return Ok(ExitCode::from(EXIT_CODEGEN));
         }
     };
@@ -149,6 +153,22 @@ fn run_bytecode_file(path: &str, config: VmConfig) -> Result<ExitCode, String> {
 
 fn print_diag(phase: &str, d: &Diagnostic) {
     eprintln!("[{}][{}] {}", phase_code(phase), phase, d);
+}
+
+fn print_resolve_errors(errs: &[ResolveError]) {
+    for e in errs {
+        if let Some(path) = &e.path {
+            eprintln!(
+                "[E-RESOLVE][resolve] {}:{}:{}: {}",
+                path.display(),
+                0,
+                0,
+                e.message
+            );
+        } else {
+            eprintln!("[E-RESOLVE][resolve] {}", e.message);
+        }
+    }
 }
 
 fn phase_code(phase: &str) -> &'static str {

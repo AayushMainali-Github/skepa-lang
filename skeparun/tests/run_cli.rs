@@ -200,6 +200,61 @@ fn main() -> Int {
     assert_eq!(output.status.code(), Some(8));
 }
 
+#[test]
+fn run_multi_file_project_executes_entry_graph() {
+    let tmp = make_temp_dir("skeparun_multi");
+    fs::create_dir_all(tmp.join("utils")).expect("create utils");
+    let main = tmp.join("main.sk");
+    fs::write(
+        tmp.join("utils").join("math.sk"),
+        r#"
+fn add(a: Int, b: Int) -> Int { return a + b; }
+export { add };
+"#,
+    )
+    .expect("write util");
+    fs::write(
+        &main,
+        r#"
+from utils.math import add;
+fn main() -> Int { return add(20, 22); }
+"#,
+    )
+    .expect("write main");
+
+    let output = Command::new(skeparun_bin())
+        .arg("run")
+        .arg(&main)
+        .output()
+        .expect("run skeparun");
+    assert_eq!(output.status.code(), Some(42));
+}
+
+#[test]
+fn run_multi_file_resolver_error_includes_context() {
+    let tmp = make_temp_dir("skeparun_multi_resolve_err");
+    let file = tmp.join("main.sk");
+    fs::write(
+        &file,
+        r#"
+import missing.dep;
+fn main() -> Int { return 0; }
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(skeparun_bin())
+        .arg("run")
+        .arg(&file)
+        .output()
+        .expect("run skeparun");
+
+    assert_eq!(output.status.code(), Some(15));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("[E-RESOLVE][resolve]"));
+    assert!(stderr.contains("while resolving import `missing.dep`"));
+}
+
 fn skeparun_bin() -> &'static str {
     env!("CARGO_BIN_EXE_skeparun")
 }

@@ -59,9 +59,12 @@ pub fn analyze_project_entry(entry: &Path) -> Result<(SemaResult, DiagnosticBag)
 fn analyze_project_graph(graph: &ModuleGraph) -> (SemaResult, DiagnosticBag) {
     let mut programs = HashMap::<ModuleId, Program>::new();
     let mut diags = DiagnosticBag::new();
+    let mut module_paths = HashMap::<ModuleId, String>::new();
     for (id, unit) in &graph.modules {
+        module_paths.insert(id.clone(), unit.path.display().to_string());
         let (program, parse_diags) = Parser::parse_source(&unit.source);
-        for d in parse_diags.into_vec() {
+        for mut d in parse_diags.into_vec() {
+            d.message = format!("{}: {}", unit.path.display(), d.message);
             diags.push(d);
         }
         programs.insert(id.clone(), program);
@@ -84,7 +87,12 @@ fn analyze_project_graph(graph: &ModuleGraph) -> (SemaResult, DiagnosticBag) {
         let mut checker = Checker::new(program);
         checker.apply_external_context(ctx);
         checker.check_program(program);
-        for d in checker.diagnostics.into_vec() {
+        let pfx = module_paths
+            .get(id)
+            .cloned()
+            .unwrap_or_else(|| id.clone());
+        for mut d in checker.diagnostics.into_vec() {
+            d.message = format!("{pfx}: {}", d.message);
             diags.push(d);
         }
     }

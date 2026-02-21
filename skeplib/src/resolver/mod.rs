@@ -131,6 +131,14 @@ pub fn resolve_project(entry: &Path) -> Result<ModuleGraph, Vec<ResolveError>> {
         let mut imports = Vec::new();
 
         for import_path in import_paths {
+            if import_path.len() == 1
+                && matches!(
+                    import_path[0].as_str(),
+                    "io" | "str" | "arr" | "datetime" | "random"
+                )
+            {
+                continue;
+            }
             let import_text = import_path.join(".");
             match resolve_import_target(&root, &import_path) {
                 Ok(ImportTarget::File(target_file)) => {

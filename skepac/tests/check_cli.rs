@@ -58,7 +58,7 @@ fn check_without_arguments_shows_usage_and_fails() {
     let output = Command::new(skepac_bin()).output().expect("run skepac");
     assert_eq!(output.status.code(), Some(2));
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("Usage: skepac check <file.sk> | skepac build <in.sk> <out.skbc>"));
+    assert!(stderr.contains("Usage: skepac check <entry.sk> | skepac build <entry.sk> <out.skbc>"));
 }
 
 #[test]
@@ -261,6 +261,81 @@ fn main() -> Int {
         .output()
         .expect("run check");
     assert_eq!(output.status.code(), Some(0));
+}
+
+#[test]
+fn multi_file_project_check_build_disasm_work() {
+    let tmp = make_temp_dir("skepac_multi");
+    fs::create_dir_all(tmp.join("utils")).expect("create utils");
+    let main = tmp.join("main.sk");
+    let util = tmp.join("utils").join("math.sk");
+    let out = tmp.join("main.skbc");
+
+    fs::write(
+        &util,
+        r#"
+fn add(a: Int, b: Int) -> Int { return a + b; }
+export { add };
+"#,
+    )
+    .expect("write util");
+    fs::write(
+        &main,
+        r#"
+from utils.math import add;
+fn main() -> Int { return add(20, 22); }
+"#,
+    )
+    .expect("write main");
+
+    let check = Command::new(skepac_bin())
+        .arg("check")
+        .arg(&main)
+        .output()
+        .expect("run check");
+    assert_eq!(check.status.code(), Some(0));
+
+    let build = Command::new(skepac_bin())
+        .arg("build")
+        .arg(&main)
+        .arg(&out)
+        .output()
+        .expect("run build");
+    assert_eq!(build.status.code(), Some(0));
+    assert!(out.exists());
+
+    let disasm = Command::new(skepac_bin())
+        .arg("disasm")
+        .arg(&main)
+        .output()
+        .expect("run disasm");
+    assert_eq!(disasm.status.code(), Some(0));
+    let stdout = String::from_utf8_lossy(&disasm.stdout);
+    assert!(stdout.contains("fn utils.math::add"));
+}
+
+#[test]
+fn multi_file_project_resolver_error_reports_import_chain_like_context() {
+    let tmp = make_temp_dir("skepac_multi_resolve_err");
+    let main = tmp.join("main.sk");
+    fs::write(
+        &main,
+        r#"
+import missing.dep;
+fn main() -> Int { return 0; }
+"#,
+    )
+    .expect("write main");
+
+    let output = Command::new(skepac_bin())
+        .arg("check")
+        .arg(&main)
+        .output()
+        .expect("run check");
+    assert_eq!(output.status.code(), Some(15));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("[E-RESOLVE][resolve]"));
+    assert!(stderr.contains("while resolving import `missing.dep`"));
 }
 
 fn skepac_bin() -> &'static str {
