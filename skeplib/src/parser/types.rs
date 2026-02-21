@@ -64,7 +64,13 @@ impl Parser {
             TokenKind::TyString => TypeName::String,
             TokenKind::TyVoid => TypeName::Void,
             TokenKind::Ident => {
-                let name = self.bump().lexeme;
+                let mut name = self.bump().lexeme;
+                while self.at(TokenKind::Dot) {
+                    self.bump();
+                    let seg = self.expect_ident("Expected identifier after `.` in type name")?;
+                    name.push('.');
+                    name.push_str(&seg.lexeme);
+                }
                 return Some(TypeName::Named(name));
             }
             _ => {

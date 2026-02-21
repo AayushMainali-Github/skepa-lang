@@ -1,8 +1,13 @@
 use std::collections::{HashMap, HashSet};
+use std::path::Path;
 
-use crate::ast::{Program, Stmt, TypeName};
+use crate::ast::{ImportDecl, Program, Stmt, TypeName};
 use crate::diagnostic::{DiagnosticBag, Span};
 use crate::parser::Parser;
+use crate::resolver::{
+    ModuleGraph, ModuleId, ResolveError, collect_module_symbols, resolve_project,
+    validate_and_build_export_map,
+};
 use crate::types::{FunctionSig, TypeInfo};
 
 mod calls;
@@ -29,6 +34,210 @@ pub fn analyze_source(source: &str) -> (SemaResult, DiagnosticBag) {
     )
 }
 
+#[derive(Debug, Clone, Default)]
+struct ModuleApi {
+    functions: HashMap<String, FunctionSig>,
+    structs: HashMap<String, HashMap<String, TypeInfo>>,
+    methods: HashMap<String, HashMap<String, FunctionSig>>,
+    globals: HashMap<String, TypeInfo>,
+}
+
+#[derive(Debug, Clone, Default)]
+struct ModuleExternalContext {
+    imported_functions: HashMap<String, FunctionSig>,
+    imported_structs: HashMap<String, HashMap<String, TypeInfo>>,
+    imported_methods: HashMap<String, HashMap<String, FunctionSig>>,
+    imported_globals: HashMap<String, TypeInfo>,
+    direct_import_targets: HashMap<String, String>,
+}
+
+pub fn analyze_project_entry(entry: &Path) -> Result<(SemaResult, DiagnosticBag), Vec<ResolveError>> {
+    let graph = resolve_project(entry)?;
+    Ok(analyze_project_graph(&graph))
+}
+
+fn analyze_project_graph(graph: &ModuleGraph) -> (SemaResult, DiagnosticBag) {
+    let mut programs = HashMap::<ModuleId, Program>::new();
+    let mut diags = DiagnosticBag::new();
+    for (id, unit) in &graph.modules {
+        let (program, parse_diags) = Parser::parse_source(&unit.source);
+        for d in parse_diags.into_vec() {
+            diags.push(d);
+        }
+        programs.insert(id.clone(), program);
+    }
+
+    let mut module_apis = HashMap::<ModuleId, ModuleApi>::new();
+    let mut export_maps = HashMap::<ModuleId, HashMap<String, crate::resolver::SymbolRef>>::new();
+    for (id, program) in &programs {
+        let symbols = collect_module_symbols(program, id);
+        if let Some(unit) = graph.modules.get(id)
+            && let Ok(exports) = validate_and_build_export_map(program, &symbols, id, &unit.path)
+        {
+            export_maps.insert(id.clone(), exports);
+        }
+        module_apis.insert(id.clone(), build_module_api(program));
+    }
+
+    for (id, program) in &programs {
+        let ctx = build_external_context(id, program, graph, &module_apis, &export_maps);
+        let mut checker = Checker::new(program);
+        checker.apply_external_context(ctx);
+        checker.check_program(program);
+        for d in checker.diagnostics.into_vec() {
+            diags.push(d);
+        }
+    }
+
+    (
+        SemaResult {
+            has_errors: !diags.is_empty(),
+        },
+        diags,
+    )
+}
+
+fn resolve_import_module_targets(graph: &ModuleGraph, import_path: &[String]) -> Vec<ModuleId> {
+    let import_id = import_path.join(".");
+    if graph.modules.contains_key(&import_id) {
+        return vec![import_id];
+    }
+    let prefix = format!("{import_id}.");
+    let mut matches = graph
+        .modules
+        .keys()
+        .filter(|id| id.starts_with(&prefix))
+        .cloned()
+        .collect::<Vec<_>>();
+    matches.sort();
+    matches
+}
+
+fn build_module_api(program: &Program) -> ModuleApi {
+    let mut api = ModuleApi::default();
+    for f in &program.functions {
+        api.functions.insert(
+            f.name.clone(),
+            FunctionSig {
+                name: f.name.clone(),
+                params: f.params.iter().map(|p| TypeInfo::from_ast(&p.ty)).collect(),
+                ret: f
+                    .return_type
+                    .as_ref()
+                    .map(TypeInfo::from_ast)
+                    .unwrap_or(TypeInfo::Void),
+            },
+        );
+    }
+    for s in &program.structs {
+        let mut fields = HashMap::new();
+        for fld in &s.fields {
+            fields.insert(fld.name.clone(), TypeInfo::from_ast(&fld.ty));
+        }
+        api.structs.insert(s.name.clone(), fields);
+    }
+    for i in &program.impls {
+        let methods = api.methods.entry(i.target.clone()).or_default();
+        for m in &i.methods {
+            methods.insert(
+                m.name.clone(),
+                FunctionSig {
+                    name: m.name.clone(),
+                    params: m.params.iter().map(|p| TypeInfo::from_ast(&p.ty)).collect(),
+                    ret: m
+                        .return_type
+                        .as_ref()
+                        .map(TypeInfo::from_ast)
+                        .unwrap_or(TypeInfo::Void),
+                },
+            );
+        }
+    }
+    for g in &program.globals {
+        api.globals.insert(
+            g.name.clone(),
+            g.ty.as_ref().map(TypeInfo::from_ast).unwrap_or(TypeInfo::Unknown),
+        );
+    }
+    api
+}
+
+fn build_external_context(
+    _module_id: &str,
+    program: &Program,
+    graph: &ModuleGraph,
+    apis: &HashMap<ModuleId, ModuleApi>,
+    export_maps: &HashMap<ModuleId, HashMap<String, crate::resolver::SymbolRef>>,
+) -> ModuleExternalContext {
+    let mut ctx = ModuleExternalContext::default();
+
+    for (exporting_module_id, export_map) in export_maps {
+        let Some(api) = apis.get(exporting_module_id) else {
+            continue;
+        };
+        for (exported_name, sym) in export_map {
+            match sym.kind {
+                crate::resolver::SymbolKind::Fn => {
+                    if let Some(sig) = api.functions.get(&sym.local_name).cloned() {
+                        ctx.imported_functions
+                            .insert(format!("{exporting_module_id}.{exported_name}"), sig);
+                    }
+                }
+                crate::resolver::SymbolKind::Struct => {}
+                crate::resolver::SymbolKind::GlobalLet => {}
+            }
+        }
+    }
+
+    for imp in &program.imports {
+        match imp {
+            ImportDecl::ImportFrom { path, items } => {
+                let targets = resolve_import_module_targets(graph, path);
+                if targets.len() != 1 {
+                    continue;
+                }
+                let target = &targets[0];
+                let Some(exports) = export_maps.get(target) else {
+                    continue;
+                };
+                let Some(api) = apis.get(target) else {
+                    continue;
+                };
+                for item in items {
+                    let local = item.alias.clone().unwrap_or_else(|| item.name.clone());
+                    let Some(sym) = exports.get(&item.name) else {
+                        continue;
+                    };
+                    match sym.kind {
+                        crate::resolver::SymbolKind::Fn => {
+                            if let Some(sig) = api.functions.get(&sym.local_name).cloned() {
+                                ctx.imported_functions.insert(local.clone(), sig);
+                                ctx.direct_import_targets
+                                    .insert(local, format!("{target}.{}", item.name));
+                            }
+                        }
+                        crate::resolver::SymbolKind::Struct => {
+                            if let Some(fields) = api.structs.get(&sym.local_name).cloned() {
+                                ctx.imported_structs.insert(local.clone(), fields);
+                            }
+                            if let Some(methods) = api.methods.get(&sym.local_name).cloned() {
+                                ctx.imported_methods.insert(local, methods);
+                            }
+                        }
+                        crate::resolver::SymbolKind::GlobalLet => {
+                            if let Some(ty) = api.globals.get(&sym.local_name).cloned() {
+                                ctx.imported_globals.insert(local, ty);
+                            }
+                        }
+                    }
+                }
+            }
+            ImportDecl::ImportModule { .. } => {}
+        }
+    }
+    ctx
+}
+
 struct Checker {
     diagnostics: DiagnosticBag,
     functions: HashMap<String, FunctionSig>,
@@ -44,6 +253,28 @@ struct Checker {
 }
 
 impl Checker {
+    fn apply_external_context(&mut self, ctx: ModuleExternalContext) {
+        for (name, sig) in ctx.imported_functions {
+            self.functions.entry(name.clone()).or_insert(sig);
+        }
+        for (name, fields) in ctx.imported_structs {
+            self.struct_names.insert(name.clone());
+            self.struct_fields.entry(name).or_insert(fields);
+        }
+        for (name, methods) in ctx.imported_methods {
+            let slot = self.methods.entry(name).or_default();
+            for (m, sig) in methods {
+                slot.entry(m).or_insert(sig);
+            }
+        }
+        for (name, ty) in ctx.imported_globals {
+            self.globals.entry(name).or_insert(ty);
+        }
+        for (local, target) in ctx.direct_import_targets {
+            self.direct_imports.insert(local, target);
+        }
+    }
+
     fn parse_format_specifiers(fmt: &str) -> Result<Vec<char>, String> {
         let mut specs = Vec::new();
         let chars: Vec<char> = fmt.chars().collect();
