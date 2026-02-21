@@ -1,0 +1,3 @@
+from a import hidden;
+fn main() -> Int { return 0; }
+

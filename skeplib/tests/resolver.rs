@@ -444,3 +444,31 @@ export { bar };
         .any(|e| e.message.contains("Duplicate imported binding `x`")));
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn resolve_project_rejects_from_import_against_namespace_root() {
+    let root = make_temp_dir("from_namespace_root");
+    let main_src = r#"
+from string import trim;
+fn main() -> Int { return 0; }
+"#;
+    fs::create_dir_all(root.join("string")).expect("create string folder");
+    fs::write(root.join("main.sk"), main_src).expect("write main");
+    fs::write(
+        root.join("string").join("trim.sk"),
+        "fn trim(s: String) -> String { return s; } export { trim };",
+    )
+    .expect("write trim");
+    fs::write(
+        root.join("string").join("case.sk"),
+        "fn up(s: String) -> String { return s; } export { up };",
+    )
+    .expect("write case");
+
+    let errs = resolve_project(&root.join("main.sk")).expect_err("namespace-root from-import expected");
+    assert!(errs
+        .iter()
+        .any(|e| e.kind == ResolveErrorKind::AmbiguousModule
+            && e.message.contains("resolves to a namespace root")));
+    let _ = fs::remove_dir_all(root);
+}

@@ -2199,3 +2199,33 @@ fn main() -> Int {
             .any(|d| d.message.contains("Method call requires struct receiver"))
     );
 }
+
+#[test]
+fn sema_rejects_exporting_unknown_name() {
+    let src = r#"
+fn main() -> Int { return 0; }
+export { nope };
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("Exported name `nope` does not exist in this module")));
+}
+
+#[test]
+fn sema_rejects_duplicate_export_aliases() {
+    let src = r#"
+fn add(a: Int, b: Int) -> Int { return a + b; }
+fn sub(a: Int, b: Int) -> Int { return a - b; }
+export { add as calc, sub as calc };
+fn main() -> Int { return 0; }
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("Duplicate exported target name `calc`")));
+}

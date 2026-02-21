@@ -1,0 +1,4 @@
+fn hidden() -> Int { return 1; }
+fn shown() -> Int { return 2; }
+export { shown };
+

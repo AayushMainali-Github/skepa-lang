@@ -89,6 +89,7 @@ impl Checker {
         self.check_struct_declarations(program);
         self.check_impl_declarations(program);
         self.collect_method_signatures(program);
+        self.check_export_declarations(program);
 
         for f in &program.functions {
             let params = f
@@ -118,6 +119,40 @@ impl Checker {
         for imp in &program.impls {
             for method in &imp.methods {
                 self.check_method(imp.target.as_str(), method);
+            }
+        }
+    }
+
+    fn check_export_declarations(&mut self, program: &Program) {
+        if program.exports.len() > 1 {
+            self.error("At most one export block is allowed per module".to_string());
+        }
+
+        if program.exports.is_empty() {
+            return;
+        }
+
+        let mut local_exportables = HashSet::new();
+        for f in &program.functions {
+            local_exportables.insert(f.name.as_str());
+        }
+        for s in &program.structs {
+            local_exportables.insert(s.name.as_str());
+        }
+
+        let mut seen_targets = HashSet::new();
+        for export_decl in &program.exports {
+            for item in &export_decl.items {
+                if !local_exportables.contains(item.name.as_str()) {
+                    self.error(format!(
+                        "Exported name `{}` does not exist in this module",
+                        item.name
+                    ));
+                }
+                let target = item.alias.as_deref().unwrap_or(item.name.as_str());
+                if !seen_targets.insert(target.to_string()) {
+                    self.error(format!("Duplicate exported target name `{target}`"));
+                }
             }
         }
     }

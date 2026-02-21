@@ -1,0 +1,5 @@
+fn add(a: Int, b: Int) -> Int { return a + b; }
+fn sub(a: Int, b: Int) -> Int { return a - b; }
+export { add as calc, sub as calc };
+fn main() -> Int { return 0; }
+

@@ -266,7 +266,28 @@ fn validate_import_bindings(
                 }
                 ImportDecl::ImportFrom { path, items } => {
                     let targets = resolve_import_module_targets(graph, path);
+                    if targets.is_empty() {
+                        errors.push(ResolveError::new(
+                            ResolveErrorKind::MissingModule,
+                            format!(
+                                "Cannot resolve from-import source `{}` in module `{}`",
+                                path.join("."),
+                                id
+                            ),
+                            Some(unit.path.clone()),
+                        ));
+                        continue;
+                    }
                     if targets.len() != 1 {
+                        errors.push(ResolveError::new(
+                            ResolveErrorKind::AmbiguousModule,
+                            format!(
+                                "from-import source `{}` in module `{}` resolves to a namespace root; import a concrete file module instead",
+                                path.join("."),
+                                id
+                            ),
+                            Some(unit.path.clone()),
+                        ));
                         continue;
                     }
                     let target = &targets[0];
