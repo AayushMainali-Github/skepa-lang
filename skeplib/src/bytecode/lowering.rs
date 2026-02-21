@@ -30,6 +30,8 @@ struct Compiler {
     diags: DiagnosticBag,
     function_names: HashSet<String>,
     global_slots: HashMap<String, usize>,
+    direct_import_calls: HashMap<String, String>,
+    module_namespaces: HashMap<String, Vec<String>>,
     lifted_functions: Vec<FunctionChunk>,
     fn_lit_counter: usize,
 }
@@ -55,6 +57,8 @@ impl Compiler {
     fn compile_program(&mut self, program: &Program) -> BytecodeModule {
         self.function_names.clear();
         self.global_slots.clear();
+        self.direct_import_calls.clear();
+        self.module_namespaces.clear();
         self.lifted_functions.clear();
         self.fn_lit_counter = 0;
         const GLOBALS_INIT_FN: &str = "__globals_init";
@@ -74,6 +78,31 @@ impl Compiler {
         }
         for (idx, g) in program.globals.iter().enumerate() {
             self.global_slots.insert(g.name.clone(), idx);
+        }
+        for imp in &program.imports {
+            match imp {
+                crate::ast::ImportDecl::ImportModule { path, alias } => {
+                    let ns = alias
+                        .clone()
+                        .unwrap_or_else(|| path.first().cloned().unwrap_or_default());
+                    if !ns.is_empty() {
+                        let mapped = if alias.is_some() {
+                            path.clone()
+                        } else {
+                            vec![path.first().cloned().unwrap_or_default()]
+                        };
+                        self.module_namespaces.insert(ns, mapped);
+                    }
+                }
+                crate::ast::ImportDecl::ImportFrom { path, items } => {
+                    let prefix = path.join(".");
+                    for item in items {
+                        let local = item.alias.clone().unwrap_or_else(|| item.name.clone());
+                        self.direct_import_calls
+                            .insert(local, format!("{prefix}.{}", item.name));
+                    }
+                }
+            }
         }
         let mut module = BytecodeModule::default();
         if !program.globals.is_empty() {
@@ -442,6 +471,8 @@ impl Compiler {
                     code.push(Instr::LoadLocal(slot));
                 } else if let Some(slot) = self.global_slots.get(name).copied() {
                     code.push(Instr::LoadGlobal(slot));
+                } else if let Some(target) = self.direct_import_calls.get(name).cloned() {
+                    code.push(Instr::LoadConst(Value::Function(target)));
                 } else if self.function_names.contains(name) {
                     code.push(Instr::LoadConst(Value::Function(name.clone())));
                 } else {
@@ -516,6 +547,14 @@ impl Compiler {
                             self.compile_expr(arg, ctx, code);
                         }
                         code.push(Instr::CallValue { argc: args.len() });
+                    } else if let Some(target) = self.direct_import_calls.get(name).cloned() {
+                        for arg in args {
+                            self.compile_expr(arg, ctx, code);
+                        }
+                        code.push(Instr::Call {
+                            name: target,
+                            argc: args.len(),
+                        });
                     } else {
                         for arg in args {
                             self.compile_expr(arg, ctx, code);
@@ -537,6 +576,18 @@ impl Compiler {
                         code.push(Instr::CallBuiltin {
                             package: parts[0].clone(),
                             name: parts[1].clone(),
+                            argc: args.len(),
+                        });
+                        return;
+                    }
+                    if let Some(parts) = Self::expr_to_parts(callee)
+                        && let Some(target) = self.resolve_qualified_import_call(&parts)
+                    {
+                        for arg in args {
+                            self.compile_expr(arg, ctx, code);
+                        }
+                        code.push(Instr::Call {
+                            name: target,
                             argc: args.len(),
                         });
                         return;
@@ -684,6 +735,13 @@ impl Compiler {
             Expr::StructLit { name, .. } => Some(name.clone()),
             _ => None,
         }
+    }
+
+    fn resolve_qualified_import_call(&self, parts: &[String]) -> Option<String> {
+        let prefix = self.module_namespaces.get(parts.first()?)?.clone();
+        let mut full = prefix;
+        full.extend_from_slice(&parts[1..]);
+        Some(full.join("."))
     }
 }
 

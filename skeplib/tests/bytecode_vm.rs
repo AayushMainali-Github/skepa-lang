@@ -2759,3 +2759,39 @@ fn main() -> Int {
     let out = Vm::run_module_main(&module).expect("run");
     assert_eq!(out, Value::Int(7));
 }
+
+#[test]
+fn lowering_uses_fully_qualified_name_for_from_import_call() {
+    let src = r#"
+from utils.math import add as plus;
+fn main() -> Int {
+  return plus(1, 2);
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let main = module.functions.get("main").expect("main fn");
+    assert!(main.code.iter().any(|i| {
+        matches!(
+            i,
+            Instr::Call { name, argc } if name == "utils.math.add" && *argc == 2
+        )
+    }));
+}
+
+#[test]
+fn lowering_uses_fully_qualified_name_for_namespace_call() {
+    let src = r#"
+import utils.math;
+fn main() -> Int {
+  return utils.math.add(1, 2);
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let main = module.functions.get("main").expect("main fn");
+    assert!(main.code.iter().any(|i| {
+        matches!(
+            i,
+            Instr::Call { name, argc } if name == "utils.math.add" && *argc == 2
+        )
+    }));
+}

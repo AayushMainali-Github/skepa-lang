@@ -34,6 +34,8 @@ struct Checker {
     functions: HashMap<String, FunctionSig>,
     methods: HashMap<String, HashMap<String, FunctionSig>>,
     imported_modules: HashSet<String>,
+    direct_imports: HashMap<String, String>,
+    module_namespaces: HashMap<String, Vec<String>>,
     struct_names: HashSet<String>,
     struct_fields: HashMap<String, HashMap<String, TypeInfo>>,
     globals: HashMap<String, TypeInfo>,
@@ -66,19 +68,48 @@ impl Checker {
     }
 
     fn new(program: &Program) -> Self {
-        let imported_modules = program
-            .imports
-            .iter()
-            .filter_map(|i| match i {
-                crate::ast::ImportDecl::ImportModule { path, .. } => Some(path.join(".")),
-                crate::ast::ImportDecl::ImportFrom { .. } => None,
-            })
-            .collect::<HashSet<_>>();
+        let mut imported_modules = HashSet::new();
+        let mut direct_imports = HashMap::new();
+        let mut module_namespaces = HashMap::new();
+        for imp in &program.imports {
+            match imp {
+                crate::ast::ImportDecl::ImportModule { path, alias } => {
+                    if path.len() == 1
+                        && matches!(
+                            path[0].as_str(),
+                            "io" | "str" | "arr" | "datetime" | "random"
+                        )
+                    {
+                        imported_modules.insert(path[0].clone());
+                    }
+                    let ns = alias
+                        .clone()
+                        .unwrap_or_else(|| path.first().cloned().unwrap_or_default());
+                    if !ns.is_empty() {
+                        let mapped = if alias.is_some() {
+                            path.clone()
+                        } else {
+                            vec![path.first().cloned().unwrap_or_default()]
+                        };
+                        module_namespaces.insert(ns, mapped);
+                    }
+                }
+                crate::ast::ImportDecl::ImportFrom { path, items } => {
+                    let prefix = path.join(".");
+                    for item in items {
+                        let local = item.alias.clone().unwrap_or_else(|| item.name.clone());
+                        direct_imports.insert(local, format!("{prefix}.{}", item.name));
+                    }
+                }
+            }
+        }
         Self {
             diagnostics: DiagnosticBag::new(),
             functions: HashMap::new(),
             methods: HashMap::new(),
             imported_modules,
+            direct_imports,
+            module_namespaces,
             struct_names: HashSet::new(),
             struct_fields: HashMap::new(),
             globals: HashMap::new(),

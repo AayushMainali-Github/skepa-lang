@@ -12,6 +12,25 @@ mod random;
 mod str_pkg;
 
 impl Checker {
+    fn resolve_qualified_import_call(&self, parts: &[String]) -> Result<Option<String>, String> {
+        if parts.is_empty() {
+            return Ok(None);
+        }
+        let Some(prefix) = self.module_namespaces.get(&parts[0]).cloned() else {
+            return Ok(None);
+        };
+        if prefix.len() == 1 && parts.len() < 3 {
+            return Err(format!(
+                "Invalid namespace call `{}`: expected `{}.<file>.<symbol>(...)`",
+                parts.join("."),
+                parts[0]
+            ));
+        }
+        let mut fq = prefix;
+        fq.extend_from_slice(&parts[1..]);
+        Ok(Some(fq.join(".")))
+    }
+
     fn expr_to_parts(expr: &Expr) -> Option<Vec<String>> {
         match expr {
             Expr::Ident(name) => Some(vec![name.clone()]),
@@ -40,6 +59,40 @@ impl Checker {
                 || parts[0] == "random")
         {
             return self.check_builtin_call(&parts[0], &parts[1], args, scopes);
+        }
+
+        if let Expr::Ident(name) = callee
+            && let Some(target) = self.direct_imports.get(name).cloned()
+        {
+            for arg in args {
+                self.check_expr(arg, scopes);
+            }
+            if let Some(sig) = self.functions.get(&target).cloned() {
+                return sig.ret;
+            }
+            return TypeInfo::Unknown;
+        }
+
+        if let Some(parts) = Self::expr_to_parts(callee) {
+            match self.resolve_qualified_import_call(&parts) {
+                Ok(Some(target)) => {
+                    for arg in args {
+                        self.check_expr(arg, scopes);
+                    }
+                    if let Some(sig) = self.functions.get(&target).cloned() {
+                        return sig.ret;
+                    }
+                    return TypeInfo::Unknown;
+                }
+                Ok(None) => {}
+                Err(msg) => {
+                    self.error(msg);
+                    for arg in args {
+                        self.check_expr(arg, scopes);
+                    }
+                    return TypeInfo::Unknown;
+                }
+            }
         }
 
         if let Expr::Field { base, field } = callee {

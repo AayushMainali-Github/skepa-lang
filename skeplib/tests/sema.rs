@@ -2290,3 +2290,43 @@ fn main() -> Int { return 0; }
         .iter()
         .any(|d| d.message.contains("Duplicate exported target name `calc`")));
 }
+
+#[test]
+fn sema_accepts_call_via_direct_from_import_binding() {
+    let src = r#"
+from utils.math import add;
+fn main() -> Int {
+  return add(1, 2);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_accepts_call_via_qualified_import_namespace() {
+    let src = r#"
+import utils.math;
+fn main() -> Int {
+  return utils.math.add(1, 2);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_rejects_wrong_namespace_level_for_folder_style_import() {
+    let src = r#"
+import string;
+fn main() -> Int {
+  return string.toUpper("x");
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("Invalid namespace call `string.toUpper`")));
+}
