@@ -734,3 +734,105 @@ fn main() -> Int { return 0; }
         .any(|e| e.code == "E-IMPORT-NOT-EXPORTED" && e.message.contains("did you mean `shown`")));
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn resolve_project_suggests_close_symbol_name_for_re_export() {
+    let root = make_temp_dir("reexport_did_you_mean");
+    fs::write(
+        root.join("a.sk"),
+        r#"
+fn shown() -> Int { return 1; }
+export { shown };
+"#,
+    )
+    .expect("write a");
+    fs::write(
+        root.join("b.sk"),
+        r#"
+export { shwon } from a;
+"#,
+    )
+    .expect("write b");
+    fs::write(
+        root.join("main.sk"),
+        r#"
+import b;
+fn main() -> Int { return 0; }
+"#,
+    )
+    .expect("write main");
+    let errs = resolve_project(&root.join("main.sk")).expect_err("did-you-mean re-export expected");
+    assert!(errs.iter().any(|e| {
+        e.code == "E-IMPORT-NOT-EXPORTED" && e.message.contains("did you mean `shown`")
+    }));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn resolve_project_rejects_duplicate_import_binding_from_wildcard_and_explicit_same_module() {
+    let root = make_temp_dir("wildcard_plus_explicit_same_module_conflict");
+    fs::write(
+        root.join("a.sk"),
+        r#"
+fn x() -> Int { return 1; }
+export { x };
+"#,
+    )
+    .expect("write a");
+    fs::write(
+        root.join("main.sk"),
+        r#"
+from a import *;
+from a import x;
+fn main() -> Int { return 0; }
+"#,
+    )
+    .expect("write main");
+    let errs = resolve_project(&root.join("main.sk")).expect_err("duplicate imported binding expected");
+    assert!(errs
+        .iter()
+        .any(|e| e.code == "E-IMPORT-CONFLICT" && e.message.contains("Duplicate imported binding `x`")));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn resolve_project_rejects_re_export_name_collision_between_from_blocks() {
+    let root = make_temp_dir("reexport_name_collision_between_from_blocks");
+    fs::write(
+        root.join("a.sk"),
+        r#"
+fn f() -> Int { return 1; }
+export { f };
+"#,
+    )
+    .expect("write a");
+    fs::write(
+        root.join("b.sk"),
+        r#"
+fn g() -> Int { return 2; }
+export { g };
+"#,
+    )
+    .expect("write b");
+    fs::write(
+        root.join("m.sk"),
+        r#"
+export { f as z } from a;
+export { g as z } from b;
+"#,
+    )
+    .expect("write m");
+    fs::write(
+        root.join("main.sk"),
+        r#"
+import m;
+fn main() -> Int { return 0; }
+"#,
+    )
+    .expect("write main");
+    let errs = resolve_project(&root.join("main.sk")).expect_err("duplicate export target expected");
+    assert!(errs.iter().any(|e| {
+        e.code == "E-IMPORT-CONFLICT" && e.message.contains("Duplicate exported target name `z`")
+    }));
+    let _ = fs::remove_dir_all(root);
+}

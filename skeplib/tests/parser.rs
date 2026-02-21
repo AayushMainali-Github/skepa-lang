@@ -451,6 +451,26 @@ fn main() -> Int { return 0; }
 }
 
 #[test]
+fn reports_export_star_missing_module_path() {
+    let src = r#"
+export * from ;
+fn main() -> Int { return 0; }
+"#;
+    let diags = parse_err(src);
+    assert_has_diag(&diags, "Expected module path after `from`");
+}
+
+#[test]
+fn reports_export_from_missing_symbol_item() {
+    let src = r#"
+export { } from a.b;
+fn main() -> Int { return 0; }
+"#;
+    let diags = parse_err(src);
+    assert_has_diag(&diags, "Expected at least one export item");
+}
+
+#[test]
 fn reports_missing_semicolon_after_return() {
     let src = r#"
 fn main() -> Int {

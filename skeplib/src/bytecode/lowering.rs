@@ -5,8 +5,7 @@ use crate::ast::{AssignTarget, BinaryOp, Expr, Program, Stmt, TypeName, UnaryOp}
 use crate::diagnostic::{DiagnosticBag, Span};
 use crate::parser::Parser;
 use crate::resolver::{
-    ModuleGraph, ModuleId, ResolveError, collect_module_symbols, resolve_project,
-    validate_and_build_export_map,
+    ModuleGraph, ModuleId, ResolveError, build_export_maps, resolve_project,
 };
 
 use super::{BytecodeModule, FunctionChunk, Instr, Value};
@@ -837,18 +836,15 @@ impl Compiler {
 
 fn compile_project_graph(graph: &ModuleGraph, entry: &Path) -> Result<BytecodeModule, String> {
     let mut programs = HashMap::<ModuleId, Program>::new();
-    let mut export_maps = HashMap::<ModuleId, HashMap<String, crate::resolver::SymbolRef>>::new();
     for (id, unit) in &graph.modules {
         let (program, diags) = Parser::parse_source(&unit.source);
         if !diags.is_empty() {
             return Err(format!("Parse failed in module `{id}`"));
         }
-        let symbols = collect_module_symbols(&program, id);
-        let exports = validate_and_build_export_map(&program, &symbols, id, &unit.path)
-            .map_err(|errs| format!("Export validation failed in `{id}`: {}", errs[0].message))?;
-        export_maps.insert(id.clone(), exports);
         programs.insert(id.clone(), program);
     }
+    let export_maps = build_export_maps(graph)
+        .map_err(|errs| format!("Export validation failed: {}", errs[0].message))?;
 
     let entry_id = graph
         .modules

@@ -81,3 +81,30 @@ fn main() -> Int { return aid() * 10 + bid(); }
     assert_eq!(out, Value::Int(79));
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn explicit_import_from_reexported_module_executes_correctly() {
+    let root = make_temp_dir("explicit_from_reexport");
+    fs::write(
+        root.join("a.sk"),
+        r#"
+fn add(a: Int, b: Int) -> Int { return a + b; }
+export { add };
+"#,
+    )
+    .expect("write a");
+    fs::write(root.join("b.sk"), "export * from a;\n").expect("write b");
+    fs::write(
+        root.join("main.sk"),
+        r#"
+from b import add;
+fn main() -> Int { return add(40, 2); }
+"#,
+    )
+    .expect("write main");
+
+    let module = compile_project_entry(&root.join("main.sk")).expect("compile project");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(42));
+    let _ = fs::remove_dir_all(root);
+}

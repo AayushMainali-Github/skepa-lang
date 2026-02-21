@@ -297,3 +297,65 @@ fn main() -> Int { return 0; }
         .any(|e| e.message.contains("Duplicate imported binding `x`")));
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn sema_project_rejects_namespace_root_from_import() {
+    let root = make_temp_dir("sema_namespace_root_from_import");
+    fs::create_dir_all(root.join("string")).expect("create string folder");
+    fs::write(
+        root.join("string").join("trim.sk"),
+        r#"
+fn trim(s: String) -> String { return s; }
+export { trim };
+"#,
+    )
+    .expect("write trim");
+    fs::write(
+        root.join("string").join("case.sk"),
+        r#"
+fn up(s: String) -> String { return s; }
+export { up };
+"#,
+    )
+    .expect("write case");
+    fs::write(
+        root.join("main.sk"),
+        r#"
+from string import trim;
+fn main() -> Int { return 0; }
+"#,
+    )
+    .expect("write main");
+    let errs = analyze_project_entry(&root.join("main.sk")).expect_err("resolver error expected");
+    assert!(errs
+        .iter()
+        .any(|e| e.code == "E-MOD-AMBIG" && e.message.contains("namespace root")));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn sema_project_rejects_missing_re_exported_symbol_import() {
+    let root = make_temp_dir("sema_missing_reexported_symbol_import");
+    fs::write(
+        root.join("a.sk"),
+        r#"
+fn shown() -> Int { return 1; }
+export { shown };
+"#,
+    )
+    .expect("write a");
+    fs::write(root.join("b.sk"), "export * from a;\n").expect("write b");
+    fs::write(
+        root.join("main.sk"),
+        r#"
+from b import missing;
+fn main() -> Int { return 0; }
+"#,
+    )
+    .expect("write main");
+    let errs = analyze_project_entry(&root.join("main.sk")).expect_err("resolver error expected");
+    assert!(errs.iter().any(|e| {
+        e.code == "E-IMPORT-NOT-EXPORTED" && e.message.contains("Cannot import `missing`")
+    }));
+    let _ = fs::remove_dir_all(root);
+}
