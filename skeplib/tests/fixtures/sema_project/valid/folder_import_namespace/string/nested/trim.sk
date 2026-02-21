@@ -1,0 +1,2 @@
+fn trim(s: String) -> String { return s; }
+export { trim };

@@ -1,0 +1,3 @@
+from a import foo as x;
+from b import bar as x;
+fn main() -> Int { return 0; }

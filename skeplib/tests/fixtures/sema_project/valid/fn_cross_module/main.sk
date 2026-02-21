@@ -1,0 +1,3 @@
+from utils.math import add;
+fn apply(f: Fn(Int, Int) -> Int, x: Int, y: Int) -> Int { return f(x, y); }
+fn main() -> Int { return apply(add, 10, 5); }

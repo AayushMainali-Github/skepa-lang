@@ -1,0 +1,2 @@
+fn up(s: String) -> String { return s; }
+export { up };

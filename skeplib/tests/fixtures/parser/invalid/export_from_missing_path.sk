@@ -1,0 +1,2 @@
+export { add } from ;
+fn main() -> Int { return 0; }

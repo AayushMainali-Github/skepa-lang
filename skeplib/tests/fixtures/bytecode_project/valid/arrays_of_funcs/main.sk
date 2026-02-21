@@ -1,0 +1,5 @@
+from utils.math import add, sub;
+fn main() -> Int {
+  let ops: [Fn(Int, Int) -> Int; 2] = [add, sub];
+  return ops[0](10, 4) + ops[1](10, 4);
+}

@@ -1,0 +1,3 @@
+struct User { id: Int }
+impl User { fn bump(self, d: Int) -> Int { return self.id + d; } }
+export { User };

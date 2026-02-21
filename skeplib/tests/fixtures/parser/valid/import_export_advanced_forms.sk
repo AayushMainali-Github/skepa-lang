@@ -1,0 +1,9 @@
+import pkg.math;
+import pkg.math as m;
+from pkg.math import add, sub as minus;
+from pkg.util import *;
+export { localFn };
+export { add as plus } from pkg.math;
+export * from pkg.util;
+fn localFn() -> Int { return m.add(1, 2) + minus(5, 3); }
+fn main() -> Int { return localFn(); }

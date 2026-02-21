@@ -1,0 +1,2 @@
+fn foo() -> Int { return 1; }
+export { foo };

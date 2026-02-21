@@ -1,0 +1,2 @@
+fn x() -> Int { return 2; }
+export { x };

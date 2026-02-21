@@ -1,0 +1,3 @@
+from a import *;
+from b import *;
+fn main() -> Int { return 0; }

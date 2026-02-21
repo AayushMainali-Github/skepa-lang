@@ -1,0 +1,2 @@
+from a import add as plus;
+fn main() -> Int { return plus(20, 22); }

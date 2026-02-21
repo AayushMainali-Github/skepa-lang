@@ -1,0 +1,7 @@
+import string;
+fn main() -> Int {
+  let a = string.case.up("x");
+  let b = string.nested.trim("y");
+  if (a == "x" && b == "y") { return 0; }
+  return 1;
+}
