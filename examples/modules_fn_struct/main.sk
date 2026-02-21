@@ -1,0 +1,17 @@
+from models.user import User;
+from ops.math import add;
+
+struct Op {
+  f: Fn(Int, Int) -> Int
+}
+
+fn apply(f: Fn(Int, Int) -> Int, x: Int, y: Int) -> Int {
+  return f(x, y);
+}
+
+fn main() -> Int {
+  let u: User = User { id: 40 };
+  let op: Op = Op { f: add };
+  let ops: [Fn(Int, Int) -> Int; 2] = [add, op.f];
+  return u.bump(1) + apply(add, 0, 1) + ops[1](0, 0);
+}

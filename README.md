@@ -1,49 +1,42 @@
 # Skepa Language
 
-Skepa is a compiled language implemented in Rust.
+Skepa is a statically typed compiled language implemented in Rust.
 
-Tooling:
-- `skepac`: check, build bytecode, disassemble
-- `skeparun`: run source and bytecode
+Tools:
+- `skepac`: check/build/disassemble
+- `skeparun`: run source or bytecode
 
 ## Install
 
-### Option 1: Download prebuilt binaries (no Rust required)
+### 1) Prebuilt binaries (no Rust)
 
-From GitHub Releases, download:
+Download from GitHub Releases:
 - Windows: `skepa-windows-x64.zip`
 - Linux: `skepa-linux-x64.tar.gz`
 - macOS: `skepa-macos-x64.tar.gz`
 
-Extract and add the binaries to your `PATH`.
+Extract and add binaries to `PATH`.
 
-### Option 2: Install from GitHub with Cargo
-
-Prerequisite: Rust + Cargo (`cargo --version`).
+### 2) Install from GitHub with Cargo
 
 ```bash
 cargo install --git https://github.com/AayushMainali-Github/skepa-lang skepac
 cargo install --git https://github.com/AayushMainali-Github/skepa-lang skeparun
 ```
 
-### Option 3: Build/install locally from source
-
-Clone the repo first, then:
+### 3) Build/install locally
 
 Windows (PowerShell):
-
 ```powershell
 ./scripts/install.ps1
 ```
 
 Linux/macOS (bash):
-
 ```bash
 ./scripts/install.sh
 ```
 
-Manual local install (all OSes):
-
+Manual:
 ```bash
 cargo install --path skepac
 cargo install --path skeparun
@@ -51,41 +44,46 @@ cargo install --path skeparun
 
 ## Run
 
-Check:
-
 ```bash
 skepac check app.sk
-```
-
-Build bytecode:
-
-```bash
 skepac build app.sk app.skbc
-```
-
-Run source:
-
-```bash
 skeparun run app.sk
-```
-
-Run bytecode:
-
-```bash
 skeparun run-bc app.skbc
-```
-
-Disassemble:
-
-```bash
 skepac disasm app.sk
-skepac disasm app.skbc
 ```
 
-Bundled example:
+## Quickstart (multi-file project)
 
+```text
+myapp/
+  main.sk
+  utils/
+    math.sk
+```
+
+`utils/math.sk`:
+```sk
+fn add(a: Int, b: Int) -> Int { return a + b; }
+export { add };
+```
+
+`main.sk`:
+```sk
+from utils.math import add;
+fn main() -> Int { return add(20, 22); }
+```
+
+Run:
 ```bash
-skeparun run examples/master.sk
+skeparun run myapp/main.sk
 ```
 
-For full language and runtime reference, see `DOCS.md`.
+## Examples
+
+- `examples/master.sk`
+- `examples/master_modules.sk`
+- `examples/modules_basic/`
+- `examples/modules_folder/`
+- `examples/modules_fn_struct/`
+
+For full language/module reference, see `DOCS.md`.

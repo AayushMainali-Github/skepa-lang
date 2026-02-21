@@ -1,0 +1,16 @@
+import io;
+import string;
+from utils.math import add;
+from models.user import User;
+
+fn main() -> Int {
+  let s = string.case.up("skepa");
+  let t = string.nested.trim.trimBoth("  lang  ");
+  let u: User = User { id: 40 };
+  let n = add(1, 1) + u.bump(1);
+  io.println("modules master done");
+  if (s == "SKEPA" && t == "lang" && n == 43) {
+    return 0;
+  }
+  return 1;
+}

@@ -1,0 +1,4 @@
+import str;
+fn trimBoth(s: String) -> String { return str.trim(s); }
+export { trimBoth };
+

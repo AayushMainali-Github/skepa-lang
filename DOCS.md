@@ -1,351 +1,258 @@
-# Skepa Language Docs (v0.4.0)
+# Skepa Language Docs
 
-## 1. Source Model
+## 1. Overview
 
-- File extension: `.sk`
-- Top-level declarations:
-  - `import <module>;`
-  - `struct <Name> { ... }`
-  - `impl <Name> { ... }`
-  - `fn <name>(...) -> <Type> { ... }`
+Skepa is a statically typed compiled language with:
+- first-class functions (`Fn(...) -> ...`)
+- static arrays (`[T; N]`)
+- structs and impl methods
+- multi-file modules with import/export
 
-## 2. Lexical Rules
+Source files use `.sk`.
 
-- Whitespace is ignored between tokens.
-- Comments:
-  - `// ...`
-  - `/* ... */`
-- Identifiers: start with letter or `_`, continue with letter/digit/`_`.
+## 2. Lexical Structure
 
-### Keywords
+Identifiers:
+- start: `[A-Za-z_]`
+- continue: `[A-Za-z0-9_]`
 
-`import`, `struct`, `impl`, `fn`, `let`, `if`, `else`, `while`, `for`, `break`, `continue`, `return`, `true`, `false`
+Keywords:
+- `import`, `from`, `as`, `export`
+- `struct`, `impl`, `fn`, `let`
+- `if`, `else`, `while`, `for`, `break`, `continue`, `return`
+- `true`, `false`
 
-### Built-in Type Names
+Primitive types:
+- `Int`, `Float`, `Bool`, `String`, `Void`
 
-`Int`, `Float`, `Bool`, `String`, `Void`
+Comments:
+- line: `// ...`
+- block: `/* ... */`
 
-### Literals
+String escapes:
+- `\n`, `\t`, `\r`, `\"`, `\\`
 
-- Int: `42`
-- Float: `3.14`
-- Bool: `true`, `false`
-- String: `"hello"`
+## 3. Formal Grammar (EBNF)
 
-### String Escapes
+```ebnf
+program         = { top_decl } ;
 
-Supported escapes: `\n`, `\t`, `\r`, `\"`, `\\`
+top_decl         = import_decl
+                 | export_decl
+                 | global_let
+                 | struct_decl
+                 | impl_decl
+                 | fn_decl ;
 
-## 3. Builtin Packages
+import_decl      = "import" dotted_path [ "as" ident ] ";"
+                 | "from" dotted_path "import" ( "*" | import_item { "," import_item } ) ";" ;
 
-Imports are explicit:
+import_item      = ident [ "as" ident ] ;
 
-```sk
-import io;
-import str;
-import arr;
-import datetime;
-import random;
+export_decl      = "export" "{" export_item { "," export_item } "}" [ "from" dotted_path ] ";"
+                 | "export" "*" "from" dotted_path ";" ;
+
+export_item      = ident [ "as" ident ] ;
+
+global_let       = "let" ident [ ":" type ] "=" expr ";" ;
+
+struct_decl      = "struct" ident "{" [ field_decl { "," field_decl } [","] ] "}" ;
+field_decl       = ident ":" type ;
+
+impl_decl        = "impl" ident "{" { method_decl } "}" ;
+method_decl      = "fn" ident "(" [ param_list ] ")" [ "->" type ] block ;
+
+fn_decl          = "fn" ident "(" [ param_list ] ")" [ "->" type ] block ;
+param_list       = param { "," param } [","] ;
+param            = ident ":" type ;
+
+type             = primitive_type
+                 | named_type
+                 | array_type
+                 | fn_type ;
+
+primitive_type   = "Int" | "Float" | "Bool" | "String" | "Void" ;
+named_type       = ident { "." ident } ;
+array_type       = "[" type ";" int_lit "]" ;
+fn_type          = "Fn" "(" [ type_list ] ")" "->" type ;
+type_list        = type { "," type } ;
+
+block            = "{" { stmt } "}" ;
+
+stmt             = let_stmt
+                 | assign_stmt
+                 | expr_stmt
+                 | if_stmt
+                 | while_stmt
+                 | for_stmt
+                 | break_stmt
+                 | continue_stmt
+                 | return_stmt ;
+
+let_stmt         = "let" ident [ ":" type ] "=" expr ";" ;
+assign_stmt      = assign_target "=" expr ";" ;
+assign_target    = ident
+                 | expr "." ident
+                 | expr "[" expr "]" { "[" expr "]" } ;
+expr_stmt        = expr ";" ;
+
+if_stmt          = "if" "(" expr ")" block [ "else" ( if_stmt | block ) ] ;
+while_stmt       = "while" "(" expr ")" block ;
+for_stmt         = "for" "(" [ for_init ] ";" [ expr ] ";" [ for_step ] ")" block ;
+for_init         = for_let | for_assign | expr ;
+for_step         = for_assign | expr ;
+for_let          = "let" ident [ ":" type ] "=" expr ;
+for_assign       = assign_target "=" expr ;
+
+break_stmt       = "break" ";" ;
+continue_stmt    = "continue" ";" ;
+return_stmt      = "return" [ expr ] ";" ;
+
+expr             = logical_or ;
+logical_or       = logical_and { "||" logical_and } ;
+logical_and      = equality { "&&" equality } ;
+equality         = comparison { ("==" | "!=") comparison } ;
+comparison       = additive { ("<" | "<=" | ">" | ">=") additive } ;
+additive         = multiplicative { ("+" | "-") multiplicative } ;
+multiplicative   = unary { ("*" | "/" | "%") unary } ;
+unary            = ("+" | "-" | "!") unary | postfix ;
+postfix          = primary { call_suffix | field_suffix | index_suffix } ;
+call_suffix      = "(" [ expr { "," expr } [","] ] ")" ;
+field_suffix     = "." ident ;
+index_suffix     = "[" expr "]" ;
+
+primary          = int_lit | float_lit | bool_lit | string_lit
+                 | ident
+                 | "(" expr ")"
+                 | array_lit
+                 | array_repeat
+                 | struct_lit
+                 | fn_lit ;
+
+array_lit        = "[" [ expr { "," expr } ] "]" ;
+array_repeat     = "[" expr ";" int_lit "]" ;
+struct_lit       = named_type "{" [ struct_field { "," struct_field } [","] ] "}" ;
+struct_field     = ident ":" expr ;
+fn_lit           = "fn" "(" [ param_list ] ")" "->" type block ;
 ```
 
-### `io` package
+## 4. Module System
 
-- `io.print(x: String) -> Void`
-- `io.println(x: String) -> Void`
-- `io.printInt(x: Int) -> Void`
-- `io.printFloat(x: Float) -> Void`
-- `io.printBool(x: Bool) -> Void`
-- `io.printString(x: String) -> Void`
-- `io.format(fmt: String, ...args) -> String`
-- `io.printf(fmt: String, ...args) -> Void`
-- `io.readLine() -> String`
+### 4.1 Import Forms
 
-`io.format/io.printf` specifiers:
-- `%d` Int
-- `%f` Float
-- `%s` String
-- `%b` Bool
-- `%%` literal `%`
-
-### `str` package
-
-- `str.len(s: String) -> Int`
-- `str.contains(s: String, needle: String) -> Bool`
-- `str.startsWith(s: String, prefix: String) -> Bool`
-- `str.endsWith(s: String, suffix: String) -> Bool`
-- `str.trim(s: String) -> String`
-- `str.toLower(s: String) -> String`
-- `str.toUpper(s: String) -> String`
-- `str.indexOf(s: String, needle: String) -> Int` (`-1` if not found)
-- `str.lastIndexOf(s: String, needle: String) -> Int` (`-1` if not found)
-- `str.slice(s: String, start: Int, end: Int) -> String` (end-exclusive, char-indexed)
-- `str.replace(s: String, from: String, to: String) -> String`
-- `str.repeat(s: String, count: Int) -> String`
-- `str.isEmpty(s: String) -> Bool`
-
-### `arr` package
-
-- `arr.len(a: [T; N]) -> Int`
-- `arr.isEmpty(a: [T; N]) -> Bool`
-- `arr.contains(a: [T; N], x: T) -> Bool`
-- `arr.indexOf(a: [T; N], x: T) -> Int` (`-1` if not found)
-- `arr.count(a: [T; N], x: T) -> Int`
-- `arr.first(a: [T; N]) -> T`
-- `arr.last(a: [T; N]) -> T`
-- `arr.join(a: [String; N], sep: String) -> String`
-
-### `datetime` package
-
-- `datetime.nowUnix() -> Int`
-- `datetime.nowMillis() -> Int`
-- `datetime.fromUnix(ts: Int) -> String` (UTC, ISO-like)
-- `datetime.fromMillis(ms: Int) -> String` (UTC, ISO-like with milliseconds)
-- `datetime.parseUnix(s: String) -> Int` (expects `YYYY-MM-DDTHH:MM:SSZ`)
-- `datetime.year(ts: Int) -> Int` (UTC year)
-- `datetime.month(ts: Int) -> Int` (UTC month `1..12`)
-- `datetime.day(ts: Int) -> Int` (UTC day `1..31`)
-- `datetime.hour(ts: Int) -> Int` (UTC hour `0..23`)
-- `datetime.minute(ts: Int) -> Int` (UTC minute `0..59`)
-- `datetime.second(ts: Int) -> Int` (UTC second `0..59`)
-
-Example:
-
-```sk
-import datetime;
-let ts = datetime.nowUnix();
-let iso = datetime.fromUnix(ts);
-let back = datetime.parseUnix(iso);
-let y = datetime.year(ts);
-let h = datetime.hour(ts);
-```
-
-### `random` package
-
-- `random.seed(seed: Int) -> Void`
-- `random.int(min: Int, max: Int) -> Int` (inclusive range `[min, max]`)
-- `random.float() -> Float` (range `[0.0, 1.0)`)
-
-Example:
-
-```sk
-import random;
-random.seed(42);
-let die = random.int(1, 6);
-let p = random.float();
-```
-
-Example:
-
-```sk
-import arr;
-let xs: [Int; 5] = [7, 2, 9, 2, 5];
-let c = arr.count(xs, 2);         // 2
-let first = arr.first(xs);        // 7
-let last = arr.last(xs);          // 5
-```
-
-Static-size constraints:
-- Array concat infers exact size: `[T; N] + [T; M] -> [T; N+M]`.
-
-Runtime edge semantics:
-- `arr.first` / `arr.last` on empty arrays: runtime `E-VM-INDEX-OOB`.
-- `str.repeat` with negative `count`: runtime `E-VM-INDEX-OOB`.
-- `str.repeat` output is capped to `1,000,000` bytes; larger outputs fail with runtime `E-VM-INDEX-OOB`.
-- `datetime.parseUnix` rejects invalid format/ranges with runtime `E-VM-TYPE`.
-- `random.int(min, max)` rejects `min > max` with runtime `E-VM-TYPE`.
-
-## 4. Types
-
-- `Int`
-- `Float`
-- `Bool`
-- `String`
-- `Void`
-- Function types: `Fn(T1, T2, ...) -> R`
-- Static arrays: `[T; N]`
-- Named struct types: `User`, `Profile`, etc.
-
-Rules:
-- `N` is compile-time fixed.
-- In explicit type syntax, `N` must be a compile-time integer literal (not a variable).
-- No runtime resize.
-- No dynamic/vector operations.
-- Multidimensional arrays are supported at arbitrary depth.
-
-## 5. Functions
-
-Example:
-
-```sk
-fn add(a: Int, b: Int) -> Int {
-  return a + b;
-}
-```
-
-Entry point:
-
-```sk
-fn main() -> Int {
-  return 0;
-}
-```
-
-On successful execution, `main()` return value is used as process exit code (low 8 bits).
-
-Function values:
-
-```sk
-fn add(a: Int, b: Int) -> Int {
-  return a + b;
-}
-
-fn apply(f: Fn(Int, Int) -> Int, x: Int, y: Int) -> Int {
-  return f(x, y);
-}
-```
-
-Function literals (non-capturing only):
-
-```sk
-fn main() -> Int {
-  let inc: Fn(Int) -> Int = fn(x: Int) -> Int {
-    return x + 1;
-  };
-  return inc(41);
-}
-```
+- `import a.b;`
+- `import a.b as x;`
+- `from a.b import f, g as h;`
+- `from a.b import *;`
 
 Notes:
-- Function literals cannot capture outer local variables.
-- Calling named global functions from inside function literals is allowed.
-- Function literals can be passed/returned where `Fn(...) -> ...` is expected.
+- Imports are file-local. Importing `str` in one module does not make `str` visible in other modules.
+- `from x import ...` must target a concrete file module. If `x` resolves to a folder namespace root, it is an ambiguity error.
 
-## 6. Statements
+### 4.2 Export Forms
 
-Supported:
-- `let` (typed or inferred)
-- assignment
-- expression statement
-- `if / else / else if`
-- `while`
-- `for`
-- `break`
-- `continue`
-- `return`
+- `export { f, g as h, User, version };`
+- `export { f } from a.b;`
+- `export * from a.b;`
+- multiple export blocks per file are allowed and merged
 
-`for` form:
+### 4.3 Path Mapping
 
-```sk
-for (init; condition; step) {
-  // body
-}
-```
+For import path `a.b`:
+- file candidate: `a/b.sk`
+- folder candidate: `a/b/`
 
-Each clause is optional.
+For `import a;`:
+- if only `a.sk` exists: import that file module
+- if only `a/` exists: folder import (recursive)
+- if both exist: ambiguity error (`E-MOD-AMBIG`)
 
-`break` and `continue` are valid only inside loop bodies.
+### 4.4 Folder Import Recursive Semantics
 
-## 7. Expressions
+`import string;` where `string/` is a folder recursively loads all `.sk` files:
+- `string/case.sk` -> `string.case`
+- `string/nested/trim.sk` -> `string.nested.trim`
 
-Supported:
-- literals, identifiers, dotted paths, grouping
-- array literals: `[1, 2, 3]`, repeat `[0; 8]`
-- indexing and index assignment: `a[i]`, `a[i] = v`
-- multidimensional indexing/assignment: `m[i][j]`, `t[a][b][c] = v`
-- struct literals: `User { id: 1, name: "sam" }`
-- field access/assignment: `u.id`, `u.id = 3`, nested `u.profile.age = 42`
-- calls: `f(x)`, `io.println("ok")`, `arr.count(xs, 2)`
-- first-class function calls: `(add)(1, 2)`, `ops[i](3, 4)`, `makeInc()(5)`
-- method calls: `u.bump(1)`, `makeUser(9).bump(4)`, `users[i].bump(7)`
-- unary: `+`, `-`, `!`
-- binary: `* / %`, `+ -`, comparisons, equality, `&&`, `||`
+These are available through namespace paths (`string.case.up(...)`).
+
+### 4.5 Resolution Algorithm (High-level)
+
+1. Start from entry file (`main.sk`) and BFS/queue parse reachable imports.
+2. Build module graph with canonical module ids from relative file paths.
+3. Resolve file/folder targets per import path.
+4. Detect module graph cycles.
+5. Build per-module local symbols: top-level `fn`, `struct`, top-level `let`.
+6. Build export maps:
+   - merge local export blocks
+   - apply re-exports (`export {...} from`, `export * from`)
+   - detect duplicate export targets
+   - detect re-export cycles
+7. Validate imports:
+   - imported symbol must be exported
+   - wildcard and alias binding conflicts are errors
+8. Run sema using module-qualified symbol context.
+
+### 4.6 Conflict and Precedence Rules
+
+- Local names/aliases in `from ... import ...` cannot collide in same module scope.
+- Wildcard imports can conflict with prior bindings; conflict is an error.
+- Export target names collide after aliasing, not before.
+- If same target name appears from multiple export blocks, it is an error.
+- Builtin package names (`io`, `str`, `arr`, `datetime`, `random`) are reserved package roots.
+- `import ns; ns.f(...)` works only when `f` is exported exactly under that namespace level. Example: `import string; string.toUpper(...)` is invalid if only `string.case.toUpper` exists.
+
+## 5. Operator Precedence
+
+Highest to lowest:
+1. postfix: call `()`, field `.x`, index `[i]`
+2. unary: `+`, `-`, `!`
+3. multiplicative: `*`, `/`, `%`
+4. additive: `+`, `-`
+5. comparison: `<`, `<=`, `>`, `>=`
+6. equality: `==`, `!=`
+7. logical AND: `&&`
+8. logical OR: `||`
+
+Associativity:
+- binary operators: left-associative
+- unary operators: right-associative
 
 Short-circuit:
 - `false && rhs` skips `rhs`
 - `true || rhs` skips `rhs`
 
-`+` supports:
-- `Int + Int`
-- `Float + Float`
-- `String + String`
-- `Array + Array` when array element types match
+## 6. Type System Notes
 
-Array concat typing:
-- `[T; N] + [T; M] => [T; N+M]`
+- No implicit numeric promotion.
+- `%` is `Int % Int` only.
+- Arrays are static-size in type syntax (`[T; N]`, `N` literal).
+- Struct methods: first parameter must be `self: StructName`.
+- Function literals are non-capturing.
 
-## 8. Type Rules
+## 7. Builtin Packages (Current)
 
-- Variable type is fixed after declaration.
-- Assignment value type must match target type.
-- Array element type/size must match declared type.
-- Array index type must be `Int`.
-- `if` / `while` / `for` condition type must be `Bool`.
-- Function arity and argument types must match signatures.
-- Function values are not comparable (`==` / `!=` are invalid on `Fn`).
-- Return type must match declared function return type.
-- Non-`Void` functions must return on all paths.
-- Unary `+` / `-` require numeric operands.
-- Numeric operations are strict (no implicit promotion).
-- `%` supports `Int % Int` only.
-- Struct literal rules:
-  - all fields are required
-  - unknown/duplicate fields are rejected
-- Method rules:
-  - methods are declared in `impl <Struct>`
-  - first parameter must be exactly `self: <Struct>`
-  - duplicate method names on the same struct (including across multiple `impl` blocks) are rejected
+- `io`: print/read and formatting helpers
+- `str`: string utilities (`len`, `contains`, `startsWith`, `endsWith`, `trim`, `toLower`, `toUpper`, `indexOf`, `lastIndexOf`, `slice`, `replace`, `repeat`, `isEmpty`)
+- `arr`: static-array helpers (`len`, `isEmpty`, `contains`, `indexOf`, `count`, `first`, `last`, `join`)
+- `datetime`: unix timestamp/time component helpers
+- `random`: deterministic seed + random int/float
 
-## 9. Runtime and CLI Contract
+## 8. Diagnostics (Module/Import/Export)
 
-### Exit Codes
+Stable error codes:
+- `E-MOD-NOT-FOUND`
+- `E-MOD-CYCLE`
+- `E-MOD-AMBIG`
+- `E-EXPORT-UNKNOWN`
+- `E-IMPORT-NOT-EXPORTED`
+- `E-IMPORT-CONFLICT`
 
-- `0`: success
-- `2`: usage/argument error
-- `3`: file IO error
-- `10`: parse error (`skepac check`)
-- `11`: semantic error
-- `12`: codegen/compile error
-- `13`: bytecode decode error
-- `14`: runtime VM error
+Resolver messages include module/path context and may include `did you mean ...` suggestions.
 
-### Runtime Error Labels
+## 9. CLI Quick Reference
 
-Examples:
-- `E-VM-DIV-ZERO`
-- `E-VM-TYPE`
-- `E-VM-ARITY`
-- `E-VM-STACK-OVERFLOW`
-- `E-VM-INDEX-OOB`
-
-Compiler phase labels:
-- `E-PARSE`
-- `E-SEMA`
-- `E-CODEGEN`
-
-## 10. Bytecode (`.skbc`) Format
-
-- Magic header: `SKBC`
-- Version: `1` (`u32`, little-endian)
-- Function serialization is deterministic (name-sorted)
-
-Value tags:
-- `0`: `Int(i64)`
-- `1`: `Float(f64)`
-- `2`: `Bool(u8)`
-- `3`: `String(len + bytes)`
-- `4`: `Array(len + items...)`
-- `5`: `Unit`
-
-Decoder rejects:
-- invalid magic
-- unsupported version
-- truncated payload
-
-## 11. Out of Scope (Current)
-
-- Enums
-- Dynamic collections (`Vec`, map, set)
-- Dynamic array mutation (`push`, `pop`, etc.)
-- Casting / implicit numeric promotion
-- String interpolation
-- Package manager / dependency resolver
+- `skepac check <entry.sk>`
+- `skepac build <entry.sk> <out.skbc>`
+- `skepac disasm <entry.sk | out.skbc>`
+- `skeparun run <entry.sk>`
+- `skeparun run-bc <out.skbc>`

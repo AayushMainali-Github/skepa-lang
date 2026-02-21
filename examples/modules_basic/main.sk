@@ -1,0 +1,4 @@
+from utils.math import add, sub;
+fn main() -> Int {
+  return add(20, 30) + sub(10, 8);
+}

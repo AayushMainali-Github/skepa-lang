@@ -1,0 +1,4 @@
+import str;
+fn up(s: String) -> String { return str.toUpper(s); }
+export { up };
+
