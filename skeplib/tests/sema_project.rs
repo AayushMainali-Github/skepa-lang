@@ -112,3 +112,103 @@ fn main() -> Int {
     assert!(!res.has_errors, "diagnostics: {:?}", diags.as_slice());
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn sema_project_accepts_module_qualified_named_type_annotation() {
+    let root = make_temp_dir("qualified_type_annotation");
+    fs::create_dir_all(root.join("models")).expect("create models folder");
+    fs::write(
+        root.join("models").join("user.sk"),
+        r#"
+struct User { id: Int }
+impl User { fn bump(self, d: Int) -> Int { return self.id + d; } }
+export { User };
+"#,
+    )
+    .expect("write module");
+    fs::write(
+        root.join("main.sk"),
+        r#"
+import models.user;
+fn read(u: models.user.User) -> Int { return u.bump(2); }
+fn main() -> Int { return 0; }
+"#,
+    )
+    .expect("write main");
+
+    let (res, diags) = analyze_project_entry(&root.join("main.sk")).expect("resolver/sema");
+    assert!(!res.has_errors, "diagnostics: {:?}", diags.as_slice());
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn sema_project_rejects_unimported_module_qualified_type_annotation() {
+    let root = make_temp_dir("unimported_qualified_type_annotation");
+    fs::create_dir_all(root.join("models")).expect("create models folder");
+    fs::write(
+        root.join("models").join("user.sk"),
+        r#"
+struct User { id: Int }
+export { User };
+"#,
+    )
+    .expect("write module");
+    fs::write(
+        root.join("main.sk"),
+        r#"
+fn read(u: models.user.User) -> Int { return 0; }
+fn main() -> Int { return 0; }
+"#,
+    )
+    .expect("write main");
+
+    let (res, diags) = analyze_project_entry(&root.join("main.sk")).expect("resolver/sema");
+    assert!(res.has_errors);
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("Unknown type")));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn sema_project_accepts_impl_for_imported_struct_and_uses_method() {
+    let root = make_temp_dir("impl_imported_struct");
+    fs::create_dir_all(root.join("models")).expect("create models folder");
+    fs::write(
+        root.join("models").join("user.sk"),
+        r#"
+struct User { id: Int }
+export { User };
+"#,
+    )
+    .expect("write user module");
+    fs::write(
+        root.join("ext.sk"),
+        r#"
+from models.user import User;
+impl User {
+  fn extra(self, d: Int) -> Int { return self.id + d; }
+}
+fn run(u: User) -> Int { return u.extra(3); }
+export { run };
+"#,
+    )
+    .expect("write ext module");
+    fs::write(
+        root.join("main.sk"),
+        r#"
+from models.user import User;
+from ext import run;
+fn main() -> Int {
+  let u: User = User { id: 9 };
+  return run(u);
+}
+"#,
+    )
+    .expect("write main");
+
+    let (res, diags) = analyze_project_entry(&root.join("main.sk")).expect("resolver/sema");
+    assert!(!res.has_errors, "diagnostics: {:?}", diags.as_slice());
+    let _ = fs::remove_dir_all(root);
+}

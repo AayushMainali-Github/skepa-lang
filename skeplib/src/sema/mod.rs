@@ -171,24 +171,6 @@ fn build_external_context(
 ) -> ModuleExternalContext {
     let mut ctx = ModuleExternalContext::default();
 
-    for (exporting_module_id, export_map) in export_maps {
-        let Some(api) = apis.get(exporting_module_id) else {
-            continue;
-        };
-        for (exported_name, sym) in export_map {
-            match sym.kind {
-                crate::resolver::SymbolKind::Fn => {
-                    if let Some(sig) = api.functions.get(&sym.local_name).cloned() {
-                        ctx.imported_functions
-                            .insert(format!("{exporting_module_id}.{exported_name}"), sig);
-                    }
-                }
-                crate::resolver::SymbolKind::Struct => {}
-                crate::resolver::SymbolKind::GlobalLet => {}
-            }
-        }
-    }
-
     for imp in &program.imports {
         match imp {
             ImportDecl::ImportFrom { path, items } => {
@@ -221,7 +203,10 @@ fn build_external_context(
                                 ctx.imported_structs.insert(local.clone(), fields);
                             }
                             if let Some(methods) = api.methods.get(&sym.local_name).cloned() {
-                                ctx.imported_methods.insert(local, methods);
+                                ctx.imported_methods.insert(
+                                    local.clone(),
+                                    rebind_methods_self_type(methods, &sym.local_name, &local),
+                                );
                             }
                         }
                         crate::resolver::SymbolKind::GlobalLet => {
@@ -232,10 +217,63 @@ fn build_external_context(
                     }
                 }
             }
-            ImportDecl::ImportModule { .. } => {}
+            ImportDecl::ImportModule { path, .. } => {
+                let targets = resolve_import_module_targets(graph, path);
+                for target in targets {
+                    let Some(exports) = export_maps.get(&target) else {
+                        continue;
+                    };
+                    let Some(api) = apis.get(&target) else {
+                        continue;
+                    };
+                    for (exported_name, sym) in exports {
+                        let q = format!("{target}.{exported_name}");
+                        match sym.kind {
+                            crate::resolver::SymbolKind::Fn => {
+                                if let Some(sig) = api.functions.get(&sym.local_name).cloned() {
+                                    ctx.imported_functions.insert(q, sig);
+                                }
+                            }
+                            crate::resolver::SymbolKind::Struct => {
+                                if let Some(fields) = api.structs.get(&sym.local_name).cloned() {
+                                    ctx.imported_structs.insert(q.clone(), fields);
+                                }
+                                if let Some(methods) = api.methods.get(&sym.local_name).cloned() {
+                                    ctx.imported_methods.insert(
+                                        q.clone(),
+                                        rebind_methods_self_type(methods, &sym.local_name, &q),
+                                    );
+                                }
+                            }
+                            crate::resolver::SymbolKind::GlobalLet => {
+                                if let Some(ty) = api.globals.get(&sym.local_name).cloned() {
+                                    ctx.imported_globals.insert(q, ty);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
     ctx
+}
+
+fn rebind_methods_self_type(
+    methods: HashMap<String, FunctionSig>,
+    from_struct_name: &str,
+    to_struct_name: &str,
+) -> HashMap<String, FunctionSig> {
+    let mut out = HashMap::new();
+    for (name, mut sig) in methods {
+        if let Some(first) = sig.params.first_mut()
+            && *first == TypeInfo::Named(from_struct_name.to_string())
+        {
+            *first = TypeInfo::Named(to_struct_name.to_string());
+        }
+        out.insert(name, sig);
+    }
+    out
 }
 
 struct Checker {
@@ -253,6 +291,32 @@ struct Checker {
 }
 
 impl Checker {
+    fn resolve_named_type_name(&self, name: &str) -> Option<String> {
+        if self.struct_names.contains(name) {
+            return Some(name.to_string());
+        }
+        if !name.contains('.') {
+            return None;
+        }
+        let mut parts = name.split('.').map(ToString::to_string).collect::<Vec<_>>();
+        if parts.is_empty() {
+            return None;
+        }
+        let root = parts.remove(0);
+        if let Some(prefix) = self.module_namespaces.get(&root) {
+            let mut fq = prefix.clone();
+            fq.extend(parts);
+            let joined = fq.join(".");
+            if self.struct_names.contains(&joined) {
+                return Some(joined);
+            }
+        }
+        if self.struct_names.contains(name) {
+            return Some(name.to_string());
+        }
+        None
+    }
+
     fn apply_external_context(&mut self, ctx: ModuleExternalContext) {
         for (name, sig) in ctx.imported_functions {
             self.functions.entry(name.clone()).or_insert(sig);
@@ -355,6 +419,18 @@ impl Checker {
         self.collect_method_signatures(program);
 
         for f in &program.functions {
+            for p in &f.params {
+                self.check_decl_type_exists(
+                    &p.ty,
+                    format!("Unknown type in function `{}` parameter `{}`", f.name, p.name),
+                );
+            }
+            if let Some(ret) = &f.return_type {
+                self.check_decl_type_exists(
+                    ret,
+                    format!("Unknown return type in function `{}`", f.name),
+                );
+            }
             let params = f
                 .params
                 .iter()
@@ -577,7 +653,7 @@ impl Checker {
                 self.check_decl_type_exists(ret, err_prefix);
             }
             TypeName::Named(name) => {
-                if !self.struct_names.contains(name) {
+                if self.resolve_named_type_name(name).is_none() {
                     self.error(format!("{err_prefix}: `{name}`"));
                 }
             }
