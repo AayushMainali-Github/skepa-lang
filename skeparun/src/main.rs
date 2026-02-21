@@ -69,9 +69,15 @@ fn parse_run_args(
         return Err(usage.to_string());
     };
     let max_call_depth = match env::var("SKEPA_MAX_CALL_DEPTH") {
-        Ok(v) => v
+        Ok(v) => {
+            let parsed = v
             .parse::<usize>()
-            .map_err(|_| "SKEPA_MAX_CALL_DEPTH must be a positive integer".to_string())?,
+                .map_err(|_| "SKEPA_MAX_CALL_DEPTH must be an integer >= 1".to_string())?;
+            if parsed == 0 {
+                return Err("SKEPA_MAX_CALL_DEPTH must be an integer >= 1".to_string());
+            }
+            parsed
+        }
         Err(_) => VmConfig::default().max_call_depth,
     };
     Ok((
