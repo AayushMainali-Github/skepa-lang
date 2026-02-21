@@ -1,8 +1,8 @@
 use skeplib::parser::Parser;
 use skeplib::resolver::{
-    ImportTarget, ModuleGraph, ModuleUnit, ResolveErrorKind, collect_import_module_paths,
-    module_id_from_relative_path, module_path_from_import, resolve_import_target, resolve_project,
-    scan_folder_modules,
+    ImportTarget, ModuleGraph, ModuleUnit, ResolveErrorKind, SymbolKind, collect_import_module_paths,
+    collect_module_symbols, module_id_from_relative_path, module_path_from_import,
+    resolve_import_target, resolve_project, scan_folder_modules,
 };
 use std::collections::HashMap;
 use std::fs;
@@ -74,6 +74,22 @@ fn main() -> Int { return 0; }
             vec!["gamma".to_string(), "delta".to_string()]
         ]
     );
+}
+
+#[test]
+fn collect_module_symbols_collects_top_level_functions_and_structs() {
+    let src = r#"
+struct User { id: Int }
+fn add(a: Int, b: Int) -> Int { return a + b; }
+fn main() -> Int { return 0; }
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    let symbols = collect_module_symbols(&program, "main");
+    assert_eq!(symbols.locals.len(), 3);
+    assert_eq!(symbols.locals["User"].kind, SymbolKind::Struct);
+    assert_eq!(symbols.locals["add"].kind, SymbolKind::Fn);
+    assert_eq!(symbols.locals["main"].kind, SymbolKind::Fn);
 }
 
 fn make_temp_dir(label: &str) -> std::path::PathBuf {

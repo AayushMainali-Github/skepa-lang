@@ -21,6 +21,25 @@ pub struct ModuleGraph {
     pub modules: HashMap<ModuleId, ModuleUnit>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SymbolKind {
+    Fn,
+    Struct,
+    GlobalLet,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SymbolRef {
+    pub module_id: ModuleId,
+    pub local_name: String,
+    pub kind: SymbolKind,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ModuleSymbols {
+    pub locals: HashMap<String, SymbolRef>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ResolveErrorKind {
     MissingModule,
@@ -228,6 +247,31 @@ pub fn collect_import_module_paths(program: &Program) -> Vec<Vec<String>> {
         }
     }
     out
+}
+
+pub fn collect_module_symbols(program: &Program, module_id: &str) -> ModuleSymbols {
+    let mut locals = HashMap::new();
+    for f in &program.functions {
+        locals.insert(
+            f.name.clone(),
+            SymbolRef {
+                module_id: module_id.to_string(),
+                local_name: f.name.clone(),
+                kind: SymbolKind::Fn,
+            },
+        );
+    }
+    for s in &program.structs {
+        locals.insert(
+            s.name.clone(),
+            SymbolRef {
+                module_id: module_id.to_string(),
+                local_name: s.name.clone(),
+                kind: SymbolKind::Struct,
+            },
+        );
+    }
+    ModuleSymbols { locals }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
