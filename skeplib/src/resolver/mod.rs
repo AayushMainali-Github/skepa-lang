@@ -56,6 +56,7 @@ pub enum ResolveErrorKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolveError {
     pub kind: ResolveErrorKind,
+    pub code: &'static str,
     pub message: String,
     pub path: Option<PathBuf>,
     pub line: Option<usize>,
@@ -66,6 +67,7 @@ impl ResolveError {
     pub fn new(kind: ResolveErrorKind, message: impl Into<String>, path: Option<PathBuf>) -> Self {
         Self {
             kind,
+            code: code_for_kind(kind),
             message: message.into(),
             path,
             line: None,
@@ -73,11 +75,65 @@ impl ResolveError {
         }
     }
 
+    pub fn with_code(mut self, code: &'static str) -> Self {
+        self.code = code;
+        self
+    }
+
     pub fn with_line_col(mut self, line: usize, col: usize) -> Self {
         self.line = Some(line);
         self.col = Some(col);
         self
     }
+}
+
+fn code_for_kind(kind: ResolveErrorKind) -> &'static str {
+    match kind {
+        ResolveErrorKind::MissingModule => "E-MOD-NOT-FOUND",
+        ResolveErrorKind::Cycle => "E-MOD-CYCLE",
+        ResolveErrorKind::AmbiguousModule => "E-MOD-AMBIG",
+        ResolveErrorKind::Io | ResolveErrorKind::NonUtf8Path | ResolveErrorKind::DuplicateModuleId => {
+            "E-MOD-NOT-FOUND"
+        }
+    }
+}
+
+fn levenshtein(a: &str, b: &str) -> usize {
+    if a == b {
+        return 0;
+    }
+    if a.is_empty() {
+        return b.chars().count();
+    }
+    if b.is_empty() {
+        return a.chars().count();
+    }
+    let b_chars = b.chars().collect::<Vec<_>>();
+    let mut prev = (0..=b_chars.len()).collect::<Vec<_>>();
+    let mut cur = vec![0usize; b_chars.len() + 1];
+    for (i, ca) in a.chars().enumerate() {
+        cur[0] = i + 1;
+        for (j, cb) in b_chars.iter().enumerate() {
+            let cost = if ca == *cb { 0 } else { 1 };
+            cur[j + 1] = (prev[j + 1] + 1).min(cur[j] + 1).min(prev[j] + cost);
+        }
+        std::mem::swap(&mut prev, &mut cur);
+    }
+    prev[b_chars.len()]
+}
+
+fn suggest_name<'a>(needle: &str, haystack: impl Iterator<Item = &'a str>) -> Option<String> {
+    let mut best: Option<(&str, usize)> = None;
+    for cand in haystack {
+        let d = levenshtein(needle, cand);
+        if d <= 2 {
+            match best {
+                Some((_, bd)) if d >= bd => {}
+                _ => best = Some((cand, d)),
+            }
+        }
+    }
+    best.map(|(s, _)| s.to_string())
 }
 
 pub fn resolve_project(entry: &Path) -> Result<ModuleGraph, Vec<ResolveError>> {
@@ -281,7 +337,7 @@ pub fn build_export_maps(graph: &ModuleGraph) -> Result<HashMap<ModuleId, Export
                 ResolveErrorKind::Cycle,
                 format!("Circular re-export detected: {}", cycle.join(" -> ")),
                 graph.modules.get(id).map(|u| u.path.clone()),
-            ));
+            ).with_code("E-MOD-CYCLE"));
             return;
         }
         let Some(unit) = graph.modules.get(id) else {
@@ -307,9 +363,10 @@ pub fn build_export_maps(graph: &ModuleGraph) -> Result<HashMap<ModuleId, Export
                         errors.push(ResolveError::new(
                             ResolveErrorKind::AmbiguousModule,
                             format!(
-                                "re-export source `{}` in module `{}` must resolve to a single module",
+                                "re-export source `{}` in module `{}` ({}) must resolve to a single module",
                                 path.join("."),
-                                id
+                                id,
+                                unit.path.display()
                             ),
                             Some(unit.path.clone()),
                         ));
@@ -323,27 +380,42 @@ pub fn build_export_maps(graph: &ModuleGraph) -> Result<HashMap<ModuleId, Export
                     for item in items {
                         let export_name = item.alias.clone().unwrap_or_else(|| item.name.clone());
                         let Some(sym) = dep_map.get(&item.name).cloned() else {
-                            errors.push(ResolveError::new(
-                                ResolveErrorKind::MissingModule,
+                            let suggestion =
+                                suggest_name(&item.name, dep_map.keys().map(|k| k.as_str()));
+                            let msg = if let Some(s) = suggestion {
                                 format!(
-                                    "Cannot re-export `{}` from `{}` in module `{}`: symbol is not exported",
+                                    "Cannot re-export `{}` from `{}` in module `{}` ({}): symbol is not exported; did you mean `{}`?",
                                     item.name,
                                     path.join("."),
-                                    id
-                                ),
+                                    id,
+                                    unit.path.display(),
+                                    s
+                                )
+                            } else {
+                                format!(
+                                    "Cannot re-export `{}` from `{}` in module `{}` ({}): symbol is not exported",
+                                    item.name,
+                                    path.join("."),
+                                    id,
+                                    unit.path.display()
+                                )
+                            };
+                            errors.push(ResolveError::new(
+                                ResolveErrorKind::MissingModule,
+                                msg,
                                 Some(unit.path.clone()),
-                            ));
+                            ).with_code("E-IMPORT-NOT-EXPORTED"));
                             continue;
                         };
                         if map.insert(export_name.clone(), sym).is_some() {
                             errors.push(ResolveError::new(
                                 ResolveErrorKind::DuplicateModuleId,
                                 format!(
-                                    "Duplicate exported target name `{}` in module `{}`",
-                                    export_name, id
+                                    "Duplicate exported target name `{}` in module `{}` ({})",
+                                    export_name, id, unit.path.display()
                                 ),
                                 Some(unit.path.clone()),
-                            ));
+                            ).with_code("E-IMPORT-CONFLICT"));
                         }
                     }
                 }
@@ -353,9 +425,10 @@ pub fn build_export_maps(graph: &ModuleGraph) -> Result<HashMap<ModuleId, Export
                         errors.push(ResolveError::new(
                             ResolveErrorKind::AmbiguousModule,
                             format!(
-                                "re-export source `{}` in module `{}` must resolve to a single module",
+                                "re-export source `{}` in module `{}` ({}) must resolve to a single module",
                                 path.join("."),
-                                id
+                                id,
+                                unit.path.display()
                             ),
                             Some(unit.path.clone()),
                         ));
@@ -371,11 +444,11 @@ pub fn build_export_maps(graph: &ModuleGraph) -> Result<HashMap<ModuleId, Export
                             errors.push(ResolveError::new(
                                 ResolveErrorKind::DuplicateModuleId,
                                 format!(
-                                    "Duplicate exported target name `{}` in module `{}`",
-                                    name, id
+                                    "Duplicate exported target name `{}` in module `{}` ({})",
+                                    name, id, unit.path.display()
                                 ),
                                 Some(unit.path.clone()),
-                            ));
+                            ).with_code("E-IMPORT-CONFLICT"));
                         }
                     }
                 }
@@ -430,11 +503,11 @@ fn validate_import_bindings(
                         errors.push(ResolveError::new(
                             ResolveErrorKind::DuplicateModuleId,
                             format!(
-                                "Duplicate imported binding `{}` in module `{}` (conflicts with {})",
-                                a, id, prev
+                                "Duplicate imported binding `{}` in module `{}` ({}) (conflicts with {})",
+                                a, id, unit.path.display(), prev
                             ),
                             Some(unit.path.clone()),
-                        ));
+                        ).with_code("E-IMPORT-CONFLICT"));
                     }
                     let _ = resolve_import_module_targets(graph, path);
                 }
@@ -448,9 +521,10 @@ fn validate_import_bindings(
                         errors.push(ResolveError::new(
                             ResolveErrorKind::MissingModule,
                             format!(
-                                "Cannot resolve from-import source `{}` in module `{}`",
+                                "Cannot resolve from-import source `{}` in module `{}` ({})",
                                 path.join("."),
-                                id
+                                id,
+                                unit.path.display()
                             ),
                             Some(unit.path.clone()),
                         ));
@@ -460,9 +534,10 @@ fn validate_import_bindings(
                         errors.push(ResolveError::new(
                             ResolveErrorKind::AmbiguousModule,
                             format!(
-                                "from-import source `{}` in module `{}` resolves to a namespace root; import a concrete file module instead",
+                                "from-import source `{}` in module `{}` ({}) resolves to a namespace root; import a concrete file module instead",
                                 path.join("."),
-                                id
+                                id,
+                                unit.path.display()
                             ),
                             Some(unit.path.clone()),
                         ));
@@ -484,26 +559,50 @@ fn validate_import_bindings(
                                 errors.push(ResolveError::new(
                                     ResolveErrorKind::DuplicateModuleId,
                                     format!(
-                                        "Duplicate imported binding `{}` in module `{}` (conflicts with {})",
-                                        local, id, prev
+                                        "Duplicate imported binding `{}` in module `{}` ({}) (conflicts with {})",
+                                        local, id, unit.path.display(), prev
                                     ),
                                     Some(unit.path.clone()),
-                                ));
+                                ).with_code("E-IMPORT-CONFLICT"));
                             }
                         }
                     } else {
                         for item in items {
                             if !exports.contains_key(&item.name) {
-                                errors.push(ResolveError::new(
-                                    ResolveErrorKind::MissingModule,
+                                let suggestion =
+                                    suggest_name(&item.name, exports.keys().map(|k| k.as_str()));
+                                let target_path = graph
+                                    .modules
+                                    .get(target)
+                                    .map(|u| u.path.display().to_string())
+                                    .unwrap_or_else(|| "<unknown>".to_string());
+                                let msg = if let Some(s) = suggestion {
                                     format!(
-                                        "Cannot import `{}` from `{}` in module `{}`: symbol is not exported",
+                                        "Cannot import `{}` from `{}` in module `{}` ({}) -> target `{}` ({}): symbol is not exported; did you mean `{}`?",
                                         item.name,
                                         path.join("."),
-                                        id
-                                    ),
+                                        id,
+                                        unit.path.display(),
+                                        target,
+                                        target_path,
+                                        s
+                                    )
+                                } else {
+                                    format!(
+                                        "Cannot import `{}` from `{}` in module `{}` ({}) -> target `{}` ({}): symbol is not exported",
+                                        item.name,
+                                        path.join("."),
+                                        id,
+                                        unit.path.display(),
+                                        target,
+                                        target_path
+                                    )
+                                };
+                                errors.push(ResolveError::new(
+                                    ResolveErrorKind::MissingModule,
+                                    msg,
                                     Some(unit.path.clone()),
-                                ));
+                                ).with_code("E-IMPORT-NOT-EXPORTED"));
                                 continue;
                             }
                             let local = item.alias.clone().unwrap_or_else(|| item.name.clone());
@@ -511,11 +610,11 @@ fn validate_import_bindings(
                                 errors.push(ResolveError::new(
                                     ResolveErrorKind::DuplicateModuleId,
                                     format!(
-                                        "Duplicate imported binding `{}` in module `{}` (conflicts with {})",
-                                        local, id, prev
+                                        "Duplicate imported binding `{}` in module `{}` ({}) (conflicts with {})",
+                                        local, id, unit.path.display(), prev
                                     ),
                                     Some(unit.path.clone()),
-                                ));
+                                ).with_code("E-IMPORT-CONFLICT"));
                             }
                         }
                     }
@@ -659,11 +758,13 @@ pub fn validate_and_build_export_map(
                     errors.push(ResolveError::new(
                         ResolveErrorKind::MissingModule,
                         format!(
-                            "Exported name `{}` does not exist in module `{}`",
-                            item.name, module_id
+                            "Exported name `{}` does not exist in module `{}` ({})",
+                            item.name,
+                            module_id,
+                            module_path.display()
                         ),
                         Some(module_path.to_path_buf()),
-                    ));
+                    ).with_code("E-EXPORT-UNKNOWN"));
                     continue;
                 };
 
@@ -671,11 +772,13 @@ pub fn validate_and_build_export_map(
                     errors.push(ResolveError::new(
                         ResolveErrorKind::DuplicateModuleId,
                         format!(
-                            "Duplicate exported target name `{}` in module `{}`",
-                            export_name, module_id
+                            "Duplicate exported target name `{}` in module `{}` ({})",
+                            export_name,
+                            module_id,
+                            module_path.display()
                         ),
                         Some(module_path.to_path_buf()),
-                    ));
+                    ).with_code("E-IMPORT-CONFLICT"));
                 }
             }
         }

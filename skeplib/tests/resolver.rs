@@ -32,6 +32,7 @@ fn resolve_project_reports_missing_entry() {
     let missing = Path::new("skeplib/tests/fixtures/resolver/does_not_exist.sk");
     let err = resolve_project(missing).expect_err("missing entry should error");
     assert_eq!(err[0].kind, ResolveErrorKind::MissingModule);
+    assert_eq!(err[0].code, "E-MOD-NOT-FOUND");
 }
 
 #[test]
@@ -130,6 +131,7 @@ fn main() -> Int { return 0; }
     assert!(errs
         .iter()
         .any(|e| e.message.contains("Exported name `nope` does not exist")));
+    assert!(errs.iter().any(|e| e.code == "E-EXPORT-UNKNOWN"));
 }
 
 #[test]
@@ -187,6 +189,7 @@ fn resolve_import_target_reports_ambiguity_when_file_and_folder_exist() {
     fs::create_dir_all(root.join("a")).expect("create folder");
     let err = resolve_import_target(&root, &[String::from("a")]).expect_err("must be ambiguous");
     assert_eq!(err.kind, ResolveErrorKind::AmbiguousModule);
+    assert_eq!(err.code, "E-MOD-AMBIG");
     let _ = fs::remove_dir_all(root);
 }
 
@@ -311,6 +314,7 @@ fn fb() -> Int { return 1; }
         errs.iter()
             .any(|e| { e.kind == ResolveErrorKind::Cycle && e.message.contains("a -> b -> a") })
     );
+    assert!(errs.iter().any(|e| e.code == "E-MOD-CYCLE"));
     let _ = fs::remove_dir_all(root);
 }
 
@@ -344,6 +348,7 @@ fn fc() -> Int { return 1; }
             e.kind == ResolveErrorKind::Cycle && e.message.contains("a -> b -> c -> a")
         })
     );
+    assert!(errs.iter().any(|e| e.code == "E-MOD-CYCLE"));
     let _ = fs::remove_dir_all(root);
 }
 
@@ -362,6 +367,7 @@ fn main() -> Int { return 0; }
             && e.message
                 .contains("while resolving import `missing.dep` in module `main`")
     }));
+    assert!(errs.iter().any(|e| e.code == "E-MOD-NOT-FOUND"));
     let _ = fs::remove_dir_all(root);
 }
 
@@ -419,6 +425,7 @@ export { shown };
     assert!(errs.iter().any(|e| {
         e.message.contains("symbol is not exported") && e.message.contains("hidden")
     }));
+    assert!(errs.iter().any(|e| e.code == "E-IMPORT-NOT-EXPORTED"));
     let _ = fs::remove_dir_all(root);
 }
 
@@ -446,6 +453,7 @@ export { bar };
     assert!(errs
         .iter()
         .any(|e| e.message.contains("Duplicate imported binding `x`")));
+    assert!(errs.iter().any(|e| e.code == "E-IMPORT-CONFLICT"));
     let _ = fs::remove_dir_all(root);
 }
 
@@ -474,6 +482,7 @@ fn main() -> Int { return 0; }
         .iter()
         .any(|e| e.kind == ResolveErrorKind::AmbiguousModule
             && e.message.contains("resolves to a namespace root")));
+    assert!(errs.iter().any(|e| e.code == "E-MOD-AMBIG"));
     let _ = fs::remove_dir_all(root);
 }
 
@@ -543,6 +552,7 @@ fn main() -> Int { return 0; }
     assert!(errs
         .iter()
         .any(|e| e.message.contains("Duplicate imported binding `x`")));
+    assert!(errs.iter().any(|e| e.code == "E-IMPORT-CONFLICT"));
     let _ = fs::remove_dir_all(root);
 }
 
@@ -559,6 +569,7 @@ fn resolve_project_detects_circular_re_exports() {
 
     let errs = resolve_project(&root.join("main.sk")).expect_err("re-export cycle expected");
     assert!(errs.iter().any(|e| e.kind == ResolveErrorKind::Cycle));
+    assert!(errs.iter().any(|e| e.code == "E-MOD-CYCLE"));
     let _ = fs::remove_dir_all(root);
 }
 
@@ -589,6 +600,7 @@ fn main() -> Int { return 0; }
     .expect("write main");
     let errs = resolve_project(&root.join("main.sk")).expect_err("re-export unknown should fail");
     assert!(errs.iter().any(|e| e.message.contains("Cannot re-export `hidden`")));
+    assert!(errs.iter().any(|e| e.code == "E-IMPORT-NOT-EXPORTED"));
     let _ = fs::remove_dir_all(root);
 }
 
@@ -624,6 +636,7 @@ fn main() -> Int { return 0; }
     assert!(errs
         .iter()
         .any(|e| e.message.contains("Duplicate exported target name `x`")));
+    assert!(errs.iter().any(|e| e.code == "E-IMPORT-CONFLICT"));
     let _ = fs::remove_dir_all(root);
 }
 
@@ -659,6 +672,7 @@ fn main() -> Int { return 0; }
     assert!(errs
         .iter()
         .any(|e| e.message.contains("Duplicate imported binding `x`")));
+    assert!(errs.iter().any(|e| e.code == "E-IMPORT-CONFLICT"));
     let _ = fs::remove_dir_all(root);
 }
 
@@ -692,5 +706,31 @@ fn main() -> Int { return 0; }
     .expect("write main");
     let graph = resolve_project(&root.join("main.sk")).expect("namespace export should resolve");
     assert!(graph.modules.contains_key("mod"));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn resolve_project_suggests_close_symbol_name_for_import() {
+    let root = make_temp_dir("import_did_you_mean");
+    fs::write(
+        root.join("a.sk"),
+        r#"
+fn shown() -> Int { return 1; }
+export { shown };
+"#,
+    )
+    .expect("write a");
+    fs::write(
+        root.join("main.sk"),
+        r#"
+from a import shwon;
+fn main() -> Int { return 0; }
+"#,
+    )
+    .expect("write main");
+    let errs = resolve_project(&root.join("main.sk")).expect_err("did-you-mean expected");
+    assert!(errs
+        .iter()
+        .any(|e| e.code == "E-IMPORT-NOT-EXPORTED" && e.message.contains("did you mean `shown`")));
     let _ = fs::remove_dir_all(root);
 }
