@@ -174,6 +174,12 @@ pub fn resolve_project(entry: &Path) -> Result<ModuleGraph, Vec<ResolveError>> {
         errors.extend(detect_cycles(&graph));
     }
     if errors.is_empty() {
+        match build_export_maps(&graph) {
+            Ok(export_maps) => errors.extend(validate_import_bindings(&graph, &export_maps)),
+            Err(mut e) => errors.append(&mut e),
+        }
+    }
+    if errors.is_empty() {
         Ok(graph)
     } else {
         Err(errors)
@@ -194,6 +200,112 @@ fn with_importer_context(
         importer_path.display()
     );
     err
+}
+
+fn build_export_maps(graph: &ModuleGraph) -> Result<HashMap<ModuleId, ExportMap>, Vec<ResolveError>> {
+    let mut out = HashMap::new();
+    let mut errors = Vec::new();
+    for (id, unit) in &graph.modules {
+        let (program, _diags) = Parser::parse_source(&unit.source);
+        let symbols = collect_module_symbols(&program, id);
+        match validate_and_build_export_map(&program, &symbols, id, &unit.path) {
+            Ok(map) => {
+                out.insert(id.clone(), map);
+            }
+            Err(mut e) => errors.append(&mut e),
+        }
+    }
+    if errors.is_empty() {
+        Ok(out)
+    } else {
+        Err(errors)
+    }
+}
+
+fn resolve_import_module_targets(graph: &ModuleGraph, import_path: &[String]) -> Vec<ModuleId> {
+    let import_id = import_path.join(".");
+    if graph.modules.contains_key(&import_id) {
+        return vec![import_id];
+    }
+    let prefix = format!("{import_id}.");
+    let mut matches = graph
+        .modules
+        .keys()
+        .filter(|id| id.starts_with(&prefix))
+        .cloned()
+        .collect::<Vec<_>>();
+    matches.sort();
+    matches
+}
+
+fn validate_import_bindings(
+    graph: &ModuleGraph,
+    export_maps: &HashMap<ModuleId, ExportMap>,
+) -> Vec<ResolveError> {
+    let mut errors = Vec::new();
+    for (id, unit) in &graph.modules {
+        let (program, _diags) = Parser::parse_source(&unit.source);
+        let mut bound_names = HashMap::<String, String>::new();
+
+        for import in &program.imports {
+            match import {
+                ImportDecl::ImportModule { path, alias } => {
+                    if let Some(a) = alias
+                        && let Some(prev) = bound_names.insert(a.clone(), "module alias".to_string())
+                    {
+                        errors.push(ResolveError::new(
+                            ResolveErrorKind::DuplicateModuleId,
+                            format!(
+                                "Duplicate imported binding `{}` in module `{}` (conflicts with {})",
+                                a, id, prev
+                            ),
+                            Some(unit.path.clone()),
+                        ));
+                    }
+                    let _ = resolve_import_module_targets(graph, path);
+                }
+                ImportDecl::ImportFrom { path, items } => {
+                    let targets = resolve_import_module_targets(graph, path);
+                    if targets.len() != 1 {
+                        continue;
+                    }
+                    let target = &targets[0];
+                    let exports = match export_maps.get(target) {
+                        Some(m) => m,
+                        None => continue,
+                    };
+
+                    for item in items {
+                        if !exports.contains_key(&item.name) {
+                            errors.push(ResolveError::new(
+                                ResolveErrorKind::MissingModule,
+                                format!(
+                                    "Cannot import `{}` from `{}` in module `{}`: symbol is not exported",
+                                    item.name,
+                                    path.join("."),
+                                    id
+                                ),
+                                Some(unit.path.clone()),
+                            ));
+                            continue;
+                        }
+                        let local = item.alias.clone().unwrap_or_else(|| item.name.clone());
+                        if let Some(prev) = bound_names.insert(local.clone(), "from-import".to_string()) {
+                            errors.push(ResolveError::new(
+                                ResolveErrorKind::DuplicateModuleId,
+                                format!(
+                                    "Duplicate imported binding `{}` in module `{}` (conflicts with {})",
+                                    local, id, prev
+                                ),
+                                Some(unit.path.clone()),
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    errors
 }
 
 pub fn module_id_from_relative_path(path: &Path) -> Result<ModuleId, ResolveError> {

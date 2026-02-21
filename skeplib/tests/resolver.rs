@@ -395,3 +395,52 @@ fn main() -> Int { return 0; }
     );
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn resolve_project_reports_importing_non_exported_symbol() {
+    let root = make_temp_dir("import_non_exported");
+    let main_src = r#"
+from a import hidden;
+fn main() -> Int { return 0; }
+"#;
+    let a_src = r#"
+fn hidden() -> Int { return 1; }
+fn shown() -> Int { return 2; }
+export { shown };
+"#;
+    fs::write(root.join("main.sk"), main_src).expect("write main");
+    fs::write(root.join("a.sk"), a_src).expect("write a");
+
+    let errs = resolve_project(&root.join("main.sk")).expect_err("non-exported import expected");
+    assert!(errs.iter().any(|e| {
+        e.message.contains("symbol is not exported") && e.message.contains("hidden")
+    }));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn resolve_project_reports_duplicate_imported_bindings_in_scope() {
+    let root = make_temp_dir("dup_import_bindings");
+    let main_src = r#"
+from a import foo as x;
+from b import bar as x;
+fn main() -> Int { return 0; }
+"#;
+    let a_src = r#"
+fn foo() -> Int { return 1; }
+export { foo };
+"#;
+    let b_src = r#"
+fn bar() -> Int { return 2; }
+export { bar };
+"#;
+    fs::write(root.join("main.sk"), main_src).expect("write main");
+    fs::write(root.join("a.sk"), a_src).expect("write a");
+    fs::write(root.join("b.sk"), b_src).expect("write b");
+
+    let errs = resolve_project(&root.join("main.sk")).expect_err("duplicate binding expected");
+    assert!(errs
+        .iter()
+        .any(|e| e.message.contains("Duplicate imported binding `x`")));
+    let _ = fs::remove_dir_all(root);
+}
