@@ -561,3 +561,136 @@ fn resolve_project_detects_circular_re_exports() {
     assert!(errs.iter().any(|e| e.kind == ResolveErrorKind::Cycle));
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn resolve_project_rejects_re_export_of_non_exported_symbol() {
+    let root = make_temp_dir("re_export_non_exported_symbol");
+    fs::write(
+        root.join("a.sk"),
+        r#"
+fn hidden() -> Int { return 1; }
+"#,
+    )
+    .expect("write a");
+    fs::write(
+        root.join("b.sk"),
+        r#"
+export { hidden } from a;
+"#,
+    )
+    .expect("write b");
+    fs::write(
+        root.join("main.sk"),
+        r#"
+import b;
+fn main() -> Int { return 0; }
+"#,
+    )
+    .expect("write main");
+    let errs = resolve_project(&root.join("main.sk")).expect_err("re-export unknown should fail");
+    assert!(errs.iter().any(|e| e.message.contains("Cannot re-export `hidden`")));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn resolve_project_rejects_duplicate_export_name_between_local_and_export_all() {
+    let root = make_temp_dir("dup_local_and_export_all");
+    fs::write(
+        root.join("a.sk"),
+        r#"
+fn x() -> Int { return 1; }
+export { x };
+"#,
+    )
+    .expect("write a");
+    fs::write(
+        root.join("b.sk"),
+        r#"
+fn x() -> Int { return 2; }
+export { x };
+export * from a;
+"#,
+    )
+    .expect("write b");
+    fs::write(
+        root.join("main.sk"),
+        r#"
+import b;
+fn main() -> Int { return 0; }
+"#,
+    )
+    .expect("write main");
+    let errs = resolve_project(&root.join("main.sk")).expect_err("duplicate export target expected");
+    assert!(errs
+        .iter()
+        .any(|e| e.message.contains("Duplicate exported target name `x`")));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn resolve_project_rejects_wildcard_and_explicit_import_binding_conflict() {
+    let root = make_temp_dir("wildcard_and_explicit_conflict");
+    fs::write(
+        root.join("a.sk"),
+        r#"
+fn x() -> Int { return 1; }
+export { x };
+"#,
+    )
+    .expect("write a");
+    fs::write(
+        root.join("b.sk"),
+        r#"
+fn y() -> Int { return 2; }
+export { y };
+"#,
+    )
+    .expect("write b");
+    fs::write(
+        root.join("main.sk"),
+        r#"
+from a import *;
+from b import y as x;
+fn main() -> Int { return 0; }
+"#,
+    )
+    .expect("write main");
+    let errs = resolve_project(&root.join("main.sk")).expect_err("import binding conflict expected");
+    assert!(errs
+        .iter()
+        .any(|e| e.message.contains("Duplicate imported binding `x`")));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn resolve_project_supports_namespace_export_alias_and_import() {
+    let root = make_temp_dir("namespace_export_alias");
+    fs::create_dir_all(root.join("string")).expect("create string dir");
+    fs::write(
+        root.join("string").join("case.sk"),
+        r#"
+fn up(s: String) -> String { return s; }
+export { up };
+"#,
+    )
+    .expect("write case");
+    fs::write(
+        root.join("mod.sk"),
+        r#"
+import string.case as case;
+export { case as caseTools };
+"#,
+    )
+    .expect("write mod");
+    fs::write(
+        root.join("main.sk"),
+        r#"
+from mod import caseTools;
+fn main() -> Int { return 0; }
+"#,
+    )
+    .expect("write main");
+    let graph = resolve_project(&root.join("main.sk")).expect("namespace export should resolve");
+    assert!(graph.modules.contains_key("mod"));
+    let _ = fs::remove_dir_all(root);
+}

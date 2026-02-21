@@ -407,6 +407,50 @@ fn main() -> Int { return 0; }
 }
 
 #[test]
+fn reports_from_import_wildcard_with_extra_items() {
+    let src = r#"
+from a.b import *, x;
+fn main() -> Int { return 0; }
+"#;
+    let diags = parse_err(src);
+    assert_has_diag(&diags, "Expected `;` after from-import");
+}
+
+#[test]
+fn reports_export_star_missing_from_clause() {
+    let src = r#"
+export *;
+fn main() -> Int { return 0; }
+"#;
+    let diags = parse_err(src);
+    assert_has_diag(&diags, "Expected `from` after `export *`");
+}
+
+#[test]
+fn parses_mixed_multiple_export_blocks() {
+    let src = r#"
+export { localA };
+export { ext as extAlias } from pkg.mod;
+export * from shared.core;
+fn main() -> Int { return 0; }
+"#;
+    let program = parse_ok(src);
+    assert_eq!(program.exports.len(), 3);
+    assert!(matches!(
+        program.exports[0],
+        skeplib::ast::ExportDecl::Local { .. }
+    ));
+    assert!(matches!(
+        program.exports[1],
+        skeplib::ast::ExportDecl::From { .. }
+    ));
+    assert!(matches!(
+        program.exports[2],
+        skeplib::ast::ExportDecl::FromAll { .. }
+    ));
+}
+
+#[test]
 fn reports_missing_semicolon_after_return() {
     let src = r#"
 fn main() -> Int {

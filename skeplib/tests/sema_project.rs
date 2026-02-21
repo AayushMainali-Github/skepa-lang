@@ -237,3 +237,63 @@ fn main() -> Int { return add(20, 22); }
     assert!(!res.has_errors, "diagnostics: {:?}", diags.as_slice());
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn sema_project_accepts_direct_re_export_alias_usage() {
+    let root = make_temp_dir("direct_reexport_alias_usage");
+    fs::write(
+        root.join("a.sk"),
+        r#"
+fn add(a: Int, b: Int) -> Int { return a + b; }
+export { add };
+"#,
+    )
+    .expect("write a");
+    fs::write(root.join("b.sk"), "export { add as plus } from a;\n").expect("write b");
+    fs::write(
+        root.join("main.sk"),
+        r#"
+from b import plus;
+fn main() -> Int { return plus(1, 2); }
+"#,
+    )
+    .expect("write main");
+    let (res, diags) = analyze_project_entry(&root.join("main.sk")).expect("resolver/sema");
+    assert!(!res.has_errors, "diagnostics: {:?}", diags.as_slice());
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn sema_project_rejects_wildcard_and_explicit_import_binding_conflict() {
+    let root = make_temp_dir("wildcard_explicit_conflict");
+    fs::write(
+        root.join("a.sk"),
+        r#"
+fn x() -> Int { return 1; }
+export { x };
+"#,
+    )
+    .expect("write a");
+    fs::write(
+        root.join("b.sk"),
+        r#"
+fn y() -> Int { return 2; }
+export { y };
+"#,
+    )
+    .expect("write b");
+    fs::write(
+        root.join("main.sk"),
+        r#"
+from a import *;
+from b import y as x;
+fn main() -> Int { return 0; }
+"#,
+    )
+    .expect("write main");
+    let errs = analyze_project_entry(&root.join("main.sk")).expect_err("resolver error expected");
+    assert!(errs
+        .iter()
+        .any(|e| e.message.contains("Duplicate imported binding `x`")));
+    let _ = fs::remove_dir_all(root);
+}
