@@ -2720,3 +2720,24 @@ fn main() -> Int {
     assert_eq!(err.kind, VmErrorKind::TypeMismatch);
     assert!(err.message.contains("datetime.parseUnix invalid year"));
 }
+
+#[test]
+fn runs_global_variables_across_functions() {
+    let src = r#"
+let counter: Int = 0;
+
+fn inc() -> Int {
+  counter = counter + 1;
+  return counter;
+}
+
+fn main() -> Int {
+  let a = inc();
+  let b = inc();
+  return a * 10 + b;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(12));
+}

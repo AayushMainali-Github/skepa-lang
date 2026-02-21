@@ -406,6 +406,16 @@ pub fn collect_module_symbols(program: &Program, module_id: &str) -> ModuleSymbo
             },
         );
     }
+    for g in &program.globals {
+        locals.insert(
+            g.name.clone(),
+            SymbolRef {
+                module_id: module_id.to_string(),
+                local_name: g.name.clone(),
+                kind: SymbolKind::GlobalLet,
+            },
+        );
+    }
     ModuleSymbols { locals }
 }
 

@@ -133,45 +133,53 @@ fn encode_instr(i: &Instr, out: &mut Vec<u8>) {
             write_u8(out, 2);
             write_u32(out, *s as u32);
         }
-        Instr::Pop => write_u8(out, 3),
-        Instr::NegInt => write_u8(out, 4),
-        Instr::NotBool => write_u8(out, 5),
-        Instr::Add => write_u8(out, 6),
-        Instr::SubInt => write_u8(out, 7),
-        Instr::MulInt => write_u8(out, 8),
-        Instr::DivInt => write_u8(out, 9),
-        Instr::ModInt => write_u8(out, 10),
-        Instr::Eq => write_u8(out, 11),
-        Instr::Neq => write_u8(out, 12),
-        Instr::LtInt => write_u8(out, 13),
-        Instr::LteInt => write_u8(out, 14),
-        Instr::GtInt => write_u8(out, 15),
-        Instr::GteInt => write_u8(out, 16),
-        Instr::AndBool => write_u8(out, 17),
-        Instr::OrBool => write_u8(out, 18),
+        Instr::LoadGlobal(s) => {
+            write_u8(out, 3);
+            write_u32(out, *s as u32);
+        }
+        Instr::StoreGlobal(s) => {
+            write_u8(out, 4);
+            write_u32(out, *s as u32);
+        }
+        Instr::Pop => write_u8(out, 5),
+        Instr::NegInt => write_u8(out, 6),
+        Instr::NotBool => write_u8(out, 7),
+        Instr::Add => write_u8(out, 8),
+        Instr::SubInt => write_u8(out, 9),
+        Instr::MulInt => write_u8(out, 10),
+        Instr::DivInt => write_u8(out, 11),
+        Instr::ModInt => write_u8(out, 12),
+        Instr::Eq => write_u8(out, 13),
+        Instr::Neq => write_u8(out, 14),
+        Instr::LtInt => write_u8(out, 15),
+        Instr::LteInt => write_u8(out, 16),
+        Instr::GtInt => write_u8(out, 17),
+        Instr::GteInt => write_u8(out, 18),
+        Instr::AndBool => write_u8(out, 19),
+        Instr::OrBool => write_u8(out, 20),
         Instr::Jump(t) => {
-            write_u8(out, 19);
-            write_u32(out, *t as u32);
-        }
-        Instr::JumpIfFalse(t) => {
-            write_u8(out, 20);
-            write_u32(out, *t as u32);
-        }
-        Instr::JumpIfTrue(t) => {
             write_u8(out, 21);
             write_u32(out, *t as u32);
         }
-        Instr::Call { name, argc } => {
+        Instr::JumpIfFalse(t) => {
             write_u8(out, 22);
+            write_u32(out, *t as u32);
+        }
+        Instr::JumpIfTrue(t) => {
+            write_u8(out, 23);
+            write_u32(out, *t as u32);
+        }
+        Instr::Call { name, argc } => {
+            write_u8(out, 24);
             write_str(out, name);
             write_u32(out, *argc as u32);
         }
         Instr::CallValue { argc } => {
-            write_u8(out, 35);
+            write_u8(out, 37);
             write_u32(out, *argc as u32);
         }
         Instr::CallMethod { name, argc } => {
-            write_u8(out, 34);
+            write_u8(out, 36);
             write_str(out, name);
             write_u32(out, *argc as u32);
         }
@@ -180,29 +188,29 @@ fn encode_instr(i: &Instr, out: &mut Vec<u8>) {
             name,
             argc,
         } => {
-            write_u8(out, 23);
+            write_u8(out, 25);
             write_str(out, package);
             write_str(out, name);
             write_u32(out, *argc as u32);
         }
         Instr::MakeArray(n) => {
-            write_u8(out, 24);
+            write_u8(out, 26);
             write_u32(out, *n as u32);
         }
         Instr::MakeArrayRepeat(n) => {
-            write_u8(out, 25);
+            write_u8(out, 27);
             write_u32(out, *n as u32);
         }
-        Instr::ArrayGet => write_u8(out, 26),
-        Instr::ArraySet => write_u8(out, 27),
+        Instr::ArrayGet => write_u8(out, 28),
+        Instr::ArraySet => write_u8(out, 29),
         Instr::ArraySetChain(n) => {
-            write_u8(out, 28);
+            write_u8(out, 30);
             write_u32(out, *n as u32);
         }
-        Instr::ArrayLen => write_u8(out, 29),
-        Instr::Return => write_u8(out, 30),
+        Instr::ArrayLen => write_u8(out, 31),
+        Instr::Return => write_u8(out, 32),
         Instr::MakeStruct { name, fields } => {
-            write_u8(out, 31);
+            write_u8(out, 33);
             write_str(out, name);
             write_u32(out, fields.len() as u32);
             for f in fields {
@@ -210,11 +218,11 @@ fn encode_instr(i: &Instr, out: &mut Vec<u8>) {
             }
         }
         Instr::StructGet(field) => {
-            write_u8(out, 32);
+            write_u8(out, 34);
             write_str(out, field);
         }
         Instr::StructSetPath(path) => {
-            write_u8(out, 33);
+            write_u8(out, 35);
             write_u32(out, path.len() as u32);
             for p in path {
                 write_str(out, p);
@@ -301,49 +309,51 @@ fn decode_instr(rd: &mut Reader<'_>) -> Result<Instr, String> {
         0 => Instr::LoadConst(decode_value(rd)?),
         1 => Instr::LoadLocal(rd.read_u32()? as usize),
         2 => Instr::StoreLocal(rd.read_u32()? as usize),
-        3 => Instr::Pop,
-        4 => Instr::NegInt,
-        5 => Instr::NotBool,
-        6 => Instr::Add,
-        7 => Instr::SubInt,
-        8 => Instr::MulInt,
-        9 => Instr::DivInt,
-        10 => Instr::ModInt,
-        11 => Instr::Eq,
-        12 => Instr::Neq,
-        13 => Instr::LtInt,
-        14 => Instr::LteInt,
-        15 => Instr::GtInt,
-        16 => Instr::GteInt,
-        17 => Instr::AndBool,
-        18 => Instr::OrBool,
-        19 => Instr::Jump(rd.read_u32()? as usize),
-        20 => Instr::JumpIfFalse(rd.read_u32()? as usize),
-        21 => Instr::JumpIfTrue(rd.read_u32()? as usize),
-        22 => Instr::Call {
+        3 => Instr::LoadGlobal(rd.read_u32()? as usize),
+        4 => Instr::StoreGlobal(rd.read_u32()? as usize),
+        5 => Instr::Pop,
+        6 => Instr::NegInt,
+        7 => Instr::NotBool,
+        8 => Instr::Add,
+        9 => Instr::SubInt,
+        10 => Instr::MulInt,
+        11 => Instr::DivInt,
+        12 => Instr::ModInt,
+        13 => Instr::Eq,
+        14 => Instr::Neq,
+        15 => Instr::LtInt,
+        16 => Instr::LteInt,
+        17 => Instr::GtInt,
+        18 => Instr::GteInt,
+        19 => Instr::AndBool,
+        20 => Instr::OrBool,
+        21 => Instr::Jump(rd.read_u32()? as usize),
+        22 => Instr::JumpIfFalse(rd.read_u32()? as usize),
+        23 => Instr::JumpIfTrue(rd.read_u32()? as usize),
+        24 => Instr::Call {
             name: rd.read_str()?,
             argc: rd.read_u32()? as usize,
         },
-        35 => Instr::CallValue {
+        37 => Instr::CallValue {
             argc: rd.read_u32()? as usize,
         },
-        34 => Instr::CallMethod {
+        36 => Instr::CallMethod {
             name: rd.read_str()?,
             argc: rd.read_u32()? as usize,
         },
-        23 => Instr::CallBuiltin {
+        25 => Instr::CallBuiltin {
             package: rd.read_str()?,
             name: rd.read_str()?,
             argc: rd.read_u32()? as usize,
         },
-        24 => Instr::MakeArray(rd.read_u32()? as usize),
-        25 => Instr::MakeArrayRepeat(rd.read_u32()? as usize),
-        26 => Instr::ArrayGet,
-        27 => Instr::ArraySet,
-        28 => Instr::ArraySetChain(rd.read_u32()? as usize),
-        29 => Instr::ArrayLen,
-        30 => Instr::Return,
-        31 => {
+        26 => Instr::MakeArray(rd.read_u32()? as usize),
+        27 => Instr::MakeArrayRepeat(rd.read_u32()? as usize),
+        28 => Instr::ArrayGet,
+        29 => Instr::ArraySet,
+        30 => Instr::ArraySetChain(rd.read_u32()? as usize),
+        31 => Instr::ArrayLen,
+        32 => Instr::Return,
+        33 => {
             let name = rd.read_str()?;
             let n = rd.read_u32()? as usize;
             let mut fields = Vec::with_capacity(n);
@@ -352,8 +362,8 @@ fn decode_instr(rd: &mut Reader<'_>) -> Result<Instr, String> {
             }
             Instr::MakeStruct { name, fields }
         }
-        32 => Instr::StructGet(rd.read_str()?),
-        33 => {
+        34 => Instr::StructGet(rd.read_str()?),
+        35 => {
             let n = rd.read_u32()? as usize;
             let mut path = Vec::with_capacity(n);
             for _ in 0..n {

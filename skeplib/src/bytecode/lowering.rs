@@ -29,6 +29,7 @@ pub fn compile_source(source: &str) -> Result<BytecodeModule, DiagnosticBag> {
 struct Compiler {
     diags: DiagnosticBag,
     function_names: HashSet<String>,
+    global_slots: HashMap<String, usize>,
     lifted_functions: Vec<FunctionChunk>,
     fn_lit_counter: usize,
 }
@@ -53,8 +54,15 @@ impl Compiler {
 
     fn compile_program(&mut self, program: &Program) -> BytecodeModule {
         self.function_names.clear();
+        self.global_slots.clear();
         self.lifted_functions.clear();
         self.fn_lit_counter = 0;
+        const GLOBALS_INIT_FN: &str = "__globals_init";
+        if program.functions.iter().any(|f| f.name == GLOBALS_INIT_FN) {
+            self.error(format!(
+                "`{GLOBALS_INIT_FN}` is a reserved function name used by the compiler"
+            ));
+        }
         for func in &program.functions {
             self.function_names.insert(func.name.clone());
         }
@@ -64,7 +72,14 @@ impl Compiler {
                     .insert(Self::mangle_method_name(&imp.target, &method.name));
             }
         }
+        for (idx, g) in program.globals.iter().enumerate() {
+            self.global_slots.insert(g.name.clone(), idx);
+        }
         let mut module = BytecodeModule::default();
+        if !program.globals.is_empty() {
+            let init = self.compile_globals_init(program);
+            module.functions.insert(init.name.clone(), init);
+        }
         for func in &program.functions {
             let chunk = self.compile_function(func);
             module.functions.insert(func.name.clone(), chunk);
@@ -80,6 +95,25 @@ impl Compiler {
             module.functions.insert(chunk.name.clone(), chunk);
         }
         module
+    }
+
+    fn compile_globals_init(&mut self, program: &Program) -> FunctionChunk {
+        let mut code = Vec::new();
+        let mut ctx = FnCtx::default();
+        for g in &program.globals {
+            self.compile_expr(&g.value, &mut ctx, &mut code);
+            if let Some(slot) = self.global_slots.get(&g.name).copied() {
+                code.push(Instr::StoreGlobal(slot));
+            }
+        }
+        code.push(Instr::LoadConst(Value::Unit));
+        code.push(Instr::Return);
+        FunctionChunk {
+            name: "__globals_init".to_string(),
+            code,
+            locals_count: program.globals.len(),
+            param_count: 0,
+        }
     }
 
     fn compile_fn_lit(&mut self, params: &[crate::ast::Param], body: &[Stmt]) -> String {
@@ -204,6 +238,8 @@ impl Compiler {
                     self.compile_expr(value, ctx, code);
                     if let Some(slot) = ctx.lookup(name) {
                         code.push(Instr::StoreLocal(slot));
+                    } else if let Some(slot) = self.global_slots.get(name).copied() {
+                        code.push(Instr::StoreGlobal(slot));
                     } else {
                         self.error(format!("Unknown local `{name}` in assignment"));
                     }
@@ -404,6 +440,8 @@ impl Compiler {
             Expr::Ident(name) => {
                 if let Some(slot) = ctx.lookup(name) {
                     code.push(Instr::LoadLocal(slot));
+                } else if let Some(slot) = self.global_slots.get(name).copied() {
+                    code.push(Instr::LoadGlobal(slot));
                 } else if self.function_names.contains(name) {
                     code.push(Instr::LoadConst(Value::Function(name.clone())));
                 } else {

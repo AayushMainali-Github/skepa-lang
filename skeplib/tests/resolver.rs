@@ -81,14 +81,16 @@ fn main() -> Int { return 0; }
 fn collect_module_symbols_collects_top_level_functions_and_structs() {
     let src = r#"
 struct User { id: Int }
+let version: Int = 1;
 fn add(a: Int, b: Int) -> Int { return a + b; }
 fn main() -> Int { return 0; }
 "#;
     let (program, diags) = Parser::parse_source(src);
     assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
     let symbols = collect_module_symbols(&program, "main");
-    assert_eq!(symbols.locals.len(), 3);
+    assert_eq!(symbols.locals.len(), 4);
     assert_eq!(symbols.locals["User"].kind, SymbolKind::Struct);
+    assert_eq!(symbols.locals["version"].kind, SymbolKind::GlobalLet);
     assert_eq!(symbols.locals["add"].kind, SymbolKind::Fn);
     assert_eq!(symbols.locals["main"].kind, SymbolKind::Fn);
 }
@@ -97,8 +99,9 @@ fn main() -> Int { return 0; }
 fn validate_and_build_export_map_accepts_valid_exports() {
     let src = r#"
 struct User { id: Int }
+let version: Int = 1;
 fn add(a: Int, b: Int) -> Int { return a + b; }
-export { add as plus, User };
+export { add as plus, User, version };
 fn main() -> Int { return 0; }
 "#;
     let (program, diags) = Parser::parse_source(src);
@@ -106,9 +109,10 @@ fn main() -> Int { return 0; }
     let symbols = collect_module_symbols(&program, "main");
     let map = validate_and_build_export_map(&program, &symbols, "main", Path::new("main.sk"))
         .expect("valid exports");
-    assert_eq!(map.len(), 2);
+    assert_eq!(map.len(), 3);
     assert_eq!(map["plus"].local_name, "add");
     assert_eq!(map["User"].local_name, "User");
+    assert_eq!(map["version"].local_name, "version");
 }
 
 #[test]

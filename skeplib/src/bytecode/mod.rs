@@ -26,6 +26,8 @@ pub enum Instr {
     LoadConst(Value),
     LoadLocal(usize),
     StoreLocal(usize),
+    LoadGlobal(usize),
+    StoreGlobal(usize),
     Pop,
     NegInt,
     NotBool,

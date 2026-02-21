@@ -16,6 +16,7 @@ fn create_program_with_one_import_and_one_function() {
             alias: None,
         }],
         exports: Vec::new(),
+        globals: Vec::new(),
         structs: Vec::new(),
         impls: Vec::new(),
         functions: vec![FnDecl {
@@ -70,6 +71,7 @@ fn struct_and_impl_ast_nodes_roundtrip_data() {
     let p = Program {
         imports: Vec::new(),
         exports: Vec::new(),
+        globals: Vec::new(),
         structs: vec![s],
         impls: vec![i],
         functions: Vec::new(),

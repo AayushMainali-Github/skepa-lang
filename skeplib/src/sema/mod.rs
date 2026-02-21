@@ -36,6 +36,7 @@ struct Checker {
     imported_modules: HashSet<String>,
     struct_names: HashSet<String>,
     struct_fields: HashMap<String, HashMap<String, TypeInfo>>,
+    globals: HashMap<String, TypeInfo>,
     loop_depth: usize,
     fn_lit_scope_floors: Vec<usize>,
 }
@@ -80,6 +81,7 @@ impl Checker {
             imported_modules,
             struct_names: HashSet::new(),
             struct_fields: HashMap::new(),
+            globals: HashMap::new(),
             loop_depth: 0,
             fn_lit_scope_floors: Vec::new(),
         }
@@ -89,7 +91,6 @@ impl Checker {
         self.check_struct_declarations(program);
         self.check_impl_declarations(program);
         self.collect_method_signatures(program);
-        self.check_export_declarations(program);
 
         for f in &program.functions {
             let params = f
@@ -112,6 +113,9 @@ impl Checker {
             );
         }
 
+        self.check_global_declarations(program);
+        self.check_export_declarations(program);
+
         for f in &program.functions {
             self.check_function(f);
         }
@@ -120,6 +124,40 @@ impl Checker {
             for method in &imp.methods {
                 self.check_method(imp.target.as_str(), method);
             }
+        }
+    }
+
+    fn check_global_declarations(&mut self, program: &Program) {
+        let mut scope = HashMap::<String, TypeInfo>::new();
+        let mut scopes = vec![HashMap::<String, TypeInfo>::new()];
+        for g in &program.globals {
+            if scope.contains_key(&g.name) {
+                self.error(format!("Duplicate global variable declaration `{}`", g.name));
+                continue;
+            }
+            if let Some(t) = &g.ty {
+                self.check_decl_type_exists(
+                    t,
+                    format!("Unknown type in global variable `{}`", g.name),
+                );
+            }
+            let expr_ty = self.check_expr(&g.value, &mut scopes);
+            let declared_ty = g.ty.as_ref().map(TypeInfo::from_ast);
+            let final_ty = match declared_ty {
+                Some(declared) => {
+                    if expr_ty != TypeInfo::Unknown && expr_ty != declared {
+                        self.error(format!(
+                            "Type mismatch in global let `{}`: declared {:?}, got {:?}",
+                            g.name, declared, expr_ty
+                        ));
+                    }
+                    declared
+                }
+                None => expr_ty,
+            };
+            scope.insert(g.name.clone(), final_ty.clone());
+            self.globals.insert(g.name.clone(), final_ty.clone());
+            scopes[0].insert(g.name.clone(), final_ty);
         }
     }
 
@@ -138,6 +176,9 @@ impl Checker {
         }
         for s in &program.structs {
             local_exportables.insert(s.name.as_str());
+        }
+        for g in &program.globals {
+            local_exportables.insert(g.name.as_str());
         }
 
         let mut seen_targets = HashSet::new();
@@ -382,6 +423,9 @@ impl Checker {
                 params: sig.params.clone(),
                 ret: Box::new(sig.ret.clone()),
             };
+        }
+        if let Some(ty) = self.globals.get(name) {
+            return ty.clone();
         }
         if !self.fn_lit_scope_floors.is_empty() {
             self.error(format!(

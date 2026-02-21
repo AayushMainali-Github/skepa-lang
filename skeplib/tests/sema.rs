@@ -2201,6 +2201,39 @@ fn main() -> Int {
 }
 
 #[test]
+fn sema_accepts_global_variable_usage_and_mutation() {
+    let src = r#"
+let counter: Int = 1;
+fn bump() -> Int {
+  counter = counter + 1;
+  return counter;
+}
+fn main() -> Int {
+  let a = bump();
+  let b = bump();
+  return a + b;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_rejects_duplicate_global_declarations() {
+    let src = r#"
+let x: Int = 1;
+let x: Int = 2;
+fn main() -> Int { return x; }
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("Duplicate global variable declaration `x`")));
+}
+
+#[test]
 fn sema_rejects_exporting_unknown_name() {
     let src = r#"
 fn main() -> Int { return 0; }

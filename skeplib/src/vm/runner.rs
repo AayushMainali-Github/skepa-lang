@@ -15,6 +15,7 @@ pub(super) fn run_function(
     module: &BytecodeModule,
     function_name: &str,
     args: Vec<Value>,
+    globals: &mut Vec<Value>,
     host: &mut dyn BuiltinHost,
     reg: &BuiltinRegistry,
     depth: usize,
@@ -51,17 +52,35 @@ pub(super) fn run_function(
         if config.trace {
             eprintln!("[trace] {}@{} {:?}", function_name, ip, chunk.code[ip]);
         }
-        let mut call_env = calls::CallEnv {
-            module,
-            host,
-            reg,
-            depth,
-            config,
-        };
         match &chunk.code[ip] {
             Instr::LoadConst(v) => state.push_const(v.clone()),
             Instr::LoadLocal(slot) => state.load_local(*slot, function_name, ip)?,
             Instr::StoreLocal(slot) => state.store_local(*slot, function_name, ip)?,
+            Instr::LoadGlobal(slot) => {
+                let Some(v) = globals.get(*slot).cloned() else {
+                    return Err(err_at(
+                        VmErrorKind::InvalidLocal,
+                        format!("Invalid global slot {slot}"),
+                        function_name,
+                        ip,
+                    ));
+                };
+                state.push_const(v);
+            }
+            Instr::StoreGlobal(slot) => {
+                let Some(v) = state.stack_mut().pop() else {
+                    return Err(err_at(
+                        VmErrorKind::StackUnderflow,
+                        "Stack underflow on StoreGlobal",
+                        function_name,
+                        ip,
+                    ));
+                };
+                if *slot >= globals.len() {
+                    globals.resize(*slot + 1, Value::Unit);
+                }
+                globals[*slot] = v;
+            }
             Instr::Pop => state.pop_discard(function_name, ip)?,
             Instr::NegInt => arith::neg(state.stack_mut(), function_name, ip)?,
             Instr::NotBool => arith::not_bool(state.stack_mut(), function_name, ip)?,
@@ -104,17 +123,34 @@ pub(super) fn run_function(
             Instr::Call {
                 name: callee_name,
                 argc,
-            } => calls::call(
-                state.stack_mut(),
-                callee_name,
-                *argc,
-                &mut call_env,
-                calls::Site { function_name, ip },
-            )?,
+            } => {
+                let mut call_env = calls::CallEnv {
+                    module,
+                    globals,
+                    host,
+                    reg,
+                    depth,
+                    config,
+                };
+                calls::call(
+                    state.stack_mut(),
+                    callee_name,
+                    *argc,
+                    &mut call_env,
+                    calls::Site { function_name, ip },
+                )?
+            }
             Instr::CallValue { argc } => calls::call_value(
                 state.stack_mut(),
                 *argc,
-                &mut call_env,
+                &mut calls::CallEnv {
+                    module,
+                    globals,
+                    host,
+                    reg,
+                    depth,
+                    config,
+                },
                 calls::Site { function_name, ip },
             )?,
             Instr::CallMethod {
@@ -124,7 +160,14 @@ pub(super) fn run_function(
                 state.stack_mut(),
                 method_name,
                 *argc,
-                &mut call_env,
+                &mut calls::CallEnv {
+                    module,
+                    globals,
+                    host,
+                    reg,
+                    depth,
+                    config,
+                },
                 calls::Site { function_name, ip },
             )?,
             Instr::CallBuiltin {
@@ -136,7 +179,14 @@ pub(super) fn run_function(
                 package,
                 name,
                 *argc,
-                &mut call_env,
+                &mut calls::CallEnv {
+                    module,
+                    globals,
+                    host,
+                    reg,
+                    depth,
+                    config,
+                },
                 calls::Site { function_name, ip },
             )?,
             Instr::MakeArray(n) => arrays::make_array(state.stack_mut(), *n, function_name, ip)?,

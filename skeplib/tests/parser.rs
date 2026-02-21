@@ -1465,19 +1465,15 @@ fn add(a: Int, b: Int,) -> Int {
 }
 
 #[test]
-fn enforces_top_level_declarations_only() {
+fn accepts_top_level_global_let_declaration() {
     let src = r#"
 let x = 1;
 fn main() -> Int { return 0; }
 "#;
     let (program, diags) = Parser::parse_source(src);
-    assert!(!diags.is_empty());
-    assert!(
-        diags
-            .as_slice()
-            .iter()
-            .any(|d| d.message.contains("Expected top-level declaration"))
-    );
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    assert_eq!(program.globals.len(), 1);
+    assert_eq!(program.globals[0].name, "x");
     assert_eq!(program.functions.len(), 1);
 }
 

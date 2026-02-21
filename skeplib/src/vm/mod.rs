@@ -36,7 +36,25 @@ impl Vm {
     ) -> Result<Value, VmError> {
         let mut host = StdIoHost::default();
         let reg = BuiltinRegistry::with_defaults();
-        runner::run_function(module, "main", Vec::new(), &mut host, &reg, 0, config)
+        let globals_init_locals = module
+            .functions
+            .get("__globals_init")
+            .map(|f| f.locals_count)
+            .unwrap_or(0);
+        let mut globals = vec![Value::Unit; globals_init_locals];
+        if module.functions.contains_key("__globals_init") {
+            let _ = runner::run_function(
+                module,
+                "__globals_init",
+                Vec::new(),
+                &mut globals,
+                &mut host,
+                &reg,
+                0,
+                config,
+            )?;
+        }
+        runner::run_function(module, "main", Vec::new(), &mut globals, &mut host, &reg, 0, config)
     }
 
     pub fn run_module_main_with_host(
@@ -44,10 +62,29 @@ impl Vm {
         host: &mut dyn BuiltinHost,
     ) -> Result<Value, VmError> {
         let reg = BuiltinRegistry::with_defaults();
+        let globals_init_locals = module
+            .functions
+            .get("__globals_init")
+            .map(|f| f.locals_count)
+            .unwrap_or(0);
+        let mut globals = vec![Value::Unit; globals_init_locals];
+        if module.functions.contains_key("__globals_init") {
+            let _ = runner::run_function(
+                module,
+                "__globals_init",
+                Vec::new(),
+                &mut globals,
+                host,
+                &reg,
+                0,
+                VmConfig::default(),
+            )?;
+        }
         runner::run_function(
             module,
             "main",
             Vec::new(),
+            &mut globals,
             host,
             &reg,
             0,
@@ -60,10 +97,29 @@ impl Vm {
         host: &mut dyn BuiltinHost,
         reg: &BuiltinRegistry,
     ) -> Result<Value, VmError> {
+        let globals_init_locals = module
+            .functions
+            .get("__globals_init")
+            .map(|f| f.locals_count)
+            .unwrap_or(0);
+        let mut globals = vec![Value::Unit; globals_init_locals];
+        if module.functions.contains_key("__globals_init") {
+            let _ = runner::run_function(
+                module,
+                "__globals_init",
+                Vec::new(),
+                &mut globals,
+                host,
+                reg,
+                0,
+                VmConfig::default(),
+            )?;
+        }
         runner::run_function(
             module,
             "main",
             Vec::new(),
+            &mut globals,
             host,
             reg,
             0,

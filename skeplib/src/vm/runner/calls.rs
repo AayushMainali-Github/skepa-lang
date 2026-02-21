@@ -3,6 +3,7 @@ use crate::vm::{BuiltinHost, BuiltinRegistry, VmConfig, VmError, VmErrorKind};
 
 pub(super) struct CallEnv<'a> {
     pub module: &'a BytecodeModule,
+    pub globals: &'a mut Vec<Value>,
     pub host: &'a mut dyn BuiltinHost,
     pub reg: &'a BuiltinRegistry,
     pub depth: usize,
@@ -35,6 +36,7 @@ pub(super) fn call(
         env.module,
         callee_name,
         call_args,
+        env.globals,
         env.host,
         env.reg,
         env.depth + 1,
@@ -80,6 +82,7 @@ pub(super) fn call_value(
         env.module,
         &callee_name,
         call_args,
+        env.globals,
         env.host,
         env.reg,
         env.depth + 1,
@@ -155,6 +158,7 @@ pub(super) fn call_method(
         env.module,
         &callee_name,
         full_args,
+        env.globals,
         env.host,
         env.reg,
         env.depth + 1,

@@ -2,9 +2,17 @@
 pub struct Program {
     pub imports: Vec<ImportDecl>,
     pub exports: Vec<ExportDecl>,
+    pub globals: Vec<GlobalLetDecl>,
     pub structs: Vec<StructDecl>,
     pub impls: Vec<ImplDecl>,
     pub functions: Vec<FnDecl>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GlobalLetDecl {
+    pub name: String,
+    pub ty: Option<TypeName>,
+    pub value: Expr,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -240,6 +248,18 @@ impl Program {
                 .collect::<Vec<_>>()
                 .join(", ");
             out.push_str(&format!("export {{ {items} }}\n"));
+        }
+        for g in &self.globals {
+            if let Some(ty) = &g.ty {
+                out.push_str(&format!(
+                    "let {}: {} = {};\n",
+                    g.name,
+                    ty.as_str(),
+                    pretty_expr(&g.value)
+                ));
+            } else {
+                out.push_str(&format!("let {} = {};\n", g.name, pretty_expr(&g.value)));
+            }
         }
         for s in &self.structs {
             pretty_struct(s, 0, &mut out);

@@ -1,6 +1,6 @@
 use crate::ast::{
-    ExportDecl, ExportItem, FieldDecl, FnDecl, ImplDecl, ImportDecl, ImportItem, MethodDecl, Param,
-    Program, StructDecl, TypeName,
+    ExportDecl, ExportItem, FieldDecl, FnDecl, GlobalLetDecl, ImplDecl, ImportDecl, ImportItem,
+    MethodDecl, Param, Program, StructDecl, TypeName,
 };
 use crate::diagnostic::{DiagnosticBag, Span};
 use crate::lexer::lex;
@@ -47,6 +47,7 @@ impl Parser {
         let mut imports = Vec::new();
         let mut exports = Vec::new();
         let mut seen_export_decl = false;
+        let mut globals = Vec::new();
         let mut structs = Vec::new();
         let mut impls = Vec::new();
         let mut functions = Vec::new();
@@ -78,6 +79,12 @@ impl Parser {
                 }
                 continue;
             }
+            if self.at(TokenKind::KwLet) {
+                if let Some(g) = self.parse_global_let_decl() {
+                    globals.push(g);
+                }
+                continue;
+            }
 
             if self.at(TokenKind::KwFn) {
                 if let Some(f) = self.parse_function() {
@@ -99,7 +106,7 @@ impl Parser {
             }
 
             self.error_here_expected(
-                "Expected top-level declaration (`import`, `from`, `export`, `struct`, `impl`, or `fn`)",
+                "Expected top-level declaration (`import`, `from`, `export`, `let`, `struct`, `impl`, or `fn`)",
             );
             self.synchronize_toplevel();
         }
@@ -107,10 +114,33 @@ impl Parser {
         Program {
             imports,
             exports,
+            globals,
             structs,
             impls,
             functions,
         }
+    }
+
+    fn parse_global_let_decl(&mut self) -> Option<GlobalLetDecl> {
+        self.expect(TokenKind::KwLet, "Expected `let`")?;
+        let name = self.expect_ident("Expected variable name after `let`")?;
+        let ty = if self.at(TokenKind::Colon) {
+            self.bump();
+            Some(self.expect_type_name("Expected type after `:` in global let")?)
+        } else {
+            None
+        };
+        self.expect(
+            TokenKind::Assign,
+            "Expected `=` in global let declaration",
+        )?;
+        let value = self.parse_expr()?;
+        self.expect(TokenKind::Semi, "Expected `;` after global let declaration")?;
+        Some(GlobalLetDecl {
+            name: name.lexeme,
+            ty,
+            value,
+        })
     }
 
     fn parse_import(&mut self) -> Option<ImportDecl> {
@@ -451,6 +481,7 @@ impl Parser {
             if self.at(TokenKind::KwImport)
                 || self.at(TokenKind::KwFrom)
                 || self.at(TokenKind::KwExport)
+                || self.at(TokenKind::KwLet)
                 || self.at(TokenKind::KwFn)
                 || self.at(TokenKind::KwStruct)
                 || self.at(TokenKind::KwImpl)

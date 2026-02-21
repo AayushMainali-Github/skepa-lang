@@ -36,6 +36,8 @@ fn fmt_instr(i: &Instr) -> String {
         Instr::LoadConst(v) => format!("LoadConst {}", fmt_value(v)),
         Instr::LoadLocal(s) => format!("LoadLocal {s}"),
         Instr::StoreLocal(s) => format!("StoreLocal {s}"),
+        Instr::LoadGlobal(s) => format!("LoadGlobal {s}"),
+        Instr::StoreGlobal(s) => format!("StoreGlobal {s}"),
         Instr::Pop => "Pop".to_string(),
         Instr::NegInt => "NegInt".to_string(),
         Instr::NotBool => "NotBool".to_string(),
