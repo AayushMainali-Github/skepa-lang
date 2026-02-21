@@ -55,16 +55,36 @@ pub fn analyze_project_entry(
     Ok(analyze_project_graph(&graph))
 }
 
+pub fn analyze_project_entry_phased(
+    entry: &Path,
+) -> Result<(SemaResult, DiagnosticBag, DiagnosticBag), Vec<ResolveError>> {
+    let graph = resolve_project(entry)?;
+    Ok(analyze_project_graph_phased(&graph))
+}
+
 fn analyze_project_graph(graph: &ModuleGraph) -> (SemaResult, DiagnosticBag) {
+    let (result, parse_diags, sema_diags) = analyze_project_graph_phased(graph);
+    let mut all = DiagnosticBag::new();
+    for d in parse_diags.into_vec() {
+        all.push(d);
+    }
+    for d in sema_diags.into_vec() {
+        all.push(d);
+    }
+    (result, all)
+}
+
+fn analyze_project_graph_phased(graph: &ModuleGraph) -> (SemaResult, DiagnosticBag, DiagnosticBag) {
     let mut programs = HashMap::<ModuleId, Program>::new();
-    let mut diags = DiagnosticBag::new();
+    let mut parse_diags_all = DiagnosticBag::new();
+    let mut sema_diags_all = DiagnosticBag::new();
     let mut module_paths = HashMap::<ModuleId, String>::new();
     for (id, unit) in &graph.modules {
         module_paths.insert(id.clone(), unit.path.display().to_string());
         let (program, parse_diags) = Parser::parse_source(&unit.source);
         for mut d in parse_diags.into_vec() {
             d.message = format!("{}: {}", unit.path.display(), d.message);
-            diags.push(d);
+            parse_diags_all.push(d);
         }
         programs.insert(id.clone(), program);
     }
@@ -81,7 +101,7 @@ fn analyze_project_graph(graph: &ModuleGraph) -> (SemaResult, DiagnosticBag) {
                 if let Some(path) = e.path.as_ref() {
                     msg = format!("resolver error [{}]: {}", path.display(), e.message);
                 }
-                diags.error(msg, Span::default());
+                sema_diags_all.error(msg, Span::default());
             }
             HashMap::new()
         }
@@ -95,15 +115,16 @@ fn analyze_project_graph(graph: &ModuleGraph) -> (SemaResult, DiagnosticBag) {
         let pfx = module_paths.get(id).cloned().unwrap_or_else(|| id.clone());
         for mut d in checker.diagnostics.into_vec() {
             d.message = format!("{pfx}: {}", d.message);
-            diags.push(d);
+            sema_diags_all.push(d);
         }
     }
 
     (
         SemaResult {
-            has_errors: !diags.is_empty(),
+            has_errors: !parse_diags_all.is_empty() || !sema_diags_all.is_empty(),
         },
-        diags,
+        parse_diags_all,
+        sema_diags_all,
     )
 }
 

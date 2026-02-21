@@ -54,6 +54,30 @@ fn main() -> Int {
 }
 
 #[test]
+fn check_sema_invalid_program_returns_sema_exit_code() {
+    let tmp = make_temp_dir("skepac_sema_bad");
+    let file = tmp.join("bad_sema.sk");
+    fs::write(
+        &file,
+        r#"
+fn main() -> Int {
+  return "oops";
+}
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(skepac_bin())
+        .arg("check")
+        .arg(&file)
+        .output()
+        .expect("run skepac");
+    assert_eq!(output.status.code(), Some(11));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("[E-SEMA][sema]"));
+}
+
+#[test]
 fn check_without_arguments_shows_usage_and_fails() {
     let output = Command::new(skepac_bin()).output().expect("run skepac");
     assert_eq!(output.status.code(), Some(2));

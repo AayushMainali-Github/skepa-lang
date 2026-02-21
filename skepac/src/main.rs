@@ -6,7 +6,7 @@ use std::process::ExitCode;
 use skeplib::bytecode::{BytecodeModule, compile_project_entry};
 use skeplib::diagnostic::Diagnostic;
 use skeplib::resolver::ResolveError;
-use skeplib::sema::analyze_project_entry;
+use skeplib::sema::{analyze_project_entry, analyze_project_entry_phased};
 
 const EXIT_OK: u8 = 0;
 const EXIT_USAGE: u8 = 2;
@@ -76,16 +76,22 @@ fn check_file(path: &str) -> Result<ExitCode, String> {
         eprintln!("Failed to read `{path}`: {e}");
         return Ok(ExitCode::from(EXIT_IO));
     }
-    match analyze_project_entry(Path::new(path)) {
-        Ok((_sema, diagnostics)) => {
-            if diagnostics.is_empty() {
+    match analyze_project_entry_phased(Path::new(path)) {
+        Ok((_sema, parse_diags, sema_diags)) => {
+            if parse_diags.is_empty() && sema_diags.is_empty() {
                 println!("ok: {path}");
                 return Ok(ExitCode::from(EXIT_OK));
             }
-            for d in diagnostics.as_slice() {
-                print_diag("parse", d);
+            if !parse_diags.is_empty() {
+                for d in parse_diags.as_slice() {
+                    print_diag("parse", d);
+                }
+                return Ok(ExitCode::from(EXIT_PARSE));
             }
-            Ok(ExitCode::from(EXIT_PARSE))
+            for d in sema_diags.as_slice() {
+                print_diag("sema", d);
+            }
+            Ok(ExitCode::from(EXIT_SEMA))
         }
         Err(errs) => {
             print_resolve_errors(&errs);
