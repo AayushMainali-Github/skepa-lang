@@ -57,6 +57,8 @@ pub struct ResolveError {
     pub kind: ResolveErrorKind,
     pub message: String,
     pub path: Option<PathBuf>,
+    pub line: Option<usize>,
+    pub col: Option<usize>,
 }
 
 impl ResolveError {
@@ -65,7 +67,15 @@ impl ResolveError {
             kind,
             message: message.into(),
             path,
+            line: None,
+            col: None,
         }
+    }
+
+    pub fn with_line_col(mut self, line: usize, col: usize) -> Self {
+        self.line = Some(line);
+        self.col = Some(col);
+        self
     }
 }
 
@@ -160,10 +170,22 @@ pub fn resolve_project(entry: &Path) -> Result<ModuleGraph, Vec<ResolveError>> {
                                 queue.push_back(dep_path);
                             }
                         }
-                        Err(e) => errors.push(with_importer_context(e, &id, &path, &import_text)),
+                        Err(e) => errors.push(with_importer_context(
+                            e,
+                            &id,
+                            &path,
+                            &import_text,
+                            &source,
+                        )),
                     }
                 }
-                Err(e) => errors.push(with_importer_context(e, &id, &path, &import_text)),
+                Err(e) => errors.push(with_importer_context(
+                    e,
+                    &id,
+                    &path,
+                    &import_text,
+                    &source,
+                )),
             }
         }
 
@@ -199,7 +221,11 @@ fn with_importer_context(
     importer_id: &str,
     importer_path: &Path,
     import_text: &str,
+    importer_source: &str,
 ) -> ResolveError {
+    if let Some((line, col)) = find_import_line_col(importer_source, import_text) {
+        err = err.with_line_col(line, col);
+    }
     err.message = format!(
         "{} (while resolving import `{}` in module `{}` at {})",
         err.message,
@@ -208,6 +234,21 @@ fn with_importer_context(
         importer_path.display()
     );
     err
+}
+
+fn find_import_line_col(source: &str, import_text: &str) -> Option<(usize, usize)> {
+    let pat_import = format!("import {import_text}");
+    let pat_from = format!("from {import_text} import");
+    for (idx, line) in source.lines().enumerate() {
+        if let Some(col) = line
+            .find(&pat_import)
+            .or_else(|| line.find(&pat_from))
+            .map(|v| v + 1)
+        {
+            return Some((idx + 1, col));
+        }
+    }
+    None
 }
 
 fn build_export_maps(graph: &ModuleGraph) -> Result<HashMap<ModuleId, ExportMap>, Vec<ResolveError>> {
