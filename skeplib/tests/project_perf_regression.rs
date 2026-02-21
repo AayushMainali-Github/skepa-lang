@@ -37,7 +37,12 @@ fn resolver_and_compiler_handle_many_modules_and_deep_folder_import() {
     }
 
     fs::write(
-        root.join("pkg").join("d1").join("d2").join("d3").join("d4").join("leaf.sk"),
+        root.join("pkg")
+            .join("d1")
+            .join("d2")
+            .join("d3")
+            .join("d4")
+            .join("leaf.sk"),
         "fn leaf() -> Int { return 3; }\nexport { leaf };\n",
     )
     .expect("write leaf");

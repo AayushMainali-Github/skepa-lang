@@ -2227,10 +2227,10 @@ fn main() -> Int { return x; }
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("Duplicate global variable declaration `x`")));
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("Duplicate global variable declaration `x`")
+    }));
 }
 
 #[test]
@@ -2269,10 +2269,10 @@ export { nope };
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("Exported name `nope` does not exist in this module")));
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("Exported name `nope` does not exist in this module")
+    }));
 }
 
 #[test]
@@ -2285,10 +2285,12 @@ fn main() -> Int { return 0; }
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("Duplicate exported target name `calc`")));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Duplicate exported target name `calc`"))
+    );
 }
 
 #[test]
@@ -2325,8 +2327,8 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("Invalid namespace call `string.toUpper`")));
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("Invalid namespace call `string.toUpper`")
+    }));
 }

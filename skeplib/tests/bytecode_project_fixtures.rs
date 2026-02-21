@@ -36,14 +36,18 @@ fn all_valid_bytecode_project_fixtures_run_to_expected_output() {
             continue;
         }
         let entry_file = case_dir.join("main.sk");
-        let expected_raw = fs::read_to_string(case_dir.join("expected.txt")).expect("expected.txt exists");
+        let expected_raw =
+            fs::read_to_string(case_dir.join("expected.txt")).expect("expected.txt exists");
         let expected = parse_expected_value(&expected_raw);
         let module = compile_project_entry(&entry_file).expect("compile project fixture");
         let got = Vm::run_module_main(&module).expect("run project fixture");
         assert_eq!(
-            got, expected,
+            got,
+            expected,
             "fixture {} expected {:?}, got {:?}",
-            case_dir.display(), expected, got
+            case_dir.display(),
+            expected,
+            got
         );
     }
 }

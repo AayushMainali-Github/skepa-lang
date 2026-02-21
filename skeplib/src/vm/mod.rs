@@ -54,7 +54,16 @@ impl Vm {
                 config,
             )?;
         }
-        runner::run_function(module, "main", Vec::new(), &mut globals, &mut host, &reg, 0, config)
+        runner::run_function(
+            module,
+            "main",
+            Vec::new(),
+            &mut globals,
+            &mut host,
+            &reg,
+            0,
+            config,
+        )
     }
 
     pub fn run_module_main_with_host(

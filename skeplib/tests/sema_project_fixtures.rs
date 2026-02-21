@@ -18,7 +18,8 @@ fn all_valid_sema_project_fixtures_succeed() {
             continue;
         }
         let entry_file = case_dir.join("main.sk");
-        let (res, diags) = analyze_project_entry(&entry_file).expect("resolver/sema should succeed");
+        let (res, diags) =
+            analyze_project_entry(&entry_file).expect("resolver/sema should succeed");
         assert!(
             !res.has_errors && diags.is_empty(),
             "expected sema success for fixture {}, got {:?}",
@@ -44,7 +45,9 @@ fn all_invalid_sema_project_fixtures_fail_with_expected_code() {
             .trim()
             .to_string();
         let expected_phrase = case_dir.join("expected_phrase.txt");
-        let maybe_phrase = fs::read_to_string(&expected_phrase).ok().map(|s| s.trim().to_string());
+        let maybe_phrase = fs::read_to_string(&expected_phrase)
+            .ok()
+            .map(|s| s.trim().to_string());
 
         let errs = analyze_project_entry(&entry_file).expect_err("expected resolver failure");
         assert!(

@@ -164,10 +164,12 @@ fn main() -> Int { return 0; }
 
     let (res, diags) = analyze_project_entry(&root.join("main.sk")).expect("resolver/sema");
     assert!(res.has_errors);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("Unknown type")));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Unknown type"))
+    );
     let _ = fs::remove_dir_all(root);
 }
 
@@ -292,9 +294,10 @@ fn main() -> Int { return 0; }
     )
     .expect("write main");
     let errs = analyze_project_entry(&root.join("main.sk")).expect_err("resolver error expected");
-    assert!(errs
-        .iter()
-        .any(|e| e.message.contains("Duplicate imported binding `x`")));
+    assert!(
+        errs.iter()
+            .any(|e| e.message.contains("Duplicate imported binding `x`"))
+    );
     let _ = fs::remove_dir_all(root);
 }
 
@@ -327,9 +330,10 @@ fn main() -> Int { return 0; }
     )
     .expect("write main");
     let errs = analyze_project_entry(&root.join("main.sk")).expect_err("resolver error expected");
-    assert!(errs
-        .iter()
-        .any(|e| e.code == "E-MOD-AMBIG" && e.message.contains("namespace root")));
+    assert!(
+        errs.iter()
+            .any(|e| e.code == "E-MOD-AMBIG" && e.message.contains("namespace root"))
+    );
     let _ = fs::remove_dir_all(root);
 }
 

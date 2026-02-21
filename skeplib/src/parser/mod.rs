@@ -121,10 +121,7 @@ impl Parser {
         } else {
             None
         };
-        self.expect(
-            TokenKind::Assign,
-            "Expected `=` in global let declaration",
-        )?;
+        self.expect(TokenKind::Assign, "Expected `=` in global let declaration")?;
         let value = self.parse_expr()?;
         self.expect(TokenKind::Semi, "Expected `;` after global let declaration")?;
         Some(GlobalLetDecl {

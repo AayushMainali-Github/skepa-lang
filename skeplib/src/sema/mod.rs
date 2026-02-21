@@ -4,9 +4,7 @@ use std::path::Path;
 use crate::ast::{ImportDecl, Program, Stmt, TypeName};
 use crate::diagnostic::{DiagnosticBag, Span};
 use crate::parser::Parser;
-use crate::resolver::{
-    ModuleGraph, ModuleId, ResolveError, build_export_maps, resolve_project,
-};
+use crate::resolver::{ModuleGraph, ModuleId, ResolveError, build_export_maps, resolve_project};
 use crate::types::{FunctionSig, TypeInfo};
 
 mod calls;
@@ -50,7 +48,9 @@ struct ModuleExternalContext {
     direct_import_targets: HashMap<String, String>,
 }
 
-pub fn analyze_project_entry(entry: &Path) -> Result<(SemaResult, DiagnosticBag), Vec<ResolveError>> {
+pub fn analyze_project_entry(
+    entry: &Path,
+) -> Result<(SemaResult, DiagnosticBag), Vec<ResolveError>> {
     let graph = resolve_project(entry)?;
     Ok(analyze_project_graph(&graph))
 }
@@ -92,10 +92,7 @@ fn analyze_project_graph(graph: &ModuleGraph) -> (SemaResult, DiagnosticBag) {
         let mut checker = Checker::new(program);
         checker.apply_external_context(ctx);
         checker.check_program(program);
-        let pfx = module_paths
-            .get(id)
-            .cloned()
-            .unwrap_or_else(|| id.clone());
+        let pfx = module_paths.get(id).cloned().unwrap_or_else(|| id.clone());
         for mut d in checker.diagnostics.into_vec() {
             d.message = format!("{pfx}: {}", d.message);
             diags.push(d);
@@ -169,7 +166,9 @@ fn build_module_api(program: &Program) -> ModuleApi {
     for g in &program.globals {
         api.globals.insert(
             g.name.clone(),
-            g.ty.as_ref().map(TypeInfo::from_ast).unwrap_or(TypeInfo::Unknown),
+            g.ty.as_ref()
+                .map(TypeInfo::from_ast)
+                .unwrap_or(TypeInfo::Unknown),
         );
     }
     api
@@ -213,8 +212,10 @@ fn build_external_context(
                             crate::resolver::SymbolKind::Fn => {
                                 if let Some(sig) = api.functions.get(&sym.local_name).cloned() {
                                     ctx.imported_functions.insert(name.clone(), sig);
-                                    ctx.direct_import_targets
-                                        .insert(name.clone(), format!("{}.{}", sym.module_id, name));
+                                    ctx.direct_import_targets.insert(
+                                        name.clone(),
+                                        format!("{}.{}", sym.module_id, name),
+                                    );
                                 }
                             }
                             crate::resolver::SymbolKind::Struct => {
@@ -224,11 +225,7 @@ fn build_external_context(
                                 if let Some(methods) = api.methods.get(&sym.local_name).cloned() {
                                     ctx.imported_methods.insert(
                                         name.clone(),
-                                        rebind_methods_self_type(
-                                            methods,
-                                            &sym.local_name,
-                                            &name,
-                                        ),
+                                        rebind_methods_self_type(methods, &sym.local_name, &name),
                                     );
                                 }
                             }
@@ -488,7 +485,10 @@ impl Checker {
             for p in &f.params {
                 self.check_decl_type_exists(
                     &p.ty,
-                    format!("Unknown type in function `{}` parameter `{}`", f.name, p.name),
+                    format!(
+                        "Unknown type in function `{}` parameter `{}`",
+                        f.name, p.name
+                    ),
                 );
             }
             if let Some(ret) = &f.return_type {
@@ -536,7 +536,10 @@ impl Checker {
         let mut scopes = vec![HashMap::<String, TypeInfo>::new()];
         for g in &program.globals {
             if scope.contains_key(&g.name) {
-                self.error(format!("Duplicate global variable declaration `{}`", g.name));
+                self.error(format!(
+                    "Duplicate global variable declaration `{}`",
+                    g.name
+                ));
                 continue;
             }
             if let Some(t) = &g.ty {

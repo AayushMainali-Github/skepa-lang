@@ -128,9 +128,10 @@ fn main() -> Int { return 0; }
     let symbols = collect_module_symbols(&program, "main");
     let errs = validate_and_build_export_map(&program, &symbols, "main", Path::new("main.sk"))
         .expect_err("unknown export should fail");
-    assert!(errs
-        .iter()
-        .any(|e| e.message.contains("Exported name `nope` does not exist")));
+    assert!(
+        errs.iter()
+            .any(|e| e.message.contains("Exported name `nope` does not exist"))
+    );
     assert!(errs.iter().any(|e| e.code == "E-EXPORT-UNKNOWN"));
 }
 
@@ -147,9 +148,10 @@ fn main() -> Int { return 0; }
     let symbols = collect_module_symbols(&program, "main");
     let errs = validate_and_build_export_map(&program, &symbols, "main", Path::new("main.sk"))
         .expect_err("duplicate export target should fail");
-    assert!(errs
-        .iter()
-        .any(|e| e.message.contains("Duplicate exported target name `x`")));
+    assert!(
+        errs.iter()
+            .any(|e| e.message.contains("Duplicate exported target name `x`"))
+    );
 }
 
 fn make_temp_dir(label: &str) -> std::path::PathBuf {
@@ -422,9 +424,11 @@ export { shown };
     fs::write(root.join("a.sk"), a_src).expect("write a");
 
     let errs = resolve_project(&root.join("main.sk")).expect_err("non-exported import expected");
-    assert!(errs.iter().any(|e| {
-        e.message.contains("symbol is not exported") && e.message.contains("hidden")
-    }));
+    assert!(
+        errs.iter().any(|e| {
+            e.message.contains("symbol is not exported") && e.message.contains("hidden")
+        })
+    );
     assert!(errs.iter().any(|e| e.code == "E-IMPORT-NOT-EXPORTED"));
     let _ = fs::remove_dir_all(root);
 }
@@ -450,9 +454,10 @@ export { bar };
     fs::write(root.join("b.sk"), b_src).expect("write b");
 
     let errs = resolve_project(&root.join("main.sk")).expect_err("duplicate binding expected");
-    assert!(errs
-        .iter()
-        .any(|e| e.message.contains("Duplicate imported binding `x`")));
+    assert!(
+        errs.iter()
+            .any(|e| e.message.contains("Duplicate imported binding `x`"))
+    );
     assert!(errs.iter().any(|e| e.code == "E-IMPORT-CONFLICT"));
     let _ = fs::remove_dir_all(root);
 }
@@ -477,11 +482,13 @@ fn main() -> Int { return 0; }
     )
     .expect("write case");
 
-    let errs = resolve_project(&root.join("main.sk")).expect_err("namespace-root from-import expected");
-    assert!(errs
-        .iter()
-        .any(|e| e.kind == ResolveErrorKind::AmbiguousModule
-            && e.message.contains("resolves to a namespace root")));
+    let errs =
+        resolve_project(&root.join("main.sk")).expect_err("namespace-root from-import expected");
+    assert!(
+        errs.iter()
+            .any(|e| e.kind == ResolveErrorKind::AmbiguousModule
+                && e.message.contains("resolves to a namespace root"))
+    );
     assert!(errs.iter().any(|e| e.code == "E-MOD-AMBIG"));
     let _ = fs::remove_dir_all(root);
 }
@@ -549,9 +556,10 @@ fn main() -> Int { return 0; }
     .expect("write main");
 
     let errs = resolve_project(&root.join("main.sk")).expect_err("wildcard conflict expected");
-    assert!(errs
-        .iter()
-        .any(|e| e.message.contains("Duplicate imported binding `x`")));
+    assert!(
+        errs.iter()
+            .any(|e| e.message.contains("Duplicate imported binding `x`"))
+    );
     assert!(errs.iter().any(|e| e.code == "E-IMPORT-CONFLICT"));
     let _ = fs::remove_dir_all(root);
 }
@@ -599,7 +607,10 @@ fn main() -> Int { return 0; }
     )
     .expect("write main");
     let errs = resolve_project(&root.join("main.sk")).expect_err("re-export unknown should fail");
-    assert!(errs.iter().any(|e| e.message.contains("Cannot re-export `hidden`")));
+    assert!(
+        errs.iter()
+            .any(|e| e.message.contains("Cannot re-export `hidden`"))
+    );
     assert!(errs.iter().any(|e| e.code == "E-IMPORT-NOT-EXPORTED"));
     let _ = fs::remove_dir_all(root);
 }
@@ -632,10 +643,12 @@ fn main() -> Int { return 0; }
 "#,
     )
     .expect("write main");
-    let errs = resolve_project(&root.join("main.sk")).expect_err("duplicate export target expected");
-    assert!(errs
-        .iter()
-        .any(|e| e.message.contains("Duplicate exported target name `x`")));
+    let errs =
+        resolve_project(&root.join("main.sk")).expect_err("duplicate export target expected");
+    assert!(
+        errs.iter()
+            .any(|e| e.message.contains("Duplicate exported target name `x`"))
+    );
     assert!(errs.iter().any(|e| e.code == "E-IMPORT-CONFLICT"));
     let _ = fs::remove_dir_all(root);
 }
@@ -668,10 +681,12 @@ fn main() -> Int { return 0; }
 "#,
     )
     .expect("write main");
-    let errs = resolve_project(&root.join("main.sk")).expect_err("import binding conflict expected");
-    assert!(errs
-        .iter()
-        .any(|e| e.message.contains("Duplicate imported binding `x`")));
+    let errs =
+        resolve_project(&root.join("main.sk")).expect_err("import binding conflict expected");
+    assert!(
+        errs.iter()
+            .any(|e| e.message.contains("Duplicate imported binding `x`"))
+    );
     assert!(errs.iter().any(|e| e.code == "E-IMPORT-CONFLICT"));
     let _ = fs::remove_dir_all(root);
 }
@@ -729,9 +744,11 @@ fn main() -> Int { return 0; }
     )
     .expect("write main");
     let errs = resolve_project(&root.join("main.sk")).expect_err("did-you-mean expected");
-    assert!(errs
-        .iter()
-        .any(|e| e.code == "E-IMPORT-NOT-EXPORTED" && e.message.contains("did you mean `shown`")));
+    assert!(
+        errs.iter().any(
+            |e| e.code == "E-IMPORT-NOT-EXPORTED" && e.message.contains("did you mean `shown`")
+        )
+    );
     let _ = fs::remove_dir_all(root);
 }
 
@@ -788,10 +805,12 @@ fn main() -> Int { return 0; }
 "#,
     )
     .expect("write main");
-    let errs = resolve_project(&root.join("main.sk")).expect_err("duplicate imported binding expected");
-    assert!(errs
-        .iter()
-        .any(|e| e.code == "E-IMPORT-CONFLICT" && e.message.contains("Duplicate imported binding `x`")));
+    let errs =
+        resolve_project(&root.join("main.sk")).expect_err("duplicate imported binding expected");
+    assert!(
+        errs.iter().any(|e| e.code == "E-IMPORT-CONFLICT"
+            && e.message.contains("Duplicate imported binding `x`"))
+    );
     let _ = fs::remove_dir_all(root);
 }
 
@@ -830,7 +849,8 @@ fn main() -> Int { return 0; }
 "#,
     )
     .expect("write main");
-    let errs = resolve_project(&root.join("main.sk")).expect_err("duplicate export target expected");
+    let errs =
+        resolve_project(&root.join("main.sk")).expect_err("duplicate export target expected");
     assert!(errs.iter().any(|e| {
         e.code == "E-IMPORT-CONFLICT" && e.message.contains("Duplicate exported target name `z`")
     }));

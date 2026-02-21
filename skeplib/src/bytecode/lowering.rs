@@ -4,9 +4,7 @@ use std::path::Path;
 use crate::ast::{AssignTarget, BinaryOp, Expr, Program, Stmt, TypeName, UnaryOp};
 use crate::diagnostic::{DiagnosticBag, Span};
 use crate::parser::Parser;
-use crate::resolver::{
-    ModuleGraph, ModuleId, ResolveError, build_export_maps, resolve_project,
-};
+use crate::resolver::{ModuleGraph, ModuleId, ResolveError, build_export_maps, resolve_project};
 
 use super::{BytecodeModule, FunctionChunk, Instr, Value};
 
@@ -849,7 +847,13 @@ fn compile_project_graph(graph: &ModuleGraph, entry: &Path) -> Result<BytecodeMo
     let entry_id = graph
         .modules
         .iter()
-        .find_map(|(id, unit)| if unit.path == entry { Some(id.clone()) } else { None })
+        .find_map(|(id, unit)| {
+            if unit.path == entry {
+                Some(id.clone())
+            } else {
+                None
+            }
+        })
         .ok_or_else(|| "Entry module id not found in graph".to_string())?;
 
     let mut out = BytecodeModule::default();
@@ -940,7 +944,9 @@ fn compile_project_graph(graph: &ModuleGraph, entry: &Path) -> Result<BytecodeMo
                     let target_prefix = path.join(".");
                     let mut exporting = export_maps
                         .keys()
-                        .filter(|m| *m == &target_prefix || m.starts_with(&(target_prefix.clone() + ".")))
+                        .filter(|m| {
+                            *m == &target_prefix || m.starts_with(&(target_prefix.clone() + "."))
+                        })
                         .cloned()
                         .collect::<Vec<_>>();
                     exporting.sort();
