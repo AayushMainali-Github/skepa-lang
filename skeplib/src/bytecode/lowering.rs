@@ -980,10 +980,10 @@ fn compile_project_graph(graph: &ModuleGraph, entry: &Path) -> Result<BytecodeMo
         let mut names = m.functions.keys().cloned().collect::<Vec<_>>();
         names.sort();
         for n in names {
-            if let Some(chunk) = m.functions.get(&n).cloned() {
-                if out.functions.insert(n.clone(), chunk).is_some() {
-                    return Err(format!("Duplicate linked function symbol `{n}`"));
-                }
+            if let Some(chunk) = m.functions.get(&n).cloned()
+                && out.functions.insert(n.clone(), chunk).is_some()
+            {
+                return Err(format!("Duplicate linked function symbol `{n}`"));
             }
         }
     }
