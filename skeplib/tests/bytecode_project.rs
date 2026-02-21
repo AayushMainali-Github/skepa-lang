@@ -1,4 +1,5 @@
 use skeplib::bytecode::{BytecodeModule, Value, compile_project_entry};
+use skeplib::resolver::ResolveErrorKind;
 use skeplib::vm::Vm;
 use std::fs;
 use std::path::PathBuf;
@@ -106,5 +107,23 @@ fn main() -> Int { return add(40, 2); }
     let module = compile_project_entry(&root.join("main.sk")).expect("compile project");
     let out = Vm::run_module_main(&module).expect("run");
     assert_eq!(out, Value::Int(42));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn project_compile_failure_is_reported_as_codegen_error() {
+    let root = make_temp_dir("codegen_error_kind");
+    fs::write(
+        root.join("main.sk"),
+        r#"
+fn main( -> Int { return 0; }
+"#,
+    )
+    .expect("write malformed main");
+
+    let errs = compile_project_entry(&root.join("main.sk")).expect_err("expected compile failure");
+    assert!(errs.iter().any(|e| {
+        e.kind == ResolveErrorKind::Codegen && e.code == "E-CODEGEN"
+    }));
     let _ = fs::remove_dir_all(root);
 }

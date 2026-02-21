@@ -48,6 +48,7 @@ pub enum ResolveErrorKind {
     MissingModule,
     AmbiguousModule,
     Io,
+    Codegen,
     NonUtf8Path,
     DuplicateModuleId,
     Cycle,
@@ -92,6 +93,7 @@ fn code_for_kind(kind: ResolveErrorKind) -> &'static str {
         ResolveErrorKind::MissingModule => "E-MOD-NOT-FOUND",
         ResolveErrorKind::Cycle => "E-MOD-CYCLE",
         ResolveErrorKind::AmbiguousModule => "E-MOD-AMBIG",
+        ResolveErrorKind::Codegen => "E-CODEGEN",
         ResolveErrorKind::Io
         | ResolveErrorKind::NonUtf8Path
         | ResolveErrorKind::DuplicateModuleId => "E-MOD-NOT-FOUND",

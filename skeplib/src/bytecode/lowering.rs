@@ -31,7 +31,7 @@ pub fn compile_project_entry(entry: &Path) -> Result<BytecodeModule, Vec<Resolve
     let graph = resolve_project(entry)?;
     compile_project_graph(&graph, entry).map_err(|e| {
         vec![ResolveError::new(
-            crate::resolver::ResolveErrorKind::Io,
+            crate::resolver::ResolveErrorKind::Codegen,
             e,
             Some(entry.to_path_buf()),
         )]
