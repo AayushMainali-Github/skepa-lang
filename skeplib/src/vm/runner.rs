@@ -11,6 +11,12 @@ use crate::bytecode::{BytecodeModule, Instr, Value};
 
 use super::{BuiltinHost, BuiltinRegistry, VmConfig, VmError, VmErrorKind};
 
+#[derive(Clone, Copy)]
+pub(super) struct RunOptions {
+    pub depth: usize,
+    pub config: VmConfig,
+}
+
 pub(super) fn run_function(
     module: &BytecodeModule,
     function_name: &str,
@@ -18,13 +24,12 @@ pub(super) fn run_function(
     globals: &mut Vec<Value>,
     host: &mut dyn BuiltinHost,
     reg: &BuiltinRegistry,
-    depth: usize,
-    config: VmConfig,
+    opts: RunOptions,
 ) -> Result<Value, VmError> {
-    if depth >= config.max_call_depth {
+    if opts.depth >= opts.config.max_call_depth {
         return Err(VmError::new(
             VmErrorKind::StackOverflow,
-            format!("Call stack limit exceeded ({})", config.max_call_depth),
+            format!("Call stack limit exceeded ({})", opts.config.max_call_depth),
         ));
     }
     let Some(chunk) = module.functions.get(function_name) else {
@@ -49,7 +54,7 @@ pub(super) fn run_function(
 
     let mut ip = 0usize;
     while ip < chunk.code.len() {
-        if config.trace {
+        if opts.config.trace {
             eprintln!("[trace] {}@{} {:?}", function_name, ip, chunk.code[ip]);
         }
         match &chunk.code[ip] {
@@ -129,8 +134,7 @@ pub(super) fn run_function(
                     globals,
                     host,
                     reg,
-                    depth,
-                    config,
+                    opts,
                 };
                 calls::call(
                     state.stack_mut(),
@@ -148,8 +152,7 @@ pub(super) fn run_function(
                     globals,
                     host,
                     reg,
-                    depth,
-                    config,
+                    opts,
                 },
                 calls::Site { function_name, ip },
             )?,
@@ -165,8 +168,7 @@ pub(super) fn run_function(
                     globals,
                     host,
                     reg,
-                    depth,
-                    config,
+                    opts,
                 },
                 calls::Site { function_name, ip },
             )?,
@@ -184,8 +186,7 @@ pub(super) fn run_function(
                     globals,
                     host,
                     reg,
-                    depth,
-                    config,
+                    opts,
                 },
                 calls::Site { function_name, ip },
             )?,

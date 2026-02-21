@@ -1,13 +1,12 @@
 use crate::bytecode::{BytecodeModule, Value};
-use crate::vm::{BuiltinHost, BuiltinRegistry, VmConfig, VmError, VmErrorKind};
+use crate::vm::{BuiltinHost, BuiltinRegistry, VmError, VmErrorKind};
 
 pub(super) struct CallEnv<'a> {
     pub module: &'a BytecodeModule,
     pub globals: &'a mut Vec<Value>,
     pub host: &'a mut dyn BuiltinHost,
     pub reg: &'a BuiltinRegistry,
-    pub depth: usize,
-    pub config: VmConfig,
+    pub opts: super::RunOptions,
 }
 
 pub(super) struct Site<'a> {
@@ -39,8 +38,10 @@ pub(super) fn call(
         env.globals,
         env.host,
         env.reg,
-        env.depth + 1,
-        env.config,
+        super::RunOptions {
+            depth: env.opts.depth + 1,
+            config: env.opts.config,
+        },
     )?;
     stack.push(ret);
     Ok(())
@@ -85,8 +86,10 @@ pub(super) fn call_value(
         env.globals,
         env.host,
         env.reg,
-        env.depth + 1,
-        env.config,
+        super::RunOptions {
+            depth: env.opts.depth + 1,
+            config: env.opts.config,
+        },
     )?;
     stack.push(ret);
     Ok(())
@@ -161,8 +164,10 @@ pub(super) fn call_method(
         env.globals,
         env.host,
         env.reg,
-        env.depth + 1,
-        env.config,
+        super::RunOptions {
+            depth: env.opts.depth + 1,
+            config: env.opts.config,
+        },
     )
     .map_err(|e| {
         if e.kind == VmErrorKind::UnknownFunction {

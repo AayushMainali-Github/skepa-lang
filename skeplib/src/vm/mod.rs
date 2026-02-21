@@ -50,8 +50,7 @@ impl Vm {
                 &mut globals,
                 &mut host,
                 &reg,
-                0,
-                config,
+                runner::RunOptions { depth: 0, config },
             )?;
         }
         runner::run_function(
@@ -61,8 +60,7 @@ impl Vm {
             &mut globals,
             &mut host,
             &reg,
-            0,
-            config,
+            runner::RunOptions { depth: 0, config },
         )
     }
 
@@ -85,8 +83,10 @@ impl Vm {
                 &mut globals,
                 host,
                 &reg,
-                0,
-                VmConfig::default(),
+                runner::RunOptions {
+                    depth: 0,
+                    config: VmConfig::default(),
+                },
             )?;
         }
         runner::run_function(
@@ -96,8 +96,10 @@ impl Vm {
             &mut globals,
             host,
             &reg,
-            0,
-            VmConfig::default(),
+            runner::RunOptions {
+                depth: 0,
+                config: VmConfig::default(),
+            },
         )
     }
 
@@ -120,8 +122,10 @@ impl Vm {
                 &mut globals,
                 host,
                 reg,
-                0,
-                VmConfig::default(),
+                runner::RunOptions {
+                    depth: 0,
+                    config: VmConfig::default(),
+                },
             )?;
         }
         runner::run_function(
@@ -131,8 +135,10 @@ impl Vm {
             &mut globals,
             host,
             reg,
-            0,
-            VmConfig::default(),
+            runner::RunOptions {
+                depth: 0,
+                config: VmConfig::default(),
+            },
         )
     }
 
