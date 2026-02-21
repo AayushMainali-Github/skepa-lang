@@ -122,8 +122,9 @@ fn main( -> Int { return 0; }
     .expect("write malformed main");
 
     let errs = compile_project_entry(&root.join("main.sk")).expect_err("expected compile failure");
-    assert!(errs.iter().any(|e| {
-        e.kind == ResolveErrorKind::Codegen && e.code == "E-CODEGEN"
-    }));
+    assert!(
+        errs.iter()
+            .any(|e| { e.kind == ResolveErrorKind::Codegen && e.code == "E-CODEGEN" })
+    );
     let _ = fs::remove_dir_all(root);
 }

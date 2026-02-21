@@ -71,7 +71,7 @@ fn parse_run_args(
     let max_call_depth = match env::var("SKEPA_MAX_CALL_DEPTH") {
         Ok(v) => {
             let parsed = v
-            .parse::<usize>()
+                .parse::<usize>()
                 .map_err(|_| "SKEPA_MAX_CALL_DEPTH must be an integer >= 1".to_string())?;
             if parsed == 0 {
                 return Err("SKEPA_MAX_CALL_DEPTH must be an integer >= 1".to_string());
