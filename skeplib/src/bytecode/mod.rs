@@ -4,7 +4,7 @@ mod codec;
 mod disasm;
 mod lowering;
 
-pub use lowering::compile_source;
+pub use lowering::{compile_project_entry, compile_source};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {

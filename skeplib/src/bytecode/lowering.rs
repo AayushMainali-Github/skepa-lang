@@ -1,8 +1,13 @@
 use std::collections::{HashMap, HashSet};
+use std::path::Path;
 
 use crate::ast::{AssignTarget, BinaryOp, Expr, Program, Stmt, TypeName, UnaryOp};
 use crate::diagnostic::{DiagnosticBag, Span};
 use crate::parser::Parser;
+use crate::resolver::{
+    ModuleGraph, ModuleId, ResolveError, collect_module_symbols, resolve_project,
+    validate_and_build_export_map,
+};
 
 use super::{BytecodeModule, FunctionChunk, Instr, Value};
 
@@ -25,6 +30,17 @@ pub fn compile_source(source: &str) -> Result<BytecodeModule, DiagnosticBag> {
     }
 }
 
+pub fn compile_project_entry(entry: &Path) -> Result<BytecodeModule, Vec<ResolveError>> {
+    let graph = resolve_project(entry)?;
+    compile_project_graph(&graph, entry).map_err(|e| {
+        vec![ResolveError::new(
+            crate::resolver::ResolveErrorKind::Io,
+            e,
+            Some(entry.to_path_buf()),
+        )]
+    })
+}
+
 #[derive(Default)]
 struct Compiler {
     diags: DiagnosticBag,
@@ -34,11 +50,40 @@ struct Compiler {
     module_namespaces: HashMap<String, Vec<String>>,
     lifted_functions: Vec<FunctionChunk>,
     fn_lit_counter: usize,
+    module_id: Option<String>,
+    local_fn_qualified: HashMap<String, String>,
+    local_struct_runtime: HashMap<String, String>,
+    imported_struct_runtime: HashMap<String, String>,
+    namespace_call_targets: HashMap<String, String>,
 }
 
 impl Compiler {
     fn mangle_method_name(target: &str, method: &str) -> String {
         format!("__impl_{}__{}", target, method)
+    }
+
+    fn globals_init_name(&self) -> String {
+        match &self.module_id {
+            Some(id) => format!("__globals_init::{id}"),
+            None => "__globals_init".to_string(),
+        }
+    }
+
+    fn qualify_local_fn_name(&self, local: &str) -> String {
+        match &self.module_id {
+            Some(id) => format!("{id}::{local}"),
+            None => local.to_string(),
+        }
+    }
+
+    fn resolve_struct_runtime_name(&self, name: &str) -> String {
+        if let Some(v) = self.local_struct_runtime.get(name) {
+            return v.clone();
+        }
+        if let Some(v) = self.imported_struct_runtime.get(name) {
+            return v.clone();
+        }
+        name.to_string()
     }
 
     fn expr_to_parts(expr: &Expr) -> Option<Vec<String>> {
@@ -57,49 +102,67 @@ impl Compiler {
     fn compile_program(&mut self, program: &Program) -> BytecodeModule {
         self.function_names.clear();
         self.global_slots.clear();
-        self.direct_import_calls.clear();
-        self.module_namespaces.clear();
+        self.local_fn_qualified.clear();
+        if self.module_id.is_none() {
+            self.direct_import_calls.clear();
+            self.module_namespaces.clear();
+            self.local_struct_runtime.clear();
+            self.imported_struct_runtime.clear();
+            self.namespace_call_targets.clear();
+        }
         self.lifted_functions.clear();
         self.fn_lit_counter = 0;
         const GLOBALS_INIT_FN: &str = "__globals_init";
-        if program.functions.iter().any(|f| f.name == GLOBALS_INIT_FN) {
+        if self.module_id.is_none() && program.functions.iter().any(|f| f.name == GLOBALS_INIT_FN) {
             self.error(format!(
                 "`{GLOBALS_INIT_FN}` is a reserved function name used by the compiler"
             ));
         }
         for func in &program.functions {
-            self.function_names.insert(func.name.clone());
+            let q = self.qualify_local_fn_name(&func.name);
+            self.local_fn_qualified.insert(func.name.clone(), q.clone());
+            self.function_names.insert(q);
         }
         for imp in &program.impls {
             for method in &imp.methods {
+                let target_name = self.resolve_struct_runtime_name(&imp.target);
                 self.function_names
-                    .insert(Self::mangle_method_name(&imp.target, &method.name));
+                    .insert(Self::mangle_method_name(&target_name, &method.name));
             }
+        }
+        for s in &program.structs {
+            let runtime = match &self.module_id {
+                Some(id) => format!("{id}::{}", s.name),
+                None => s.name.clone(),
+            };
+            self.local_struct_runtime.insert(s.name.clone(), runtime);
         }
         for (idx, g) in program.globals.iter().enumerate() {
             self.global_slots.insert(g.name.clone(), idx);
         }
-        for imp in &program.imports {
-            match imp {
-                crate::ast::ImportDecl::ImportModule { path, alias } => {
-                    let ns = alias
-                        .clone()
-                        .unwrap_or_else(|| path.first().cloned().unwrap_or_default());
-                    if !ns.is_empty() {
-                        let mapped = if alias.is_some() {
-                            path.clone()
-                        } else {
-                            vec![path.first().cloned().unwrap_or_default()]
-                        };
-                        self.module_namespaces.insert(ns, mapped);
+        if self.module_id.is_none() {
+            for imp in &program.imports {
+                match imp {
+                    crate::ast::ImportDecl::ImportModule { path, alias } => {
+                        let ns = alias
+                            .clone()
+                            .unwrap_or_else(|| path.first().cloned().unwrap_or_default());
+                        if !ns.is_empty() {
+                            let mapped = if alias.is_some() {
+                                path.clone()
+                            } else {
+                                vec![path.first().cloned().unwrap_or_default()]
+                            };
+                            self.module_namespaces.insert(ns, mapped);
+                        }
                     }
-                }
-                crate::ast::ImportDecl::ImportFrom { path, items } => {
-                    let prefix = path.join(".");
-                    for item in items {
-                        let local = item.alias.clone().unwrap_or_else(|| item.name.clone());
-                        self.direct_import_calls
-                            .insert(local, format!("{prefix}.{}", item.name));
+                    crate::ast::ImportDecl::ImportFrom { path, items } => {
+                        let prefix = path.join(".");
+                        for item in items {
+                            let local = item.alias.clone().unwrap_or_else(|| item.name.clone());
+                            self.direct_import_calls
+                                .insert(local, format!("{prefix}.{}", item.name));
+                        }
                     }
                 }
             }
@@ -111,11 +174,12 @@ impl Compiler {
         }
         for func in &program.functions {
             let chunk = self.compile_function(func);
-            module.functions.insert(func.name.clone(), chunk);
+            module.functions.insert(chunk.name.clone(), chunk);
         }
         for imp in &program.impls {
             for method in &imp.methods {
-                let mangled = Self::mangle_method_name(&imp.target, &method.name);
+                let target_name = self.resolve_struct_runtime_name(&imp.target);
+                let mangled = Self::mangle_method_name(&target_name, &method.name);
                 let chunk = self.compile_method(&mangled, method);
                 module.functions.insert(mangled, chunk);
             }
@@ -138,7 +202,7 @@ impl Compiler {
         code.push(Instr::LoadConst(Value::Unit));
         code.push(Instr::Return);
         FunctionChunk {
-            name: "__globals_init".to_string(),
+            name: self.globals_init_name(),
             code,
             locals_count: program.globals.len(),
             param_count: 0,
@@ -187,7 +251,10 @@ impl Compiler {
 
         for param in &func.params {
             if let TypeName::Named(type_name) = &param.ty {
-                ctx.alloc_local_with_named_type(param.name.clone(), type_name.clone());
+                ctx.alloc_local_with_named_type(
+                    param.name.clone(),
+                    self.resolve_struct_runtime_name(type_name),
+                );
             } else {
                 ctx.alloc_local(param.name.clone());
             }
@@ -203,7 +270,7 @@ impl Compiler {
         }
 
         FunctionChunk {
-            name: func.name.clone(),
+            name: self.qualify_local_fn_name(&func.name),
             code,
             locals_count: ctx.next_local,
             param_count: func.params.len(),
@@ -217,7 +284,10 @@ impl Compiler {
 
         for param in &method.params {
             if let TypeName::Named(type_name) = &param.ty {
-                ctx.alloc_local_with_named_type(param.name.clone(), type_name.clone());
+                ctx.alloc_local_with_named_type(
+                    param.name.clone(),
+                    self.resolve_struct_runtime_name(type_name),
+                );
             } else {
                 ctx.alloc_local(param.name.clone());
             }
@@ -251,7 +321,9 @@ impl Compiler {
             Stmt::Let { name, ty, value } => {
                 self.compile_expr(value, ctx, code);
                 let explicit_named = match ty {
-                    Some(TypeName::Named(type_name)) => Some(type_name.clone()),
+                    Some(TypeName::Named(type_name)) => {
+                        Some(self.resolve_struct_runtime_name(type_name))
+                    }
                     _ => None,
                 };
                 let inferred_named = Self::infer_expr_named_type(value, ctx);
@@ -473,6 +545,8 @@ impl Compiler {
                     code.push(Instr::LoadGlobal(slot));
                 } else if let Some(target) = self.direct_import_calls.get(name).cloned() {
                     code.push(Instr::LoadConst(Value::Function(target)));
+                } else if let Some(target) = self.local_fn_qualified.get(name).cloned() {
+                    code.push(Instr::LoadConst(Value::Function(target)));
                 } else if self.function_names.contains(name) {
                     code.push(Instr::LoadConst(Value::Function(name.clone())));
                 } else {
@@ -548,6 +622,14 @@ impl Compiler {
                         }
                         code.push(Instr::CallValue { argc: args.len() });
                     } else if let Some(target) = self.direct_import_calls.get(name).cloned() {
+                        for arg in args {
+                            self.compile_expr(arg, ctx, code);
+                        }
+                        code.push(Instr::Call {
+                            name: target,
+                            argc: args.len(),
+                        });
+                    } else if let Some(target) = self.local_fn_qualified.get(name).cloned() {
                         for arg in args {
                             self.compile_expr(arg, ctx, code);
                         }
@@ -655,7 +737,7 @@ impl Compiler {
                     self.compile_expr(value, ctx, code);
                 }
                 code.push(Instr::MakeStruct {
-                    name: name.clone(),
+                    name: self.resolve_struct_runtime_name(name),
                     fields: fields.iter().map(|(k, _)| k.clone()).collect(),
                 });
             }
@@ -738,11 +820,179 @@ impl Compiler {
     }
 
     fn resolve_qualified_import_call(&self, parts: &[String]) -> Option<String> {
+        let key = parts.join(".");
+        if let Some(target) = self.namespace_call_targets.get(&key) {
+            return Some(target.clone());
+        }
         let prefix = self.module_namespaces.get(parts.first()?)?.clone();
         let mut full = prefix;
         full.extend_from_slice(&parts[1..]);
         Some(full.join("."))
     }
+}
+
+fn compile_project_graph(graph: &ModuleGraph, entry: &Path) -> Result<BytecodeModule, String> {
+    let mut programs = HashMap::<ModuleId, Program>::new();
+    let mut export_maps = HashMap::<ModuleId, HashMap<String, crate::resolver::SymbolRef>>::new();
+    for (id, unit) in &graph.modules {
+        let (program, diags) = Parser::parse_source(&unit.source);
+        if !diags.is_empty() {
+            return Err(format!("Parse failed in module `{id}`"));
+        }
+        let symbols = collect_module_symbols(&program, id);
+        let exports = validate_and_build_export_map(&program, &symbols, id, &unit.path)
+            .map_err(|errs| format!("Export validation failed in `{id}`: {}", errs[0].message))?;
+        export_maps.insert(id.clone(), exports);
+        programs.insert(id.clone(), program);
+    }
+
+    let entry_id = graph
+        .modules
+        .iter()
+        .find_map(|(id, unit)| if unit.path == entry { Some(id.clone()) } else { None })
+        .ok_or_else(|| "Entry module id not found in graph".to_string())?;
+
+    let mut out = BytecodeModule::default();
+    let mut init_names = Vec::new();
+    let mut ids = programs.keys().cloned().collect::<Vec<_>>();
+    ids.sort();
+    for id in ids {
+        let program = programs
+            .get(&id)
+            .ok_or_else(|| format!("Missing parsed program for module `{id}`"))?;
+        let mut c = Compiler {
+            module_id: Some(id.clone()),
+            ..Compiler::default()
+        };
+        c.local_struct_runtime = program
+            .structs
+            .iter()
+            .map(|s| (s.name.clone(), format!("{id}::{}", s.name)))
+            .collect();
+
+        for imp in &program.imports {
+            match imp {
+                crate::ast::ImportDecl::ImportFrom { path, items } => {
+                    let target = path.join(".");
+                    let Some(exports) = export_maps.get(&target) else {
+                        continue;
+                    };
+                    for item in items {
+                        let local = item.alias.clone().unwrap_or_else(|| item.name.clone());
+                        if let Some(sym) = exports.get(&item.name) {
+                            match sym.kind {
+                                crate::resolver::SymbolKind::Fn => {
+                                    c.direct_import_calls.insert(
+                                        local,
+                                        format!("{}::{}", sym.module_id, sym.local_name),
+                                    );
+                                }
+                                crate::resolver::SymbolKind::Struct => {
+                                    c.imported_struct_runtime.insert(
+                                        local,
+                                        format!("{}::{}", sym.module_id, sym.local_name),
+                                    );
+                                }
+                                crate::resolver::SymbolKind::GlobalLet => {}
+                            }
+                        }
+                    }
+                }
+                crate::ast::ImportDecl::ImportModule { path, alias } => {
+                    let ns = alias
+                        .clone()
+                        .unwrap_or_else(|| path.first().cloned().unwrap_or_default());
+                    if ns.is_empty() {
+                        continue;
+                    }
+                    let prefix = if alias.is_some() {
+                        path.clone()
+                    } else {
+                        vec![path.first().cloned().unwrap_or_default()]
+                    };
+                    c.module_namespaces.insert(ns.clone(), prefix);
+                    let target_prefix = path.join(".");
+                    let mut exporting = export_maps
+                        .keys()
+                        .filter(|m| *m == &target_prefix || m.starts_with(&(target_prefix.clone() + ".")))
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    exporting.sort();
+                    for mid in exporting {
+                        if let Some(exports) = export_maps.get(&mid) {
+                            for (ename, sym) in exports {
+                                if sym.kind == crate::resolver::SymbolKind::Fn {
+                                    c.namespace_call_targets.insert(
+                                        format!("{mid}.{ename}"),
+                                        format!("{}::{}", sym.module_id, sym.local_name),
+                                    );
+                                }
+                                if sym.kind == crate::resolver::SymbolKind::Struct {
+                                    c.imported_struct_runtime.insert(
+                                        format!("{mid}.{ename}"),
+                                        format!("{}::{}", sym.module_id, sym.local_name),
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        let m = c.compile_program(program);
+        let init = c.globals_init_name();
+        if m.functions.contains_key(&init) {
+            init_names.push(init);
+        }
+        let mut names = m.functions.keys().cloned().collect::<Vec<_>>();
+        names.sort();
+        for n in names {
+            if let Some(chunk) = m.functions.get(&n).cloned() {
+                if out.functions.insert(n.clone(), chunk).is_some() {
+                    return Err(format!("Duplicate linked function symbol `{n}`"));
+                }
+            }
+        }
+    }
+
+    if !init_names.is_empty() {
+        init_names.sort();
+        let mut code = Vec::new();
+        for n in init_names {
+            code.push(Instr::Call { name: n, argc: 0 });
+            code.push(Instr::Pop);
+        }
+        code.push(Instr::LoadConst(Value::Unit));
+        code.push(Instr::Return);
+        out.functions.insert(
+            "__globals_init".to_string(),
+            FunctionChunk {
+                name: "__globals_init".to_string(),
+                code,
+                locals_count: 0,
+                param_count: 0,
+            },
+        );
+    }
+
+    out.functions.insert(
+        "main".to_string(),
+        FunctionChunk {
+            name: "main".to_string(),
+            code: vec![
+                Instr::Call {
+                    name: format!("{entry_id}::main"),
+                    argc: 0,
+                },
+                Instr::Return,
+            ],
+            locals_count: 0,
+            param_count: 0,
+        },
+    );
+
+    Ok(out)
 }
 
 #[derive(Debug, Clone, Default)]
