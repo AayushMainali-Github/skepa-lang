@@ -2234,6 +2234,34 @@ fn main() -> Int { return x; }
 }
 
 #[test]
+fn sema_accepts_global_initialized_from_previous_global() {
+    let src = r#"
+let a: Int = 2;
+let b: Int = a + 3;
+fn main() -> Int { return b; }
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_rejects_global_initialized_from_later_global() {
+    let src = r#"
+let b: Int = a + 1;
+let a: Int = 2;
+fn main() -> Int { return b; }
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Unknown variable `a`"))
+    );
+}
+
+#[test]
 fn sema_rejects_exporting_unknown_name() {
     let src = r#"
 fn main() -> Int { return 0; }

@@ -2741,3 +2741,21 @@ fn main() -> Int {
     let out = Vm::run_module_main(&module).expect("run");
     assert_eq!(out, Value::Int(12));
 }
+
+#[test]
+fn runs_global_initializer_before_main() {
+    let src = r#"
+let g: Int = seed();
+
+fn seed() -> Int {
+  return 7;
+}
+
+fn main() -> Int {
+  return g;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(7));
+}
