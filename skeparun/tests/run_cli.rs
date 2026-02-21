@@ -255,6 +255,79 @@ fn main() -> Int { return 0; }
     assert!(stderr.contains("while resolving import `missing.dep`"));
 }
 
+#[test]
+fn run_rejects_non_numeric_call_depth_env() {
+    let tmp = make_temp_dir("skeparun_depth_env_non_numeric");
+    let file = tmp.join("ok.sk");
+    fs::write(
+        &file,
+        r#"
+fn main() -> Int { return 0; }
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(skeparun_bin())
+        .arg("run")
+        .arg(&file)
+        .env("SKEPA_MAX_CALL_DEPTH", "abc")
+        .output()
+        .expect("run skeparun");
+
+    assert_eq!(output.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("SKEPA_MAX_CALL_DEPTH must be an integer >= 1"));
+}
+
+#[test]
+fn run_rejects_zero_call_depth_env() {
+    let tmp = make_temp_dir("skeparun_depth_env_zero");
+    let file = tmp.join("ok.sk");
+    fs::write(
+        &file,
+        r#"
+fn main() -> Int { return 0; }
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(skeparun_bin())
+        .arg("run")
+        .arg(&file)
+        .env("SKEPA_MAX_CALL_DEPTH", "0")
+        .output()
+        .expect("run skeparun");
+
+    assert_eq!(output.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("SKEPA_MAX_CALL_DEPTH must be an integer >= 1"));
+}
+
+#[test]
+fn run_depth_one_allows_main_but_blocks_nested_calls() {
+    let tmp = make_temp_dir("skeparun_depth_one_nested_call");
+    let file = tmp.join("nested.sk");
+    fs::write(
+        &file,
+        r#"
+fn child() -> Int { return 1; }
+fn main() -> Int { return child(); }
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(skeparun_bin())
+        .arg("run")
+        .arg(&file)
+        .env("SKEPA_MAX_CALL_DEPTH", "1")
+        .output()
+        .expect("run skeparun");
+
+    assert_eq!(output.status.code(), Some(14));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("[E-VM-STACK-OVERFLOW]"));
+}
+
 fn skeparun_bin() -> &'static str {
     env!("CARGO_BIN_EXE_skeparun")
 }
