@@ -5,8 +5,7 @@ use crate::ast::{ImportDecl, Program, Stmt, TypeName};
 use crate::diagnostic::{DiagnosticBag, Span};
 use crate::parser::Parser;
 use crate::resolver::{
-    ModuleGraph, ModuleId, ResolveError, collect_module_symbols, resolve_project,
-    validate_and_build_export_map,
+    ModuleGraph, ModuleId, ResolveError, build_export_maps, resolve_project,
 };
 use crate::types::{FunctionSig, TypeInfo};
 
@@ -71,16 +70,22 @@ fn analyze_project_graph(graph: &ModuleGraph) -> (SemaResult, DiagnosticBag) {
     }
 
     let mut module_apis = HashMap::<ModuleId, ModuleApi>::new();
-    let mut export_maps = HashMap::<ModuleId, HashMap<String, crate::resolver::SymbolRef>>::new();
     for (id, program) in &programs {
-        let symbols = collect_module_symbols(program, id);
-        if let Some(unit) = graph.modules.get(id)
-            && let Ok(exports) = validate_and_build_export_map(program, &symbols, id, &unit.path)
-        {
-            export_maps.insert(id.clone(), exports);
-        }
         module_apis.insert(id.clone(), build_module_api(program));
     }
+    let export_maps = match build_export_maps(graph) {
+        Ok(maps) => maps,
+        Err(errs) => {
+            for e in errs {
+                let mut msg = format!("resolver error: {}", e.message);
+                if let Some(path) = e.path.as_ref() {
+                    msg = format!("resolver error [{}]: {}", path.display(), e.message);
+                }
+                diags.error(msg, Span::default());
+            }
+            HashMap::new()
+        }
+    };
 
     for (id, program) in &programs {
         let ctx = build_external_context(id, program, graph, &module_apis, &export_maps);
@@ -181,7 +186,11 @@ fn build_external_context(
 
     for imp in &program.imports {
         match imp {
-            ImportDecl::ImportFrom { path, items } => {
+            ImportDecl::ImportFrom {
+                path,
+                wildcard,
+                items,
+            } => {
                 let targets = resolve_import_module_targets(graph, path);
                 if targets.len() != 1 {
                     continue;
@@ -190,37 +199,81 @@ fn build_external_context(
                 let Some(exports) = export_maps.get(target) else {
                     continue;
                 };
-                let Some(api) = apis.get(target) else {
-                    continue;
-                };
-                for item in items {
-                    let local = item.alias.clone().unwrap_or_else(|| item.name.clone());
-                    let Some(sym) = exports.get(&item.name) else {
-                        continue;
-                    };
-                    match sym.kind {
-                        crate::resolver::SymbolKind::Fn => {
-                            if let Some(sig) = api.functions.get(&sym.local_name).cloned() {
-                                ctx.imported_functions.insert(local.clone(), sig);
-                                ctx.direct_import_targets
-                                    .insert(local, format!("{target}.{}", item.name));
+                if *wildcard {
+                    let mut names = exports.keys().cloned().collect::<Vec<_>>();
+                    names.sort();
+                    for name in names {
+                        let Some(sym) = exports.get(&name) else {
+                            continue;
+                        };
+                        let Some(api) = apis.get(&sym.module_id) else {
+                            continue;
+                        };
+                        match sym.kind {
+                            crate::resolver::SymbolKind::Fn => {
+                                if let Some(sig) = api.functions.get(&sym.local_name).cloned() {
+                                    ctx.imported_functions.insert(name.clone(), sig);
+                                    ctx.direct_import_targets
+                                        .insert(name.clone(), format!("{}.{}", sym.module_id, name));
+                                }
                             }
+                            crate::resolver::SymbolKind::Struct => {
+                                if let Some(fields) = api.structs.get(&sym.local_name).cloned() {
+                                    ctx.imported_structs.insert(name.clone(), fields);
+                                }
+                                if let Some(methods) = api.methods.get(&sym.local_name).cloned() {
+                                    ctx.imported_methods.insert(
+                                        name.clone(),
+                                        rebind_methods_self_type(
+                                            methods,
+                                            &sym.local_name,
+                                            &name,
+                                        ),
+                                    );
+                                }
+                            }
+                            crate::resolver::SymbolKind::GlobalLet => {
+                                if let Some(ty) = api.globals.get(&sym.local_name).cloned() {
+                                    ctx.imported_globals.insert(name.clone(), ty);
+                                }
+                            }
+                            crate::resolver::SymbolKind::Namespace => {}
                         }
-                        crate::resolver::SymbolKind::Struct => {
-                            if let Some(fields) = api.structs.get(&sym.local_name).cloned() {
-                                ctx.imported_structs.insert(local.clone(), fields);
+                    }
+                } else {
+                    for item in items {
+                        let local = item.alias.clone().unwrap_or_else(|| item.name.clone());
+                        let Some(sym) = exports.get(&item.name) else {
+                            continue;
+                        };
+                        let Some(api) = apis.get(&sym.module_id) else {
+                            continue;
+                        };
+                        match sym.kind {
+                            crate::resolver::SymbolKind::Fn => {
+                                if let Some(sig) = api.functions.get(&sym.local_name).cloned() {
+                                    ctx.imported_functions.insert(local.clone(), sig);
+                                    ctx.direct_import_targets
+                                        .insert(local, format!("{}.{}", sym.module_id, item.name));
+                                }
                             }
-                            if let Some(methods) = api.methods.get(&sym.local_name).cloned() {
-                                ctx.imported_methods.insert(
-                                    local.clone(),
-                                    rebind_methods_self_type(methods, &sym.local_name, &local),
-                                );
+                            crate::resolver::SymbolKind::Struct => {
+                                if let Some(fields) = api.structs.get(&sym.local_name).cloned() {
+                                    ctx.imported_structs.insert(local.clone(), fields);
+                                }
+                                if let Some(methods) = api.methods.get(&sym.local_name).cloned() {
+                                    ctx.imported_methods.insert(
+                                        local.clone(),
+                                        rebind_methods_self_type(methods, &sym.local_name, &local),
+                                    );
+                                }
                             }
-                        }
-                        crate::resolver::SymbolKind::GlobalLet => {
-                            if let Some(ty) = api.globals.get(&sym.local_name).cloned() {
-                                ctx.imported_globals.insert(local, ty);
+                            crate::resolver::SymbolKind::GlobalLet => {
+                                if let Some(ty) = api.globals.get(&sym.local_name).cloned() {
+                                    ctx.imported_globals.insert(local, ty);
+                                }
                             }
+                            crate::resolver::SymbolKind::Namespace => {}
                         }
                     }
                 }
@@ -231,10 +284,10 @@ fn build_external_context(
                     let Some(exports) = export_maps.get(&target) else {
                         continue;
                     };
-                    let Some(api) = apis.get(&target) else {
-                        continue;
-                    };
                     for (exported_name, sym) in exports {
+                        let Some(api) = apis.get(&sym.module_id) else {
+                            continue;
+                        };
                         let q = format!("{target}.{exported_name}");
                         match sym.kind {
                             crate::resolver::SymbolKind::Fn => {
@@ -258,6 +311,7 @@ fn build_external_context(
                                     ctx.imported_globals.insert(q, ty);
                                 }
                             }
+                            crate::resolver::SymbolKind::Namespace => {}
                         }
                     }
                 }
@@ -397,7 +451,11 @@ impl Checker {
                         module_namespaces.insert(ns, mapped);
                     }
                 }
-                crate::ast::ImportDecl::ImportFrom { path, items } => {
+                crate::ast::ImportDecl::ImportFrom {
+                    path,
+                    wildcard: _,
+                    items,
+                } => {
                     let prefix = path.join(".");
                     for item in items {
                         let local = item.alias.clone().unwrap_or_else(|| item.name.clone());
@@ -508,14 +566,6 @@ impl Checker {
     }
 
     fn check_export_declarations(&mut self, program: &Program) {
-        if program.exports.len() > 1 {
-            self.error("At most one export block is allowed per module".to_string());
-        }
-
-        if program.exports.is_empty() {
-            return;
-        }
-
         let mut local_exportables = HashSet::new();
         for f in &program.functions {
             local_exportables.insert(f.name.as_str());
@@ -529,17 +579,25 @@ impl Checker {
 
         let mut seen_targets = HashSet::new();
         for export_decl in &program.exports {
-            for item in &export_decl.items {
-                if !local_exportables.contains(item.name.as_str()) {
-                    self.error(format!(
-                        "Exported name `{}` does not exist in this module",
-                        item.name
-                    ));
+            match export_decl {
+                crate::ast::ExportDecl::Local { items }
+                | crate::ast::ExportDecl::From { items, .. } => {
+                    for item in items {
+                        if matches!(export_decl, crate::ast::ExportDecl::Local { .. })
+                            && !local_exportables.contains(item.name.as_str())
+                        {
+                            self.error(format!(
+                                "Exported name `{}` does not exist in this module",
+                                item.name
+                            ));
+                        }
+                        let target = item.alias.as_deref().unwrap_or(item.name.as_str());
+                        if !seen_targets.insert(target.to_string()) {
+                            self.error(format!("Duplicate exported target name `{target}`"));
+                        }
+                    }
                 }
-                let target = item.alias.as_deref().unwrap_or(item.name.as_str());
-                if !seen_targets.insert(target.to_string()) {
-                    self.error(format!("Duplicate exported target name `{target}`"));
-                }
+                crate::ast::ExportDecl::FromAll { .. } => {}
             }
         }
     }

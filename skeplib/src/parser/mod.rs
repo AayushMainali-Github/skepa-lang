@@ -46,7 +46,6 @@ impl Parser {
     fn parse_program(&mut self) -> Program {
         let mut imports = Vec::new();
         let mut exports = Vec::new();
-        let mut seen_export_decl = false;
         let mut globals = Vec::new();
         let mut structs = Vec::new();
         let mut impls = Vec::new();
@@ -67,15 +66,7 @@ impl Parser {
             }
             if self.at(TokenKind::KwExport) {
                 if let Some(e) = self.parse_export_decl() {
-                    if seen_export_decl {
-                        self.diagnostics.error(
-                            "Only one `export { ... };` block is allowed per file",
-                            self.current().span,
-                        );
-                    } else {
-                        exports.push(e);
-                        seen_export_decl = true;
-                    }
+                    exports.push(e);
                 }
                 continue;
             }
@@ -163,6 +154,15 @@ impl Parser {
             TokenKind::KwImport,
             "Expected `import` after module path in from-import",
         )?;
+        if self.at(TokenKind::Star) {
+            self.bump();
+            self.expect(TokenKind::Semi, "Expected `;` after from-import")?;
+            return Some(ImportDecl::ImportFrom {
+                path,
+                wildcard: true,
+                items: Vec::new(),
+            });
+        }
         let mut items = Vec::new();
         let mut seen_names: HashSet<String> = HashSet::new();
         let mut seen_aliases: HashSet<String> = HashSet::new();
@@ -212,7 +212,11 @@ impl Parser {
             break;
         }
         self.expect(TokenKind::Semi, "Expected `;` after from-import")?;
-        Some(ImportDecl::ImportFrom { path, items })
+        Some(ImportDecl::ImportFrom {
+            path,
+            wildcard: false,
+            items,
+        })
     }
 
     fn parse_dotted_path(&mut self, first_err: &str) -> Option<Vec<String>> {
@@ -227,6 +231,13 @@ impl Parser {
 
     fn parse_export_decl(&mut self) -> Option<ExportDecl> {
         self.expect(TokenKind::KwExport, "Expected `export`")?;
+        if self.at(TokenKind::Star) {
+            self.bump();
+            self.expect(TokenKind::KwFrom, "Expected `from` after `export *`")?;
+            let path = self.parse_dotted_path("Expected module path after `from`")?;
+            self.expect(TokenKind::Semi, "Expected `;` after export declaration")?;
+            return Some(ExportDecl::FromAll { path });
+        }
         self.expect(TokenKind::LBrace, "Expected `{` after `export`")?;
         if self.at(TokenKind::RBrace) {
             self.error_here_expected("Expected at least one export item");
@@ -261,8 +272,14 @@ impl Parser {
             break;
         }
         self.expect(TokenKind::RBrace, "Expected `}` after export list")?;
+        if self.at(TokenKind::KwFrom) {
+            self.bump();
+            let path = self.parse_dotted_path("Expected module path after `from`")?;
+            self.expect(TokenKind::Semi, "Expected `;` after export declaration")?;
+            return Some(ExportDecl::From { path, items });
+        }
         self.expect(TokenKind::Semi, "Expected `;` after export declaration")?;
-        Some(ExportDecl { items })
+        Some(ExportDecl::Local { items })
     }
 
     fn parse_function(&mut self) -> Option<FnDecl> {

@@ -476,3 +476,88 @@ fn main() -> Int { return 0; }
             && e.message.contains("resolves to a namespace root")));
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn resolve_project_supports_re_export_from_module() {
+    let root = make_temp_dir("re_export");
+    fs::write(
+        root.join("a.sk"),
+        r#"
+fn add(a: Int, b: Int) -> Int { return a + b; }
+export { add };
+"#,
+    )
+    .expect("write a");
+    fs::write(
+        root.join("b.sk"),
+        r#"
+export { add } from a;
+"#,
+    )
+    .expect("write b");
+    fs::write(
+        root.join("main.sk"),
+        r#"
+from b import add;
+fn main() -> Int { return add(1, 2); }
+"#,
+    )
+    .expect("write main");
+
+    let graph = resolve_project(&root.join("main.sk")).expect("re-export resolve");
+    assert!(graph.modules.contains_key("a"));
+    assert!(graph.modules.contains_key("b"));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn resolve_project_rejects_duplicate_bindings_from_wildcard_imports() {
+    let root = make_temp_dir("wildcard_conflict");
+    fs::write(
+        root.join("a.sk"),
+        r#"
+fn x() -> Int { return 1; }
+export { x };
+"#,
+    )
+    .expect("write a");
+    fs::write(
+        root.join("b.sk"),
+        r#"
+fn x() -> Int { return 2; }
+export { x };
+"#,
+    )
+    .expect("write b");
+    fs::write(
+        root.join("main.sk"),
+        r#"
+from a import *;
+from b import *;
+fn main() -> Int { return 0; }
+"#,
+    )
+    .expect("write main");
+
+    let errs = resolve_project(&root.join("main.sk")).expect_err("wildcard conflict expected");
+    assert!(errs
+        .iter()
+        .any(|e| e.message.contains("Duplicate imported binding `x`")));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn resolve_project_detects_circular_re_exports() {
+    let root = make_temp_dir("re_export_cycle");
+    fs::write(root.join("a.sk"), "export * from b;\n").expect("write a");
+    fs::write(root.join("b.sk"), "export * from a;\n").expect("write b");
+    fs::write(
+        root.join("main.sk"),
+        "import a;\nfn main() -> Int { return 0; }\n",
+    )
+    .expect("write main");
+
+    let errs = resolve_project(&root.join("main.sk")).expect_err("re-export cycle expected");
+    assert!(errs.iter().any(|e| e.kind == ResolveErrorKind::Cycle));
+    let _ = fs::remove_dir_all(root);
+}

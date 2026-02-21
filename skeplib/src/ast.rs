@@ -23,6 +23,7 @@ pub enum ImportDecl {
     },
     ImportFrom {
         path: Vec<String>,
+        wildcard: bool,
         items: Vec<ImportItem>,
     },
 }
@@ -34,8 +35,17 @@ pub struct ImportItem {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExportDecl {
-    pub items: Vec<ExportItem>,
+pub enum ExportDecl {
+    Local {
+        items: Vec<ExportItem>,
+    },
+    From {
+        path: Vec<String>,
+        items: Vec<ExportItem>,
+    },
+    FromAll {
+        path: Vec<String>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -224,7 +234,30 @@ impl Program {
                     }
                     out.push('\n');
                 }
-                ImportDecl::ImportFrom { path, items } => {
+                ImportDecl::ImportFrom {
+                    path,
+                    wildcard,
+                    items,
+                } => {
+                    if *wildcard {
+                        out.push_str(&format!("from {} import *\n", path.join(".")));
+                    } else {
+                        let items = items
+                            .iter()
+                            .map(|item| match &item.alias {
+                                Some(alias) => format!("{} as {}", item.name, alias),
+                                None => item.name.clone(),
+                            })
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                        out.push_str(&format!("from {} import {items}\n", path.join(".")));
+                    }
+                }
+            }
+        }
+        for export in &self.exports {
+            match export {
+                ExportDecl::Local { items } => {
                     let items = items
                         .iter()
                         .map(|item| match &item.alias {
@@ -233,21 +266,23 @@ impl Program {
                         })
                         .collect::<Vec<_>>()
                         .join(", ");
-                    out.push_str(&format!("from {} import {items}\n", path.join(".")));
+                    out.push_str(&format!("export {{ {items} }}\n"));
+                }
+                ExportDecl::From { path, items } => {
+                    let items = items
+                        .iter()
+                        .map(|item| match &item.alias {
+                            Some(alias) => format!("{} as {}", item.name, alias),
+                            None => item.name.clone(),
+                        })
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    out.push_str(&format!("export {{ {items} }} from {}\n", path.join(".")));
+                }
+                ExportDecl::FromAll { path } => {
+                    out.push_str(&format!("export * from {}\n", path.join(".")));
                 }
             }
-        }
-        for export in &self.exports {
-            let items = export
-                .items
-                .iter()
-                .map(|item| match &item.alias {
-                    Some(alias) => format!("{} as {}", item.name, alias),
-                    None => item.name.clone(),
-                })
-                .collect::<Vec<_>>()
-                .join(", ");
-            out.push_str(&format!("export {{ {items} }}\n"));
         }
         for g in &self.globals {
             if let Some(ty) = &g.ty {

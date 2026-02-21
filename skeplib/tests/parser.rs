@@ -72,6 +72,7 @@ fn main() -> Int { return 0; }
         program.imports[0],
         skeplib::ast::ImportDecl::ImportFrom {
             path: vec!["utils".to_string(), "math".to_string()],
+            wildcard: false,
             items: vec![skeplib::ast::ImportItem {
                 name: "add".to_string(),
                 alias: None,
@@ -91,6 +92,7 @@ fn main() -> Int { return 0; }
         program.imports[0],
         skeplib::ast::ImportDecl::ImportFrom {
             path: vec!["utils".to_string(), "math".to_string()],
+            wildcard: false,
             items: vec![
                 skeplib::ast::ImportItem {
                     name: "add".to_string(),
@@ -101,6 +103,23 @@ fn main() -> Int { return 0; }
                     alias: Some("minus".to_string()),
                 }
             ],
+        }
+    );
+}
+
+#[test]
+fn parses_from_import_wildcard() {
+    let src = r#"
+from utils.math import *;
+fn main() -> Int { return 0; }
+"#;
+    let program = parse_ok(src);
+    assert_eq!(
+        program.imports[0],
+        skeplib::ast::ImportDecl::ImportFrom {
+            path: vec!["utils".to_string(), "math".to_string()],
+            wildcard: true,
+            items: vec![],
         }
     );
 }
@@ -137,7 +156,10 @@ fn main() -> Int { return 0; }
     let program = parse_ok(src);
     assert_eq!(program.exports.len(), 1);
     assert_eq!(
-        program.exports[0].items,
+        match &program.exports[0] {
+            skeplib::ast::ExportDecl::Local { items } => items.clone(),
+            _ => panic!("expected local export"),
+        },
         vec![
             skeplib::ast::ExportItem {
                 name: "add".to_string(),
@@ -164,7 +186,10 @@ fn main() -> Int { return 0; }
     let program = parse_ok(src);
     assert_eq!(program.exports.len(), 1);
     assert_eq!(
-        program.exports[0].items,
+        match &program.exports[0] {
+            skeplib::ast::ExportDecl::Local { items } => items.clone(),
+            _ => panic!("expected local export"),
+        },
         vec![
             skeplib::ast::ExportItem {
                 name: "add".to_string(),
@@ -176,6 +201,39 @@ fn main() -> Int { return 0; }
             },
         ]
     );
+}
+
+#[test]
+fn parses_export_from_clause() {
+    let src = r#"
+export { add as plus } from utils.math;
+fn main() -> Int { return 0; }
+"#;
+    let program = parse_ok(src);
+    match &program.exports[0] {
+        skeplib::ast::ExportDecl::From { path, items } => {
+            assert_eq!(path, &vec!["utils".to_string(), "math".to_string()]);
+            assert_eq!(items.len(), 1);
+            assert_eq!(items[0].name, "add");
+            assert_eq!(items[0].alias.as_deref(), Some("plus"));
+        }
+        _ => panic!("expected export-from"),
+    }
+}
+
+#[test]
+fn parses_export_all_from_clause() {
+    let src = r#"
+export * from utils.math;
+fn main() -> Int { return 0; }
+"#;
+    let program = parse_ok(src);
+    match &program.exports[0] {
+        skeplib::ast::ExportDecl::FromAll { path } => {
+            assert_eq!(path, &vec!["utils".to_string(), "math".to_string()]);
+        }
+        _ => panic!("expected export-all-from"),
+    }
 }
 
 #[test]
@@ -199,17 +257,14 @@ fn main() -> Int { return 0; }
 }
 
 #[test]
-fn reports_multiple_export_blocks_in_one_file() {
+fn accepts_multiple_export_blocks_in_one_file() {
     let src = r#"
 export { a };
 export { b };
 fn main() -> Int { return 0; }
 "#;
-    let diags = parse_err(src);
-    assert_has_diag(
-        &diags,
-        "Only one `export { ... };` block is allowed per file",
-    );
+    let program = parse_ok(src);
+    assert_eq!(program.exports.len(), 2);
 }
 
 #[test]

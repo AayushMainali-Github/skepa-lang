@@ -212,3 +212,28 @@ fn main() -> Int {
     assert!(!res.has_errors, "diagnostics: {:?}", diags.as_slice());
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn sema_project_accepts_wildcard_import_through_re_export() {
+    let root = make_temp_dir("wildcard_reexport");
+    fs::write(
+        root.join("a.sk"),
+        r#"
+fn add(a: Int, b: Int) -> Int { return a + b; }
+export { add };
+"#,
+    )
+    .expect("write a");
+    fs::write(root.join("b.sk"), "export * from a;\n").expect("write b");
+    fs::write(
+        root.join("main.sk"),
+        r#"
+from b import *;
+fn main() -> Int { return add(20, 22); }
+"#,
+    )
+    .expect("write main");
+    let (res, diags) = analyze_project_entry(&root.join("main.sk")).expect("resolver/sema");
+    assert!(!res.has_errors, "diagnostics: {:?}", diags.as_slice());
+    let _ = fs::remove_dir_all(root);
+}

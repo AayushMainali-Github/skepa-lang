@@ -156,7 +156,11 @@ impl Compiler {
                             self.module_namespaces.insert(ns, mapped);
                         }
                     }
-                    crate::ast::ImportDecl::ImportFrom { path, items } => {
+                    crate::ast::ImportDecl::ImportFrom {
+                        path,
+                        wildcard: _,
+                        items,
+                    } => {
                         let prefix = path.join(".");
                         for item in items {
                             let local = item.alias.clone().unwrap_or_else(|| item.name.clone());
@@ -872,28 +876,54 @@ fn compile_project_graph(graph: &ModuleGraph, entry: &Path) -> Result<BytecodeMo
 
         for imp in &program.imports {
             match imp {
-                crate::ast::ImportDecl::ImportFrom { path, items } => {
+                crate::ast::ImportDecl::ImportFrom {
+                    path,
+                    wildcard,
+                    items,
+                } => {
                     let target = path.join(".");
                     let Some(exports) = export_maps.get(&target) else {
                         continue;
                     };
-                    for item in items {
-                        let local = item.alias.clone().unwrap_or_else(|| item.name.clone());
-                        if let Some(sym) = exports.get(&item.name) {
+                    if *wildcard {
+                        for (name, sym) in exports {
                             match sym.kind {
                                 crate::resolver::SymbolKind::Fn => {
                                     c.direct_import_calls.insert(
-                                        local,
+                                        name.clone(),
                                         format!("{}::{}", sym.module_id, sym.local_name),
                                     );
                                 }
                                 crate::resolver::SymbolKind::Struct => {
                                     c.imported_struct_runtime.insert(
-                                        local,
+                                        name.clone(),
                                         format!("{}::{}", sym.module_id, sym.local_name),
                                     );
                                 }
-                                crate::resolver::SymbolKind::GlobalLet => {}
+                                crate::resolver::SymbolKind::GlobalLet
+                                | crate::resolver::SymbolKind::Namespace => {}
+                            }
+                        }
+                    } else {
+                        for item in items {
+                            let local = item.alias.clone().unwrap_or_else(|| item.name.clone());
+                            if let Some(sym) = exports.get(&item.name) {
+                                match sym.kind {
+                                    crate::resolver::SymbolKind::Fn => {
+                                        c.direct_import_calls.insert(
+                                            local,
+                                            format!("{}::{}", sym.module_id, sym.local_name),
+                                        );
+                                    }
+                                    crate::resolver::SymbolKind::Struct => {
+                                        c.imported_struct_runtime.insert(
+                                            local,
+                                            format!("{}::{}", sym.module_id, sym.local_name),
+                                        );
+                                    }
+                                    crate::resolver::SymbolKind::GlobalLet
+                                    | crate::resolver::SymbolKind::Namespace => {}
+                                }
                             }
                         }
                     }

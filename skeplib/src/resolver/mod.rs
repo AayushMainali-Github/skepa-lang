@@ -26,6 +26,7 @@ pub enum SymbolKind {
     Fn,
     Struct,
     GlobalLet,
+    Namespace,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -251,24 +252,148 @@ fn find_import_line_col(source: &str, import_text: &str) -> Option<(usize, usize
     None
 }
 
-fn build_export_maps(graph: &ModuleGraph) -> Result<HashMap<ModuleId, ExportMap>, Vec<ResolveError>> {
-    let mut out = HashMap::new();
-    let mut errors = Vec::new();
-    for (id, unit) in &graph.modules {
+pub fn build_export_maps(graph: &ModuleGraph) -> Result<HashMap<ModuleId, ExportMap>, Vec<ResolveError>> {
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum Mark {
+        Visiting,
+        Done,
+    }
+    let mut out = HashMap::<ModuleId, ExportMap>::new();
+    let mut marks = HashMap::<ModuleId, Mark>::new();
+    let mut stack = Vec::<ModuleId>::new();
+    let mut errors = Vec::<ResolveError>::new();
+
+    fn visit(
+        id: &str,
+        graph: &ModuleGraph,
+        out: &mut HashMap<ModuleId, ExportMap>,
+        marks: &mut HashMap<ModuleId, Mark>,
+        stack: &mut Vec<ModuleId>,
+        errors: &mut Vec<ResolveError>,
+    ) {
+        if matches!(marks.get(id), Some(Mark::Done)) {
+            return;
+        }
+        if matches!(marks.get(id), Some(Mark::Visiting)) {
+            let mut cycle = stack.clone();
+            cycle.push(id.to_string());
+            errors.push(ResolveError::new(
+                ResolveErrorKind::Cycle,
+                format!("Circular re-export detected: {}", cycle.join(" -> ")),
+                graph.modules.get(id).map(|u| u.path.clone()),
+            ));
+            return;
+        }
+        let Some(unit) = graph.modules.get(id) else {
+            return;
+        };
+        marks.insert(id.to_string(), Mark::Visiting);
+        stack.push(id.to_string());
         let (program, _diags) = Parser::parse_source(&unit.source);
         let symbols = collect_module_symbols(&program, id);
-        match validate_and_build_export_map(&program, &symbols, id, &unit.path) {
-            Ok(map) => {
-                out.insert(id.clone(), map);
+        let mut map = match validate_and_build_export_map(&program, &symbols, id, &unit.path) {
+            Ok(m) => m,
+            Err(mut e) => {
+                errors.append(&mut e);
+                HashMap::new()
             }
-            Err(mut e) => errors.append(&mut e),
+        };
+
+        for ex in &program.exports {
+            match ex {
+                crate::ast::ExportDecl::From { path, items } => {
+                    let deps = resolve_import_module_targets(graph, path);
+                    if deps.len() != 1 {
+                        errors.push(ResolveError::new(
+                            ResolveErrorKind::AmbiguousModule,
+                            format!(
+                                "re-export source `{}` in module `{}` must resolve to a single module",
+                                path.join("."),
+                                id
+                            ),
+                            Some(unit.path.clone()),
+                        ));
+                        continue;
+                    }
+                    let dep = deps[0].clone();
+                    visit(&dep, graph, out, marks, stack, errors);
+                    let Some(dep_map) = out.get(&dep) else {
+                        continue;
+                    };
+                    for item in items {
+                        let export_name = item.alias.clone().unwrap_or_else(|| item.name.clone());
+                        let Some(sym) = dep_map.get(&item.name).cloned() else {
+                            errors.push(ResolveError::new(
+                                ResolveErrorKind::MissingModule,
+                                format!(
+                                    "Cannot re-export `{}` from `{}` in module `{}`: symbol is not exported",
+                                    item.name,
+                                    path.join("."),
+                                    id
+                                ),
+                                Some(unit.path.clone()),
+                            ));
+                            continue;
+                        };
+                        if map.insert(export_name.clone(), sym).is_some() {
+                            errors.push(ResolveError::new(
+                                ResolveErrorKind::DuplicateModuleId,
+                                format!(
+                                    "Duplicate exported target name `{}` in module `{}`",
+                                    export_name, id
+                                ),
+                                Some(unit.path.clone()),
+                            ));
+                        }
+                    }
+                }
+                crate::ast::ExportDecl::FromAll { path } => {
+                    let deps = resolve_import_module_targets(graph, path);
+                    if deps.len() != 1 {
+                        errors.push(ResolveError::new(
+                            ResolveErrorKind::AmbiguousModule,
+                            format!(
+                                "re-export source `{}` in module `{}` must resolve to a single module",
+                                path.join("."),
+                                id
+                            ),
+                            Some(unit.path.clone()),
+                        ));
+                        continue;
+                    }
+                    let dep = deps[0].clone();
+                    visit(&dep, graph, out, marks, stack, errors);
+                    let Some(dep_map) = out.get(&dep) else {
+                        continue;
+                    };
+                    for (name, sym) in dep_map {
+                        if map.insert(name.clone(), sym.clone()).is_some() {
+                            errors.push(ResolveError::new(
+                                ResolveErrorKind::DuplicateModuleId,
+                                format!(
+                                    "Duplicate exported target name `{}` in module `{}`",
+                                    name, id
+                                ),
+                                Some(unit.path.clone()),
+                            ));
+                        }
+                    }
+                }
+                crate::ast::ExportDecl::Local { .. } => {}
+            }
         }
+
+        out.insert(id.to_string(), map);
+        stack.pop();
+        marks.insert(id.to_string(), Mark::Done);
     }
-    if errors.is_empty() {
-        Ok(out)
-    } else {
-        Err(errors)
+
+    let mut ids = graph.modules.keys().cloned().collect::<Vec<_>>();
+    ids.sort();
+    for id in ids {
+        visit(&id, graph, &mut out, &mut marks, &mut stack, &mut errors);
     }
+    if errors.is_empty() { Ok(out) } else { Err(errors) }
 }
 
 fn resolve_import_module_targets(graph: &ModuleGraph, import_path: &[String]) -> Vec<ModuleId> {
@@ -313,7 +438,11 @@ fn validate_import_bindings(
                     }
                     let _ = resolve_import_module_targets(graph, path);
                 }
-                ImportDecl::ImportFrom { path, items } => {
+                ImportDecl::ImportFrom {
+                    path,
+                    wildcard,
+                    items,
+                } => {
                     let targets = resolve_import_module_targets(graph, path);
                     if targets.is_empty() {
                         errors.push(ResolveError::new(
@@ -345,30 +474,49 @@ fn validate_import_bindings(
                         None => continue,
                     };
 
-                    for item in items {
-                        if !exports.contains_key(&item.name) {
-                            errors.push(ResolveError::new(
-                                ResolveErrorKind::MissingModule,
-                                format!(
-                                    "Cannot import `{}` from `{}` in module `{}`: symbol is not exported",
-                                    item.name,
-                                    path.join("."),
-                                    id
-                                ),
-                                Some(unit.path.clone()),
-                            ));
-                            continue;
+                    if *wildcard {
+                        let mut names = exports.keys().cloned().collect::<Vec<_>>();
+                        names.sort();
+                        for local in names {
+                            if let Some(prev) = bound_names
+                                .insert(local.clone(), "from-import wildcard".to_string())
+                            {
+                                errors.push(ResolveError::new(
+                                    ResolveErrorKind::DuplicateModuleId,
+                                    format!(
+                                        "Duplicate imported binding `{}` in module `{}` (conflicts with {})",
+                                        local, id, prev
+                                    ),
+                                    Some(unit.path.clone()),
+                                ));
+                            }
                         }
-                        let local = item.alias.clone().unwrap_or_else(|| item.name.clone());
-                        if let Some(prev) = bound_names.insert(local.clone(), "from-import".to_string()) {
-                            errors.push(ResolveError::new(
-                                ResolveErrorKind::DuplicateModuleId,
-                                format!(
-                                    "Duplicate imported binding `{}` in module `{}` (conflicts with {})",
-                                    local, id, prev
-                                ),
-                                Some(unit.path.clone()),
-                            ));
+                    } else {
+                        for item in items {
+                            if !exports.contains_key(&item.name) {
+                                errors.push(ResolveError::new(
+                                    ResolveErrorKind::MissingModule,
+                                    format!(
+                                        "Cannot import `{}` from `{}` in module `{}`: symbol is not exported",
+                                        item.name,
+                                        path.join("."),
+                                        id
+                                    ),
+                                    Some(unit.path.clone()),
+                                ));
+                                continue;
+                            }
+                            let local = item.alias.clone().unwrap_or_else(|| item.name.clone());
+                            if let Some(prev) = bound_names.insert(local.clone(), "from-import".to_string()) {
+                                errors.push(ResolveError::new(
+                                    ResolveErrorKind::DuplicateModuleId,
+                                    format!(
+                                        "Duplicate imported binding `{}` in module `{}` (conflicts with {})",
+                                        local, id, prev
+                                    ),
+                                    Some(unit.path.clone()),
+                                ));
+                            }
                         }
                     }
                 }
@@ -430,6 +578,13 @@ pub fn collect_import_module_paths(program: &Program) -> Vec<Vec<String>> {
             ImportDecl::ImportFrom { path, .. } => out.push(path.clone()),
         }
     }
+    for export in &program.exports {
+        match export {
+            crate::ast::ExportDecl::From { path, .. }
+            | crate::ast::ExportDecl::FromAll { path } => out.push(path.clone()),
+            crate::ast::ExportDecl::Local { .. } => {}
+        }
+    }
     out
 }
 
@@ -482,29 +637,46 @@ pub fn validate_and_build_export_map(
     }
 
     for export_decl in &program.exports {
-        for item in &export_decl.items {
-            let export_name = item.alias.as_ref().unwrap_or(&item.name).clone();
-            let Some(sym) = symbols.locals.get(&item.name).cloned() else {
-                errors.push(ResolveError::new(
-                    ResolveErrorKind::MissingModule,
-                    format!(
-                        "Exported name `{}` does not exist in module `{}`",
-                        item.name, module_id
-                    ),
-                    Some(module_path.to_path_buf()),
-                ));
-                continue;
-            };
+        if let crate::ast::ExportDecl::Local { items } = export_decl {
+            for item in items {
+                let export_name = item.alias.as_ref().unwrap_or(&item.name).clone();
+                let sym = if let Some(sym) = symbols.locals.get(&item.name).cloned() {
+                    Some(sym)
+                } else if let Some(crate::ast::ImportDecl::ImportModule { path, .. }) = program
+                    .imports
+                    .iter()
+                    .find(|i| matches!(i, crate::ast::ImportDecl::ImportModule { alias, path } if alias.as_deref() == Some(item.name.as_str()) || path.first().is_some_and(|p| p == &item.name)))
+                {
+                    Some(SymbolRef {
+                        module_id: module_id.to_string(),
+                        local_name: path.join("."),
+                        kind: SymbolKind::Namespace,
+                    })
+                } else {
+                    None
+                };
+                let Some(sym) = sym else {
+                    errors.push(ResolveError::new(
+                        ResolveErrorKind::MissingModule,
+                        format!(
+                            "Exported name `{}` does not exist in module `{}`",
+                            item.name, module_id
+                        ),
+                        Some(module_path.to_path_buf()),
+                    ));
+                    continue;
+                };
 
-            if export_map.insert(export_name.clone(), sym).is_some() {
-                errors.push(ResolveError::new(
-                    ResolveErrorKind::DuplicateModuleId,
-                    format!(
-                        "Duplicate exported target name `{}` in module `{}`",
-                        export_name, module_id
-                    ),
-                    Some(module_path.to_path_buf()),
-                ));
+                if export_map.insert(export_name.clone(), sym).is_some() {
+                    errors.push(ResolveError::new(
+                        ResolveErrorKind::DuplicateModuleId,
+                        format!(
+                            "Duplicate exported target name `{}` in module `{}`",
+                            export_name, module_id
+                        ),
+                        Some(module_path.to_path_buf()),
+                    ));
+                }
             }
         }
     }
