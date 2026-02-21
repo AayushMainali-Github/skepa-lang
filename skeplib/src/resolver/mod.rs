@@ -40,6 +40,8 @@ pub struct ModuleSymbols {
     pub locals: HashMap<String, SymbolRef>,
 }
 
+pub type ExportMap = HashMap<String, SymbolRef>;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ResolveErrorKind {
     MissingModule,
@@ -272,6 +274,54 @@ pub fn collect_module_symbols(program: &Program, module_id: &str) -> ModuleSymbo
         );
     }
     ModuleSymbols { locals }
+}
+
+pub fn validate_and_build_export_map(
+    program: &Program,
+    symbols: &ModuleSymbols,
+    module_id: &str,
+    module_path: &Path,
+) -> Result<ExportMap, Vec<ResolveError>> {
+    let mut export_map = HashMap::new();
+    let mut errors = Vec::new();
+
+    if program.exports.is_empty() {
+        return Ok(export_map);
+    }
+
+    for export_decl in &program.exports {
+        for item in &export_decl.items {
+            let export_name = item.alias.as_ref().unwrap_or(&item.name).clone();
+            let Some(sym) = symbols.locals.get(&item.name).cloned() else {
+                errors.push(ResolveError::new(
+                    ResolveErrorKind::MissingModule,
+                    format!(
+                        "Exported name `{}` does not exist in module `{}`",
+                        item.name, module_id
+                    ),
+                    Some(module_path.to_path_buf()),
+                ));
+                continue;
+            };
+
+            if export_map.insert(export_name.clone(), sym).is_some() {
+                errors.push(ResolveError::new(
+                    ResolveErrorKind::DuplicateModuleId,
+                    format!(
+                        "Duplicate exported target name `{}` in module `{}`",
+                        export_name, module_id
+                    ),
+                    Some(module_path.to_path_buf()),
+                ));
+            }
+        }
+    }
+
+    if errors.is_empty() {
+        Ok(export_map)
+    } else {
+        Err(errors)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

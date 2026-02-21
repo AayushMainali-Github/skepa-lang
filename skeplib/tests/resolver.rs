@@ -1,8 +1,9 @@
 use skeplib::parser::Parser;
 use skeplib::resolver::{
-    ImportTarget, ModuleGraph, ModuleUnit, ResolveErrorKind, SymbolKind, collect_import_module_paths,
-    collect_module_symbols, module_id_from_relative_path, module_path_from_import,
-    resolve_import_target, resolve_project, scan_folder_modules,
+    ImportTarget, ModuleGraph, ModuleUnit, ResolveErrorKind, SymbolKind,
+    collect_import_module_paths, collect_module_symbols, module_id_from_relative_path,
+    module_path_from_import, resolve_import_target, resolve_project, scan_folder_modules,
+    validate_and_build_export_map,
 };
 use std::collections::HashMap;
 use std::fs;
@@ -90,6 +91,59 @@ fn main() -> Int { return 0; }
     assert_eq!(symbols.locals["User"].kind, SymbolKind::Struct);
     assert_eq!(symbols.locals["add"].kind, SymbolKind::Fn);
     assert_eq!(symbols.locals["main"].kind, SymbolKind::Fn);
+}
+
+#[test]
+fn validate_and_build_export_map_accepts_valid_exports() {
+    let src = r#"
+struct User { id: Int }
+fn add(a: Int, b: Int) -> Int { return a + b; }
+export { add as plus, User };
+fn main() -> Int { return 0; }
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    let symbols = collect_module_symbols(&program, "main");
+    let map = validate_and_build_export_map(&program, &symbols, "main", Path::new("main.sk"))
+        .expect("valid exports");
+    assert_eq!(map.len(), 2);
+    assert_eq!(map["plus"].local_name, "add");
+    assert_eq!(map["User"].local_name, "User");
+}
+
+#[test]
+fn validate_and_build_export_map_rejects_unknown_exported_name() {
+    let src = r#"
+fn add(a: Int, b: Int) -> Int { return a + b; }
+export { nope };
+fn main() -> Int { return 0; }
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    let symbols = collect_module_symbols(&program, "main");
+    let errs = validate_and_build_export_map(&program, &symbols, "main", Path::new("main.sk"))
+        .expect_err("unknown export should fail");
+    assert!(errs
+        .iter()
+        .any(|e| e.message.contains("Exported name `nope` does not exist")));
+}
+
+#[test]
+fn validate_and_build_export_map_rejects_duplicate_exported_target_name() {
+    let src = r#"
+fn add(a: Int, b: Int) -> Int { return a + b; }
+fn sub(a: Int, b: Int) -> Int { return a - b; }
+export { add as x, sub as x };
+fn main() -> Int { return 0; }
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    let symbols = collect_module_symbols(&program, "main");
+    let errs = validate_and_build_export_map(&program, &symbols, "main", Path::new("main.sk"))
+        .expect_err("duplicate export target should fail");
+    assert!(errs
+        .iter()
+        .any(|e| e.message.contains("Duplicate exported target name `x`")));
 }
 
 fn make_temp_dir(label: &str) -> std::path::PathBuf {
