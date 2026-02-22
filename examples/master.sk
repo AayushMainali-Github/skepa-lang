@@ -57,6 +57,9 @@ fn main() -> Int {
   if (str.len(cwd) <= 0 || str.len(platform) <= 0) {
     return 91;
   }
+  if (fs.exists(scratchDir)) {
+    return 93;
+  }
   fs.mkdirAll(scratchDir);
   fs.writeText(scratchFile, "sk");
   fs.appendText(scratchFile, "epa");

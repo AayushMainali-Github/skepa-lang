@@ -387,6 +387,7 @@ Signatures:
 Behavior:
 - All `fs` functions are synchronous/blocking.
 - `fs.exists` returns `true` for existing files/directories and `false` for missing paths.
+- `fs.exists` raises a runtime error if path existence cannot be checked due to a host filesystem error.
 - `fs.readText` reads the full file as UTF-8 text.
 - `fs.writeText` creates or overwrites a file.
 - `fs.appendText` appends to a file and creates it if missing.

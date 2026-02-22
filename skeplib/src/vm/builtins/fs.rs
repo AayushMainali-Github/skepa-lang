@@ -26,7 +26,10 @@ fn builtin_fs_exists(_host: &mut dyn BuiltinHost, _args: Vec<Value>) -> Result<V
             "fs.exists expects String argument",
         ));
     };
-    Ok(Value::Bool(std::path::Path::new(path).exists()))
+    let exists = std::path::Path::new(path)
+        .try_exists()
+        .map_err(|e| VmError::new(VmErrorKind::HostError, format!("fs.exists failed: {e}")))?;
+    Ok(Value::Bool(exists))
 }
 
 fn builtin_fs_read_text(_host: &mut dyn BuiltinHost, _args: Vec<Value>) -> Result<Value, VmError> {
