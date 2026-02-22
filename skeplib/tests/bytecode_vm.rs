@@ -1452,6 +1452,46 @@ fn main() -> Int {
 }
 
 #[test]
+fn vm_runs_os_exec_shell_and_returns_exit_code() {
+    let cmd = if cfg!(target_os = "windows") {
+        "exit /b 0"
+    } else {
+        "exit 0"
+    };
+    let src = format!(
+        r#"
+import os;
+fn main() -> Int {{
+  return os.execShell("{cmd}");
+}}
+"#
+    );
+    let module = compile_source(&src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(0));
+}
+
+#[test]
+fn vm_os_exec_shell_returns_non_zero_exit_code() {
+    let cmd = if cfg!(target_os = "windows") {
+        "exit /b 7"
+    } else {
+        "exit 7"
+    };
+    let src = format!(
+        r#"
+import os;
+fn main() -> Int {{
+  return os.execShell("{cmd}");
+}}
+"#
+    );
+    let module = compile_source(&src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(7));
+}
+
+#[test]
 fn disassemble_outputs_named_instructions() {
     let src = r#"
 fn main() -> Int {

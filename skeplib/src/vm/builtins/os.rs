@@ -17,6 +17,18 @@ fn not_implemented(name: &str) -> Result<Value, VmError> {
     ))
 }
 
+fn shell_command(cmd: &str) -> std::process::Command {
+    if cfg!(target_os = "windows") {
+        let mut c = std::process::Command::new("cmd");
+        c.arg("/C").arg(cmd);
+        c
+    } else {
+        let mut c = std::process::Command::new("sh");
+        c.arg("-c").arg(cmd);
+        c
+    }
+}
+
 fn builtin_os_cwd(_host: &mut dyn BuiltinHost, _args: Vec<Value>) -> Result<Value, VmError> {
     if !_args.is_empty() {
         return Err(VmError::new(
@@ -74,7 +86,22 @@ fn builtin_os_exec_shell(
     _host: &mut dyn BuiltinHost,
     _args: Vec<Value>,
 ) -> Result<Value, VmError> {
-    not_implemented("os.execShell")
+    if _args.len() != 1 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "os.execShell expects 1 argument",
+        ));
+    }
+    let Value::String(cmd) = &_args[0] else {
+        return Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "os.execShell expects String argument",
+        ));
+    };
+    let status = shell_command(cmd)
+        .status()
+        .map_err(|e| VmError::new(VmErrorKind::HostError, format!("os.execShell failed: {e}")))?;
+    Ok(Value::Int(status.code().unwrap_or(-1) as i64))
 }
 
 fn builtin_os_exec_shell_out(
