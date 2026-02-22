@@ -1,6 +1,7 @@
 import io;
 import str;
 import arr;
+import os;
 
 struct Op {
   apply: Fn(Int, Int) -> Int
@@ -47,6 +48,12 @@ fn main() -> Int {
   grid[1][0] = nums[1];
 
   let s = "skepa";
+  let cwd = os.cwd();
+  let platform = os.platform();
+  os.sleep(1);
+  if (str.len(cwd) <= 0 || str.len(platform) <= 0) {
+    return 91;
+  }
   let total = acc + nums[1] + grid[1][0] + 4 + str.len(s) + cnt2 + firstx + lastx + via_f + via_arr + via_field;
   io.println("master example done");
 

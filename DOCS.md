@@ -238,33 +238,6 @@ Short-circuit:
 - `random`: deterministic seed + random int/float
 - `os`: basic host/process helpers (`cwd`, `platform`, `sleep`, `execShell`, `execShellOut`)
 
-### 7.1 `os` (Minimal)
-
-Signatures:
-- `os.cwd() -> String`
-- `os.platform() -> String`
-- `os.sleep(ms: Int) -> Void`
-- `os.execShell(cmd: String) -> Int`
-- `os.execShellOut(cmd: String) -> String`
-
-Behavior:
-- All `os` functions are synchronous/blocking.
-- `os.platform()` returns one of:
-  - `windows`
-  - `linux`
-  - `macos`
-- `os.sleep(ms)` requires non-negative milliseconds; negative values raise a runtime error.
-- `os.execShell(cmd)` runs through the platform shell and returns the process exit code.
-- `os.execShellOut(cmd)` runs through the platform shell and returns stdout as `String` (stdout must be valid UTF-8).
-
-Shell wrapper:
-- Windows: `cmd /C <cmd>`
-- Linux/macOS: `sh -c <cmd>`
-
-Notes:
-- `os.execShell*` can be dangerous with untrusted input (shell injection risk).
-- On platforms where the process exits without a normal exit code, `os.execShell` returns `-1`.
-
 ## 8. Diagnostics (Module/Import/Export)
 
 Stable error codes:
