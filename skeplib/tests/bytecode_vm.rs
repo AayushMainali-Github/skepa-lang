@@ -1683,18 +1683,116 @@ fn main() -> String {
 }
 
 #[test]
-fn vm_fs_unimplemented_builtin_is_still_registered() {
+fn vm_runs_fs_mkdir_all_and_remove_dir_all() {
+    let root = make_temp_dir("fs_mkdir_remove_dir");
+    let nested = root.join("a").join("b").join("c");
+    let nested_s = sk_string_escape(&nested.display().to_string());
+    let root_s = sk_string_escape(&root.display().to_string());
+    let src = format!(
+        r#"
+import fs;
+fn main() -> Int {{
+  fs.mkdirAll("{0}");
+  if (!fs.exists("{0}")) {{
+    return 1;
+  }}
+  fs.removeDirAll("{1}");
+  if (fs.exists("{1}")) {{
+    return 2;
+  }}
+  return 0;
+}}
+"#,
+        nested_s, root_s
+    );
+    let module = compile_source(&src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(0));
+}
+
+#[test]
+fn vm_runs_fs_remove_file() {
+    let root = make_temp_dir("fs_remove_file");
+    let file = root.join("x.txt");
+    let file_s = sk_string_escape(&file.display().to_string());
+    fs::write(&file, "x").expect("seed file");
+    let src = format!(
+        r#"
+import fs;
+fn main() -> Int {{
+  fs.removeFile("{0}");
+  if (fs.exists("{0}")) {{
+    return 1;
+  }}
+  return 0;
+}}
+"#,
+        file_s
+    );
+    let module = compile_source(&src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(0));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn vm_fs_remove_file_missing_path_errors() {
     let src = r#"
 import fs;
 fn main() -> Int {
-  fs.mkdirAll("x");
+  fs.removeFile("definitely_missing_file_123456.tmp");
   return 0;
 }
 "#;
     let module = compile_source(src).expect("compile");
-    let err = Vm::run_module_main(&module).expect_err("fs.mkdirAll should be stubbed");
+    let err = Vm::run_module_main(&module).expect_err("expected removeFile error");
     assert_eq!(err.kind, VmErrorKind::HostError);
-    assert!(err.message.contains("fs.mkdirAll not implemented yet"));
+    assert!(err.message.contains("fs.removeFile failed"));
+}
+
+#[test]
+fn vm_fs_remove_dir_all_missing_path_errors() {
+    let src = r#"
+import fs;
+fn main() -> Int {
+  fs.removeDirAll("definitely_missing_dir_123456");
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("expected removeDirAll error");
+    assert_eq!(err.kind, VmErrorKind::HostError);
+    assert!(err.message.contains("fs.removeDirAll failed"));
+}
+
+#[test]
+fn vm_fs_mkdir_all_rejects_wrong_type() {
+    let src = r#"
+import fs;
+fn main() -> Int {
+  fs.mkdirAll(1);
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("expected type error");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
+    assert!(err.message.contains("fs.mkdirAll expects String argument"));
+}
+
+#[test]
+fn vm_fs_remove_dir_all_rejects_wrong_arity() {
+    let src = r#"
+import fs;
+fn main() -> Int {
+  fs.removeDirAll();
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("expected arity error");
+    assert_eq!(err.kind, VmErrorKind::ArityMismatch);
+    assert!(err.message.contains("fs.removeDirAll expects 1 argument"));
 }
 
 #[test]

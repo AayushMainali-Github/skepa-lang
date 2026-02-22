@@ -120,21 +120,64 @@ fn builtin_fs_mkdir_all(
     _host: &mut dyn BuiltinHost,
     _args: Vec<Value>,
 ) -> Result<Value, VmError> {
-    not_implemented("fs.mkdirAll")
+    if _args.len() != 1 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "fs.mkdirAll expects 1 argument",
+        ));
+    }
+    let Value::String(path) = &_args[0] else {
+        return Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "fs.mkdirAll expects String argument",
+        ));
+    };
+    std::fs::create_dir_all(path)
+        .map_err(|e| VmError::new(VmErrorKind::HostError, format!("fs.mkdirAll failed: {e}")))?;
+    Ok(Value::Unit)
 }
 
 fn builtin_fs_remove_file(
     _host: &mut dyn BuiltinHost,
     _args: Vec<Value>,
 ) -> Result<Value, VmError> {
-    not_implemented("fs.removeFile")
+    if _args.len() != 1 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "fs.removeFile expects 1 argument",
+        ));
+    }
+    let Value::String(path) = &_args[0] else {
+        return Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "fs.removeFile expects String argument",
+        ));
+    };
+    std::fs::remove_file(path)
+        .map_err(|e| VmError::new(VmErrorKind::HostError, format!("fs.removeFile failed: {e}")))?;
+    Ok(Value::Unit)
 }
 
 fn builtin_fs_remove_dir_all(
     _host: &mut dyn BuiltinHost,
     _args: Vec<Value>,
 ) -> Result<Value, VmError> {
-    not_implemented("fs.removeDirAll")
+    if _args.len() != 1 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "fs.removeDirAll expects 1 argument",
+        ));
+    }
+    let Value::String(path) = &_args[0] else {
+        return Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "fs.removeDirAll expects String argument",
+        ));
+    };
+    std::fs::remove_dir_all(path).map_err(|e| {
+        VmError::new(VmErrorKind::HostError, format!("fs.removeDirAll failed: {e}"))
+    })?;
+    Ok(Value::Unit)
 }
 
 fn builtin_fs_join(_host: &mut dyn BuiltinHost, _args: Vec<Value>) -> Result<Value, VmError> {
