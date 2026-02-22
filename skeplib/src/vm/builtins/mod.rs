@@ -1,5 +1,6 @@
 mod arr;
 mod datetime;
+mod fs;
 mod io;
 mod os;
 mod random;
@@ -25,6 +26,7 @@ impl BuiltinRegistry {
         str::register(&mut r);
         arr::register(&mut r);
         datetime::register(&mut r);
+        fs::register(&mut r);
         os::register(&mut r);
         random::register(&mut r);
         r

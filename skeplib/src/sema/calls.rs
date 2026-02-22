@@ -7,6 +7,7 @@ use crate::types::TypeInfo;
 use super::Checker;
 mod arr;
 mod datetime;
+mod fs;
 mod io;
 mod os;
 mod random;
@@ -58,7 +59,8 @@ impl Checker {
                 || parts[0] == "arr"
                 || parts[0] == "datetime"
                 || parts[0] == "random"
-                || parts[0] == "os")
+                || parts[0] == "os"
+                || parts[0] == "fs")
         {
             return self.check_builtin_call(&parts[0], &parts[1], args, scopes);
         }
@@ -275,6 +277,7 @@ impl Checker {
             "random" => {
                 return random::check_random_builtin(self, method, args, scopes, sig);
             }
+            "fs" => return fs::check_fs_builtin(self, method, args, scopes, sig),
             "os" => return os::check_os_builtin(self, method, args, scopes, sig),
             _ => {}
         }

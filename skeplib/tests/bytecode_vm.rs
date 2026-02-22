@@ -1607,6 +1607,20 @@ fn main() -> Int {
 }
 
 #[test]
+fn vm_fs_builtin_is_registered_before_runtime_impl() {
+    let src = r#"
+import fs;
+fn main() -> Bool {
+  return fs.exists("nope");
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("fs builtin should be stubbed");
+    assert_eq!(err.kind, VmErrorKind::HostError);
+    assert!(err.message.contains("fs.exists not implemented yet"));
+}
+
+#[test]
 fn disassemble_outputs_named_instructions() {
     let src = r#"
 fn main() -> Int {

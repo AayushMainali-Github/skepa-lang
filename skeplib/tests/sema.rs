@@ -1763,6 +1763,29 @@ fn main() -> Int {
   let x: Int = os.platform();
   return x;
 }
+
+#[test]
+fn sema_accepts_minimal_fs_builtin_signatures() {
+    let src = r#"
+import fs;
+fn main() -> Int {
+  let ex: Bool = fs.exists("a");
+  let p: String = fs.join("a", "b");
+  let t: String = fs.readText("a.txt");
+  fs.writeText("a.txt", "x");
+  fs.appendText("a.txt", "y");
+  fs.mkdirAll("tmp/a/b");
+  fs.removeFile("a.txt");
+  fs.removeDirAll("tmp");
+  if (ex || fs.exists(p) || (t == "")) {
+    return 0;
+  }
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
