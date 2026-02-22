@@ -1492,6 +1492,57 @@ fn main() -> Int {{
 }
 
 #[test]
+fn vm_runs_os_exec_shell_out_and_captures_stdout() {
+    let cmd = if cfg!(target_os = "windows") {
+        "echo hello"
+    } else {
+        "printf hello"
+    };
+    let src = format!(
+        r#"
+import os;
+fn main() -> String {{
+  return os.execShellOut("{cmd}");
+}}
+"#
+    );
+    let module = compile_source(&src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    match out {
+        Value::String(s) => assert!(s.contains("hello")),
+        other => panic!("expected String from os.execShellOut, got {:?}", other),
+    }
+}
+
+#[test]
+fn vm_os_exec_shell_out_rejects_wrong_arity() {
+    let src = r#"
+import os;
+fn main() -> String {
+  return os.execShellOut();
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("expected arity error");
+    assert_eq!(err.kind, VmErrorKind::ArityMismatch);
+    assert!(err.message.contains("os.execShellOut expects 1 argument"));
+}
+
+#[test]
+fn vm_os_exec_shell_rejects_wrong_type() {
+    let src = r#"
+import os;
+fn main() -> Int {
+  return os.execShell(1);
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("expected type error");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
+    assert!(err.message.contains("os.execShell expects String argument"));
+}
+
+#[test]
 fn disassemble_outputs_named_instructions() {
     let src = r#"
 fn main() -> Int {

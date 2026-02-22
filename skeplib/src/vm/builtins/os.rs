@@ -108,5 +108,26 @@ fn builtin_os_exec_shell_out(
     _host: &mut dyn BuiltinHost,
     _args: Vec<Value>,
 ) -> Result<Value, VmError> {
-    not_implemented("os.execShellOut")
+    if _args.len() != 1 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "os.execShellOut expects 1 argument",
+        ));
+    }
+    let Value::String(cmd) = &_args[0] else {
+        return Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "os.execShellOut expects String argument",
+        ));
+    };
+    let out = shell_command(cmd)
+        .output()
+        .map_err(|e| VmError::new(VmErrorKind::HostError, format!("os.execShellOut failed: {e}")))?;
+    let stdout = String::from_utf8(out.stdout).map_err(|e| {
+        VmError::new(
+            VmErrorKind::HostError,
+            format!("os.execShellOut stdout is not valid UTF-8: {e}"),
+        )
+    })?;
+    Ok(Value::String(stdout))
 }
