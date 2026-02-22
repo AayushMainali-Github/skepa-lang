@@ -1462,7 +1462,10 @@ fn main() -> Int {
     let module = compile_source(src).expect("compile");
     let err = Vm::run_module_main(&module).expect_err("expected os.sleep error");
     assert_eq!(err.kind, VmErrorKind::HostError);
-    assert!(err.message.contains("os.sleep expects non-negative milliseconds"));
+    assert!(
+        err.message
+            .contains("os.sleep expects non-negative milliseconds")
+    );
 }
 
 #[test]
@@ -1583,7 +1586,10 @@ fn main() -> String {
     let module = compile_source(src).expect("compile");
     let err = Vm::run_module_main(&module).expect_err("expected type error");
     assert_eq!(err.kind, VmErrorKind::TypeMismatch);
-    assert!(err.message.contains("os.execShellOut expects String argument"));
+    assert!(
+        err.message
+            .contains("os.execShellOut expects String argument")
+    );
 }
 
 #[test]

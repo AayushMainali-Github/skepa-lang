@@ -29,9 +29,8 @@ fn builtin_os_cwd(_host: &mut dyn BuiltinHost, _args: Vec<Value>) -> Result<Valu
             "os.cwd expects 0 arguments",
         ));
     }
-    let cwd = std::env::current_dir().map_err(|e| {
-        VmError::new(VmErrorKind::HostError, format!("os.cwd failed: {e}"))
-    })?;
+    let cwd = std::env::current_dir()
+        .map_err(|e| VmError::new(VmErrorKind::HostError, format!("os.cwd failed: {e}")))?;
     Ok(Value::String(cwd.to_string_lossy().into_owned()))
 }
 
@@ -75,10 +74,7 @@ fn builtin_os_sleep(_host: &mut dyn BuiltinHost, _args: Vec<Value>) -> Result<Va
     Ok(Value::Unit)
 }
 
-fn builtin_os_exec_shell(
-    _host: &mut dyn BuiltinHost,
-    _args: Vec<Value>,
-) -> Result<Value, VmError> {
+fn builtin_os_exec_shell(_host: &mut dyn BuiltinHost, _args: Vec<Value>) -> Result<Value, VmError> {
     if _args.len() != 1 {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,
@@ -113,9 +109,12 @@ fn builtin_os_exec_shell_out(
             "os.execShellOut expects String argument",
         ));
     };
-    let out = shell_command(cmd)
-        .output()
-        .map_err(|e| VmError::new(VmErrorKind::HostError, format!("os.execShellOut failed: {e}")))?;
+    let out = shell_command(cmd).output().map_err(|e| {
+        VmError::new(
+            VmErrorKind::HostError,
+            format!("os.execShellOut failed: {e}"),
+        )
+    })?;
     let stdout = String::from_utf8(out.stdout).map_err(|e| {
         VmError::new(
             VmErrorKind::HostError,

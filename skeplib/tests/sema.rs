@@ -1693,9 +1693,12 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags.as_slice().iter().any(|d| {
-        d.message.contains("os.cwd expects 0 argument(s), got 1")
-    }));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| { d.message.contains("os.cwd expects 0 argument(s), got 1") })
+    );
 }
 
 #[test]
@@ -1746,12 +1749,10 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(
-        diags
-            .as_slice()
-            .iter()
-            .any(|d| d.message.contains("os.execShellOut argument 1 expects String"))
-    );
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("os.execShellOut argument 1 expects String")
+    }));
 }
 
 #[test]
