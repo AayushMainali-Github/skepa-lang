@@ -1644,6 +1644,27 @@ fn main() -> Int {
 }
 
 #[test]
+fn sema_accepts_minimal_os_builtin_signatures() {
+    let src = r#"
+import str;
+import os;
+fn main() -> Int {
+  let cwd: String = os.cwd();
+  let plat: String = os.platform();
+  os.sleep(1);
+  let code: Int = os.execShell("echo hi");
+  let out: String = os.execShellOut("echo hi");
+  if (str.len(cwd) >= 0 && str.len(plat) >= 0 && code >= 0 && str.len(out) >= 0) {
+    return 0;
+  }
+  return 1;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
 fn sema_rejects_random_int_arity_mismatch() {
     let src = r#"
 import random;

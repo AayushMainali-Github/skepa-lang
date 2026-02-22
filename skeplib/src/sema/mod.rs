@@ -452,7 +452,7 @@ impl Checker {
                     if path.len() == 1
                         && matches!(
                             path[0].as_str(),
-                            "io" | "str" | "arr" | "datetime" | "random"
+                            "io" | "str" | "arr" | "datetime" | "random" | "os"
                         )
                     {
                         imported_modules.insert(path[0].clone());

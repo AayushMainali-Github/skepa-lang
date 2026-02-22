@@ -1377,6 +1377,21 @@ fn main() -> Int {
 }
 
 #[test]
+fn vm_os_builtin_is_registered_before_runtime_impl() {
+    let src = r#"
+import os;
+fn main() -> Int {
+  let _x = os.cwd();
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("os builtin should be stubbed");
+    assert_eq!(err.kind, VmErrorKind::HostError);
+    assert!(err.message.contains("os.cwd not implemented yet"));
+}
+
+#[test]
 fn disassemble_outputs_named_instructions() {
     let src = r#"
 fn main() -> Int {
