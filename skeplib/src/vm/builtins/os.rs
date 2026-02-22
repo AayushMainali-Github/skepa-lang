@@ -10,13 +10,6 @@ pub(super) fn register(r: &mut BuiltinRegistry) {
     r.register("os", "execShellOut", builtin_os_exec_shell_out);
 }
 
-fn not_implemented(name: &str) -> Result<Value, VmError> {
-    Err(VmError::new(
-        VmErrorKind::HostError,
-        format!("{name} not implemented yet"),
-    ))
-}
-
 fn shell_command(cmd: &str) -> std::process::Command {
     if cfg!(target_os = "windows") {
         let mut c = std::process::Command::new("cmd");

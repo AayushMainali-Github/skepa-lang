@@ -328,6 +328,49 @@ fn main() -> Int { return child(); }
     assert!(stderr.contains("[E-VM-STACK-OVERFLOW]"));
 }
 
+#[test]
+fn run_executes_minimal_os_builtins() {
+    let tmp = make_temp_dir("skeparun_os_minimal");
+    let file = tmp.join("os_minimal.sk");
+    let shell_ok = if cfg!(target_os = "windows") {
+        "exit /b 0"
+    } else {
+        "exit 0"
+    };
+    let shell_out = if cfg!(target_os = "windows") {
+        "echo hello"
+    } else {
+        "printf hello"
+    };
+    let src = format!(
+        r#"
+import os;
+import str;
+
+fn main() -> Int {{
+  let cwd = os.cwd();
+  let p = os.platform();
+  os.sleep(1);
+  let code = os.execShell("{shell_ok}");
+  let out = os.execShellOut("{shell_out}");
+  if (str.len(cwd) > 0 && str.len(p) > 0 && code == 0 && str.contains(out, "hello")) {{
+    return 0;
+  }}
+  return 1;
+}}
+"#
+    );
+    fs::write(&file, src).expect("write fixture");
+
+    let output = Command::new(skeparun_bin())
+        .arg("run")
+        .arg(&file)
+        .output()
+        .expect("run skeparun");
+
+    assert_eq!(output.status.code(), Some(0), "{:?}", output);
+}
+
 fn skeparun_bin() -> &'static str {
     env!("CARGO_BIN_EXE_skeparun")
 }
