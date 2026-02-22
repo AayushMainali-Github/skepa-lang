@@ -51,7 +51,8 @@ fn main() -> Int {
   let s = "skepa";
   let cwd = os.cwd();
   let platform = os.platform();
-  let scratchDir = fs.join(cwd, "skepa_master_tmp");
+  let scratchRoot = fs.join(cwd, ".skepa_examples");
+  let scratchDir = fs.join(scratchRoot, "master_tmp");
   let scratchFile = fs.join(scratchDir, "note.txt");
   os.sleep(1);
   if (str.len(cwd) <= 0 || str.len(platform) <= 0) {
@@ -63,8 +64,12 @@ fn main() -> Int {
   fs.mkdirAll(scratchDir);
   fs.writeText(scratchFile, "sk");
   fs.appendText(scratchFile, "epa");
-  if (!fs.exists(scratchFile) || !str.contains(fs.readText(scratchFile), "skepa")) {
+  let scratchText = fs.readText(scratchFile);
+  if (!fs.exists(scratchFile) || !str.contains(scratchText, "skepa")) {
     return 92;
+  }
+  if (scratchText != "skepa") {
+    return 94;
   }
   fs.removeFile(scratchFile);
   fs.removeDirAll(scratchDir);
