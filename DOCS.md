@@ -198,7 +198,7 @@ These are available through namespace paths (`string.case.up(...)`).
 - Wildcard imports can conflict with prior bindings; conflict is an error.
 - Export target names collide after aliasing, not before.
 - If same target name appears from multiple export blocks, it is an error.
-- Builtin package names (`io`, `str`, `arr`, `datetime`, `random`) are reserved package roots.
+- Builtin package names (`io`, `str`, `arr`, `datetime`, `random`, `os`) are reserved package roots.
 - `import ns; ns.f(...)` works only when `f` is exported exactly under that namespace level. Example: `import string; string.toUpper(...)` is invalid if only `string.case.toUpper` exists.
 
 ## 5. Operator Precedence
@@ -236,6 +236,34 @@ Short-circuit:
 - `arr`: static-array helpers (`len`, `isEmpty`, `contains`, `indexOf`, `count`, `first`, `last`, `join`)
 - `datetime`: unix timestamp/time component helpers
 - `random`: deterministic seed + random int/float
+- `os`: basic host/process helpers (`cwd`, `platform`, `sleep`, `execShell`, `execShellOut`)
+
+### 7.1 `os` (Minimal)
+
+Signatures:
+- `os.cwd() -> String`
+- `os.platform() -> String`
+- `os.sleep(ms: Int) -> Void`
+- `os.execShell(cmd: String) -> Int`
+- `os.execShellOut(cmd: String) -> String`
+
+Behavior:
+- All `os` functions are synchronous/blocking.
+- `os.platform()` returns one of:
+  - `windows`
+  - `linux`
+  - `macos`
+- `os.sleep(ms)` requires non-negative milliseconds; negative values raise a runtime error.
+- `os.execShell(cmd)` runs through the platform shell and returns the process exit code.
+- `os.execShellOut(cmd)` runs through the platform shell and returns stdout as `String` (stdout must be valid UTF-8).
+
+Shell wrapper:
+- Windows: `cmd /C <cmd>`
+- Linux/macOS: `sh -c <cmd>`
+
+Notes:
+- `os.execShell*` can be dangerous with untrusted input (shell injection risk).
+- On platforms where the process exits without a normal exit code, `os.execShell` returns `-1`.
 
 ## 8. Diagnostics (Module/Import/Export)
 
