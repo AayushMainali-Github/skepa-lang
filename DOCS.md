@@ -248,40 +248,109 @@ Short-circuit:
 
 ### 7.2 `io`
 
+Signatures:
+- `io.print(s: String) -> Void`
+- `io.println(s: String) -> Void`
+- `io.printInt(x: Int) -> Void`
+- `io.printFloat(x: Float) -> Void`
+- `io.printBool(x: Bool) -> Void`
+- `io.printString(x: String) -> Void`
+- `io.readLine() -> String`
+- `io.format(fmt: String, ...) -> String`
+- `io.printf(fmt: String, ...) -> Void`
+
+Behavior:
 - Printing functions are side-effecting and synchronous.
-- `io.print*` / `io.println` expect the documented primitive/string argument types.
-- `io.format` returns a formatted `String`.
-- `io.printf` prints formatted output directly.
-- Format strings use `%d`, `%f`, `%s`, `%b`, `%%` and support basic escapes (`\n`, `\t`, `\\`, `\"`).
+- `io.format` returns a formatted string; `io.printf` prints formatted output directly.
+- Format strings use `%d`, `%f`, `%s`, `%b`, `%%`.
+
+Notes:
+- Format strings support basic escapes (`\n`, `\t`, `\\`, `\"`).
+- Variadic arguments are type-checked when the format string is a literal.
 
 ### 7.3 `str`
 
-- String helpers are non-mutating (they return derived values, they do not modify the input).
-- String indexing is not exposed directly; use helpers such as `str.slice`, `str.indexOf`, `str.lastIndexOf`.
-- `str.repeat` returns a new string and validates repeat count at runtime.
-- `str.len` returns character-count semantics as implemented by the runtime string helper logic (document examples in tests/examples when behavior matters).
+Signatures:
+- `str.len(s: String) -> Int`
+- `str.contains(s: String, needle: String) -> Bool`
+- `str.startsWith(s: String, prefix: String) -> Bool`
+- `str.endsWith(s: String, suffix: String) -> Bool`
+- `str.trim(s: String) -> String`
+- `str.toLower(s: String) -> String`
+- `str.toUpper(s: String) -> String`
+- `str.indexOf(s: String, needle: String) -> Int`
+- `str.lastIndexOf(s: String, needle: String) -> Int`
+- `str.slice(s: String, start: Int, end: Int) -> String`
+- `str.replace(s: String, from: String, to: String) -> String`
+- `str.repeat(s: String, count: Int) -> String`
+- `str.isEmpty(s: String) -> Bool`
+
+Behavior:
+- String helpers are non-mutating (they return derived values).
+- String indexing is not exposed directly; use helper functions.
+
+Notes:
+- `str.repeat` validates repeat count at runtime.
+- Exact `str.len` semantics follow runtime string helper behavior used by the implementation/tests.
 
 ### 7.4 `arr`
 
+Signatures:
+- `arr.len(a: [T; N]) -> Int`
+- `arr.isEmpty(a: [T; N]) -> Bool`
+- `arr.contains(a: [T; N], x: T) -> Bool`
+- `arr.indexOf(a: [T; N], x: T) -> Int`
+- `arr.count(a: [T; N], x: T) -> Int`
+- `arr.first(a: [T; N]) -> T`
+- `arr.last(a: [T; N]) -> T`
+- `arr.join(a: [String; N], sep: String) -> String`
+
+Behavior:
 - Array helpers are non-mutating and return values/copies.
 - Arrays remain statically-sized in the language type system.
-- Current helpers include query-style functions (`len`, `isEmpty`, `contains`, `indexOf`, `count`, `first`, `last`) and `arr.join` for `Array[String]`.
+
+Notes:
 - `arr.first` / `arr.last` on empty arrays raise runtime errors.
+- `arr.join` is defined for `Array[String]`.
 
 ### 7.5 `datetime`
 
+Signatures:
+- `datetime.nowUnix() -> Int`
+- `datetime.nowMillis() -> Int`
+- `datetime.fromUnix(ts: Int) -> String`
+- `datetime.fromMillis(ms: Int) -> String`
+- `datetime.parseUnix(s: String) -> Int`
+- `datetime.year(ts: Int) -> Int`
+- `datetime.month(ts: Int) -> Int`
+- `datetime.day(ts: Int) -> Int`
+- `datetime.hour(ts: Int) -> Int`
+- `datetime.minute(ts: Int) -> Int`
+- `datetime.second(ts: Int) -> Int`
+
+Behavior:
 - `datetime` functions operate on Unix timestamps and UTC-based components.
-- `datetime.nowUnix` / `nowMillis` return current time from the host system clock.
-- `datetime.fromUnix` / `fromMillis` return UTC string formatting.
+- `datetime.nowUnix` / `nowMillis` read the host system clock.
+
+Notes:
 - `datetime.parseUnix` expects `YYYY-MM-DDTHH:MM:SSZ` and raises runtime errors on invalid input.
 
 ### 7.6 `random`
 
+Signatures:
+- `random.seed(seed: Int) -> Void`
+- `random.int(min: Int, max: Int) -> Int`
+- `random.float() -> Float`
+
+Behavior:
 - `random.seed` sets deterministic PRNG state for the current runtime host.
 - `random.int(min, max)` is inclusive and requires `min <= max`.
 - `random.float()` returns a float in `[0.0, 1.0)`.
 
-### 7.7 `os` (Minimal)
+Notes:
+- Random behavior is deterministic for a given seed within the same runtime implementation.
+
+### 7.7 `os`
 
 Signatures:
 - `os.cwd() -> String`
@@ -295,17 +364,15 @@ Behavior:
 - `os.platform()` returns one of `windows`, `linux`, `macos`.
 - `os.sleep(ms)` requires non-negative milliseconds; negative values raise a runtime error.
 - `os.execShell(cmd)` runs through the platform shell and returns the process exit code.
-- `os.execShellOut(cmd)` runs through the platform shell and returns stdout as `String` (stdout must be valid UTF-8).
-
-Shell wrapper:
-- Windows: `cmd /C <cmd>`
-- Linux/macOS: `sh -c <cmd>`
+- `os.execShellOut(cmd)` runs through the platform shell and returns stdout as `String`.
 
 Notes:
+- `os.execShellOut` requires stdout to be valid UTF-8.
+- Shell wrapper: Windows uses `cmd /C`; Linux/macOS use `sh -c`.
 - `os.execShell*` can be dangerous with untrusted input (shell injection risk).
 - If a process exits without a normal exit code, `os.execShell` returns `-1`.
 
-### 7.8 `fs` (Minimal)
+### 7.8 `fs`
 
 Signatures:
 - `fs.exists(path: String) -> Bool`
@@ -320,13 +387,17 @@ Signatures:
 Behavior:
 - All `fs` functions are synchronous/blocking.
 - `fs.exists` returns `true` for existing files/directories and `false` for missing paths.
-- `fs.readText` reads the full file as UTF-8 text and raises a runtime error on read failure / invalid UTF-8.
+- `fs.readText` reads the full file as UTF-8 text.
 - `fs.writeText` creates or overwrites a file.
 - `fs.appendText` appends to a file and creates it if missing.
-- `fs.mkdirAll` recursively creates directories and is safe to call on an existing directory.
-- `fs.removeFile` removes a file path (missing path errors at runtime).
-- `fs.removeDirAll` recursively removes a directory tree (missing path errors at runtime).
+- `fs.mkdirAll` recursively creates directories and is safe on an existing directory.
+- `fs.removeFile` removes a file path.
+- `fs.removeDirAll` recursively removes a directory tree.
 - `fs.join` joins path segments using host path semantics and does not check existence.
+
+Notes:
+- `fs.readText` raises a runtime error on read failure or invalid UTF-8.
+- `fs.removeFile` / `fs.removeDirAll` raise runtime errors for missing paths.
 
 ## 8. Diagnostics (Module/Import/Export)
 
