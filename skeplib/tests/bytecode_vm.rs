@@ -1423,6 +1423,35 @@ fn main() -> String {
 }
 
 #[test]
+fn vm_runs_os_sleep_builtin() {
+    let src = r#"
+import os;
+fn main() -> Int {
+  os.sleep(1);
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(0));
+}
+
+#[test]
+fn vm_os_sleep_rejects_negative_ms() {
+    let src = r#"
+import os;
+fn main() -> Int {
+  os.sleep(-1);
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("expected os.sleep error");
+    assert_eq!(err.kind, VmErrorKind::HostError);
+    assert!(err.message.contains("os.sleep expects non-negative milliseconds"));
+}
+
+#[test]
 fn disassemble_outputs_named_instructions() {
     let src = r#"
 fn main() -> Int {

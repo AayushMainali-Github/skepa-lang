@@ -48,7 +48,26 @@ fn builtin_os_platform(_host: &mut dyn BuiltinHost, _args: Vec<Value>) -> Result
 }
 
 fn builtin_os_sleep(_host: &mut dyn BuiltinHost, _args: Vec<Value>) -> Result<Value, VmError> {
-    not_implemented("os.sleep")
+    if _args.len() != 1 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "os.sleep expects 1 argument",
+        ));
+    }
+    let Value::Int(ms) = _args[0] else {
+        return Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "os.sleep expects Int argument",
+        ));
+    };
+    if ms < 0 {
+        return Err(VmError::new(
+            VmErrorKind::HostError,
+            "os.sleep expects non-negative milliseconds",
+        ));
+    }
+    std::thread::sleep(std::time::Duration::from_millis(ms as u64));
+    Ok(Value::Unit)
 }
 
 fn builtin_os_exec_shell(
