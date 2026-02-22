@@ -1423,6 +1423,20 @@ fn main() -> String {
 }
 
 #[test]
+fn vm_os_platform_rejects_wrong_arity() {
+    let src = r#"
+import os;
+fn main() -> String {
+  return os.platform(1);
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("expected arity error");
+    assert_eq!(err.kind, VmErrorKind::ArityMismatch);
+    assert!(err.message.contains("os.platform expects 0 arguments"));
+}
+
+#[test]
 fn vm_runs_os_sleep_builtin() {
     let src = r#"
 import os;
@@ -1449,6 +1463,36 @@ fn main() -> Int {
     let err = Vm::run_module_main(&module).expect_err("expected os.sleep error");
     assert_eq!(err.kind, VmErrorKind::HostError);
     assert!(err.message.contains("os.sleep expects non-negative milliseconds"));
+}
+
+#[test]
+fn vm_os_sleep_rejects_wrong_arity() {
+    let src = r#"
+import os;
+fn main() -> Int {
+  os.sleep();
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("expected arity error");
+    assert_eq!(err.kind, VmErrorKind::ArityMismatch);
+    assert!(err.message.contains("os.sleep expects 1 argument"));
+}
+
+#[test]
+fn vm_os_sleep_rejects_wrong_type() {
+    let src = r#"
+import os;
+fn main() -> Int {
+  os.sleep(true);
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("expected type error");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
+    assert!(err.message.contains("os.sleep expects Int argument"));
 }
 
 #[test]
@@ -1526,6 +1570,20 @@ fn main() -> String {
     let err = Vm::run_module_main(&module).expect_err("expected arity error");
     assert_eq!(err.kind, VmErrorKind::ArityMismatch);
     assert!(err.message.contains("os.execShellOut expects 1 argument"));
+}
+
+#[test]
+fn vm_os_exec_shell_out_rejects_wrong_type() {
+    let src = r#"
+import os;
+fn main() -> String {
+  return os.execShellOut(false);
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("expected type error");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
+    assert!(err.message.contains("os.execShellOut expects String argument"));
 }
 
 #[test]

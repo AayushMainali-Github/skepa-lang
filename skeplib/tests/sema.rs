@@ -1665,6 +1665,115 @@ fn main() -> Int {
 }
 
 #[test]
+fn sema_rejects_os_without_import() {
+    let src = r#"
+fn main() -> Int {
+  let _x = os.cwd();
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("`os.*` used without `import os;`"))
+    );
+}
+
+#[test]
+fn sema_rejects_os_cwd_arity_mismatch() {
+    let src = r#"
+import os;
+fn main() -> Int {
+  let _x = os.cwd(1);
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message.contains("os.cwd expects 0 argument(s), got 1")
+    }));
+}
+
+#[test]
+fn sema_rejects_os_sleep_type_mismatch() {
+    let src = r#"
+import os;
+fn main() -> Int {
+  os.sleep("1");
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("os.sleep argument 1 expects Int"))
+    );
+}
+
+#[test]
+fn sema_rejects_os_exec_shell_type_mismatch() {
+    let src = r#"
+import os;
+fn main() -> Int {
+  return os.execShell(1);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("os.execShell argument 1 expects String"))
+    );
+}
+
+#[test]
+fn sema_rejects_os_exec_shell_out_type_mismatch() {
+    let src = r#"
+import os;
+fn main() -> Int {
+  let _x = os.execShellOut(false);
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("os.execShellOut argument 1 expects String"))
+    );
+}
+
+#[test]
+fn sema_rejects_os_platform_assignment_type_mismatch() {
+    let src = r#"
+import os;
+fn main() -> Int {
+  let x: Int = os.platform();
+  return x;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Type mismatch in let `x`"))
+    );
+}
+
+#[test]
 fn sema_rejects_random_int_arity_mismatch() {
     let src = r#"
 import random;

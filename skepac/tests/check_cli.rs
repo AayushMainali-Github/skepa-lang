@@ -280,6 +280,47 @@ fn main() -> Int {
 }
 
 #[test]
+fn check_accepts_minimal_os_builtins_program() {
+    let tmp = make_temp_dir("skepac_check_os_minimal");
+    let file = tmp.join("os_minimal.sk");
+    let shell_ok = if cfg!(target_os = "windows") {
+        "exit /b 0"
+    } else {
+        "exit 0"
+    };
+    let shell_out = if cfg!(target_os = "windows") {
+        "echo hi"
+    } else {
+        "printf hi"
+    };
+    let src = format!(
+        r#"
+import os;
+import str;
+fn main() -> Int {{
+  let c = os.cwd();
+  let p = os.platform();
+  os.sleep(1);
+  let code = os.execShell("{shell_ok}");
+  let out = os.execShellOut("{shell_out}");
+  if (str.len(c) > 0 && str.len(p) > 0 && code == 0 && str.contains(out, "hi")) {{
+    return 0;
+  }}
+  return 1;
+}}
+"#
+    );
+    fs::write(&file, src).expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("check")
+        .arg(&file)
+        .output()
+        .expect("run check");
+    assert_eq!(output.status.code(), Some(0), "{:?}", output);
+}
+
+#[test]
 fn disasm_includes_mod_and_short_circuit_instructions() {
     let tmp = make_temp_dir("skepac_disasm_new_ops");
     let source = tmp.join("main.sk");
