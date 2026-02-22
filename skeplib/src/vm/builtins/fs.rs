@@ -21,7 +21,19 @@ fn not_implemented(name: &str) -> Result<Value, VmError> {
 }
 
 fn builtin_fs_exists(_host: &mut dyn BuiltinHost, _args: Vec<Value>) -> Result<Value, VmError> {
-    not_implemented("fs.exists")
+    if _args.len() != 1 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "fs.exists expects 1 argument",
+        ));
+    }
+    let Value::String(path) = &_args[0] else {
+        return Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "fs.exists expects String argument",
+        ));
+    };
+    Ok(Value::Bool(std::path::Path::new(path).exists()))
 }
 
 fn builtin_fs_read_text(_host: &mut dyn BuiltinHost, _args: Vec<Value>) -> Result<Value, VmError> {
@@ -64,5 +76,24 @@ fn builtin_fs_remove_dir_all(
 }
 
 fn builtin_fs_join(_host: &mut dyn BuiltinHost, _args: Vec<Value>) -> Result<Value, VmError> {
-    not_implemented("fs.join")
+    if _args.len() != 2 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "fs.join expects 2 arguments",
+        ));
+    }
+    let Value::String(a) = &_args[0] else {
+        return Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "fs.join argument 1 expects String",
+        ));
+    };
+    let Value::String(b) = &_args[1] else {
+        return Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "fs.join argument 2 expects String",
+        ));
+    };
+    let joined = std::path::PathBuf::from(a).join(b);
+    Ok(Value::String(joined.to_string_lossy().into_owned()))
 }

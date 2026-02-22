@@ -1607,7 +1607,7 @@ fn main() -> Int {
 }
 
 #[test]
-fn vm_fs_builtin_is_registered_before_runtime_impl() {
+fn vm_runs_fs_exists_for_missing_path() {
     let src = r#"
 import fs;
 fn main() -> Bool {
@@ -1615,9 +1615,68 @@ fn main() -> Bool {
 }
 "#;
     let module = compile_source(src).expect("compile");
-    let err = Vm::run_module_main(&module).expect_err("fs builtin should be stubbed");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Bool(false));
+}
+
+#[test]
+fn vm_runs_fs_join_builtin() {
+    let src = r#"
+import fs;
+import str;
+fn main() -> Int {
+  let p = fs.join("alpha", "beta");
+  if (str.contains(p, "alpha") && str.contains(p, "beta")) {
+    return 0;
+  }
+  return 1;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(0));
+}
+
+#[test]
+fn vm_fs_exists_rejects_wrong_type() {
+    let src = r#"
+import fs;
+fn main() -> Bool {
+  return fs.exists(1);
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("expected type error");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
+    assert!(err.message.contains("fs.exists expects String argument"));
+}
+
+#[test]
+fn vm_fs_join_rejects_wrong_arity() {
+    let src = r#"
+import fs;
+fn main() -> String {
+  return fs.join("a");
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("expected arity error");
+    assert_eq!(err.kind, VmErrorKind::ArityMismatch);
+    assert!(err.message.contains("fs.join expects 2 arguments"));
+}
+
+#[test]
+fn vm_fs_unimplemented_builtin_is_still_registered() {
+    let src = r#"
+import fs;
+fn main() -> String {
+  return fs.readText("nope.txt");
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("fs.readText should be stubbed");
     assert_eq!(err.kind, VmErrorKind::HostError);
-    assert!(err.message.contains("fs.exists not implemented yet"));
+    assert!(err.message.contains("fs.readText not implemented yet"));
 }
 
 #[test]
