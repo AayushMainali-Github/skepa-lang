@@ -238,6 +238,72 @@ Short-circuit:
 - `random`: deterministic seed + random int/float
 - `os`: basic host/process helpers (`cwd`, `platform`, `sleep`, `execShell`, `execShellOut`)
 
+### 7.1 General Rules
+
+- Builtins are accessed through imported package roots (for example, `import str; str.len("x");`).
+- Builtin package roots are reserved and cannot be resolved as project modules.
+- Builtin calls are type-checked in sema (arity and argument types).
+- Builtin runtime behavior may still raise runtime errors (for example invalid values like negative sleep duration).
+
+### 7.2 `io`
+
+- Printing functions are side-effecting and synchronous.
+- `io.print*` / `io.println` expect the documented primitive/string argument types.
+- `io.format` returns a formatted `String`.
+- `io.printf` prints formatted output directly.
+- Format strings use `%d`, `%f`, `%s`, `%b`, `%%` and support basic escapes (`\n`, `\t`, `\\`, `\"`).
+
+### 7.3 `str`
+
+- String helpers are non-mutating (they return derived values, they do not modify the input).
+- String indexing is not exposed directly; use helpers such as `str.slice`, `str.indexOf`, `str.lastIndexOf`.
+- `str.repeat` returns a new string and validates repeat count at runtime.
+- `str.len` returns character-count semantics as implemented by the runtime string helper logic (document examples in tests/examples when behavior matters).
+
+### 7.4 `arr`
+
+- Array helpers are non-mutating and return values/copies.
+- Arrays remain statically-sized in the language type system.
+- Current helpers include query-style functions (`len`, `isEmpty`, `contains`, `indexOf`, `count`, `first`, `last`) and `arr.join` for `Array[String]`.
+- `arr.first` / `arr.last` on empty arrays raise runtime errors.
+
+### 7.5 `datetime`
+
+- `datetime` functions operate on Unix timestamps and UTC-based components.
+- `datetime.nowUnix` / `nowMillis` return current time from the host system clock.
+- `datetime.fromUnix` / `fromMillis` return UTC string formatting.
+- `datetime.parseUnix` expects `YYYY-MM-DDTHH:MM:SSZ` and raises runtime errors on invalid input.
+
+### 7.6 `random`
+
+- `random.seed` sets deterministic PRNG state for the current runtime host.
+- `random.int(min, max)` is inclusive and requires `min <= max`.
+- `random.float()` returns a float in `[0.0, 1.0)`.
+
+### 7.7 `os` (Minimal)
+
+Signatures:
+- `os.cwd() -> String`
+- `os.platform() -> String`
+- `os.sleep(ms: Int) -> Void`
+- `os.execShell(cmd: String) -> Int`
+- `os.execShellOut(cmd: String) -> String`
+
+Behavior:
+- All `os` functions are synchronous/blocking.
+- `os.platform()` returns one of `windows`, `linux`, `macos`.
+- `os.sleep(ms)` requires non-negative milliseconds; negative values raise a runtime error.
+- `os.execShell(cmd)` runs through the platform shell and returns the process exit code.
+- `os.execShellOut(cmd)` runs through the platform shell and returns stdout as `String` (stdout must be valid UTF-8).
+
+Shell wrapper:
+- Windows: `cmd /C <cmd>`
+- Linux/macOS: `sh -c <cmd>`
+
+Notes:
+- `os.execShell*` can be dangerous with untrusted input (shell injection risk).
+- If a process exits without a normal exit code, `os.execShell` returns `-1`.
+
 ## 8. Diagnostics (Module/Import/Export)
 
 Stable error codes:
