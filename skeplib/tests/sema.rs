@@ -1763,6 +1763,16 @@ fn main() -> Int {
   let x: Int = os.platform();
   return x;
 }
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Type mismatch in let `x`"))
+    );
+}
 
 #[test]
 fn sema_accepts_minimal_fs_builtin_signatures() {
@@ -1785,6 +1795,122 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_rejects_fs_without_import() {
+    let src = r#"
+fn main() -> Int {
+  let _x = fs.exists("a");
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("`fs.*` used without `import fs;`"))
+    );
+}
+
+#[test]
+fn sema_rejects_fs_exists_arity_mismatch() {
+    let src = r#"
+import fs;
+fn main() -> Int {
+  let _x = fs.exists();
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message.contains("fs.exists expects 1 argument(s), got 0")
+    }));
+}
+
+#[test]
+fn sema_rejects_fs_join_arity_mismatch() {
+    let src = r#"
+import fs;
+fn main() -> Int {
+  let _x = fs.join("a");
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message.contains("fs.join expects 2 argument(s), got 1")
+    }));
+}
+
+#[test]
+fn sema_rejects_fs_read_text_type_mismatch() {
+    let src = r#"
+import fs;
+fn main() -> Int {
+  let _x = fs.readText(1);
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("fs.readText argument 1 expects String"))
+    );
+}
+
+#[test]
+fn sema_rejects_fs_write_text_arg2_type_mismatch() {
+    let src = r#"
+import fs;
+fn main() -> Int {
+  fs.writeText("a.txt", 1);
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("fs.writeText argument 2 expects String"))
+    );
+}
+
+#[test]
+fn sema_rejects_fs_mkdir_all_type_mismatch() {
+    let src = r#"
+import fs;
+fn main() -> Int {
+  fs.mkdirAll(false);
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("fs.mkdirAll argument 1 expects String"))
+    );
+}
+
+#[test]
+fn sema_rejects_fs_exists_assignment_type_mismatch() {
+    let src = r#"
+import fs;
+fn main() -> Int {
+  let x: Int = fs.exists("a");
+  return x;
 }
 "#;
     let (result, diags) = analyze_source(src);
