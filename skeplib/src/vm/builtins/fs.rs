@@ -37,21 +37,83 @@ fn builtin_fs_exists(_host: &mut dyn BuiltinHost, _args: Vec<Value>) -> Result<V
 }
 
 fn builtin_fs_read_text(_host: &mut dyn BuiltinHost, _args: Vec<Value>) -> Result<Value, VmError> {
-    not_implemented("fs.readText")
+    if _args.len() != 1 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "fs.readText expects 1 argument",
+        ));
+    }
+    let Value::String(path) = &_args[0] else {
+        return Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "fs.readText expects String argument",
+        ));
+    };
+    let text = std::fs::read_to_string(path)
+        .map_err(|e| VmError::new(VmErrorKind::HostError, format!("fs.readText failed: {e}")))?;
+    Ok(Value::String(text))
 }
 
 fn builtin_fs_write_text(
     _host: &mut dyn BuiltinHost,
     _args: Vec<Value>,
 ) -> Result<Value, VmError> {
-    not_implemented("fs.writeText")
+    if _args.len() != 2 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "fs.writeText expects 2 arguments",
+        ));
+    }
+    let Value::String(path) = &_args[0] else {
+        return Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "fs.writeText argument 1 expects String",
+        ));
+    };
+    let Value::String(data) = &_args[1] else {
+        return Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "fs.writeText argument 2 expects String",
+        ));
+    };
+    std::fs::write(path, data)
+        .map_err(|e| VmError::new(VmErrorKind::HostError, format!("fs.writeText failed: {e}")))?;
+    Ok(Value::Unit)
 }
 
 fn builtin_fs_append_text(
     _host: &mut dyn BuiltinHost,
     _args: Vec<Value>,
 ) -> Result<Value, VmError> {
-    not_implemented("fs.appendText")
+    if _args.len() != 2 {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "fs.appendText expects 2 arguments",
+        ));
+    }
+    let Value::String(path) = &_args[0] else {
+        return Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "fs.appendText argument 1 expects String",
+        ));
+    };
+    let Value::String(data) = &_args[1] else {
+        return Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "fs.appendText argument 2 expects String",
+        ));
+    };
+    let mut f = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+        .map_err(|e| {
+            VmError::new(VmErrorKind::HostError, format!("fs.appendText failed: {e}"))
+        })?;
+    use std::io::Write as _;
+    f.write_all(data.as_bytes())
+        .map_err(|e| VmError::new(VmErrorKind::HostError, format!("fs.appendText failed: {e}")))?;
+    Ok(Value::Unit)
 }
 
 fn builtin_fs_mkdir_all(

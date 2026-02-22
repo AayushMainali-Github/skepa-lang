@@ -4,6 +4,23 @@ use common::{assert_has_diag, compile_err, compile_ok, vm_run_ok};
 use skeplib::bytecode::{BytecodeModule, FunctionChunk, Instr, Value, compile_source};
 use skeplib::vm::{BuiltinHost, BuiltinRegistry, TestHost, Vm, VmConfig, VmErrorKind};
 use std::collections::VecDeque;
+use std::fs;
+use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+fn make_temp_dir(label: &str) -> PathBuf {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock")
+        .as_nanos();
+    let dir = std::env::temp_dir().join(format!("skepa_vm_{label}_{nanos}"));
+    fs::create_dir_all(&dir).expect("create temp dir");
+    dir
+}
+
+fn sk_string_escape(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('\"', "\\\"")
+}
 
 #[test]
 fn compiles_main_to_bytecode_with_locals_and_return() {
@@ -1669,14 +1686,168 @@ fn main() -> String {
 fn vm_fs_unimplemented_builtin_is_still_registered() {
     let src = r#"
 import fs;
-fn main() -> String {
-  return fs.readText("nope.txt");
+fn main() -> Int {
+  fs.mkdirAll("x");
+  return 0;
 }
 "#;
     let module = compile_source(src).expect("compile");
-    let err = Vm::run_module_main(&module).expect_err("fs.readText should be stubbed");
+    let err = Vm::run_module_main(&module).expect_err("fs.mkdirAll should be stubbed");
     assert_eq!(err.kind, VmErrorKind::HostError);
-    assert!(err.message.contains("fs.readText not implemented yet"));
+    assert!(err.message.contains("fs.mkdirAll not implemented yet"));
+}
+
+#[test]
+fn vm_runs_fs_write_and_read_text() {
+    let root = make_temp_dir("fs_write_read");
+    let file = root.join("x.txt");
+    let file_s = sk_string_escape(&file.display().to_string());
+    let src = format!(
+        r#"
+import fs;
+fn main() -> String {{
+  fs.writeText("{0}", "hello");
+  return fs.readText("{0}");
+}}
+"#,
+        file_s
+    );
+    let module = compile_source(&src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::String("hello".to_string()));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn vm_fs_write_text_overwrites_existing_file() {
+    let root = make_temp_dir("fs_write_overwrite");
+    let file = root.join("x.txt");
+    let file_s = sk_string_escape(&file.display().to_string());
+    fs::write(&file, "old").expect("seed file");
+    let src = format!(
+        r#"
+import fs;
+fn main() -> String {{
+  fs.writeText("{0}", "new");
+  return fs.readText("{0}");
+}}
+"#,
+        file_s
+    );
+    let module = compile_source(&src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::String("new".to_string()));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn vm_fs_append_text_appends_and_can_create_file() {
+    let root = make_temp_dir("fs_append");
+    let file = root.join("x.txt");
+    let file_s = sk_string_escape(&file.display().to_string());
+    let src = format!(
+        r#"
+import fs;
+fn main() -> String {{
+  fs.appendText("{0}", "a");
+  fs.appendText("{0}", "b");
+  return fs.readText("{0}");
+}}
+"#,
+        file_s
+    );
+    let module = compile_source(&src).expect("compile");
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::String("ab".to_string()));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn vm_fs_read_text_missing_file_errors() {
+    let root = make_temp_dir("fs_read_missing");
+    let file = root.join("missing.txt");
+    let file_s = sk_string_escape(&file.display().to_string());
+    let src = format!(
+        r#"
+import fs;
+fn main() -> String {{
+  return fs.readText("{0}");
+}}
+"#,
+        file_s
+    );
+    let module = compile_source(&src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("expected read error");
+    assert_eq!(err.kind, VmErrorKind::HostError);
+    assert!(err.message.contains("fs.readText failed"));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn vm_fs_write_and_append_error_when_parent_missing() {
+    let root = make_temp_dir("fs_parent_missing");
+    let missing_parent = root.join("missing_dir");
+    let write_path = missing_parent.join("a.txt");
+    let write_path_s = sk_string_escape(&write_path.display().to_string());
+    let write_src = format!(
+        r#"
+import fs;
+fn main() -> Int {{
+  fs.writeText("{0}", "x");
+  return 0;
+}}
+"#,
+        write_path_s
+    );
+    let write_mod = compile_source(&write_src).expect("compile");
+    let write_err = Vm::run_module_main(&write_mod).expect_err("expected write error");
+    assert_eq!(write_err.kind, VmErrorKind::HostError);
+    assert!(write_err.message.contains("fs.writeText failed"));
+
+    let append_src = format!(
+        r#"
+import fs;
+fn main() -> Int {{
+  fs.appendText("{0}", "x");
+  return 0;
+}}
+"#,
+        write_path_s
+    );
+    let append_mod = compile_source(&append_src).expect("compile");
+    let append_err = Vm::run_module_main(&append_mod).expect_err("expected append error");
+    assert_eq!(append_err.kind, VmErrorKind::HostError);
+    assert!(append_err.message.contains("fs.appendText failed"));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn vm_fs_read_text_rejects_wrong_type() {
+    let src = r#"
+import fs;
+fn main() -> String {
+  return fs.readText(1);
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("expected type error");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
+    assert!(err.message.contains("fs.readText expects String argument"));
+}
+
+#[test]
+fn vm_fs_write_text_rejects_wrong_arity() {
+    let src = r#"
+import fs;
+fn main() -> Int {
+  fs.writeText("a");
+  return 0;
+}
+"#;
+    let module = compile_source(src).expect("compile");
+    let err = Vm::run_module_main(&module).expect_err("expected arity error");
+    assert_eq!(err.kind, VmErrorKind::ArityMismatch);
+    assert!(err.message.contains("fs.writeText expects 2 arguments"));
 }
 
 #[test]
