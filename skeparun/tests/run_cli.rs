@@ -371,6 +371,60 @@ fn main() -> Int {{
     assert_eq!(output.status.code(), Some(0), "{:?}", output);
 }
 
+#[test]
+fn run_executes_minimal_fs_builtins() {
+    let tmp = make_temp_dir("skeparun_fs_minimal");
+    let file = tmp.join("fs_minimal.sk");
+    let work = tmp.join("work");
+    let file_txt = work.join("data.txt");
+    let work_s = work.display().to_string().replace('\\', "\\\\");
+    let file_txt_s = file_txt.display().to_string().replace('\\', "\\\\");
+
+    let src = format!(
+        r#"
+import fs;
+import str;
+
+fn main() -> Int {{
+  fs.mkdirAll("{work_s}");
+  if (!fs.exists("{work_s}")) {{
+    return 1;
+  }}
+
+  fs.writeText("{file_txt_s}", "a");
+  fs.appendText("{file_txt_s}", "b");
+  let txt = fs.readText("{file_txt_s}");
+  let joined = fs.join("{work_s}", "data.txt");
+
+  if (!(str.contains(txt, "ab") && fs.exists(joined))) {{
+    return 2;
+  }}
+
+  fs.removeFile("{file_txt_s}");
+  if (fs.exists("{file_txt_s}")) {{
+    return 3;
+  }}
+
+  fs.removeDirAll("{work_s}");
+  if (fs.exists("{work_s}")) {{
+    return 4;
+  }}
+
+  return 0;
+}}
+"#
+    );
+    fs::write(&file, src).expect("write fixture");
+
+    let output = Command::new(skeparun_bin())
+        .arg("run")
+        .arg(&file)
+        .output()
+        .expect("run skeparun");
+
+    assert_eq!(output.status.code(), Some(0), "{:?}", output);
+}
+
 fn skeparun_bin() -> &'static str {
     env!("CARGO_BIN_EXE_skeparun")
 }

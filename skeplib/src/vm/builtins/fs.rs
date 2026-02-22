@@ -13,13 +13,6 @@ pub(super) fn register(r: &mut BuiltinRegistry) {
     r.register("fs", "join", builtin_fs_join);
 }
 
-fn not_implemented(name: &str) -> Result<Value, VmError> {
-    Err(VmError::new(
-        VmErrorKind::HostError,
-        format!("{name} not implemented yet"),
-    ))
-}
-
 fn builtin_fs_exists(_host: &mut dyn BuiltinHost, _args: Vec<Value>) -> Result<Value, VmError> {
     if _args.len() != 1 {
         return Err(VmError::new(

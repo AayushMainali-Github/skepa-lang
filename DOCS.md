@@ -198,7 +198,7 @@ These are available through namespace paths (`string.case.up(...)`).
 - Wildcard imports can conflict with prior bindings; conflict is an error.
 - Export target names collide after aliasing, not before.
 - If same target name appears from multiple export blocks, it is an error.
-- Builtin package names (`io`, `str`, `arr`, `datetime`, `random`, `os`) are reserved package roots.
+- Builtin package names (`io`, `str`, `arr`, `datetime`, `random`, `os`, `fs`) are reserved package roots.
 - `import ns; ns.f(...)` works only when `f` is exported exactly under that namespace level. Example: `import string; string.toUpper(...)` is invalid if only `string.case.toUpper` exists.
 
 ## 5. Operator Precedence
@@ -237,6 +237,7 @@ Short-circuit:
 - `datetime`: unix timestamp/time component helpers
 - `random`: deterministic seed + random int/float
 - `os`: basic host/process helpers (`cwd`, `platform`, `sleep`, `execShell`, `execShellOut`)
+- `fs`: basic filesystem helpers (`exists`, `readText`, `writeText`, `appendText`, `mkdirAll`, `removeFile`, `removeDirAll`, `join`)
 
 ### 7.1 General Rules
 
@@ -303,6 +304,29 @@ Shell wrapper:
 Notes:
 - `os.execShell*` can be dangerous with untrusted input (shell injection risk).
 - If a process exits without a normal exit code, `os.execShell` returns `-1`.
+
+### 7.8 `fs` (Minimal)
+
+Signatures:
+- `fs.exists(path: String) -> Bool`
+- `fs.readText(path: String) -> String`
+- `fs.writeText(path: String, data: String) -> Void`
+- `fs.appendText(path: String, data: String) -> Void`
+- `fs.mkdirAll(path: String) -> Void`
+- `fs.removeFile(path: String) -> Void`
+- `fs.removeDirAll(path: String) -> Void`
+- `fs.join(a: String, b: String) -> String`
+
+Behavior:
+- All `fs` functions are synchronous/blocking.
+- `fs.exists` returns `true` for existing files/directories and `false` for missing paths.
+- `fs.readText` reads the full file as UTF-8 text and raises a runtime error on read failure / invalid UTF-8.
+- `fs.writeText` creates or overwrites a file.
+- `fs.appendText` appends to a file and creates it if missing.
+- `fs.mkdirAll` recursively creates directories and is safe to call on an existing directory.
+- `fs.removeFile` removes a file path (missing path errors at runtime).
+- `fs.removeDirAll` recursively removes a directory tree (missing path errors at runtime).
+- `fs.join` joins path segments using host path semantics and does not check existence.
 
 ## 8. Diagnostics (Module/Import/Export)
 

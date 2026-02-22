@@ -321,6 +321,41 @@ fn main() -> Int {{
 }
 
 #[test]
+fn check_accepts_minimal_fs_builtins_program() {
+    let tmp = make_temp_dir("skepac_check_fs_minimal");
+    let file = tmp.join("fs_minimal.sk");
+    fs::write(
+        &file,
+        r#"
+import fs;
+import str;
+fn main() -> Int {
+  let ex: Bool = fs.exists("a");
+  let p: String = fs.join("a", "b");
+  let t: String = fs.readText("a.txt");
+  fs.writeText("a.txt", "x");
+  fs.appendText("a.txt", "y");
+  fs.mkdirAll("tmp/a/b");
+  fs.removeFile("a.txt");
+  fs.removeDirAll("tmp");
+  if (ex || fs.exists(p) || (t == "") || str.len(p) >= 0) {
+    return 0;
+  }
+  return 0;
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("check")
+        .arg(&file)
+        .output()
+        .expect("run check");
+    assert_eq!(output.status.code(), Some(0), "{:?}", output);
+}
+
+#[test]
 fn disasm_includes_mod_and_short_circuit_instructions() {
     let tmp = make_temp_dir("skepac_disasm_new_ops");
     let source = tmp.join("main.sk");
