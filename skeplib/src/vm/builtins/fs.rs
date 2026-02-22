@@ -50,10 +50,7 @@ fn builtin_fs_read_text(_host: &mut dyn BuiltinHost, _args: Vec<Value>) -> Resul
     Ok(Value::String(text))
 }
 
-fn builtin_fs_write_text(
-    _host: &mut dyn BuiltinHost,
-    _args: Vec<Value>,
-) -> Result<Value, VmError> {
+fn builtin_fs_write_text(_host: &mut dyn BuiltinHost, _args: Vec<Value>) -> Result<Value, VmError> {
     if _args.len() != 2 {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,
@@ -103,19 +100,14 @@ fn builtin_fs_append_text(
         .create(true)
         .append(true)
         .open(path)
-        .map_err(|e| {
-            VmError::new(VmErrorKind::HostError, format!("fs.appendText failed: {e}"))
-        })?;
+        .map_err(|e| VmError::new(VmErrorKind::HostError, format!("fs.appendText failed: {e}")))?;
     use std::io::Write as _;
     f.write_all(data.as_bytes())
         .map_err(|e| VmError::new(VmErrorKind::HostError, format!("fs.appendText failed: {e}")))?;
     Ok(Value::Unit)
 }
 
-fn builtin_fs_mkdir_all(
-    _host: &mut dyn BuiltinHost,
-    _args: Vec<Value>,
-) -> Result<Value, VmError> {
+fn builtin_fs_mkdir_all(_host: &mut dyn BuiltinHost, _args: Vec<Value>) -> Result<Value, VmError> {
     if _args.len() != 1 {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,
@@ -171,7 +163,10 @@ fn builtin_fs_remove_dir_all(
         ));
     };
     std::fs::remove_dir_all(path).map_err(|e| {
-        VmError::new(VmErrorKind::HostError, format!("fs.removeDirAll failed: {e}"))
+        VmError::new(
+            VmErrorKind::HostError,
+            format!("fs.removeDirAll failed: {e}"),
+        )
     })?;
     Ok(Value::Unit)
 }
