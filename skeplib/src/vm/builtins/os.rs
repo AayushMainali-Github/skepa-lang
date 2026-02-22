@@ -18,11 +18,33 @@ fn not_implemented(name: &str) -> Result<Value, VmError> {
 }
 
 fn builtin_os_cwd(_host: &mut dyn BuiltinHost, _args: Vec<Value>) -> Result<Value, VmError> {
-    not_implemented("os.cwd")
+    if !_args.is_empty() {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "os.cwd expects 0 arguments",
+        ));
+    }
+    let cwd = std::env::current_dir().map_err(|e| {
+        VmError::new(VmErrorKind::HostError, format!("os.cwd failed: {e}"))
+    })?;
+    Ok(Value::String(cwd.to_string_lossy().into_owned()))
 }
 
 fn builtin_os_platform(_host: &mut dyn BuiltinHost, _args: Vec<Value>) -> Result<Value, VmError> {
-    not_implemented("os.platform")
+    if !_args.is_empty() {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            "os.platform expects 0 arguments",
+        ));
+    }
+    let name = if cfg!(target_os = "windows") {
+        "windows"
+    } else if cfg!(target_os = "macos") {
+        "macos"
+    } else {
+        "linux"
+    };
+    Ok(Value::String(name.to_string()))
 }
 
 fn builtin_os_sleep(_host: &mut dyn BuiltinHost, _args: Vec<Value>) -> Result<Value, VmError> {
