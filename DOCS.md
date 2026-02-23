@@ -16,11 +16,18 @@ Identifiers:
 - start: `[A-Za-z_]`
 - continue: `[A-Za-z0-9_]`
 
-Keywords:
+Keywords (reserved):
+
+Module / namespace:
 - `import`, `from`, `as`, `export`
+
+Declarations:
 - `struct`, `impl`, `fn`, `let`
-- `if`, `else`, `while`, `for`, `break`, `continue`, `return`
-- `match`
+
+Control flow:
+- `if`, `else`, `while`, `for`, `match`, `break`, `continue`, `return`
+
+Literals:
 - `true`, `false`
 
 Primitive types:
@@ -32,6 +39,13 @@ Comments:
 
 String escapes:
 - `\n`, `\t`, `\r`, `\"`, `\\`
+
+Operators and delimiters (selected):
+- arithmetic: `+`, `-`, `*`, `/`, `%`
+- comparison: `==`, `!=`, `<`, `<=`, `>`, `>=`
+- logical: `&&`, `||`, `!`
+- assignment / arrows: `=`, `->`, `=>`
+- grouping / separators: `()`, `[]`, `{}`, `.`, `,`, `:`, `;`
 
 ## 3. Formal Grammar (EBNF)
 
@@ -227,33 +241,37 @@ Short-circuit:
 - `false && rhs` skips `rhs`
 - `true || rhs` skips `rhs`
 
-## 6. Match Statement (`match`)
+## 6. Statement Semantics
 
-Supported in current version as a statement (not an expression).
+### 6.1 `if` / `else`
+
+- Conditions must be `Bool`.
+- `else if` chains are supported (`else if (...) { ... }`).
+
+### 6.2 `while` / `for`
+
+- Loop conditions must be `Bool` when present.
+- `break` and `continue` are only valid inside loops.
+- `for` supports omitted clauses: `for (;;) { ... }`.
+
+### 6.3 `match` 
+
+Status:
+- Statement only (not a match-expression yet).
 
 Syntax:
-- `match (expr) { ... }`
-- arm form: `pattern => { ... }`
+- `match (expr) { pattern => { ... } ... }`
 
-Pattern forms (v1):
+Pattern forms:
 - wildcard: `_`
 - literals: `Int`, `Float`, `Bool`, `String`
-- OR patterns with literals: `1 | 2`, `"y" | "Y"`
+- OR-patterns with literals: `1 | 2`, `"y" | "Y"`
 
 Behavior:
-- Match target expression is evaluated exactly once.
+- Match target is evaluated exactly once.
 - Arms are checked top-to-bottom.
 - First matching arm executes.
-- No fallthrough between arms.
-
-Rules (v1):
-- Exactly one wildcard arm is allowed.
-- Wildcard arm must be last.
-- Wildcard arm is required in v1.
-- OR-pattern alternatives must be literals only.
-
-Example:
-- `match (cmd) { "build" | "check" => { ... } _ => { ... } }`
+- No fallthrough.
 
 ## 7. Type System Notes
 
