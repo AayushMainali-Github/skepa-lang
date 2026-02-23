@@ -1,0 +1,7 @@
+fn main() -> Int {
+  let s: String = "Y";
+  match (s) {
+    "y" | "Y" => { return 1; }
+    _ => { return 0; }
+  }
+}

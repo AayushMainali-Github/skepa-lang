@@ -20,6 +20,7 @@ Keywords:
 - `import`, `from`, `as`, `export`
 - `struct`, `impl`, `fn`, `let`
 - `if`, `else`, `while`, `for`, `break`, `continue`, `return`
+- `match`
 - `true`, `false`
 
 Primitive types:
@@ -85,6 +86,7 @@ stmt             = let_stmt
                  | if_stmt
                  | while_stmt
                  | for_stmt
+                 | match_stmt
                  | break_stmt
                  | continue_stmt
                  | return_stmt ;
@@ -99,6 +101,10 @@ expr_stmt        = expr ";" ;
 if_stmt          = "if" "(" expr ")" block [ "else" ( if_stmt | block ) ] ;
 while_stmt       = "while" "(" expr ")" block ;
 for_stmt         = "for" "(" [ for_init ] ";" [ expr ] ";" [ for_step ] ")" block ;
+match_stmt       = "match" "(" expr ")" "{" match_arm { match_arm } "}" ;
+match_arm        = match_pattern "=>" block ;
+match_pattern    = "_" | match_lit | ( match_lit { "|" match_lit } ) ;
+match_lit        = int_lit | float_lit | bool_lit | string_lit ;
 for_init         = for_let | for_assign | expr ;
 for_step         = for_assign | expr ;
 for_let          = "let" ident [ ":" type ] "=" expr ;
@@ -221,7 +227,35 @@ Short-circuit:
 - `false && rhs` skips `rhs`
 - `true || rhs` skips `rhs`
 
-## 6. Type System Notes
+## 6. Match Statement (`match`)
+
+Supported in current version as a statement (not an expression).
+
+Syntax:
+- `match (expr) { ... }`
+- arm form: `pattern => { ... }`
+
+Pattern forms (v1):
+- wildcard: `_`
+- literals: `Int`, `Float`, `Bool`, `String`
+- OR patterns with literals: `1 | 2`, `"y" | "Y"`
+
+Behavior:
+- Match target expression is evaluated exactly once.
+- Arms are checked top-to-bottom.
+- First matching arm executes.
+- No fallthrough between arms.
+
+Rules (v1):
+- Exactly one wildcard arm is allowed.
+- Wildcard arm must be last.
+- Wildcard arm is required in v1.
+- OR-pattern alternatives must be literals only.
+
+Example:
+- `match (cmd) { "build" | "check" => { ... } _ => { ... } }`
+
+## 7. Type System Notes
 
 - No implicit numeric promotion.
 - `%` is `Int % Int` only.
@@ -229,7 +263,7 @@ Short-circuit:
 - Struct methods: first parameter must be `self: StructName`.
 - Function literals are non-capturing.
 
-## 7. Builtin Packages (Current)
+## 8. Builtin Packages (Current)
 
 - `io`: print/read and formatting helpers
 - `str`: string utilities (`len`, `contains`, `startsWith`, `endsWith`, `trim`, `toLower`, `toUpper`, `indexOf`, `lastIndexOf`, `slice`, `replace`, `repeat`, `isEmpty`)
@@ -239,14 +273,14 @@ Short-circuit:
 - `os`: basic host/process helpers (`cwd`, `platform`, `sleep`, `execShell`, `execShellOut`)
 - `fs`: basic filesystem helpers (`exists`, `readText`, `writeText`, `appendText`, `mkdirAll`, `removeFile`, `removeDirAll`, `join`)
 
-### 7.1 General Rules
+### 8.1 General Rules
 
 - Builtins are accessed through imported package roots (for example, `import str; str.len("x");`).
 - Builtin package roots are reserved and cannot be resolved as project modules.
 - Builtin calls are type-checked in sema (arity and argument types).
 - Builtin runtime behavior may still raise runtime errors (for example invalid values like negative sleep duration).
 
-### 7.2 `io`
+### 8.2 `io`
 
 Signatures:
 - `io.print(s: String) -> Void`
@@ -268,7 +302,7 @@ Notes:
 - Format strings support basic escapes (`\n`, `\t`, `\\`, `\"`).
 - Variadic arguments are type-checked when the format string is a literal.
 
-### 7.3 `str`
+### 8.3 `str`
 
 Signatures:
 - `str.len(s: String) -> Int`
@@ -293,7 +327,7 @@ Notes:
 - `str.repeat` validates repeat count at runtime.
 - Exact `str.len` semantics follow runtime string helper behavior used by the implementation/tests.
 
-### 7.4 `arr`
+### 8.4 `arr`
 
 Signatures:
 - `arr.len(a: [T; N]) -> Int`
@@ -313,7 +347,7 @@ Notes:
 - `arr.first` / `arr.last` on empty arrays raise runtime errors.
 - `arr.join` is defined for `Array[String]`.
 
-### 7.5 `datetime`
+### 8.5 `datetime`
 
 Signatures:
 - `datetime.nowUnix() -> Int`
@@ -335,7 +369,7 @@ Behavior:
 Notes:
 - `datetime.parseUnix` expects `YYYY-MM-DDTHH:MM:SSZ` and raises runtime errors on invalid input.
 
-### 7.6 `random`
+### 8.6 `random`
 
 Signatures:
 - `random.seed(seed: Int) -> Void`
@@ -350,7 +384,7 @@ Behavior:
 Notes:
 - Random behavior is deterministic for a given seed within the same runtime implementation.
 
-### 7.7 `os`
+### 8.7 `os`
 
 Signatures:
 - `os.cwd() -> String`
@@ -372,7 +406,7 @@ Notes:
 - `os.execShell*` can be dangerous with untrusted input (shell injection risk).
 - If a process exits without a normal exit code, `os.execShell` returns `-1`.
 
-### 7.8 `fs`
+### 8.8 `fs`
 
 Signatures:
 - `fs.exists(path: String) -> Bool`
@@ -400,7 +434,7 @@ Notes:
 - `fs.readText` raises a runtime error on read failure or invalid UTF-8.
 - `fs.removeFile` / `fs.removeDirAll` raise runtime errors for missing paths.
 
-## 8. Diagnostics (Module/Import/Export)
+## 9. Diagnostics (Module/Import/Export)
 
 Stable error codes:
 - `E-MOD-NOT-FOUND`
@@ -412,7 +446,7 @@ Stable error codes:
 
 Resolver messages include module/path context and may include `did you mean ...` suggestions.
 
-## 9. CLI Quick Reference
+## 10. CLI Quick Reference
 
 - `skepac check <entry.sk>`
 - `skepac build <entry.sk> <out.skbc>`
