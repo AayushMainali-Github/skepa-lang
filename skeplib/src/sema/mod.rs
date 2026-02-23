@@ -832,7 +832,7 @@ impl Checker {
                     && Self::block_must_return(then_body)
                     && Self::block_must_return(else_body)
             }
-            Stmt::Match { .. } => false,
+            Stmt::Match { arms, .. } => !arms.is_empty() && arms.iter().all(|arm| Self::block_must_return(&arm.body)),
             _ => false,
         }
     }

@@ -717,6 +717,129 @@ fn main() -> Int {
 }
 
 #[test]
+fn sema_accepts_match_with_literals_or_and_wildcard() {
+    let src = r#"
+fn main() -> Int {
+  let x: Int = 2;
+  match (x) {
+    0 | 1 => { return 10; }
+    2 => { return 20; }
+    _ => { return 30; }
+  }
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_accepts_match_on_string_literals() {
+    let src = r#"
+fn main() -> Int {
+  let s: String = "go";
+  match (s) {
+    "go" => { return 1; }
+    "stop" => { return 2; }
+    _ => { return 0; }
+  }
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_rejects_match_without_wildcard_arm() {
+    let src = r#"
+fn main() -> Int {
+  match (1) {
+    1 => { return 1; }
+  }
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert_has_diag(&diags, "Match statement requires a wildcard arm `_` in v1");
+}
+
+#[test]
+fn sema_rejects_match_wildcard_not_last() {
+    let src = r#"
+fn main() -> Int {
+  match (1) {
+    _ => { return 1; }
+    1 => { return 2; }
+  }
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert_has_diag(&diags, "Wildcard match arm `_` must be last");
+}
+
+#[test]
+fn sema_rejects_match_duplicate_wildcard() {
+    let src = r#"
+fn main() -> Int {
+  match (1) {
+    1 => { return 1; }
+    _ => { return 2; }
+    _ => { return 3; }
+  }
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert_has_diag(&diags, "Match statement can contain only one wildcard arm");
+}
+
+#[test]
+fn sema_rejects_match_pattern_type_mismatch() {
+    let src = r#"
+fn main() -> Int {
+  match (1) {
+    "x" => { return 1; }
+    _ => { return 0; }
+  }
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert_has_diag(&diags, "Match pattern type mismatch");
+}
+
+#[test]
+fn sema_rejects_match_duplicate_literal_patterns() {
+    let src = r#"
+fn main() -> Int {
+  match (1) {
+    1 => { return 1; }
+    1 => { return 2; }
+    _ => { return 0; }
+  }
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert_has_diag(&diags, "Duplicate match pattern literal");
+}
+
+#[test]
+fn sema_rejects_match_or_pattern_with_wildcard_member() {
+    let src = r#"
+fn main() -> Int {
+  match (1) {
+    1 | _ => { return 1; }
+    _ => { return 0; }
+  }
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert_has_diag(&diags, "Match OR-pattern alternatives must be literals in v1");
+}
+
+#[test]
 fn sema_accepts_for_with_break_and_continue() {
     let src = r#"
 fn main() -> Int {

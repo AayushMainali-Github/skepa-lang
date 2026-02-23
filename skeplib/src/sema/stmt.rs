@@ -1,11 +1,66 @@
 use std::collections::HashMap;
 
-use crate::ast::{AssignTarget, Stmt};
+use crate::ast::{AssignTarget, MatchLiteral, MatchPattern, Stmt};
 use crate::types::TypeInfo;
 
 use super::Checker;
 
 impl Checker {
+    fn match_pattern_literal_key(pat: &MatchPattern) -> Option<String> {
+        match pat {
+            MatchPattern::Literal(MatchLiteral::Int(v)) => Some(format!("int:{v}")),
+            MatchPattern::Literal(MatchLiteral::Bool(v)) => Some(format!("bool:{v}")),
+            MatchPattern::Literal(MatchLiteral::String(v)) => Some(format!("string:{v}")),
+            MatchPattern::Literal(MatchLiteral::Float(v)) => Some(format!("float:{v}")),
+            MatchPattern::Wildcard | MatchPattern::Or(_) => None,
+        }
+    }
+
+    fn check_match_pattern(
+        &mut self,
+        pat: &MatchPattern,
+        target_ty: &TypeInfo,
+        seen_literals: &mut std::collections::HashSet<String>,
+    ) {
+        match pat {
+            MatchPattern::Wildcard => {}
+            MatchPattern::Literal(lit) => {
+                let lit_ty = match lit {
+                    MatchLiteral::Int(_) => TypeInfo::Int,
+                    MatchLiteral::Bool(_) => TypeInfo::Bool,
+                    MatchLiteral::String(_) => TypeInfo::String,
+                    MatchLiteral::Float(_) => TypeInfo::Float,
+                };
+                if *target_ty != TypeInfo::Unknown && *target_ty != lit_ty {
+                    self.error(format!(
+                        "Match pattern type mismatch: target {:?}, pattern {:?}",
+                        target_ty, lit_ty
+                    ));
+                }
+                if let Some(key) = Self::match_pattern_literal_key(pat)
+                    && !seen_literals.insert(key)
+                {
+                    self.error("Duplicate match pattern literal".to_string());
+                }
+            }
+            MatchPattern::Or(parts) => {
+                if parts.is_empty() {
+                    self.error("Match OR-pattern must contain at least one alternative".to_string());
+                    return;
+                }
+                for part in parts {
+                    if matches!(part, MatchPattern::Wildcard | MatchPattern::Or(_)) {
+                        self.error(
+                            "Match OR-pattern alternatives must be literals in v1".to_string(),
+                        );
+                        continue;
+                    }
+                    self.check_match_pattern(part, target_ty, seen_literals);
+                }
+            }
+        }
+    }
+
     fn lookup_assignment_target(
         &mut self,
         target: &AssignTarget,
@@ -199,8 +254,39 @@ impl Checker {
                     ));
                 }
             }
-            Stmt::Match { .. } => {
-                self.error("`match` is not supported yet".to_string());
+            Stmt::Match { expr, arms } => {
+                let target_ty = self.check_expr(expr, scopes);
+                let mut seen_wildcard = false;
+                let mut seen_literals = std::collections::HashSet::<String>::new();
+
+                if arms.is_empty() {
+                    self.error("Match statement must have at least one arm".to_string());
+                    return;
+                }
+
+                for (idx, arm) in arms.iter().enumerate() {
+                    if matches!(arm.pattern, MatchPattern::Wildcard) {
+                        if seen_wildcard {
+                            self.error("Match statement can contain only one wildcard arm".to_string());
+                        }
+                        if idx + 1 != arms.len() {
+                            self.error("Wildcard match arm `_` must be last".to_string());
+                        }
+                        seen_wildcard = true;
+                    }
+
+                    self.check_match_pattern(&arm.pattern, &target_ty, &mut seen_literals);
+
+                    scopes.push(HashMap::new());
+                    for s in &arm.body {
+                        self.check_stmt(s, scopes, expected_ret);
+                    }
+                    scopes.pop();
+                }
+
+                if !seen_wildcard {
+                    self.error("Match statement requires a wildcard arm `_` in v1".to_string());
+                }
             }
         }
     }
