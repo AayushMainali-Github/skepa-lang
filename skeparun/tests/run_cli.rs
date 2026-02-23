@@ -425,6 +425,58 @@ fn main() -> Int {{
     assert_eq!(output.status.code(), Some(0), "{:?}", output);
 }
 
+#[test]
+fn run_executes_match_statement_program() {
+    let tmp = make_temp_dir("skeparun_match");
+    let file = tmp.join("match_ok.sk");
+    fs::write(
+        &file,
+        r#"
+let hits: Int = 0;
+
+fn next() -> Int {
+  hits = hits + 1;
+  return hits;
+}
+
+fn main() -> Int {
+  let tag = "B";
+  let score = matchValue(tag);
+  if (score != 20) {
+    return 91;
+  }
+
+  match (next()) {
+    1 => { }
+    _ => { return 92; }
+  }
+
+  if (hits != 1) {
+    return 93;
+  }
+  return 0;
+}
+
+fn matchValue(s: String) -> Int {
+  match (s) {
+    "A" => { return 10; }
+    "B" | "b" => { return 20; }
+    _ => { return 30; }
+  }
+}
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(skeparun_bin())
+        .arg("run")
+        .arg(&file)
+        .output()
+        .expect("run skeparun");
+
+    assert_eq!(output.status.code(), Some(0), "{:?}", output);
+}
+
 fn skeparun_bin() -> &'static str {
     env!("CARGO_BIN_EXE_skeparun")
 }
