@@ -53,14 +53,14 @@ impl Checker {
             }
             MatchPattern::Or(parts) => {
                 if parts.is_empty() {
-                    self.error("Match OR-pattern must contain at least one alternative".to_string());
+                    self.error(
+                        "Match OR-pattern must contain at least one alternative".to_string(),
+                    );
                     return;
                 }
                 for part in parts {
                     if matches!(part, MatchPattern::Wildcard | MatchPattern::Or(_)) {
-                        self.error(
-                            "Match OR-pattern alternatives must be literals".to_string(),
-                        );
+                        self.error("Match OR-pattern alternatives must be literals".to_string());
                         continue;
                     }
                     self.check_match_pattern(part, target_ty, seen_literals);
@@ -275,7 +275,9 @@ impl Checker {
                 for (idx, arm) in arms.iter().enumerate() {
                     if matches!(arm.pattern, MatchPattern::Wildcard) {
                         if seen_wildcard {
-                            self.error("Match statement can contain only one wildcard arm".to_string());
+                            self.error(
+                                "Match statement can contain only one wildcard arm".to_string(),
+                            );
                         }
                         if idx + 1 != arms.len() {
                             self.error("Wildcard match arm `_` must be last".to_string());

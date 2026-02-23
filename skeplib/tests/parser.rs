@@ -1,7 +1,9 @@
 mod common;
 
 use common::{assert_has_diag, parse_err, parse_ok};
-use skeplib::ast::{AssignTarget, BinaryOp, Expr, MatchLiteral, MatchPattern, Stmt, TypeName, UnaryOp};
+use skeplib::ast::{
+    AssignTarget, BinaryOp, Expr, MatchLiteral, MatchPattern, Stmt, TypeName, UnaryOp,
+};
 use skeplib::parser::Parser;
 
 #[test]
