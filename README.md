@@ -56,32 +56,6 @@ Runtime options:
 - `skeparun run --trace app.sk` enables VM trace output.
 - `SKEPA_MAX_CALL_DEPTH` can be set to control call depth and must be an integer `>= 1`.
 
-## Quickstart (multi-file project)
-
-```text
-myapp/
-  main.sk
-  utils/
-    math.sk
-```
-
-`utils/math.sk`:
-```sk
-fn add(a: Int, b: Int) -> Int { return a + b; }
-export { add };
-```
-
-`main.sk`:
-```sk
-from utils.math import add;
-fn main() -> Int { return add(20, 22); }
-```
-
-Run:
-```bash
-skeparun run myapp/main.sk
-```
-
 ## Examples
 
 - `examples/master.sk`

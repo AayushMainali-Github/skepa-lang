@@ -1,7 +1,7 @@
 [package]
 name = "skepac"
-version = "0.7.2"
+version = "0.8.0"
 edition = "2024"
 
 [dependencies]
-skeplib = { version = "0.7.2", path = "../skeplib" }
+skeplib = { version = "0.8.0", path = "../skeplib" }
