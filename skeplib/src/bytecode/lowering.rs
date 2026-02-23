@@ -1,7 +1,9 @@
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
-use crate::ast::{AssignTarget, BinaryOp, Expr, Program, Stmt, TypeName, UnaryOp};
+use crate::ast::{
+    AssignTarget, BinaryOp, Expr, MatchLiteral, MatchPattern, Program, Stmt, TypeName, UnaryOp,
+};
 use crate::diagnostic::{DiagnosticBag, Span};
 use crate::parser::Parser;
 use crate::resolver::{ModuleGraph, ModuleId, ResolveError, build_export_maps, resolve_project};
@@ -523,9 +525,77 @@ impl Compiler {
                     self.error("`continue` used outside a loop".to_string());
                 }
             }
-            Stmt::Match { .. } => {
-                self.error("`match` is not supported yet in bytecode compiler".to_string());
+            Stmt::Match { expr, arms } => {
+                self.compile_expr(expr, ctx, code);
+                let match_slot = ctx.alloc_anonymous_local();
+                code.push(Instr::StoreLocal(match_slot));
+
+                let mut end_jumps = Vec::new();
+                for arm in arms {
+                    self.compile_match_pattern_condition(&arm.pattern, match_slot, code);
+                    let jmp_false_at = code.len();
+                    code.push(Instr::JumpIfFalse(usize::MAX));
+
+                    for s in &arm.body {
+                        self.compile_stmt(s, ctx, loops, code);
+                    }
+
+                    let jmp_end_at = code.len();
+                    code.push(Instr::Jump(usize::MAX));
+                    end_jumps.push(jmp_end_at);
+
+                    let next_arm = code.len();
+                    code[jmp_false_at] = Instr::JumpIfFalse(next_arm);
+                }
+
+                let end = code.len();
+                for at in end_jumps {
+                    code[at] = Instr::Jump(end);
+                }
             }
+        }
+    }
+
+    fn compile_match_pattern_condition(
+        &mut self,
+        pattern: &MatchPattern,
+        match_slot: usize,
+        code: &mut Vec<Instr>,
+    ) {
+        match pattern {
+            MatchPattern::Wildcard => code.push(Instr::LoadConst(Value::Bool(true))),
+            MatchPattern::Literal(lit) => {
+                code.push(Instr::LoadLocal(match_slot));
+                self.compile_match_literal(lit, code);
+                code.push(Instr::Eq);
+            }
+            MatchPattern::Or(parts) => {
+                let mut iter = parts.iter();
+                if let Some(first) = iter.next() {
+                    self.compile_match_pattern_condition(first, match_slot, code);
+                    for part in iter {
+                        self.compile_match_pattern_condition(part, match_slot, code);
+                        code.push(Instr::OrBool);
+                    }
+                } else {
+                    code.push(Instr::LoadConst(Value::Bool(false)));
+                }
+            }
+        }
+    }
+
+    fn compile_match_literal(&mut self, lit: &MatchLiteral, code: &mut Vec<Instr>) {
+        match lit {
+            MatchLiteral::Int(v) => code.push(Instr::LoadConst(Value::Int(*v))),
+            MatchLiteral::Bool(v) => code.push(Instr::LoadConst(Value::Bool(*v))),
+            MatchLiteral::String(v) => code.push(Instr::LoadConst(Value::String(v.clone()))),
+            MatchLiteral::Float(v) => match v.parse::<f64>() {
+                Ok(n) => code.push(Instr::LoadConst(Value::Float(n))),
+                Err(_) => {
+                    self.error(format!("Invalid float literal in match pattern `{v}`"));
+                    code.push(Instr::LoadConst(Value::Float(0.0)));
+                }
+            },
         }
     }
 
@@ -1054,6 +1124,12 @@ impl FnCtx {
     fn alloc_local_with_named_type(&mut self, name: String, type_name: String) -> usize {
         let slot = self.alloc_local(name.clone());
         self.local_named_types.insert(name, type_name);
+        slot
+    }
+
+    fn alloc_anonymous_local(&mut self) -> usize {
+        let slot = self.next_local;
+        self.next_local += 1;
         slot
     }
 

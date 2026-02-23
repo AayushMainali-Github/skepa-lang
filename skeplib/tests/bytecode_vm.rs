@@ -183,6 +183,61 @@ fn main() -> Int {
 }
 
 #[test]
+fn runs_match_statement_with_int_and_wildcard_dispatch() {
+    let src = r#"
+fn main() -> Int {
+  let x = 2;
+  match (x) {
+    0 => { return 10; }
+    2 => { return 20; }
+    _ => { return 30; }
+  }
+}
+"#;
+    let module = compile_source(src).expect("compile should succeed");
+    let out = Vm::run_module_main(&module).expect("vm run");
+    assert_eq!(out, Value::Int(20));
+}
+
+#[test]
+fn runs_match_statement_with_string_or_pattern() {
+    let src = r#"
+fn main() -> Int {
+  let s = "Y";
+  match (s) {
+    "y" | "Y" => { return 1; }
+    _ => { return 0; }
+  }
+}
+"#;
+    let module = compile_source(src).expect("compile should succeed");
+    let out = Vm::run_module_main(&module).expect("vm run");
+    assert_eq!(out, Value::Int(1));
+}
+
+#[test]
+fn match_target_expression_is_evaluated_once() {
+    let src = r#"
+let n: Int = 0;
+
+fn next() -> Int {
+  n = n + 1;
+  return n;
+}
+
+fn main() -> Int {
+  match (next()) {
+    1 => { return n; }
+    _ => { return 99; }
+  }
+}
+"#;
+    let module = compile_source(src).expect("compile should succeed");
+    let out = Vm::run_module_main(&module).expect("vm run");
+    assert_eq!(out, Value::Int(1));
+}
+
+#[test]
 fn runs_infinite_for_loop_with_break() {
     let src = r#"
 fn main() -> Int {
