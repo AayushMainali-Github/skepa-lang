@@ -22,6 +22,7 @@ pub enum TokenKind {
     KwBreak,
     KwContinue,
     KwReturn,
+    KwMatch,
     KwTrue,
     KwFalse,
     TyInt,
@@ -40,6 +41,7 @@ pub enum TokenKind {
     Colon,
     Semi,
     Arrow,
+    FatArrow,
     Assign,
     Plus,
     Minus,
@@ -55,6 +57,7 @@ pub enum TokenKind {
     Gte,
     AndAnd,
     OrOr,
+    Pipe,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

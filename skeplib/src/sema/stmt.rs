@@ -199,6 +199,9 @@ impl Checker {
                     ));
                 }
             }
+            Stmt::Match { .. } => {
+                self.error("`match` is not supported yet".to_string());
+            }
         }
     }
 }

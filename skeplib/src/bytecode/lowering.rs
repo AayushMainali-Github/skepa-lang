@@ -523,6 +523,9 @@ impl Compiler {
                     self.error("`continue` used outside a loop".to_string());
                 }
             }
+            Stmt::Match { .. } => {
+                self.error("`match` is not supported yet in bytecode compiler".to_string());
+            }
         }
     }
 

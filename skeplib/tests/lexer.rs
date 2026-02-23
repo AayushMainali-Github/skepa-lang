@@ -17,7 +17,7 @@ fn kinds(src: &str) -> Vec<TokenKind> {
 #[test]
 fn lexes_keywords_and_types() {
     let got = kinds(
-        "import fn let if else while for break continue return true false Int Float Bool String Void",
+        "import fn let if else while for break continue return match true false Int Float Bool String Void",
     );
     let want = vec![
         TokenKind::KwImport,
@@ -30,6 +30,7 @@ fn lexes_keywords_and_types() {
         TokenKind::KwBreak,
         TokenKind::KwContinue,
         TokenKind::KwReturn,
+        TokenKind::KwMatch,
         TokenKind::KwTrue,
         TokenKind::KwFalse,
         TokenKind::TyInt,
@@ -44,7 +45,7 @@ fn lexes_keywords_and_types() {
 
 #[test]
 fn lexes_operators_and_punctuation() {
-    let got = kinds("()[]{}.,:; -> = + - * / % ! == != < <= > >= && ||");
+    let got = kinds("()[]{}.,:; -> => = + - * / % ! == != < <= > >= && || |");
     let want = vec![
         TokenKind::LParen,
         TokenKind::RParen,
@@ -57,6 +58,7 @@ fn lexes_operators_and_punctuation() {
         TokenKind::Colon,
         TokenKind::Semi,
         TokenKind::Arrow,
+        TokenKind::FatArrow,
         TokenKind::Assign,
         TokenKind::Plus,
         TokenKind::Minus,
@@ -72,6 +74,7 @@ fn lexes_operators_and_punctuation() {
         TokenKind::Gte,
         TokenKind::AndAnd,
         TokenKind::OrOr,
+        TokenKind::Pipe,
         TokenKind::Eof,
     ];
     assert_eq!(got, want);
@@ -150,10 +153,17 @@ fn reports_unterminated_block_comment() {
 
 #[test]
 fn reports_single_ampersand_and_pipe() {
-    let (_tokens, diags) = lex("& |");
-    assert_eq!(diags.len(), 2);
+    let (_tokens, diags) = lex("&");
+    assert_eq!(diags.len(), 1);
     assert!(diags.as_slice()[0].message.contains("&&"));
-    assert!(diags.as_slice()[1].message.contains("||"));
+}
+
+#[test]
+fn lexes_match_arrow_and_pipe_tokens() {
+    let got = kinds("match (x) { 1 | 2 => { } _ => { } }");
+    assert!(got.contains(&TokenKind::KwMatch));
+    assert!(got.contains(&TokenKind::FatArrow));
+    assert!(got.contains(&TokenKind::Pipe));
 }
 
 #[test]

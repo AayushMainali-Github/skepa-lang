@@ -85,6 +85,9 @@ impl Lexer {
                 if self.peek() == Some('=') {
                     self.bump();
                     self.push_token(TokenKind::EqEq, start, line, col);
+                } else if self.peek() == Some('>') {
+                    self.bump();
+                    self.push_token(TokenKind::FatArrow, start, line, col);
                 } else {
                     self.push_token(TokenKind::Assign, start, line, col);
                 }
@@ -134,10 +137,7 @@ impl Lexer {
                     self.bump();
                     self.push_token(TokenKind::OrOr, start, line, col);
                 } else {
-                    self.diagnostics.error(
-                        "Unexpected '|'. Did you mean '||'?",
-                        Span::new(start, self.idx, line, col),
-                    );
+                    self.push_token(TokenKind::Pipe, start, line, col);
                 }
             }
             _ => {
@@ -172,6 +172,7 @@ impl Lexer {
             "break" => TokenKind::KwBreak,
             "continue" => TokenKind::KwContinue,
             "return" => TokenKind::KwReturn,
+            "match" => TokenKind::KwMatch,
             "true" => TokenKind::KwTrue,
             "false" => TokenKind::KwFalse,
             "Int" => TokenKind::TyInt,

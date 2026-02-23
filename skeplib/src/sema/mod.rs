@@ -832,6 +832,7 @@ impl Checker {
                     && Self::block_must_return(then_body)
                     && Self::block_must_return(else_body)
             }
+            Stmt::Match { .. } => false,
             _ => false,
         }
     }

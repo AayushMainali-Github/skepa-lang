@@ -118,6 +118,31 @@ pub enum Stmt {
     Break,
     Continue,
     Return(Option<Expr>),
+    Match {
+        expr: Expr,
+        arms: Vec<MatchArm>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MatchArm {
+    pub pattern: MatchPattern,
+    pub body: Vec<Stmt>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MatchPattern {
+    Wildcard,
+    Literal(MatchLiteral),
+    Or(Vec<MatchPattern>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MatchLiteral {
+    Int(i64),
+    Bool(bool),
+    String(String),
+    Float(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -449,6 +474,18 @@ fn pretty_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
         }
         Stmt::Break => out.push_str(&format!("{pad}break\n")),
         Stmt::Continue => out.push_str(&format!("{pad}continue\n")),
+        Stmt::Match { expr, arms } => {
+            out.push_str(&format!("{pad}match {}\n", pretty_expr(expr)));
+            for arm in arms {
+                out.push_str(&format!(
+                    "{pad}  arm {}\n",
+                    pretty_match_pattern(&arm.pattern)
+                ));
+                for s in &arm.body {
+                    pretty_stmt(s, indent + 4, out);
+                }
+            }
+        }
     }
 }
 
@@ -543,6 +580,21 @@ fn pretty_expr(expr: &Expr) -> String {
             format!("{}({})", pretty_expr(callee), args)
         }
         Expr::Group(inner) => format!("({})", pretty_expr(inner)),
+    }
+}
+
+fn pretty_match_pattern(pat: &MatchPattern) -> String {
+    match pat {
+        MatchPattern::Wildcard => "_".to_string(),
+        MatchPattern::Literal(MatchLiteral::Int(v)) => v.to_string(),
+        MatchPattern::Literal(MatchLiteral::Bool(v)) => v.to_string(),
+        MatchPattern::Literal(MatchLiteral::String(s)) => format!("\"{}\"", s.replace('"', "\\\"")),
+        MatchPattern::Literal(MatchLiteral::Float(v)) => v.clone(),
+        MatchPattern::Or(parts) => parts
+            .iter()
+            .map(pretty_match_pattern)
+            .collect::<Vec<_>>()
+            .join(" | "),
     }
 }
 
