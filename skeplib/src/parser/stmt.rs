@@ -1,4 +1,4 @@
-use crate::ast::{AssignTarget, Expr, Stmt};
+use crate::ast::{AssignTarget, Expr, MatchArm, MatchLiteral, MatchPattern, Stmt};
 use crate::token::TokenKind;
 
 use super::Parser;
@@ -36,6 +36,26 @@ impl Parser {
             self.expect(TokenKind::RParen, "Expected `)` after while condition")?;
             let body = self.parse_block("Expected `{` before while body")?;
             return Some(Stmt::While { cond, body });
+        }
+        if self.at(TokenKind::KwMatch) {
+            self.bump();
+            self.expect(TokenKind::LParen, "Expected `(` after `match`")?;
+            let expr = self.parse_expr()?;
+            self.expect(TokenKind::RParen, "Expected `)` after match target")?;
+            self.expect(TokenKind::LBrace, "Expected `{` before match arms")?;
+            let mut arms = Vec::new();
+            if self.at(TokenKind::RBrace) {
+                self.error_here_expected("Expected at least one match arm");
+                return None;
+            }
+            while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
+                let pattern = self.parse_match_pattern()?;
+                self.expect(TokenKind::FatArrow, "Expected `=>` after match pattern")?;
+                let body = self.parse_block("Expected `{` before match arm body")?;
+                arms.push(MatchArm { pattern, body });
+            }
+            self.expect(TokenKind::RBrace, "Expected `}` after match statement")?;
+            return Some(Stmt::Match { expr, arms });
         }
         if self.at(TokenKind::KwFor) {
             self.bump();
@@ -260,5 +280,56 @@ impl Parser {
                 _ => None,
             }
         }
+    }
+
+    fn parse_match_pattern(&mut self) -> Option<MatchPattern> {
+        let mut parts = vec![self.parse_match_simple_pattern()?];
+        while self.at(TokenKind::Pipe) {
+            self.bump();
+            parts.push(self.parse_match_simple_pattern()?);
+        }
+        if parts.len() == 1 {
+            Some(parts.remove(0))
+        } else {
+            Some(MatchPattern::Or(parts))
+        }
+    }
+
+    fn parse_match_simple_pattern(&mut self) -> Option<MatchPattern> {
+        if self.at(TokenKind::Ident) && self.current().lexeme == "_" {
+            self.bump();
+            return Some(MatchPattern::Wildcard);
+        }
+        if self.at(TokenKind::IntLit) {
+            let tok = self.bump();
+            let value = tok.lexeme.parse::<i64>().ok()?;
+            return Some(MatchPattern::Literal(MatchLiteral::Int(value)));
+        }
+        if self.at(TokenKind::FloatLit) {
+            let tok = self.bump();
+            return Some(MatchPattern::Literal(MatchLiteral::Float(tok.lexeme)));
+        }
+        if self.at(TokenKind::KwTrue) {
+            self.bump();
+            return Some(MatchPattern::Literal(MatchLiteral::Bool(true)));
+        }
+        if self.at(TokenKind::KwFalse) {
+            self.bump();
+            return Some(MatchPattern::Literal(MatchLiteral::Bool(false)));
+        }
+        if self.at(TokenKind::StringLit) {
+            let tok = self.bump();
+            let raw = tok
+                .lexeme
+                .strip_prefix('"')
+                .and_then(|v| v.strip_suffix('"'))
+                .unwrap_or(&tok.lexeme)
+                .to_string();
+            let s = self.decode_string_escapes(&raw, tok.span);
+            return Some(MatchPattern::Literal(MatchLiteral::String(s)));
+        }
+
+        self.error_here_expected("Expected match pattern (`_` or literal)");
+        None
     }
 }

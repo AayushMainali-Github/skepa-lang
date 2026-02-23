@@ -1,7 +1,7 @@
 mod common;
 
 use common::{assert_has_diag, parse_err, parse_ok};
-use skeplib::ast::{AssignTarget, BinaryOp, Expr, Stmt, TypeName, UnaryOp};
+use skeplib::ast::{AssignTarget, BinaryOp, Expr, MatchLiteral, MatchPattern, Stmt, TypeName, UnaryOp};
 use skeplib::parser::Parser;
 
 #[test]
@@ -1095,6 +1095,102 @@ fn main() -> Int {
         }
         _ => panic!("expected if"),
     }
+}
+
+#[test]
+fn parses_match_statement_with_literals_and_wildcard() {
+    let src = r#"
+fn main() -> Int {
+  match (1) {
+    0 => { return 10; }
+    1 => { return 20; }
+    _ => { return 30; }
+  }
+}
+"#;
+    let program = parse_ok(src);
+    match &program.functions[0].body[0] {
+        Stmt::Match { expr, arms } => {
+            assert_eq!(*expr, Expr::IntLit(1));
+            assert_eq!(arms.len(), 3);
+            assert_eq!(arms[0].pattern, MatchPattern::Literal(MatchLiteral::Int(0)));
+            assert_eq!(arms[1].pattern, MatchPattern::Literal(MatchLiteral::Int(1)));
+            assert_eq!(arms[2].pattern, MatchPattern::Wildcard);
+            assert!(matches!(arms[0].body[0], Stmt::Return(_)));
+        }
+        _ => panic!("expected match statement"),
+    }
+}
+
+#[test]
+fn parses_match_or_pattern_and_string_pattern() {
+    let src = r#"
+fn main() -> Int {
+  match ("y") {
+    "y" | "Y" => { return 1; }
+    _ => { return 0; }
+  }
+}
+"#;
+    let program = parse_ok(src);
+    match &program.functions[0].body[0] {
+        Stmt::Match { arms, .. } => match &arms[0].pattern {
+            MatchPattern::Or(parts) => {
+                assert_eq!(parts.len(), 2);
+                assert_eq!(
+                    parts[0],
+                    MatchPattern::Literal(MatchLiteral::String("y".to_string()))
+                );
+                assert_eq!(
+                    parts[1],
+                    MatchPattern::Literal(MatchLiteral::String("Y".to_string()))
+                );
+            }
+            _ => panic!("expected or-pattern"),
+        },
+        _ => panic!("expected match statement"),
+    }
+}
+
+#[test]
+fn reports_match_missing_fat_arrow() {
+    let src = r#"
+fn main() -> Int {
+  match (1) {
+    1 { return 1; }
+    _ => { return 0; }
+  }
+}
+"#;
+    let diags = parse_err(src);
+    assert_has_diag(&diags, "Expected `=>` after match pattern");
+}
+
+#[test]
+fn reports_empty_match_body() {
+    let src = r#"
+fn main() -> Int {
+  match (1) {
+  }
+  return 0;
+}
+"#;
+    let diags = parse_err(src);
+    assert_has_diag(&diags, "Expected at least one match arm");
+}
+
+#[test]
+fn reports_invalid_match_pattern_identifier() {
+    let src = r#"
+fn main() -> Int {
+  match (1) {
+    x => { return 1; }
+    _ => { return 0; }
+  }
+}
+"#;
+    let diags = parse_err(src);
+    assert_has_diag(&diags, "Expected match pattern (`_` or literal)");
 }
 
 #[test]

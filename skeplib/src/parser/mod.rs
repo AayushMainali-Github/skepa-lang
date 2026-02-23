@@ -477,6 +477,7 @@ impl Parser {
             match self.current().kind {
                 TokenKind::KwLet
                 | TokenKind::KwIf
+                | TokenKind::KwMatch
                 | TokenKind::KwWhile
                 | TokenKind::KwFor
                 | TokenKind::KwBreak
