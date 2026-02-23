@@ -238,6 +238,64 @@ fn main() -> Int {
 }
 
 #[test]
+fn runs_match_statement_with_float_literal_patterns() {
+    let src = r#"
+fn main() -> Int {
+  let x: Float = 2.5;
+  match (x) {
+    1.0 => { return 10; }
+    2.5 | 3.5 => { return 20; }
+    _ => { return 30; }
+  }
+}
+"#;
+    let module = compile_source(src).expect("compile should succeed");
+    let out = Vm::run_module_main(&module).expect("vm run");
+    assert_eq!(out, Value::Int(20));
+}
+
+#[test]
+fn runs_nested_match_stress_case() {
+    let src = r#"
+fn bucket(n: Int) -> Int {
+  match (n % 3) {
+    0 => {
+      match (n % 2) {
+        0 => { return 10; }
+        _ => { return 11; }
+      }
+    }
+    1 => {
+      match (n) {
+        1 | 4 | 7 => { return 20; }
+        _ => { return 21; }
+      }
+    }
+    _ => {
+      match (n > 5) {
+        true => { return 30; }
+        _ => { return 31; }
+      }
+    }
+  }
+}
+
+fn main() -> Int {
+  let i = 0;
+  let acc = 0;
+  while (i < 9) {
+    acc = acc + bucket(i);
+    i = i + 1;
+  }
+  return acc;
+}
+"#;
+    let module = compile_source(src).expect("compile should succeed");
+    let out = Vm::run_module_main(&module).expect("vm run");
+    assert_eq!(out, Value::Int(183));
+}
+
+#[test]
 fn runs_infinite_for_loop_with_break() {
     let src = r#"
 fn main() -> Int {

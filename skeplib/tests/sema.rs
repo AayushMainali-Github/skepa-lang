@@ -759,7 +759,7 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert_has_diag(&diags, "Match statement requires a wildcard arm `_` in v1");
+    assert_has_diag(&diags, "Match statement requires a wildcard arm `_`");
 }
 
 #[test]
@@ -821,7 +821,7 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert_has_diag(&diags, "Duplicate match pattern literal");
+    assert_has_diag(&diags, "Duplicate match pattern Int literal `1`");
 }
 
 #[test]
@@ -836,7 +836,7 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert_has_diag(&diags, "Match OR-pattern alternatives must be literals in v1");
+    assert_has_diag(&diags, "Match OR-pattern alternatives must be literals");
 }
 
 #[test]

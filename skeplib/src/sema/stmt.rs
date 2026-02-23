@@ -6,12 +6,20 @@ use crate::types::TypeInfo;
 use super::Checker;
 
 impl Checker {
-    fn match_pattern_literal_key(pat: &MatchPattern) -> Option<String> {
+    fn match_pattern_literal_key_and_label(pat: &MatchPattern) -> Option<(String, String)> {
         match pat {
-            MatchPattern::Literal(MatchLiteral::Int(v)) => Some(format!("int:{v}")),
-            MatchPattern::Literal(MatchLiteral::Bool(v)) => Some(format!("bool:{v}")),
-            MatchPattern::Literal(MatchLiteral::String(v)) => Some(format!("string:{v}")),
-            MatchPattern::Literal(MatchLiteral::Float(v)) => Some(format!("float:{v}")),
+            MatchPattern::Literal(MatchLiteral::Int(v)) => {
+                Some((format!("int:{v}"), format!("Int literal `{v}`")))
+            }
+            MatchPattern::Literal(MatchLiteral::Bool(v)) => {
+                Some((format!("bool:{v}"), format!("Bool literal `{v}`")))
+            }
+            MatchPattern::Literal(MatchLiteral::String(v)) => {
+                Some((format!("string:{v}"), format!("String literal \"{v}\"")))
+            }
+            MatchPattern::Literal(MatchLiteral::Float(v)) => {
+                Some((format!("float:{v}"), format!("Float literal `{v}`")))
+            }
             MatchPattern::Wildcard | MatchPattern::Or(_) => None,
         }
     }
@@ -37,10 +45,10 @@ impl Checker {
                         target_ty, lit_ty
                     ));
                 }
-                if let Some(key) = Self::match_pattern_literal_key(pat)
+                if let Some((key, label)) = Self::match_pattern_literal_key_and_label(pat)
                     && !seen_literals.insert(key)
                 {
-                    self.error("Duplicate match pattern literal".to_string());
+                    self.error(format!("Duplicate match pattern {label}"));
                 }
             }
             MatchPattern::Or(parts) => {
@@ -51,7 +59,7 @@ impl Checker {
                 for part in parts {
                     if matches!(part, MatchPattern::Wildcard | MatchPattern::Or(_)) {
                         self.error(
-                            "Match OR-pattern alternatives must be literals in v1".to_string(),
+                            "Match OR-pattern alternatives must be literals".to_string(),
                         );
                         continue;
                     }
@@ -285,7 +293,7 @@ impl Checker {
                 }
 
                 if !seen_wildcard {
-                    self.error("Match statement requires a wildcard arm `_` in v1".to_string());
+                    self.error("Match statement requires a wildcard arm `_`".to_string());
                 }
             }
         }
