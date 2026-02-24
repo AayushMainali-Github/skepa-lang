@@ -5,6 +5,7 @@ mod io;
 mod os;
 mod random;
 mod str;
+mod vec;
 
 use std::collections::HashMap;
 
@@ -29,6 +30,7 @@ impl BuiltinRegistry {
         fs::register(&mut r);
         os::register(&mut r);
         random::register(&mut r);
+        vec::register(&mut r);
         r
     }
 

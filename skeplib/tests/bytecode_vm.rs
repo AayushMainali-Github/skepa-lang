@@ -869,6 +869,7 @@ fn main() -> Int {
         output: String::new(),
         input: VecDeque::from([String::from("sam")]),
         rng_state: 0,
+        ..Default::default()
     };
     let out = Vm::run_module_main_with_host(&module, &mut host).expect("vm run");
     assert_eq!(out, Value::Int(0));
@@ -3479,4 +3480,262 @@ fn main() -> Int {
             Instr::Call { name, argc } if name == "utils.math.add" && *argc == 2
         )
     }));
+}
+
+#[test]
+fn vm_vec_new_and_len_runtime_builtins_work() {
+    let module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::CallBuiltin {
+                        package: "vec".to_string(),
+                        name: "new".to_string(),
+                        argc: 0,
+                    },
+                    Instr::CallBuiltin {
+                        package: "vec".to_string(),
+                        name: "len".to_string(),
+                        argc: 1,
+                    },
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(0));
+}
+
+#[test]
+fn vm_vec_push_get_set_delete_supports_in_place_mutation_and_shift() {
+    let module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::CallBuiltin {
+                        package: "vec".to_string(),
+                        name: "new".to_string(),
+                        argc: 0,
+                    },
+                    Instr::StoreLocal(0),
+                    // push 10
+                    Instr::LoadLocal(0),
+                    Instr::LoadConst(Value::Int(10)),
+                    Instr::CallBuiltin {
+                        package: "vec".to_string(),
+                        name: "push".to_string(),
+                        argc: 2,
+                    },
+                    Instr::Pop,
+                    // push 20
+                    Instr::LoadLocal(0),
+                    Instr::LoadConst(Value::Int(20)),
+                    Instr::CallBuiltin {
+                        package: "vec".to_string(),
+                        name: "push".to_string(),
+                        argc: 2,
+                    },
+                    Instr::Pop,
+                    // push 30
+                    Instr::LoadLocal(0),
+                    Instr::LoadConst(Value::Int(30)),
+                    Instr::CallBuiltin {
+                        package: "vec".to_string(),
+                        name: "push".to_string(),
+                        argc: 2,
+                    },
+                    Instr::Pop,
+                    // set index 1 = 99
+                    Instr::LoadLocal(0),
+                    Instr::LoadConst(Value::Int(1)),
+                    Instr::LoadConst(Value::Int(99)),
+                    Instr::CallBuiltin {
+                        package: "vec".to_string(),
+                        name: "set".to_string(),
+                        argc: 3,
+                    },
+                    Instr::Pop,
+                    // delete index 1, store removed
+                    Instr::LoadLocal(0),
+                    Instr::LoadConst(Value::Int(1)),
+                    Instr::CallBuiltin {
+                        package: "vec".to_string(),
+                        name: "delete".to_string(),
+                        argc: 2,
+                    },
+                    Instr::StoreLocal(1),
+                    // Return removed + len + get(0) + get(1)
+                    Instr::LoadLocal(1),
+                    Instr::LoadLocal(0),
+                    Instr::CallBuiltin {
+                        package: "vec".to_string(),
+                        name: "len".to_string(),
+                        argc: 1,
+                    },
+                    Instr::Add,
+                    Instr::LoadLocal(0),
+                    Instr::LoadConst(Value::Int(0)),
+                    Instr::CallBuiltin {
+                        package: "vec".to_string(),
+                        name: "get".to_string(),
+                        argc: 2,
+                    },
+                    Instr::Add,
+                    Instr::LoadLocal(0),
+                    Instr::LoadConst(Value::Int(1)),
+                    Instr::CallBuiltin {
+                        package: "vec".to_string(),
+                        name: "get".to_string(),
+                        argc: 2,
+                    },
+                    Instr::Add,
+                    Instr::Return,
+                ],
+                locals_count: 2,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let out = Vm::run_module_main(&module).expect("run");
+    // removed=99, len=2, remaining=[10,30]
+    assert_eq!(out, Value::Int(141));
+}
+
+#[test]
+fn vm_vec_aliasing_uses_shared_handle_semantics() {
+    let module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::CallBuiltin {
+                        package: "vec".to_string(),
+                        name: "new".to_string(),
+                        argc: 0,
+                    },
+                    Instr::StoreLocal(0),
+                    Instr::LoadLocal(0),
+                    Instr::StoreLocal(1),
+                    Instr::LoadLocal(1),
+                    Instr::LoadConst(Value::Int(7)),
+                    Instr::CallBuiltin {
+                        package: "vec".to_string(),
+                        name: "push".to_string(),
+                        argc: 2,
+                    },
+                    Instr::Pop,
+                    Instr::LoadLocal(0),
+                    Instr::CallBuiltin {
+                        package: "vec".to_string(),
+                        name: "len".to_string(),
+                        argc: 1,
+                    },
+                    Instr::Return,
+                ],
+                locals_count: 2,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let out = Vm::run_module_main(&module).expect("run");
+    assert_eq!(out, Value::Int(1));
+}
+
+#[test]
+fn vm_vec_delete_reports_index_out_of_bounds() {
+    let module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::CallBuiltin {
+                        package: "vec".to_string(),
+                        name: "new".to_string(),
+                        argc: 0,
+                    },
+                    Instr::LoadConst(Value::Int(0)),
+                    Instr::CallBuiltin {
+                        package: "vec".to_string(),
+                        name: "delete".to_string(),
+                        argc: 2,
+                    },
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&module).expect_err("oob");
+    assert_eq!(err.kind, VmErrorKind::IndexOutOfBounds);
+}
+
+#[test]
+fn vm_vec_runtime_type_and_arity_errors_are_reported() {
+    let arity_module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::LoadConst(Value::Int(1)),
+                    Instr::CallBuiltin {
+                        package: "vec".to_string(),
+                        name: "new".to_string(),
+                        argc: 1,
+                    },
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&arity_module).expect_err("arity mismatch");
+    assert_eq!(err.kind, VmErrorKind::ArityMismatch);
+    assert!(err.message.contains("vec.new expects 0 arguments"));
+
+    let type_module = BytecodeModule {
+        functions: vec![(
+            "main".to_string(),
+            FunctionChunk {
+                name: "main".to_string(),
+                code: vec![
+                    Instr::LoadConst(Value::Int(1)),
+                    Instr::CallBuiltin {
+                        package: "vec".to_string(),
+                        name: "len".to_string(),
+                        argc: 1,
+                    },
+                    Instr::Return,
+                ],
+                locals_count: 0,
+                param_count: 0,
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    let err = Vm::run_module_main(&type_module).expect_err("type mismatch");
+    assert_eq!(err.kind, VmErrorKind::TypeMismatch);
+    assert!(err.message.contains("vec.len argument 1 expects Vec"));
 }
