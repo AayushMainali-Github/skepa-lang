@@ -2785,7 +2785,8 @@ fn main() -> Int {
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
     assert!(
-        diags.as_slice()
+        diags
+            .as_slice()
             .iter()
             .any(|d| d.message.contains("`vec.*` used without `import vec;`"))
     );
@@ -2805,12 +2806,14 @@ fn main() -> Int {
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
     assert!(
-        diags.as_slice()
+        diags
+            .as_slice()
             .iter()
             .any(|d| d.message.contains("vec.push argument 2 expects Int"))
     );
     assert!(
-        diags.as_slice()
+        diags
+            .as_slice()
             .iter()
             .any(|d| d.message.contains("vec.set argument 3 expects Int"))
     );
@@ -2829,7 +2832,8 @@ fn main() -> Int {
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
     assert!(
-        diags.as_slice()
+        diags
+            .as_slice()
             .iter()
             .any(|d| d.message.contains("vec.delete argument 2 expects Int"))
     );
@@ -2869,12 +2873,14 @@ fn main() -> Int {
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
     assert!(
-        diags.as_slice()
+        diags
+            .as_slice()
             .iter()
             .any(|d| d.message.contains("vec.len argument 1 expects Vec"))
     );
     assert!(
-        diags.as_slice()
+        diags
+            .as_slice()
             .iter()
             .any(|d| d.message.contains("vec.len expects 1 argument(s), got 0"))
     );
@@ -2901,9 +2907,24 @@ fn main() -> Int {
         .iter()
         .map(|d| d.message.as_str())
         .collect::<Vec<_>>();
-    assert!(msgs.iter().any(|m| m.contains("vec.get expects 2 argument(s), got 1")));
-    assert!(msgs.iter().any(|m| m.contains("vec.get argument 2 expects Int")));
-    assert!(msgs.iter().any(|m| m.contains("vec.set argument 2 expects Int")));
-    assert!(msgs.iter().any(|m| m.contains("vec.set expects 3 argument(s), got 2")));
-    assert!(msgs.iter().any(|m| m.contains("vec.delete expects 2 argument(s), got 1")));
+    assert!(
+        msgs.iter()
+            .any(|m| m.contains("vec.get expects 2 argument(s), got 1"))
+    );
+    assert!(
+        msgs.iter()
+            .any(|m| m.contains("vec.get argument 2 expects Int"))
+    );
+    assert!(
+        msgs.iter()
+            .any(|m| m.contains("vec.set argument 2 expects Int"))
+    );
+    assert!(
+        msgs.iter()
+            .any(|m| m.contains("vec.set expects 3 argument(s), got 2"))
+    );
+    assert!(
+        msgs.iter()
+            .any(|m| m.contains("vec.delete expects 2 argument(s), got 1"))
+    );
 }

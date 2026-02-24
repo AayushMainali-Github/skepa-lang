@@ -3748,13 +3748,11 @@ fn vm_vec_get_set_delete_negative_index_errors() {
             FunctionChunk {
                 name: "main".to_string(),
                 code: {
-                    let mut code = vec![
-                        Instr::CallBuiltin {
-                            package: "vec".to_string(),
-                            name: "new".to_string(),
-                            argc: 0,
-                        },
-                    ];
+                    let mut code = vec![Instr::CallBuiltin {
+                        package: "vec".to_string(),
+                        name: "new".to_string(),
+                        argc: 0,
+                    }];
                     code.extend(extra);
                     code.push(Instr::CallBuiltin {
                         package: "vec".to_string(),
@@ -3779,7 +3777,10 @@ fn vm_vec_get_set_delete_negative_index_errors() {
     let set_m = mk_module(
         "set",
         3,
-        vec![Instr::LoadConst(Value::Int(-1)), Instr::LoadConst(Value::Int(1))],
+        vec![
+            Instr::LoadConst(Value::Int(-1)),
+            Instr::LoadConst(Value::Int(1)),
+        ],
     );
     let e2 = Vm::run_module_main(&set_m).expect_err("negative set");
     assert_eq!(e2.kind, VmErrorKind::IndexOutOfBounds);

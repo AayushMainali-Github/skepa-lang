@@ -31,7 +31,10 @@ pub(super) fn check_vec_builtin(
         }
         "push" => {
             if args.len() != 2 {
-                checker.error(format!("vec.push expects 2 argument(s), got {}", args.len()));
+                checker.error(format!(
+                    "vec.push expects 2 argument(s), got {}",
+                    args.len()
+                ));
                 return TypeInfo::Void;
             }
             let vec_ty = checker.check_expr(&args[0], scopes);
@@ -127,4 +130,3 @@ pub(super) fn check_vec_builtin(
         }
     }
 }
-

@@ -78,9 +78,9 @@ impl BuiltinHost for StdIoHost {
             .vec_store
             .get_mut(&id)
             .ok_or_else(|| VmError::new(VmErrorKind::TypeMismatch, "invalid vec handle"))?;
-        let slot = vec
-            .get_mut(idx)
-            .ok_or_else(|| VmError::new(VmErrorKind::IndexOutOfBounds, "vec index out of bounds"))?;
+        let slot = vec.get_mut(idx).ok_or_else(|| {
+            VmError::new(VmErrorKind::IndexOutOfBounds, "vec index out of bounds")
+        })?;
         *slot = v;
         Ok(())
     }
@@ -180,9 +180,9 @@ impl BuiltinHost for TestHost {
             .vec_store
             .get_mut(&id)
             .ok_or_else(|| VmError::new(VmErrorKind::TypeMismatch, "invalid vec handle"))?;
-        let slot = vec
-            .get_mut(idx)
-            .ok_or_else(|| VmError::new(VmErrorKind::IndexOutOfBounds, "vec index out of bounds"))?;
+        let slot = vec.get_mut(idx).ok_or_else(|| {
+            VmError::new(VmErrorKind::IndexOutOfBounds, "vec index out of bounds")
+        })?;
         *slot = v;
         Ok(())
     }

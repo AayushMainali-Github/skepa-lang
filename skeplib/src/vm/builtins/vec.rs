@@ -105,4 +105,3 @@ fn builtin_vec_delete(host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Va
     let idx = expect_int(&args[1], "delete", 2)?;
     host.vec_delete(id, idx)
 }
-
