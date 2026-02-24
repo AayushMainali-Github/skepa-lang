@@ -1,0 +1,13 @@
+import vec;
+
+fn main() -> Int {
+  let xs: Vec[Int] = vec.new();
+  vec.push(xs, 1);
+  vec.push(xs, 2);
+  vec.set(xs, 1, 9);
+  let removed = vec.delete(xs, 0);
+  if (removed == 1 && vec.len(xs) == 1 && vec.get(xs, 0) == 9) {
+    return 0;
+  }
+  return 1;
+}

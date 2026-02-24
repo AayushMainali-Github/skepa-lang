@@ -1,0 +1,7 @@
+import vec;
+
+fn main() -> Int {
+  let xs: Vec[Int] = vec.new();
+  vec.push(xs, "bad");
+  return 0;
+}

@@ -1,0 +1,7 @@
+import vec;
+
+fn main() -> Int {
+  let xs: Vec[Int] = vec.new();
+  let _x = vec.delete(xs, "0");
+  return 0;
+}

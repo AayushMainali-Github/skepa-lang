@@ -1,0 +1,4 @@
+fn main() -> Int {
+  let xs: Vec[] = 0;
+  return 0;
+}

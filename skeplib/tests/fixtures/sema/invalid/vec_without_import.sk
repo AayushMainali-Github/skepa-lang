@@ -1,0 +1,4 @@
+fn main() -> Int {
+  let xs: Vec[Int] = vec.new();
+  return 0;
+}

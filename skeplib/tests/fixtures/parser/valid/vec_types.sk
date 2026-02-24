@@ -1,0 +1,9 @@
+fn make() -> Vec[Int] {
+  let xs: Vec[Int] = vec.new();
+  return xs;
+}
+
+fn main() -> Int {
+  let ys: Vec[Vec[String]] = vec.new();
+  return 0;
+}
