@@ -84,11 +84,13 @@ param            = ident ":" type ;
 type             = primitive_type
                  | named_type
                  | array_type
+                 | vec_type
                  | fn_type ;
 
 primitive_type   = "Int" | "Float" | "Bool" | "String" | "Void" ;
 named_type       = ident { "." ident } ;
 array_type       = "[" type ";" int_lit "]" ;
+vec_type         = "Vec" "[" type "]" ;
 fn_type          = "Fn" "(" [ type_list ] ")" "->" type ;
 type_list        = type { "," type } ;
 
@@ -218,7 +220,7 @@ These are available through namespace paths (`string.case.up(...)`).
 - Wildcard imports can conflict with prior bindings; conflict is an error.
 - Export target names collide after aliasing, not before.
 - If same target name appears from multiple export blocks, it is an error.
-- Builtin package names (`io`, `str`, `arr`, `datetime`, `random`, `os`, `fs`) are reserved package roots.
+- Builtin package names (`io`, `str`, `arr`, `datetime`, `random`, `os`, `fs`, `vec`) are reserved package roots.
 - `import ns; ns.f(...)` works only when `f` is exported exactly under that namespace level. Example: `import string; string.toUpper(...)` is invalid if only `string.case.toUpper` exists.
 
 ## 5. Operator Precedence
@@ -278,6 +280,7 @@ Behavior:
 - No implicit numeric promotion.
 - `%` is `Int % Int` only.
 - Arrays are static-size in type syntax (`[T; N]`, `N` literal).
+- Vectors are runtime-sized in type syntax (`Vec[T]`).
 - Struct methods: first parameter must be `self: StructName`.
 - Function literals are non-capturing.
 
@@ -290,6 +293,7 @@ Behavior:
 - `random`: deterministic seed + random int/float
 - `os`: basic host/process helpers (`cwd`, `platform`, `sleep`, `execShell`, `execShellOut`)
 - `fs`: basic filesystem helpers (`exists`, `readText`, `writeText`, `appendText`, `mkdirAll`, `removeFile`, `removeDirAll`, `join`)
+- `vec`: runtime-sized vector helpers (`new`, `len`, `push`, `get`, `set`, `delete`)
 
 ### 8.1 General Rules
 
@@ -451,6 +455,27 @@ Behavior:
 Notes:
 - `fs.readText` raises a runtime error on read failure or invalid UTF-8.
 - `fs.removeFile` / `fs.removeDirAll` raise runtime errors for missing paths.
+
+### 8.9 `vec`
+
+Signatures:
+- `vec.new() -> Vec[T]` (typed context required)
+- `vec.len(v: Vec[T]) -> Int`
+- `vec.push(v: Vec[T], x: T) -> Void`
+- `vec.get(v: Vec[T], i: Int) -> T`
+- `vec.set(v: Vec[T], i: Int, x: T) -> Void`
+- `vec.delete(v: Vec[T], i: Int) -> T`
+
+Behavior:
+- Vectors are runtime-sized and mutable.
+- `vec.push`, `vec.set`, and `vec.delete` mutate the vector in place.
+- `vec.delete` removes the element at `i`, shifts later elements left, and returns the removed value.
+- Index operations (`get`, `set`, `delete`) require `Int` indices.
+
+Notes:
+- `vec.new()` currently requires typed context (for example `let xs: Vec[Int] = vec.new();`).
+- Vector values use shared handle semantics: assignment/pass/return aliases the same underlying vector.
+- Negative or out-of-bounds indices raise runtime errors.
 
 ## 9. Diagnostics (Module/Import/Export)
 

@@ -3,6 +3,7 @@ import str;
 import arr;
 import os;
 import fs;
+import vec;
 
 struct Op {
   apply: Fn(Int, Int) -> Int
@@ -53,6 +54,14 @@ fn main() -> Int {
   grid[1][0] = nums[1];
 
   let s = "skepa";
+  let dyns: Vec[Int] = vec.new();
+  vec.push(dyns, 4);
+  vec.push(dyns, 8);
+  vec.set(dyns, 1, 9);
+  let gone = vec.delete(dyns, 0);
+  if (gone != 4 || vec.len(dyns) != 1 || vec.get(dyns, 0) != 9) {
+    return 95;
+  }
   let cwd = os.cwd();
   let platform = os.platform();
   let scratchRoot = fs.join(cwd, ".skepa_examples");
@@ -77,10 +86,10 @@ fn main() -> Int {
   }
   fs.removeFile(scratchFile);
   fs.removeDirAll(scratchDir);
-  let total = acc + nums[1] + grid[1][0] + 4 + str.len(s) + cnt2 + firstx + lastx + via_f + via_arr + via_field + matchScore;
+  let total = acc + nums[1] + grid[1][0] + 4 + str.len(s) + cnt2 + firstx + lastx + via_f + via_arr + via_field + matchScore + vec.len(dyns) + vec.get(dyns, 0);
   io.println("master example done");
 
-  if (total == 78) {
+  if (total == 88) {
     return 0;
   }
   return 1;
