@@ -203,7 +203,7 @@ pub fn resolve_project(entry: &Path) -> Result<ModuleGraph, Vec<ResolveError>> {
             if import_path.len() == 1
                 && matches!(
                     import_path[0].as_str(),
-                    "io" | "str" | "arr" | "datetime" | "random" | "os" | "fs"
+                    "io" | "str" | "arr" | "datetime" | "random" | "os" | "fs" | "vec"
                 )
             {
                 continue;

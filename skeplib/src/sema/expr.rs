@@ -18,7 +18,15 @@ impl Checker {
             Expr::StringLit(_) => TypeInfo::String,
             Expr::Ident(name) => self.lookup_var(name, scopes),
             Expr::Path(parts) => {
-                if parts.len() == 2 && (parts[0] == "io" || parts[0] == "str" || parts[0] == "arr")
+                if parts.len() == 2
+                    && (parts[0] == "io"
+                        || parts[0] == "str"
+                        || parts[0] == "arr"
+                        || parts[0] == "datetime"
+                        || parts[0] == "random"
+                        || parts[0] == "os"
+                        || parts[0] == "fs"
+                        || parts[0] == "vec")
                 {
                     return TypeInfo::Unknown;
                 }
@@ -101,9 +109,10 @@ impl Checker {
                 }
                 match base_ty {
                     TypeInfo::Array { elem, .. } => *elem,
+                    TypeInfo::Vec { elem } => *elem,
                     TypeInfo::Unknown => TypeInfo::Unknown,
                     other => {
-                        self.error(format!("Cannot index into non-array type {:?}", other));
+                        self.error(format!("Cannot index into non-indexable type {:?}", other));
                         TypeInfo::Unknown
                     }
                 }
@@ -279,6 +288,10 @@ impl Checker {
             EqEq | Neq => {
                 if matches!(lt, TypeInfo::Fn { .. }) || matches!(rt, TypeInfo::Fn { .. }) {
                     self.error("Function values cannot be compared with `==` or `!=`".to_string());
+                    return TypeInfo::Unknown;
+                }
+                if matches!(lt, TypeInfo::Vec { .. }) || matches!(rt, TypeInfo::Vec { .. }) {
+                    self.error("Vector values cannot be compared with `==` or `!=`".to_string());
                     return TypeInfo::Unknown;
                 }
                 if lt == rt || lt == TypeInfo::Unknown || rt == TypeInfo::Unknown {

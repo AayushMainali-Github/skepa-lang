@@ -452,7 +452,7 @@ impl Checker {
                     if path.len() == 1
                         && matches!(
                             path[0].as_str(),
-                            "io" | "str" | "arr" | "datetime" | "random" | "os" | "fs"
+                            "io" | "str" | "arr" | "datetime" | "random" | "os" | "fs" | "vec"
                         )
                     {
                         imported_modules.insert(path[0].clone());
@@ -573,7 +573,14 @@ impl Checker {
             let declared_ty = g.ty.as_ref().map(TypeInfo::from_ast);
             let final_ty = match declared_ty {
                 Some(declared) => {
-                    if expr_ty != TypeInfo::Unknown && expr_ty != declared {
+                    if Checker::is_vec_new_call(&g.value) {
+                        if !matches!(declared, TypeInfo::Vec { .. }) {
+                            self.error(format!(
+                                "Type mismatch in global let `{}`: declared {:?}, got vec.new()",
+                                g.name, declared
+                            ));
+                        }
+                    } else if expr_ty != TypeInfo::Unknown && expr_ty != declared {
                         self.error(format!(
                             "Type mismatch in global let `{}`: declared {:?}, got {:?}",
                             g.name, declared, expr_ty
@@ -581,7 +588,17 @@ impl Checker {
                     }
                     declared
                 }
-                None => expr_ty,
+                None => {
+                    if Checker::is_vec_new_call(&g.value) {
+                        self.error(format!(
+                            "Cannot infer vector element type for global let `{}`; annotate as `Vec[T]`",
+                            g.name
+                        ));
+                        TypeInfo::Unknown
+                    } else {
+                        expr_ty
+                    }
+                }
             };
             scope.insert(g.name.clone(), final_ty.clone());
             self.globals.insert(g.name.clone(), final_ty.clone());
@@ -736,6 +753,7 @@ impl Checker {
             | TypeName::String
             | TypeName::Void => {}
             TypeName::Array { elem, .. } => self.check_decl_type_exists(elem, err_prefix),
+            TypeName::Vec { elem } => self.check_decl_type_exists(elem, err_prefix),
             TypeName::Fn { params, ret } => {
                 for p in params {
                     self.check_decl_type_exists(p, err_prefix.clone());

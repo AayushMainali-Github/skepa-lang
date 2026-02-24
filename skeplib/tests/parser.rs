@@ -1889,3 +1889,33 @@ fn main() -> Int {
         _ => panic!("expected field assignment target"),
     }
 }
+
+#[test]
+fn parses_vec_type_annotations() {
+    let src = r#"
+fn take(xs: Vec[Int]) -> Vec[String] {
+  let ys: Vec[String] = vec.new();
+  return ys;
+}
+"#;
+    let program = parse_ok(src);
+    let f = &program.functions[0];
+    assert_eq!(f.params[0].ty.as_str(), "Vec[Int]");
+    assert_eq!(f.return_type.as_ref().expect("ret").as_str(), "Vec[String]");
+    match &f.body[0] {
+        Stmt::Let { ty: Some(ty), .. } => assert_eq!(ty.as_str(), "Vec[String]"),
+        _ => panic!("expected typed let"),
+    }
+}
+
+#[test]
+fn reports_malformed_vec_type_syntax() {
+    let src = r#"
+fn main() -> Int {
+  let xs: Vec[] = 0;
+  return 0;
+}
+"#;
+    let diags = parse_err(src);
+    assert_has_diag(&diags, "Expected vector element type");
+}

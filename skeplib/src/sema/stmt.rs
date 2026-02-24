@@ -1,11 +1,29 @@
 use std::collections::HashMap;
 
-use crate::ast::{AssignTarget, MatchLiteral, MatchPattern, Stmt};
+use crate::ast::{AssignTarget, Expr, MatchLiteral, MatchPattern, Stmt};
 use crate::types::TypeInfo;
 
 use super::Checker;
 
 impl Checker {
+    pub(super) fn is_vec_new_call(expr: &Expr) -> bool {
+        matches!(
+            expr,
+            Expr::Call { callee, args }
+                if args.is_empty()
+                    && matches!(
+                        &**callee,
+                        Expr::Path(parts) if parts.len() == 2 && parts[0] == "vec" && parts[1] == "new"
+                    )
+                        || matches!(
+                            &**callee,
+                            Expr::Field { base, field }
+                                if field == "new"
+                                    && matches!(&**base, Expr::Ident(pkg) if pkg == "vec")
+                        )
+        )
+    }
+
     fn match_pattern_literal_key_and_label(pat: &MatchPattern) -> Option<(String, String)> {
         match pat {
             MatchPattern::Literal(MatchLiteral::Int(v)) => {
@@ -146,15 +164,37 @@ impl Checker {
                 let var_ty = match ty {
                     Some(t) => {
                         let declared = TypeInfo::from_ast(t);
-                        if expr_ty != TypeInfo::Unknown && declared != expr_ty {
-                            self.error(format!(
-                                "Type mismatch in let `{name}`: declared {:?}, got {:?}",
-                                declared, expr_ty
-                            ));
+                        if Self::is_vec_new_call(value) {
+                            match &declared {
+                                TypeInfo::Vec { .. } => {}
+                                _ => {
+                                    self.error(format!(
+                                        "Type mismatch in let `{name}`: declared {:?}, got vec.new()",
+                                        declared
+                                    ));
+                                }
+                            }
+                            declared
+                        } else {
+                            if expr_ty != TypeInfo::Unknown && declared != expr_ty {
+                                self.error(format!(
+                                    "Type mismatch in let `{name}`: declared {:?}, got {:?}",
+                                    declared, expr_ty
+                                ));
+                            }
+                            declared
                         }
-                        declared
                     }
-                    None => expr_ty,
+                    None => {
+                        if Self::is_vec_new_call(value) {
+                            self.error(format!(
+                                "Cannot infer vector element type for let `{name}`; annotate as `Vec[T]`"
+                            ));
+                            TypeInfo::Unknown
+                        } else {
+                            expr_ty
+                        }
+                    }
                 };
                 if let Some(scope) = scopes.last_mut() {
                     scope.insert(name.clone(), var_ty);

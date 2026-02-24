@@ -12,6 +12,7 @@ mod io;
 mod os;
 mod random;
 mod str_pkg;
+mod vec;
 
 impl Checker {
     fn resolve_qualified_import_call(&self, parts: &[String]) -> Result<Option<String>, String> {
@@ -60,7 +61,8 @@ impl Checker {
                 || parts[0] == "datetime"
                 || parts[0] == "random"
                 || parts[0] == "os"
-                || parts[0] == "fs")
+                || parts[0] == "fs"
+                || parts[0] == "vec")
         {
             return self.check_builtin_call(&parts[0], &parts[1], args, scopes);
         }
@@ -260,6 +262,10 @@ impl Checker {
         if !self.imported_modules.contains(package) {
             self.error(format!("`{package}.*` used without `import {package};`"));
             return TypeInfo::Unknown;
+        }
+
+        if package == "vec" {
+            return vec::check_vec_builtin(self, method, args, scopes);
         }
 
         let Some(sig) = crate::builtins::find_builtin_sig(package, method) else {

@@ -2741,3 +2741,100 @@ fn main() -> Int {
             .contains("Invalid namespace call `string.toUpper`")
     }));
 }
+
+#[test]
+fn sema_accepts_vec_type_and_typed_vec_new() {
+    let src = r#"
+import vec;
+fn main() -> Int {
+  let xs: Vec[Int] = vec.new();
+  vec.push(xs, 10);
+  vec.set(xs, 0, 20);
+  return vec.get(xs, 0) + vec.len(xs);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_rejects_untyped_vec_new() {
+    let src = r#"
+import vec;
+fn main() -> Int {
+  let xs = vec.new();
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("Cannot infer vector element type for let `xs`; annotate as `Vec[T]`")
+    }));
+}
+
+#[test]
+fn sema_rejects_vec_without_import() {
+    let src = r#"
+fn main() -> Int {
+  let xs: Vec[Int] = vec.new();
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags.as_slice()
+            .iter()
+            .any(|d| d.message.contains("`vec.*` used without `import vec;`"))
+    );
+}
+
+#[test]
+fn sema_rejects_vec_push_set_value_type_mismatch() {
+    let src = r#"
+import vec;
+fn main() -> Int {
+  let xs: Vec[Int] = vec.new();
+  vec.push(xs, "x");
+  vec.set(xs, 0, "y");
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags.as_slice()
+            .iter()
+            .any(|d| d.message.contains("vec.push argument 2 expects Int"))
+    );
+    assert!(
+        diags.as_slice()
+            .iter()
+            .any(|d| d.message.contains("vec.set argument 3 expects Int"))
+    );
+}
+
+#[test]
+fn sema_rejects_vec_index_arg_type_mismatch_and_assignment_mismatch() {
+    let src = r#"
+import vec;
+fn main() -> Int {
+  let xs: Vec[Int] = vec.new();
+  let s: String = vec.delete(xs, "0");
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags.as_slice()
+            .iter()
+            .any(|d| d.message.contains("vec.delete argument 2 expects Int"))
+    );
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("Type mismatch in let `s`: declared String, got Int")
+    }));
+}

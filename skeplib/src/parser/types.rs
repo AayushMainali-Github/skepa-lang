@@ -39,6 +39,20 @@ impl Parser {
             });
         }
 
+        if self.at(TokenKind::Ident) && self.current().lexeme == "Vec" {
+            self.bump();
+            self.expect(TokenKind::LBracket, "Expected `[` after `Vec`")?;
+            let elem = self.expect_type_name("Expected vector element type in `Vec[...]`")?;
+            if self.at(TokenKind::Comma) {
+                self.error_here_expected("`Vec[...]` expects exactly one type argument");
+                return None;
+            }
+            self.expect(TokenKind::RBracket, "Expected `]` after vector type")?;
+            return Some(TypeName::Vec {
+                elem: Box::new(elem),
+            });
+        }
+
         if self.at(TokenKind::LBracket) {
             self.bump();
             let elem = self.expect_type_name("Expected element type in array type")?;
