@@ -13,6 +13,7 @@ pub enum Value {
     Bool(bool),
     String(String),
     Array(Vec<Value>),
+    VecHandle(u64),
     Function(String),
     Struct {
         name: String,

@@ -102,6 +102,9 @@ fn encode_value(v: &Value, out: &mut Vec<u8>) {
                 encode_value(item, out);
             }
         }
+        Value::VecHandle(_) => {
+            panic!("VecHandle is a runtime-only value and cannot be serialized")
+        }
         Value::Function(name) => {
             write_u8(out, 5);
             write_str(out, name);
