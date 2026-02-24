@@ -382,6 +382,38 @@ fn main() -> Int {
 }
 
 #[test]
+fn check_accepts_vec_program() {
+    let tmp = make_temp_dir("skepac_check_vec");
+    let file = tmp.join("vec_ok.sk");
+    fs::write(
+        &file,
+        r#"
+import vec;
+fn main() -> Int {
+  let xs: Vec[Int] = vec.new();
+  vec.push(xs, 10);
+  vec.push(xs, 20);
+  vec.set(xs, 1, 30);
+  let y: Int = vec.get(xs, 0);
+  let z: Int = vec.delete(xs, 1);
+  if (vec.len(xs) == 1 && y == 10 && z == 30) {
+    return 0;
+  }
+  return 1;
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("check")
+        .arg(&file)
+        .output()
+        .expect("run check");
+    assert_eq!(output.status.code(), Some(0), "{:?}", output);
+}
+
+#[test]
 fn disasm_includes_mod_and_short_circuit_instructions() {
     let tmp = make_temp_dir("skepac_disasm_new_ops");
     let source = tmp.join("main.sk");

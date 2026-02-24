@@ -477,6 +477,52 @@ fn matchValue(s: String) -> Int {
     assert_eq!(output.status.code(), Some(0), "{:?}", output);
 }
 
+#[test]
+fn run_executes_vec_program() {
+    let tmp = make_temp_dir("skeparun_vec");
+    let file = tmp.join("vec_ok.sk");
+    fs::write(
+        &file,
+        r#"
+import vec;
+
+fn main() -> Int {
+  let xs: Vec[Int] = vec.new();
+  vec.push(xs, 4);
+  vec.push(xs, 8);
+  vec.push(xs, 12);
+
+  let alias = xs;
+  vec.set(alias, 1, 9);
+
+  let removed = vec.delete(xs, 0);
+  if (removed != 4) {
+    return 91;
+  }
+
+  if (vec.len(xs) != 2) {
+    return 92;
+  }
+
+  if (vec.get(xs, 0) != 9 || vec.get(alias, 1) != 12) {
+    return 93;
+  }
+
+  return 0;
+}
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(skeparun_bin())
+        .arg("run")
+        .arg(&file)
+        .output()
+        .expect("run skeparun");
+
+    assert_eq!(output.status.code(), Some(0), "{:?}", output);
+}
+
 fn skeparun_bin() -> &'static str {
     env!("CARGO_BIN_EXE_skeparun")
 }
