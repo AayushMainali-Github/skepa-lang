@@ -19,6 +19,7 @@ pub(super) struct RunOptions {
 
 pub(super) fn run_function(
     module: &BytecodeModule,
+    fn_table: &[&FunctionChunk],
     function_name: &str,
     args: Vec<Value>,
     globals: &mut Vec<Value>,
@@ -32,11 +33,12 @@ pub(super) fn run_function(
             format!("Unknown function `{function_name}`"),
         ));
     };
-    run_chunk(module, chunk, function_name, args, globals, host, reg, opts)
+    run_chunk(module, fn_table, chunk, function_name, args, globals, host, reg, opts)
 }
 
 pub(super) fn run_chunk(
     module: &BytecodeModule,
+    fn_table: &[&FunctionChunk],
     chunk: &FunctionChunk,
     function_name: &str,
     args: Vec<Value>,
@@ -149,6 +151,7 @@ pub(super) fn run_chunk(
                     *argc,
                     &mut calls::CallEnv {
                         module,
+                        fn_table,
                         globals,
                         host,
                         reg,
@@ -157,12 +160,27 @@ pub(super) fn run_chunk(
                     calls::Site { function_name, ip },
                 )?
             }
-            Instr::CallValue { argc } => calls::call_value(
+            Instr::CallIdx { idx, argc } => calls::call_idx(
                 state.stack_mut(),
+                *idx,
                 *argc,
                 &mut calls::CallEnv {
                     module,
+                    fn_table,
                     globals,
+                    host,
+                    reg,
+                    opts,
+                },
+                calls::Site { function_name, ip },
+            )?,
+            Instr::CallValue { argc } => calls::call_value(
+                state.stack_mut(),
+                *argc,
+                    &mut calls::CallEnv {
+                        module,
+                        fn_table,
+                        globals,
                     host,
                     reg,
                     opts,
@@ -176,9 +194,10 @@ pub(super) fn run_chunk(
                 state.stack_mut(),
                 method_name,
                 *argc,
-                &mut calls::CallEnv {
-                    module,
-                    globals,
+                    &mut calls::CallEnv {
+                        module,
+                        fn_table,
+                        globals,
                     host,
                     reg,
                     opts,
@@ -194,9 +213,10 @@ pub(super) fn run_chunk(
                 package,
                 name,
                 *argc,
-                &mut calls::CallEnv {
-                    module,
-                    globals,
+                    &mut calls::CallEnv {
+                        module,
+                        fn_table,
+                        globals,
                     host,
                     reg,
                     opts,

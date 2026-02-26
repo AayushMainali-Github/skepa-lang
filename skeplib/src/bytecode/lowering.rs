@@ -23,6 +23,8 @@ pub fn compile_source(source: &str) -> Result<BytecodeModule, DiagnosticBag> {
     }
 
     if diags.is_empty() {
+        let mut module = module;
+        rewrite_direct_calls_to_indexes(&mut module);
         Ok(module)
     } else {
         Err(diags)
@@ -1097,6 +1099,7 @@ fn compile_project_graph(graph: &ModuleGraph, entry: &Path) -> Result<BytecodeMo
         },
     );
 
+    rewrite_direct_calls_to_indexes(&mut out);
     Ok(out)
 }
 
@@ -1139,5 +1142,30 @@ impl FnCtx {
 
     fn named_type(&self, name: &str) -> Option<String> {
         self.local_named_types.get(name).cloned()
+    }
+}
+
+fn rewrite_direct_calls_to_indexes(module: &mut BytecodeModule) {
+    let mut names = module.functions.keys().cloned().collect::<Vec<_>>();
+    names.sort();
+    let by_name = names
+        .into_iter()
+        .enumerate()
+        .map(|(idx, n)| (n, idx))
+        .collect::<HashMap<_, _>>();
+
+    for chunk in module.functions.values_mut() {
+        for instr in &mut chunk.code {
+            let new_instr = match instr {
+                Instr::Call { name, argc } => by_name
+                    .get(name)
+                    .copied()
+                    .map(|idx| Instr::CallIdx { idx, argc: *argc }),
+                _ => None,
+            };
+            if let Some(new_instr) = new_instr {
+                *instr = new_instr;
+            }
+        }
     }
 }

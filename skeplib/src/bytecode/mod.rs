@@ -52,6 +52,10 @@ pub enum Instr {
         name: String,
         argc: usize,
     },
+    CallIdx {
+        idx: usize,
+        argc: usize,
+    },
     CallValue {
         argc: usize,
     },

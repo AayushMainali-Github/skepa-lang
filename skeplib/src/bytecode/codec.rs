@@ -6,7 +6,7 @@ impl BytecodeModule {
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut out = Vec::new();
         out.extend_from_slice(b"SKBC");
-        write_u32(&mut out, 1);
+        write_u32(&mut out, 2);
         write_u32(&mut out, self.functions.len() as u32);
         let mut funcs: Vec<_> = self.functions.values().collect();
         funcs.sort_by(|a, b| a.name.cmp(&b.name));
@@ -29,7 +29,7 @@ impl BytecodeModule {
             return Err("Invalid bytecode magic header".to_string());
         }
         let version = rd.read_u32()?;
-        if version != 1 {
+        if version != 2 {
             return Err(format!("Unsupported bytecode version {version}"));
         }
         let funcs_len = rd.read_u32()? as usize;
@@ -175,6 +175,11 @@ fn encode_instr(i: &Instr, out: &mut Vec<u8>) {
         Instr::Call { name, argc } => {
             write_u8(out, 24);
             write_str(out, name);
+            write_u32(out, *argc as u32);
+        }
+        Instr::CallIdx { idx, argc } => {
+            write_u8(out, 38);
+            write_u32(out, *idx as u32);
             write_u32(out, *argc as u32);
         }
         Instr::CallValue { argc } => {
@@ -335,6 +340,10 @@ fn decode_instr(rd: &mut Reader<'_>) -> Result<Instr, String> {
         23 => Instr::JumpIfTrue(rd.read_u32()? as usize),
         24 => Instr::Call {
             name: rd.read_str()?,
+            argc: rd.read_u32()? as usize,
+        },
+        38 => Instr::CallIdx {
+            idx: rd.read_u32()? as usize,
             argc: rd.read_u32()? as usize,
         },
         37 => Instr::CallValue {

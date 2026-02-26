@@ -26,6 +26,12 @@ pub struct Vm;
 pub use builtins::{BuiltinHandler, BuiltinRegistry};
 
 impl Vm {
+    fn function_table(module: &BytecodeModule) -> Vec<&FunctionChunk> {
+        let mut funcs = module.functions.values().collect::<Vec<_>>();
+        funcs.sort_by(|a, b| a.name.cmp(&b.name));
+        funcs
+    }
+
     pub fn run_module_main(module: &BytecodeModule) -> Result<Value, VmError> {
         Self::run_module_main_with_config(module, VmConfig::default())
     }
@@ -36,6 +42,7 @@ impl Vm {
     ) -> Result<Value, VmError> {
         let mut host = StdIoHost::default();
         let reg = BuiltinRegistry::with_defaults();
+        let fn_table = Self::function_table(module);
         let globals_init_locals = module
             .functions
             .get("__globals_init")
@@ -45,6 +52,7 @@ impl Vm {
         if module.functions.contains_key("__globals_init") {
             let _ = runner::run_function(
                 module,
+                &fn_table,
                 "__globals_init",
                 Vec::new(),
                 &mut globals,
@@ -55,6 +63,7 @@ impl Vm {
         }
         runner::run_function(
             module,
+            &fn_table,
             "main",
             Vec::new(),
             &mut globals,
@@ -69,6 +78,7 @@ impl Vm {
         host: &mut dyn BuiltinHost,
     ) -> Result<Value, VmError> {
         let reg = BuiltinRegistry::with_defaults();
+        let fn_table = Self::function_table(module);
         let globals_init_locals = module
             .functions
             .get("__globals_init")
@@ -78,6 +88,7 @@ impl Vm {
         if module.functions.contains_key("__globals_init") {
             let _ = runner::run_function(
                 module,
+                &fn_table,
                 "__globals_init",
                 Vec::new(),
                 &mut globals,
@@ -91,6 +102,7 @@ impl Vm {
         }
         runner::run_function(
             module,
+            &fn_table,
             "main",
             Vec::new(),
             &mut globals,
@@ -108,6 +120,7 @@ impl Vm {
         host: &mut dyn BuiltinHost,
         reg: &BuiltinRegistry,
     ) -> Result<Value, VmError> {
+        let fn_table = Self::function_table(module);
         let globals_init_locals = module
             .functions
             .get("__globals_init")
@@ -117,6 +130,7 @@ impl Vm {
         if module.functions.contains_key("__globals_init") {
             let _ = runner::run_function(
                 module,
+                &fn_table,
                 "__globals_init",
                 Vec::new(),
                 &mut globals,
@@ -130,6 +144,7 @@ impl Vm {
         }
         runner::run_function(
             module,
+            &fn_table,
             "main",
             Vec::new(),
             &mut globals,

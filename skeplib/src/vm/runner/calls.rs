@@ -1,8 +1,9 @@
-use crate::bytecode::{BytecodeModule, Value};
+use crate::bytecode::{BytecodeModule, FunctionChunk, Value};
 use crate::vm::{BuiltinHost, BuiltinRegistry, VmError, VmErrorKind};
 
 pub(super) struct CallEnv<'a> {
     pub module: &'a BytecodeModule,
+    pub fn_table: &'a [&'a FunctionChunk],
     pub globals: &'a mut Vec<Value>,
     pub host: &'a mut dyn BuiltinHost,
     pub reg: &'a BuiltinRegistry,
@@ -64,8 +65,51 @@ pub(super) fn call(
     };
     let ret = super::run_chunk(
         env.module,
+        env.fn_table,
         chunk,
         callee_name,
+        call_args,
+        env.globals,
+        env.host,
+        env.reg,
+        super::RunOptions {
+            depth: env.opts.depth + 1,
+            config: env.opts.config,
+        },
+    )?;
+    stack.push(ret);
+    Ok(())
+}
+
+pub(super) fn call_idx(
+    stack: &mut Vec<Value>,
+    callee_idx: usize,
+    argc: usize,
+    env: &mut CallEnv<'_>,
+    site: Site<'_>,
+) -> Result<(), VmError> {
+    if stack.len() < argc {
+        return Err(super::err_at(
+            VmErrorKind::StackUnderflow,
+            "Stack underflow on CallIdx",
+            site.function_name,
+            site.ip,
+        ));
+    }
+    let call_args = take_call_args(stack, argc);
+    let Some(chunk) = env.fn_table.get(callee_idx).copied() else {
+        return Err(super::err_at(
+            VmErrorKind::UnknownFunction,
+            format!("Invalid function index `{callee_idx}`"),
+            site.function_name,
+            site.ip,
+        ));
+    };
+    let ret = super::run_chunk(
+        env.module,
+        env.fn_table,
+        chunk,
+        &chunk.name,
         call_args,
         env.globals,
         env.host,
@@ -120,6 +164,7 @@ pub(super) fn call_value(
     };
     let ret = super::run_chunk(
         env.module,
+        env.fn_table,
         chunk,
         &callee_name,
         call_args,
@@ -211,6 +256,7 @@ pub(super) fn call_method(
     full_args.append(&mut call_args);
     let ret = super::run_chunk(
         env.module,
+        env.fn_table,
         chunk,
         &callee_name,
         full_args,
