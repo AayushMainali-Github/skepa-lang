@@ -63,7 +63,8 @@ pub(super) fn run_chunk(
         ));
     }
 
-    let mut state = state::VmState::new(chunk.locals_count, args);
+    let stack_capacity_hint = (chunk.code.len() / 4).clamp(8, 256);
+    let mut state = state::VmState::new(chunk.locals_count, stack_capacity_hint, args);
 
     let mut ip = 0usize;
     while ip < chunk.code.len() {
@@ -142,18 +143,17 @@ pub(super) fn run_chunk(
                 name: callee_name,
                 argc,
             } => {
-                let mut call_env = calls::CallEnv {
-                    module,
-                    globals,
-                    host,
-                    reg,
-                    opts,
-                };
                 calls::call(
                     state.stack_mut(),
                     callee_name,
                     *argc,
-                    &mut call_env,
+                    &mut calls::CallEnv {
+                        module,
+                        globals,
+                        host,
+                        reg,
+                        opts,
+                    },
                     calls::Site { function_name, ip },
                 )?
             }
