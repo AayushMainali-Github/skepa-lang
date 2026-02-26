@@ -8,14 +8,13 @@ pub(super) struct VmState {
 
 impl VmState {
     pub(super) fn new(locals_count: usize, args: Vec<Value>) -> Self {
-        let mut locals = vec![Value::Unit; locals_count.max(1)];
-        for (i, arg) in args.into_iter().enumerate() {
-            if i < locals.len() {
-                locals[i] = arg;
-            }
+        let target_len = locals_count;
+        let mut locals = args;
+        if locals.len() < target_len {
+            locals.resize(target_len, Value::Unit);
         }
         Self {
-            stack: Vec::new(),
+            stack: Vec::with_capacity(8),
             locals,
         }
     }

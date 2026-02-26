@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::io::{self, Write};
 
 use crate::bytecode::Value;
@@ -8,8 +8,7 @@ use super::{BuiltinHost, VmError, VmErrorKind};
 #[derive(Default)]
 pub struct StdIoHost {
     rng_state: u64,
-    next_vec_id: u64,
-    vec_store: HashMap<u64, Vec<Value>>,
+    vec_store: Vec<Vec<Value>>,
 }
 
 impl BuiltinHost for StdIoHost {
@@ -37,15 +36,14 @@ impl BuiltinHost for StdIoHost {
     }
 
     fn vec_new(&mut self) -> Result<u64, VmError> {
-        let id = self.next_vec_id;
-        self.next_vec_id = self.next_vec_id.wrapping_add(1);
-        self.vec_store.insert(id, Vec::new());
+        let id = self.vec_store.len() as u64;
+        self.vec_store.push(Vec::new());
         Ok(id)
     }
 
     fn vec_len(&mut self, id: u64) -> Result<usize, VmError> {
         self.vec_store
-            .get(&id)
+            .get(id as usize)
             .map(|v| v.len())
             .ok_or_else(|| VmError::new(VmErrorKind::TypeMismatch, "invalid vec handle"))
     }
@@ -53,7 +51,7 @@ impl BuiltinHost for StdIoHost {
     fn vec_push(&mut self, id: u64, v: Value) -> Result<(), VmError> {
         let vec = self
             .vec_store
-            .get_mut(&id)
+            .get_mut(id as usize)
             .ok_or_else(|| VmError::new(VmErrorKind::TypeMismatch, "invalid vec handle"))?;
         vec.push(v);
         Ok(())
@@ -64,7 +62,7 @@ impl BuiltinHost for StdIoHost {
             .map_err(|_| VmError::new(VmErrorKind::IndexOutOfBounds, "vec index out of bounds"))?;
         let vec = self
             .vec_store
-            .get(&id)
+            .get(id as usize)
             .ok_or_else(|| VmError::new(VmErrorKind::TypeMismatch, "invalid vec handle"))?;
         vec.get(idx)
             .cloned()
@@ -76,7 +74,7 @@ impl BuiltinHost for StdIoHost {
             .map_err(|_| VmError::new(VmErrorKind::IndexOutOfBounds, "vec index out of bounds"))?;
         let vec = self
             .vec_store
-            .get_mut(&id)
+            .get_mut(id as usize)
             .ok_or_else(|| VmError::new(VmErrorKind::TypeMismatch, "invalid vec handle"))?;
         let slot = vec.get_mut(idx).ok_or_else(|| {
             VmError::new(VmErrorKind::IndexOutOfBounds, "vec index out of bounds")
@@ -90,7 +88,7 @@ impl BuiltinHost for StdIoHost {
             .map_err(|_| VmError::new(VmErrorKind::IndexOutOfBounds, "vec index out of bounds"))?;
         let vec = self
             .vec_store
-            .get_mut(&id)
+            .get_mut(id as usize)
             .ok_or_else(|| VmError::new(VmErrorKind::TypeMismatch, "invalid vec handle"))?;
         if idx >= vec.len() {
             return Err(VmError::new(
@@ -121,8 +119,7 @@ pub struct TestHost {
     pub output: String,
     pub input: VecDeque<String>,
     pub rng_state: u64,
-    pub next_vec_id: u64,
-    pub vec_store: HashMap<u64, Vec<Value>>,
+    pub vec_store: Vec<Vec<Value>>,
 }
 
 impl BuiltinHost for TestHost {
@@ -139,15 +136,14 @@ impl BuiltinHost for TestHost {
     }
 
     fn vec_new(&mut self) -> Result<u64, VmError> {
-        let id = self.next_vec_id;
-        self.next_vec_id = self.next_vec_id.wrapping_add(1);
-        self.vec_store.insert(id, Vec::new());
+        let id = self.vec_store.len() as u64;
+        self.vec_store.push(Vec::new());
         Ok(id)
     }
 
     fn vec_len(&mut self, id: u64) -> Result<usize, VmError> {
         self.vec_store
-            .get(&id)
+            .get(id as usize)
             .map(|v| v.len())
             .ok_or_else(|| VmError::new(VmErrorKind::TypeMismatch, "invalid vec handle"))
     }
@@ -155,7 +151,7 @@ impl BuiltinHost for TestHost {
     fn vec_push(&mut self, id: u64, v: Value) -> Result<(), VmError> {
         let vec = self
             .vec_store
-            .get_mut(&id)
+            .get_mut(id as usize)
             .ok_or_else(|| VmError::new(VmErrorKind::TypeMismatch, "invalid vec handle"))?;
         vec.push(v);
         Ok(())
@@ -166,7 +162,7 @@ impl BuiltinHost for TestHost {
             .map_err(|_| VmError::new(VmErrorKind::IndexOutOfBounds, "vec index out of bounds"))?;
         let vec = self
             .vec_store
-            .get(&id)
+            .get(id as usize)
             .ok_or_else(|| VmError::new(VmErrorKind::TypeMismatch, "invalid vec handle"))?;
         vec.get(idx)
             .cloned()
@@ -178,7 +174,7 @@ impl BuiltinHost for TestHost {
             .map_err(|_| VmError::new(VmErrorKind::IndexOutOfBounds, "vec index out of bounds"))?;
         let vec = self
             .vec_store
-            .get_mut(&id)
+            .get_mut(id as usize)
             .ok_or_else(|| VmError::new(VmErrorKind::TypeMismatch, "invalid vec handle"))?;
         let slot = vec.get_mut(idx).ok_or_else(|| {
             VmError::new(VmErrorKind::IndexOutOfBounds, "vec index out of bounds")
@@ -192,7 +188,7 @@ impl BuiltinHost for TestHost {
             .map_err(|_| VmError::new(VmErrorKind::IndexOutOfBounds, "vec index out of bounds"))?;
         let vec = self
             .vec_store
-            .get_mut(&id)
+            .get_mut(id as usize)
             .ok_or_else(|| VmError::new(VmErrorKind::TypeMismatch, "invalid vec handle"))?;
         if idx >= vec.len() {
             return Err(VmError::new(
