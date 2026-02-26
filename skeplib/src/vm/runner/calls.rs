@@ -31,8 +31,17 @@ pub(super) fn call(
     }
     let split = stack.len() - argc;
     let call_args = stack.split_off(split);
-    let ret = super::run_function(
+    let Some(chunk) = env.module.functions.get(callee_name) else {
+        return Err(super::err_at(
+            VmErrorKind::UnknownFunction,
+            format!("Unknown function `{callee_name}`"),
+            site.function_name,
+            site.ip,
+        ));
+    };
+    let ret = super::run_chunk(
         env.module,
+        chunk,
         callee_name,
         call_args,
         env.globals,

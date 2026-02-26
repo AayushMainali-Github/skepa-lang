@@ -7,7 +7,7 @@ mod control_flow;
 mod state;
 mod structs;
 
-use crate::bytecode::{BytecodeModule, Instr, Value};
+use crate::bytecode::{BytecodeModule, FunctionChunk, Instr, Value};
 
 use super::{BuiltinHost, BuiltinRegistry, VmConfig, VmError, VmErrorKind};
 
@@ -26,18 +26,31 @@ pub(super) fn run_function(
     reg: &BuiltinRegistry,
     opts: RunOptions,
 ) -> Result<Value, VmError> {
-    if opts.depth >= opts.config.max_call_depth {
-        return Err(VmError::new(
-            VmErrorKind::StackOverflow,
-            format!("Call stack limit exceeded ({})", opts.config.max_call_depth),
-        ));
-    }
     let Some(chunk) = module.functions.get(function_name) else {
         return Err(VmError::new(
             VmErrorKind::UnknownFunction,
             format!("Unknown function `{function_name}`"),
         ));
     };
+    run_chunk(module, chunk, function_name, args, globals, host, reg, opts)
+}
+
+pub(super) fn run_chunk(
+    module: &BytecodeModule,
+    chunk: &FunctionChunk,
+    function_name: &str,
+    args: Vec<Value>,
+    globals: &mut Vec<Value>,
+    host: &mut dyn BuiltinHost,
+    reg: &BuiltinRegistry,
+    opts: RunOptions,
+) -> Result<Value, VmError> {
+    if opts.depth >= opts.config.max_call_depth {
+        return Err(VmError::new(
+            VmErrorKind::StackOverflow,
+            format!("Call stack limit exceeded ({})", opts.config.max_call_depth),
+        ));
+    }
     if args.len() != chunk.param_count {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,
