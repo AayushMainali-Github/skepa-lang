@@ -759,14 +759,38 @@ impl Compiler {
                         return;
                     }
 
-                    self.compile_expr(base, ctx, code);
-                    for arg in args {
-                        self.compile_expr(arg, ctx, code);
+                    if let Some(base_ty) = Self::infer_expr_named_type(base, ctx) {
+                        let target_name = self.resolve_struct_runtime_name(&base_ty);
+                        let mangled = Self::mangle_method_name(&target_name, field);
+                        if self.function_names.contains(&mangled) {
+                            self.compile_expr(base, ctx, code);
+                            for arg in args {
+                                self.compile_expr(arg, ctx, code);
+                            }
+                            code.push(Instr::Call {
+                                name: mangled,
+                                argc: args.len() + 1,
+                            });
+                        } else {
+                            self.compile_expr(base, ctx, code);
+                            for arg in args {
+                                self.compile_expr(arg, ctx, code);
+                            }
+                            code.push(Instr::CallMethod {
+                                name: field.clone(),
+                                argc: args.len(),
+                            });
+                        }
+                    } else {
+                        self.compile_expr(base, ctx, code);
+                        for arg in args {
+                            self.compile_expr(arg, ctx, code);
+                        }
+                        code.push(Instr::CallMethod {
+                            name: field.clone(),
+                            argc: args.len(),
+                        });
                     }
-                    code.push(Instr::CallMethod {
-                        name: field.clone(),
-                        argc: args.len(),
-                    });
                 }
                 _ => {
                     self.compile_expr(callee, ctx, code);
