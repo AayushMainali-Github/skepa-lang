@@ -88,8 +88,17 @@ pub(super) fn call_value(
             site.ip,
         ));
     };
-    let ret = super::run_function(
+    let Some(chunk) = env.module.functions.get(&callee_name) else {
+        return Err(super::err_at(
+            VmErrorKind::UnknownFunction,
+            format!("Unknown function `{callee_name}`"),
+            site.function_name,
+            site.ip,
+        ));
+    };
+    let ret = super::run_chunk(
         env.module,
+        chunk,
         &callee_name,
         call_args,
         env.globals,
@@ -190,21 +199,7 @@ pub(super) fn call_method(
             depth: env.opts.depth + 1,
             config: env.opts.config,
         },
-    )
-    .map_err(|e| {
-        if e.kind == VmErrorKind::UnknownFunction {
-            return super::err_at(
-                VmErrorKind::UnknownFunction,
-                format!(
-                    "Unknown method `{}` on struct `{}`",
-                    method_name, struct_name
-                ),
-                site.function_name,
-                site.ip,
-            );
-        }
-        e
-    })?;
+    )?;
     stack.push(ret);
     Ok(())
 }
