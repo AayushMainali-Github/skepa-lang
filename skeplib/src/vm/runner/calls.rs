@@ -170,8 +170,17 @@ pub(super) fn call_method(
     let mut full_args = Vec::with_capacity(argc + 1);
     full_args.push(receiver);
     full_args.append(&mut call_args);
-    let ret = super::run_function(
+    let Some(chunk) = env.module.functions.get(&callee_name) else {
+        return Err(super::err_at(
+            VmErrorKind::UnknownFunction,
+            format!("Unknown method `{}` on struct `{}`", method_name, struct_name),
+            site.function_name,
+            site.ip,
+        ));
+    };
+    let ret = super::run_chunk(
         env.module,
+        chunk,
         &callee_name,
         full_args,
         env.globals,
