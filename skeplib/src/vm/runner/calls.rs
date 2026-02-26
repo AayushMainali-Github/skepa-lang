@@ -152,8 +152,12 @@ pub(super) fn call_method(
         ));
     };
     let struct_name = name.clone();
-
-    let callee_name = format!("__impl_{}__{}", struct_name, method_name);
+    let mut callee_name =
+        String::with_capacity("__impl_".len() + name.len() + 2 + method_name.len());
+    callee_name.push_str("__impl_");
+    callee_name.push_str(name);
+    callee_name.push_str("__");
+    callee_name.push_str(method_name);
     let mut full_args = Vec::with_capacity(argc + 1);
     full_args.push(receiver);
     full_args.append(&mut call_args);

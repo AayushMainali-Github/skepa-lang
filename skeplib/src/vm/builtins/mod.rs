@@ -17,7 +17,7 @@ pub type BuiltinHandler = fn(&mut dyn BuiltinHost, Vec<Value>) -> Result<Value, 
 
 #[derive(Default)]
 pub struct BuiltinRegistry {
-    handlers: HashMap<String, BuiltinHandler>,
+    handlers: HashMap<String, HashMap<String, BuiltinHandler>>,
 }
 
 impl BuiltinRegistry {
@@ -34,12 +34,11 @@ impl BuiltinRegistry {
         r
     }
 
-    fn key(package: &str, name: &str) -> String {
-        format!("{package}.{name}")
-    }
-
     pub fn register(&mut self, package: &str, name: &str, handler: BuiltinHandler) {
-        self.handlers.insert(Self::key(package, name), handler);
+        self.handlers
+            .entry(package.to_string())
+            .or_default()
+            .insert(name.to_string(), handler);
     }
 
     pub(crate) fn call(
@@ -49,11 +48,15 @@ impl BuiltinRegistry {
         name: &str,
         args: Vec<Value>,
     ) -> Result<Value, VmError> {
-        let key = Self::key(package, name);
-        let Some(handler) = self.handlers.get(&key).copied() else {
+        let Some(handler) = self
+            .handlers
+            .get(package)
+            .and_then(|pkg| pkg.get(name))
+            .copied()
+        else {
             return Err(VmError::new(
                 VmErrorKind::UnknownBuiltin,
-                format!("Unknown builtin `{key}`"),
+                format!("Unknown builtin `{package}.{name}`"),
             ));
         };
         handler(host, args)
