@@ -14,6 +14,22 @@ pub(super) struct Site<'a> {
     pub ip: usize,
 }
 
+fn take_call_args(stack: &mut Vec<Value>, argc: usize) -> Vec<Value> {
+    match argc {
+        0 => Vec::new(),
+        1 => {
+            let mut args = Vec::with_capacity(1);
+            // callers validate stack length before invoking this helper
+            args.push(stack.pop().expect("call arg stack underflow"));
+            args
+        }
+        _ => {
+            let split = stack.len() - argc;
+            stack.split_off(split)
+        }
+    }
+}
+
 pub(super) fn call(
     stack: &mut Vec<Value>,
     callee_name: &str,
@@ -29,8 +45,7 @@ pub(super) fn call(
             site.ip,
         ));
     }
-    let split = stack.len() - argc;
-    let call_args = stack.split_off(split);
+    let call_args = take_call_args(stack, argc);
     let Some(chunk) = env.module.functions.get(callee_name) else {
         return Err(super::err_at(
             VmErrorKind::UnknownFunction,
@@ -70,8 +85,7 @@ pub(super) fn call_value(
             site.ip,
         ));
     }
-    let split = stack.len() - argc;
-    let call_args = stack.split_off(split);
+    let call_args = take_call_args(stack, argc);
     let Some(callee) = stack.pop() else {
         return Err(super::err_at(
             VmErrorKind::StackUnderflow,
@@ -129,8 +143,7 @@ pub(super) fn call_builtin(
             site.ip,
         ));
     }
-    let split = stack.len() - argc;
-    let call_args = stack.split_off(split);
+    let call_args = take_call_args(stack, argc);
     let ret = env.reg.call(env.host, package, name, call_args)?;
     stack.push(ret);
     Ok(())
@@ -151,8 +164,7 @@ pub(super) fn call_method(
             site.ip,
         ));
     }
-    let split = stack.len() - argc;
-    let mut call_args = stack.split_off(split);
+    let mut call_args = take_call_args(stack, argc);
     let Some(receiver) = stack.pop() else {
         return Err(super::err_at(
             VmErrorKind::StackUnderflow,
