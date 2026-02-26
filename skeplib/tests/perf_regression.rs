@@ -1,8 +1,9 @@
 mod common_bench;
 
 use common_bench::{
-    compile_module, median_elapsed, parse_only, run_vm, sema_only, src_loop_accumulate,
-    src_match_dispatch, src_vec_workload,
+    compile_module, median_elapsed, parse_only, run_vm, sema_only, src_array_workload,
+    src_function_call_chain, src_loop_accumulate, src_match_dispatch, src_recursive_fib,
+    src_string_workload, src_struct_method_workload, src_vec_workload,
 };
 use skeplib::bytecode::Value;
 
@@ -55,6 +56,77 @@ fn perf_runtime_vec_workload_vm() {
         let _ = run_vm(&module);
     });
     assert_under("runtime_vec_workload_vm", median, 300);
+}
+
+#[test]
+#[ignore]
+fn perf_runtime_function_call_chain_vm() {
+    let src = src_function_call_chain(20_000);
+    let module = compile_module(&src);
+    let out = run_vm(&module);
+    assert_eq!(out, Value::Int(20_000));
+
+    let median = median_elapsed(2, 8, || {
+        let _ = run_vm(&module);
+    });
+    assert_under("runtime_function_call_chain_vm", median, 250);
+}
+
+#[test]
+#[ignore]
+fn perf_runtime_recursive_fib_vm() {
+    let src = src_recursive_fib(20);
+    let module = compile_module(&src);
+    let out = run_vm(&module);
+    assert_eq!(out, Value::Int(6765));
+
+    let median = median_elapsed(2, 8, || {
+        let _ = run_vm(&module);
+    });
+    assert_under("runtime_recursive_fib_vm", median, 250);
+}
+
+#[test]
+#[ignore]
+fn perf_runtime_array_workload_vm() {
+    let src = src_array_workload(24_000);
+    let module = compile_module(&src);
+    let out = run_vm(&module);
+    assert_eq!(out, Value::Int(24_000));
+
+    let median = median_elapsed(2, 8, || {
+        let _ = run_vm(&module);
+    });
+    assert_under("runtime_array_workload_vm", median, 250);
+}
+
+#[test]
+#[ignore]
+fn perf_runtime_string_workload_vm() {
+    let src = src_string_workload(3_000);
+    let module = compile_module(&src);
+    let out = run_vm(&module);
+    assert_eq!(out, Value::Int(15_000));
+
+    let median = median_elapsed(2, 8, || {
+        let _ = run_vm(&module);
+    });
+    assert_under("runtime_string_workload_vm", median, 400);
+}
+
+#[test]
+#[ignore]
+fn perf_runtime_struct_method_workload_vm() {
+    let src = src_struct_method_workload(15_000);
+    let module = compile_module(&src);
+    let out = run_vm(&module);
+    // Sum over i%5 for 15000 iterations = 3000 * (0+1+2+3+4) = 30000; plus base 3 each iter = 45000
+    assert_eq!(out, Value::Int(75_000));
+
+    let median = median_elapsed(2, 8, || {
+        let _ = run_vm(&module);
+    });
+    assert_under("runtime_struct_method_workload_vm", median, 300);
 }
 
 #[test]

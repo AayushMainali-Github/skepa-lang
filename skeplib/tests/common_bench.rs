@@ -68,6 +68,105 @@ fn main() -> Int {{
     )
 }
 
+pub fn src_function_call_chain(iters: usize) -> String {
+    format!(
+        r#"
+fn inc(x: Int) -> Int {{ return x + 1; }}
+fn hop(x: Int) -> Int {{ return inc(x); }}
+fn step(x: Int) -> Int {{ return hop(x); }}
+
+fn main() -> Int {{
+  let i = 0;
+  let acc = 0;
+  while (i < {iters}) {{
+    acc = step(acc);
+    i = i + 1;
+  }}
+  return acc;
+}}
+"#
+    )
+}
+
+pub fn src_recursive_fib(n: usize) -> String {
+    format!(
+        r#"
+fn fib(n: Int) -> Int {{
+  if (n <= 1) {{
+    return n;
+  }}
+  return fib(n - 1) + fib(n - 2);
+}}
+
+fn main() -> Int {{
+  return fib({n});
+}}
+"#
+    )
+}
+
+pub fn src_array_workload(iters: usize) -> String {
+    format!(
+        r#"
+fn main() -> Int {{
+  let a: [Int; 8] = [0; 8];
+  let i = 0;
+  while (i < {iters}) {{
+    let idx = i % 8;
+    a[idx] = a[idx] + 1;
+    i = i + 1;
+  }}
+  return a[0] + a[1] + a[2] + a[3] + a[4] + a[5] + a[6] + a[7];
+}}
+"#
+    )
+}
+
+pub fn src_string_workload(iters: usize) -> String {
+    format!(
+        r#"
+import str;
+
+fn main() -> Int {{
+  let i = 0;
+  let acc = 0;
+  while (i < {iters}) {{
+    let s = str.trim("  skepa  ");
+    if (str.contains(s, "ke")) {{
+      acc = acc + str.len(str.replace(s, "e", "E"));
+    }}
+    i = i + 1;
+  }}
+  return acc;
+}}
+"#
+    )
+}
+
+pub fn src_struct_method_workload(iters: usize) -> String {
+    format!(
+        r#"
+struct Counter {{ v: Int }}
+impl Counter {{
+  fn add(self, x: Int) -> Int {{
+    return self.v + x;
+  }}
+}}
+
+fn main() -> Int {{
+  let c = Counter {{ v: 3 }};
+  let i = 0;
+  let acc = 0;
+  while (i < {iters}) {{
+    acc = acc + c.add(i % 5);
+    i = i + 1;
+  }}
+  return acc;
+}}
+"#
+    )
+}
+
 pub fn compile_module(src: &str) -> BytecodeModule {
     compile_source(src).expect("compile benchmark source")
 }
@@ -100,4 +199,3 @@ pub fn median_elapsed<F: FnMut()>(warmup: usize, runs: usize, mut f: F) -> Durat
     samples.sort();
     samples[runs / 2]
 }
-
