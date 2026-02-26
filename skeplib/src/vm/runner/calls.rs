@@ -161,32 +161,34 @@ pub(super) fn call_method(
             site.ip,
         ));
     };
-    let Value::Struct { name, .. } = &receiver else {
-        return Err(super::err_at(
-            VmErrorKind::TypeMismatch,
-            "CallMethod receiver must be Struct",
-            site.function_name,
-            site.ip,
-        ));
+    let mut callee_name = String::new();
+    let chunk = {
+        let Value::Struct { name, .. } = &receiver else {
+            return Err(super::err_at(
+                VmErrorKind::TypeMismatch,
+                "CallMethod receiver must be Struct",
+                site.function_name,
+                site.ip,
+            ));
+        };
+        callee_name.reserve("__impl_".len() + name.len() + 2 + method_name.len());
+        callee_name.push_str("__impl_");
+        callee_name.push_str(name);
+        callee_name.push_str("__");
+        callee_name.push_str(method_name);
+        let Some(chunk) = env.module.functions.get(&callee_name) else {
+            return Err(super::err_at(
+                VmErrorKind::UnknownFunction,
+                format!("Unknown method `{}` on struct `{}`", method_name, name),
+                site.function_name,
+                site.ip,
+            ));
+        };
+        chunk
     };
-    let struct_name = name.clone();
-    let mut callee_name =
-        String::with_capacity("__impl_".len() + name.len() + 2 + method_name.len());
-    callee_name.push_str("__impl_");
-    callee_name.push_str(name);
-    callee_name.push_str("__");
-    callee_name.push_str(method_name);
     let mut full_args = Vec::with_capacity(argc + 1);
     full_args.push(receiver);
     full_args.append(&mut call_args);
-    let Some(chunk) = env.module.functions.get(&callee_name) else {
-        return Err(super::err_at(
-            VmErrorKind::UnknownFunction,
-            format!("Unknown method `{}` on struct `{}`", method_name, struct_name),
-            site.function_name,
-            site.ip,
-        ));
-    };
     let ret = super::run_chunk(
         env.module,
         chunk,
