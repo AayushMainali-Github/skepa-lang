@@ -187,12 +187,7 @@ pub(super) fn run_chunk(
                         (l, r) => {
                             stack.push(l);
                             stack.push(r);
-                            arith::numeric_binop(
-                                stack,
-                                &chunk.code[ip],
-                                function_name,
-                                ip,
-                            )?
+                            arith::numeric_binop(stack, &chunk.code[ip], function_name, ip)?
                         }
                     }
                 } else {
