@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use skeplib::bytecode::{BytecodeModule, Value, compile_source};
 use skeplib::parser::Parser;
 use skeplib::sema::analyze_source;
@@ -159,4 +161,3 @@ pub fn sema_only(src: &str) {
     assert!(!res.has_errors, "sema diags: {:?}", diags.as_slice());
     assert!(diags.is_empty(), "sema diags: {:?}", diags.as_slice());
 }
-
