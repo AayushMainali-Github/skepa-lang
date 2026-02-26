@@ -3,7 +3,8 @@ mod common;
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
 use common::{
-    compile_module, parse_only, sema_only, src_loop_accumulate, src_match_dispatch, src_vec_workload,
+    compile_module, parse_only, sema_only, src_loop_accumulate, src_match_dispatch,
+    src_vec_workload,
 };
 
 fn bench_compile(c: &mut Criterion) {
@@ -31,4 +32,3 @@ fn bench_compile(c: &mut Criterion) {
 
 criterion_group!(benches, bench_compile);
 criterion_main!(benches);
-

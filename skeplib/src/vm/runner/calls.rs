@@ -19,18 +19,13 @@ fn take_call_args(stack: &mut Vec<Value>, argc: usize) -> Vec<Value> {
     match argc {
         0 => Vec::new(),
         1 => {
-            let mut args = Vec::with_capacity(1);
             // callers validate stack length before invoking this helper
-            args.push(stack.pop().expect("call arg stack underflow"));
-            args
+            vec![stack.pop().expect("call arg stack underflow")]
         }
         2 => {
             let b = stack.pop().expect("call arg stack underflow");
             let a = stack.pop().expect("call arg stack underflow");
-            let mut args = Vec::with_capacity(2);
-            args.push(a);
-            args.push(b);
-            args
+            vec![a, b]
         }
         _ => {
             let split = stack.len() - argc;
@@ -64,14 +59,16 @@ pub(super) fn call(
         ));
     };
     let ret = super::run_chunk(
-        env.module,
-        env.fn_table,
+        &mut super::ExecEnv {
+            module: env.module,
+            fn_table: env.fn_table,
+            globals: env.globals,
+            host: env.host,
+            reg: env.reg,
+        },
         chunk,
         callee_name,
         call_args,
-        env.globals,
-        env.host,
-        env.reg,
         super::RunOptions {
             depth: env.opts.depth + 1,
             config: env.opts.config,
@@ -106,14 +103,16 @@ pub(super) fn call_idx(
         ));
     };
     let ret = super::run_chunk(
-        env.module,
-        env.fn_table,
+        &mut super::ExecEnv {
+            module: env.module,
+            fn_table: env.fn_table,
+            globals: env.globals,
+            host: env.host,
+            reg: env.reg,
+        },
         chunk,
         &chunk.name,
         call_args,
-        env.globals,
-        env.host,
-        env.reg,
         super::RunOptions {
             depth: env.opts.depth + 1,
             config: env.opts.config,
@@ -163,14 +162,16 @@ pub(super) fn call_value(
         ));
     };
     let ret = super::run_chunk(
-        env.module,
-        env.fn_table,
+        &mut super::ExecEnv {
+            module: env.module,
+            fn_table: env.fn_table,
+            globals: env.globals,
+            host: env.host,
+            reg: env.reg,
+        },
         chunk,
         &callee_name,
         call_args,
-        env.globals,
-        env.host,
-        env.reg,
         super::RunOptions {
             depth: env.opts.depth + 1,
             config: env.opts.config,
@@ -255,14 +256,16 @@ pub(super) fn call_method(
     full_args.push(receiver);
     full_args.append(&mut call_args);
     let ret = super::run_chunk(
-        env.module,
-        env.fn_table,
+        &mut super::ExecEnv {
+            module: env.module,
+            fn_table: env.fn_table,
+            globals: env.globals,
+            host: env.host,
+            reg: env.reg,
+        },
         chunk,
         &callee_name,
         full_args,
-        env.globals,
-        env.host,
-        env.reg,
         super::RunOptions {
             depth: env.opts.depth + 1,
             config: env.opts.config,

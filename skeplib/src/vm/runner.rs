@@ -17,34 +17,34 @@ pub(super) struct RunOptions {
     pub config: VmConfig,
 }
 
+pub(super) struct ExecEnv<'a> {
+    pub module: &'a BytecodeModule,
+    pub fn_table: &'a [&'a FunctionChunk],
+    pub globals: &'a mut Vec<Value>,
+    pub host: &'a mut dyn BuiltinHost,
+    pub reg: &'a BuiltinRegistry,
+}
+
 pub(super) fn run_function(
-    module: &BytecodeModule,
-    fn_table: &[&FunctionChunk],
+    env: &mut ExecEnv<'_>,
     function_name: &str,
     args: Vec<Value>,
-    globals: &mut Vec<Value>,
-    host: &mut dyn BuiltinHost,
-    reg: &BuiltinRegistry,
     opts: RunOptions,
 ) -> Result<Value, VmError> {
-    let Some(chunk) = module.functions.get(function_name) else {
+    let Some(chunk) = env.module.functions.get(function_name) else {
         return Err(VmError::new(
             VmErrorKind::UnknownFunction,
             format!("Unknown function `{function_name}`"),
         ));
     };
-    run_chunk(module, fn_table, chunk, function_name, args, globals, host, reg, opts)
+    run_chunk(env, chunk, function_name, args, opts)
 }
 
 pub(super) fn run_chunk(
-    module: &BytecodeModule,
-    fn_table: &[&FunctionChunk],
+    env: &mut ExecEnv<'_>,
     chunk: &FunctionChunk,
     function_name: &str,
     args: Vec<Value>,
-    globals: &mut Vec<Value>,
-    host: &mut dyn BuiltinHost,
-    reg: &BuiltinRegistry,
     opts: RunOptions,
 ) -> Result<Value, VmError> {
     if opts.depth >= opts.config.max_call_depth {
@@ -78,7 +78,7 @@ pub(super) fn run_chunk(
             Instr::LoadLocal(slot) => state.load_local(*slot, function_name, ip)?,
             Instr::StoreLocal(slot) => state.store_local(*slot, function_name, ip)?,
             Instr::LoadGlobal(slot) => {
-                let Some(v) = globals.get(*slot).cloned() else {
+                let Some(v) = env.globals.get(*slot).cloned() else {
                     return Err(err_at(
                         VmErrorKind::InvalidLocal,
                         format!("Invalid global slot {slot}"),
@@ -97,10 +97,10 @@ pub(super) fn run_chunk(
                         ip,
                     ));
                 };
-                if *slot >= globals.len() {
-                    globals.resize(*slot + 1, Value::Unit);
+                if *slot >= env.globals.len() {
+                    env.globals.resize(*slot + 1, Value::Unit);
                 }
-                globals[*slot] = v;
+                env.globals[*slot] = v;
             }
             Instr::Pop => state.pop_discard(function_name, ip)?,
             Instr::NegInt => arith::neg(state.stack_mut(), function_name, ip)?,
@@ -144,47 +144,45 @@ pub(super) fn run_chunk(
             Instr::Call {
                 name: callee_name,
                 argc,
-            } => {
-                calls::call(
-                    state.stack_mut(),
-                    callee_name,
-                    *argc,
+            } => calls::call(
+                state.stack_mut(),
+                callee_name,
+                *argc,
                     &mut calls::CallEnv {
-                        module,
-                        fn_table,
-                        globals,
-                        host,
-                        reg,
+                        module: env.module,
+                        fn_table: env.fn_table,
+                        globals: env.globals,
+                        host: env.host,
+                        reg: env.reg,
                         opts,
                     },
-                    calls::Site { function_name, ip },
-                )?
-            }
+                calls::Site { function_name, ip },
+            )?,
             Instr::CallIdx { idx, argc } => calls::call_idx(
                 state.stack_mut(),
                 *idx,
                 *argc,
-                &mut calls::CallEnv {
-                    module,
-                    fn_table,
-                    globals,
-                    host,
-                    reg,
-                    opts,
-                },
+                    &mut calls::CallEnv {
+                        module: env.module,
+                        fn_table: env.fn_table,
+                        globals: env.globals,
+                        host: env.host,
+                        reg: env.reg,
+                        opts,
+                    },
                 calls::Site { function_name, ip },
             )?,
             Instr::CallValue { argc } => calls::call_value(
                 state.stack_mut(),
                 *argc,
                     &mut calls::CallEnv {
-                        module,
-                        fn_table,
-                        globals,
-                    host,
-                    reg,
-                    opts,
-                },
+                        module: env.module,
+                        fn_table: env.fn_table,
+                        globals: env.globals,
+                        host: env.host,
+                        reg: env.reg,
+                        opts,
+                    },
                 calls::Site { function_name, ip },
             )?,
             Instr::CallMethod {
@@ -195,13 +193,13 @@ pub(super) fn run_chunk(
                 method_name,
                 *argc,
                     &mut calls::CallEnv {
-                        module,
-                        fn_table,
-                        globals,
-                    host,
-                    reg,
-                    opts,
-                },
+                        module: env.module,
+                        fn_table: env.fn_table,
+                        globals: env.globals,
+                        host: env.host,
+                        reg: env.reg,
+                        opts,
+                    },
                 calls::Site { function_name, ip },
             )?,
             Instr::CallBuiltin {
@@ -214,13 +212,13 @@ pub(super) fn run_chunk(
                 name,
                 *argc,
                     &mut calls::CallEnv {
-                        module,
-                        fn_table,
-                        globals,
-                    host,
-                    reg,
-                    opts,
-                },
+                        module: env.module,
+                        fn_table: env.fn_table,
+                        globals: env.globals,
+                        host: env.host,
+                        reg: env.reg,
+                        opts,
+                    },
                 calls::Site { function_name, ip },
             )?,
             Instr::MakeArray(n) => arrays::make_array(state.stack_mut(), *n, function_name, ip)?,

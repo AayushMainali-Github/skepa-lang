@@ -64,4 +64,3 @@ fn bench_runtime(c: &mut Criterion) {
 
 criterion_group!(benches, bench_runtime);
 criterion_main!(benches);
-

@@ -50,25 +50,31 @@ impl Vm {
             .unwrap_or(0);
         let mut globals = vec![Value::Unit; globals_init_locals];
         if module.functions.contains_key("__globals_init") {
-            let _ = runner::run_function(
+            let mut env = runner::ExecEnv {
                 module,
-                &fn_table,
+                fn_table: &fn_table,
+                globals: &mut globals,
+                host: &mut host,
+                reg: &reg,
+            };
+            let _ = runner::run_function(
+                &mut env,
                 "__globals_init",
                 Vec::new(),
-                &mut globals,
-                &mut host,
-                &reg,
                 runner::RunOptions { depth: 0, config },
             )?;
         }
-        runner::run_function(
+        let mut env = runner::ExecEnv {
             module,
-            &fn_table,
+            fn_table: &fn_table,
+            globals: &mut globals,
+            host: &mut host,
+            reg: &reg,
+        };
+        runner::run_function(
+            &mut env,
             "main",
             Vec::new(),
-            &mut globals,
-            &mut host,
-            &reg,
             runner::RunOptions { depth: 0, config },
         )
     }
@@ -86,28 +92,34 @@ impl Vm {
             .unwrap_or(0);
         let mut globals = vec![Value::Unit; globals_init_locals];
         if module.functions.contains_key("__globals_init") {
-            let _ = runner::run_function(
+            let mut env = runner::ExecEnv {
                 module,
-                &fn_table,
+                fn_table: &fn_table,
+                globals: &mut globals,
+                host,
+                reg: &reg,
+            };
+            let _ = runner::run_function(
+                &mut env,
                 "__globals_init",
                 Vec::new(),
-                &mut globals,
-                host,
-                &reg,
                 runner::RunOptions {
                     depth: 0,
                     config: VmConfig::default(),
                 },
             )?;
         }
-        runner::run_function(
+        let mut env = runner::ExecEnv {
             module,
-            &fn_table,
+            fn_table: &fn_table,
+            globals: &mut globals,
+            host,
+            reg: &reg,
+        };
+        runner::run_function(
+            &mut env,
             "main",
             Vec::new(),
-            &mut globals,
-            host,
-            &reg,
             runner::RunOptions {
                 depth: 0,
                 config: VmConfig::default(),
@@ -128,28 +140,34 @@ impl Vm {
             .unwrap_or(0);
         let mut globals = vec![Value::Unit; globals_init_locals];
         if module.functions.contains_key("__globals_init") {
-            let _ = runner::run_function(
+            let mut env = runner::ExecEnv {
                 module,
-                &fn_table,
-                "__globals_init",
-                Vec::new(),
-                &mut globals,
+                fn_table: &fn_table,
+                globals: &mut globals,
                 host,
                 reg,
+            };
+            let _ = runner::run_function(
+                &mut env,
+                "__globals_init",
+                Vec::new(),
                 runner::RunOptions {
                     depth: 0,
                     config: VmConfig::default(),
                 },
             )?;
         }
-        runner::run_function(
+        let mut env = runner::ExecEnv {
             module,
-            &fn_table,
-            "main",
-            Vec::new(),
-            &mut globals,
+            fn_table: &fn_table,
+            globals: &mut globals,
             host,
             reg,
+        };
+        runner::run_function(
+            &mut env,
+            "main",
+            Vec::new(),
             runner::RunOptions {
                 depth: 0,
                 config: VmConfig::default(),
