@@ -47,6 +47,14 @@ pub(super) fn run_chunk(
     args: Vec<Value>,
     opts: RunOptions,
 ) -> Result<Value, VmError> {
+    let profile_ops = std::env::var_os("SKEPA_VM_PROFILE_OPS").is_some();
+    let mut prof_load_local = 0u64;
+    let mut prof_store_local = 0u64;
+    let mut prof_add = 0u64;
+    let mut prof_mod = 0u64;
+    let mut prof_lte = 0u64;
+    let mut prof_jump = 0u64;
+    let mut prof_jump_if_false = 0u64;
     if opts.depth >= opts.config.max_call_depth {
         return Err(VmError::new(
             VmErrorKind::StackOverflow,
@@ -75,8 +83,18 @@ pub(super) fn run_chunk(
         }
         match &chunk.code[ip] {
             Instr::LoadConst(v) => state.push_const(v.clone()),
-            Instr::LoadLocal(slot) => state.load_local(*slot, function_name, ip)?,
-            Instr::StoreLocal(slot) => state.store_local(*slot, function_name, ip)?,
+            Instr::LoadLocal(slot) => {
+                if profile_ops {
+                    prof_load_local += 1;
+                }
+                state.load_local(*slot, function_name, ip)?
+            }
+            Instr::StoreLocal(slot) => {
+                if profile_ops {
+                    prof_store_local += 1;
+                }
+                state.store_local(*slot, function_name, ip)?
+            }
             Instr::LoadGlobal(slot) => {
                 let Some(v) = env.globals.get(*slot).cloned() else {
                     return Err(err_at(
@@ -105,7 +123,36 @@ pub(super) fn run_chunk(
             Instr::Pop => state.pop_discard(function_name, ip)?,
             Instr::NegInt => arith::neg(state.stack_mut(), function_name, ip)?,
             Instr::NotBool => arith::not_bool(state.stack_mut(), function_name, ip)?,
-            Instr::Add => arith::add(state.stack_mut(), function_name, ip)?,
+            Instr::Add => {
+                if profile_ops {
+                    prof_add += 1;
+                }
+                let stack = state.stack_mut();
+                let Some(r) = stack.pop() else {
+                    return Err(err_at(
+                        VmErrorKind::StackUnderflow,
+                        "Add expects rhs",
+                        function_name,
+                        ip,
+                    ));
+                };
+                let Some(l) = stack.pop() else {
+                    return Err(err_at(
+                        VmErrorKind::StackUnderflow,
+                        "Add expects lhs",
+                        function_name,
+                        ip,
+                    ));
+                };
+                match (l, r) {
+                    (Value::Int(a), Value::Int(b)) => stack.push(Value::Int(a + b)),
+                    (l, r) => {
+                        stack.push(l);
+                        stack.push(r);
+                        arith::add(stack, function_name, ip)?
+                    }
+                }
+            }
             Instr::SubInt
             | Instr::MulInt
             | Instr::DivInt
@@ -113,19 +160,102 @@ pub(super) fn run_chunk(
             | Instr::LteInt
             | Instr::GtInt
             | Instr::GteInt => {
-                arith::numeric_binop(state.stack_mut(), &chunk.code[ip], function_name, ip)?
+                if matches!(&chunk.code[ip], Instr::LteInt) {
+                    if profile_ops {
+                        prof_lte += 1;
+                    }
+                    let stack = state.stack_mut();
+                    let Some(r) = stack.pop() else {
+                        return Err(err_at(
+                            VmErrorKind::StackUnderflow,
+                            "int binary op expects rhs",
+                            function_name,
+                            ip,
+                        ));
+                    };
+                    let Some(l) = stack.pop() else {
+                        stack.push(r);
+                        return Err(err_at(
+                            VmErrorKind::StackUnderflow,
+                            "int binary op expects lhs",
+                            function_name,
+                            ip,
+                        ));
+                    };
+                    match (l, r) {
+                        (Value::Int(l), Value::Int(r)) => stack.push(Value::Bool(l <= r)),
+                        (l, r) => {
+                            stack.push(l);
+                            stack.push(r);
+                            arith::numeric_binop(
+                                stack,
+                                &chunk.code[ip],
+                                function_name,
+                                ip,
+                            )?
+                        }
+                    }
+                } else {
+                    arith::numeric_binop(state.stack_mut(), &chunk.code[ip], function_name, ip)?
+                }
             }
-            Instr::ModInt => arith::mod_int(state.stack_mut(), function_name, ip)?,
+            Instr::ModInt => {
+                if profile_ops {
+                    prof_mod += 1;
+                }
+                let stack = state.stack_mut();
+                let Some(r) = stack.pop() else {
+                    return Err(err_at(
+                        VmErrorKind::TypeMismatch,
+                        "ModInt expects rhs Int",
+                        function_name,
+                        ip,
+                    ));
+                };
+                let Some(l) = stack.pop() else {
+                    stack.push(r);
+                    return Err(err_at(
+                        VmErrorKind::TypeMismatch,
+                        "ModInt expects lhs Int",
+                        function_name,
+                        ip,
+                    ));
+                };
+                match (l, r) {
+                    (Value::Int(l), Value::Int(r)) => {
+                        if r == 0 {
+                            return Err(err_at(
+                                VmErrorKind::DivisionByZero,
+                                "modulo by zero",
+                                function_name,
+                                ip,
+                            ));
+                        }
+                        stack.push(Value::Int(l % r));
+                    }
+                    (l, r) => {
+                        stack.push(l);
+                        stack.push(r);
+                        arith::mod_int(stack, function_name, ip)?
+                    }
+                }
+            }
             Instr::Eq => arith::eq(state.stack_mut(), function_name, ip)?,
             Instr::Neq => arith::neq(state.stack_mut(), function_name, ip)?,
             Instr::AndBool | Instr::OrBool => {
                 arith::logical(state.stack_mut(), &chunk.code[ip], function_name, ip)?
             }
             Instr::Jump(target) => {
+                if profile_ops {
+                    prof_jump += 1;
+                }
                 ip = control_flow::jump(*target);
                 continue;
             }
             Instr::JumpIfFalse(target) => {
+                if profile_ops {
+                    prof_jump_if_false += 1;
+                }
                 if let Some(next_ip) =
                     control_flow::jump_if_false(state.stack_mut(), *target, function_name, ip)?
                 {
@@ -241,10 +371,20 @@ pub(super) fn run_chunk(
                 structs::struct_set_path(state.stack_mut(), path, function_name, ip)?
             }
             Instr::Return => {
+                if profile_ops && opts.depth == 0 {
+                    eprintln!(
+                        "[vm-prof] {function_name}: LoadLocal={prof_load_local} StoreLocal={prof_store_local} Add={prof_add} ModInt={prof_mod} LteInt={prof_lte} Jump={prof_jump} JumpIfFalse={prof_jump_if_false}"
+                    );
+                }
                 return Ok(state.finish_return());
             }
         }
         ip += 1;
+    }
+    if profile_ops && opts.depth == 0 {
+        eprintln!(
+            "[vm-prof] {function_name}: LoadLocal={prof_load_local} StoreLocal={prof_store_local} Add={prof_add} ModInt={prof_mod} LteInt={prof_lte} Jump={prof_jump} JumpIfFalse={prof_jump_if_false}"
+        );
     }
     Ok(Value::Unit)
 }

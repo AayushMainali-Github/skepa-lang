@@ -24,6 +24,7 @@ pub fn compile_source(source: &str) -> Result<BytecodeModule, DiagnosticBag> {
 
     if diags.is_empty() {
         let mut module = module;
+        peephole_optimize_module(&mut module);
         rewrite_direct_calls_to_indexes(&mut module);
         Ok(module)
     } else {
@@ -1123,6 +1124,7 @@ fn compile_project_graph(graph: &ModuleGraph, entry: &Path) -> Result<BytecodeMo
         },
     );
 
+    peephole_optimize_module(&mut out);
     rewrite_direct_calls_to_indexes(&mut out);
     Ok(out)
 }
@@ -1192,4 +1194,53 @@ fn rewrite_direct_calls_to_indexes(module: &mut BytecodeModule) {
             }
         }
     }
+}
+
+fn peephole_optimize_module(module: &mut BytecodeModule) {
+    for chunk in module.functions.values_mut() {
+        peephole_optimize_chunk(chunk);
+    }
+}
+
+fn peephole_optimize_chunk(chunk: &mut FunctionChunk) {
+    if chunk.code.is_empty() {
+        return;
+    }
+    let len = chunk.code.len();
+    let mut remove = vec![false; len];
+    for (i, instr) in chunk.code.iter().enumerate() {
+        if let Instr::Jump(target) = instr
+            && *target == i + 1
+        {
+            remove[i] = true;
+        }
+    }
+    if !remove.iter().any(|r| *r) {
+        return;
+    }
+
+    let kept = remove.iter().filter(|r| !**r).count();
+    let mut next_kept_at_or_after = vec![kept; len + 1];
+    let mut next_new_idx = kept;
+    for i in (0..len).rev() {
+        if !remove[i] {
+            next_new_idx -= 1;
+        }
+        next_kept_at_or_after[i] = next_new_idx;
+    }
+
+    let mut remapped = Vec::with_capacity(kept);
+    for (i, instr) in chunk.code.iter().enumerate() {
+        if remove[i] {
+            continue;
+        }
+        let mapped = match instr {
+            Instr::Jump(t) => Instr::Jump(next_kept_at_or_after[*t]),
+            Instr::JumpIfFalse(t) => Instr::JumpIfFalse(next_kept_at_or_after[*t]),
+            Instr::JumpIfTrue(t) => Instr::JumpIfTrue(next_kept_at_or_after[*t]),
+            _ => instr.clone(),
+        };
+        remapped.push(mapped);
+    }
+    chunk.code = remapped;
 }
