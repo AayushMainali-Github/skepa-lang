@@ -23,6 +23,14 @@ fn take_call_args(stack: &mut Vec<Value>, argc: usize) -> Vec<Value> {
             args.push(stack.pop().expect("call arg stack underflow"));
             args
         }
+        2 => {
+            let b = stack.pop().expect("call arg stack underflow");
+            let a = stack.pop().expect("call arg stack underflow");
+            let mut args = Vec::with_capacity(2);
+            args.push(a);
+            args.push(b);
+            args
+        }
         _ => {
             let split = stack.len() - argc;
             stack.split_off(split)
