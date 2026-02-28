@@ -69,7 +69,6 @@ pub(super) fn run_chunk(
         ));
     }
 
-    let stack_capacity_hint = |chunk: &FunctionChunk| (chunk.code.len() / 4).clamp(8, 256);
     let mut locals_pool: Vec<Vec<Value>> = Vec::new();
     let mut stack_pool: Vec<Vec<Value>> = Vec::new();
     let mut frames = Vec::with_capacity((opts.depth + 1).clamp(1, 64));
@@ -278,45 +277,20 @@ pub(super) fn run_chunk(
             }
             Instr::CallIdx { idx, argc } => {
                 let _timer = super::profiler::ScopedTimer::new(super::profiler::Event::CallIdx);
-                if frame.stack.len() < *argc {
-                    return Err(err_at(
-                        VmErrorKind::StackUnderflow,
-                        "Stack underflow on CallIdx",
+                let new_frame = call_idx_fast(
+                    frame,
+                    IndexedCallCtx {
+                        fn_table: env.fn_table,
+                        idx: *idx,
+                        argc: *argc,
+                        current_depth,
+                        opts,
                         function_name,
                         ip,
-                    ));
-                }
-                let callee_chunk = calls::resolve_chunk_idx(
-                    env.fn_table,
-                    *idx,
-                    calls::Site { function_name, ip },
+                        locals_pool: &mut locals_pool,
+                        stack_pool: &mut stack_pool,
+                    },
                 )?;
-                if current_depth + opts.depth >= opts.config.max_call_depth {
-                    return Err(VmError::new(
-                        VmErrorKind::StackOverflow,
-                        format!("Call stack limit exceeded ({})", opts.config.max_call_depth),
-                    ));
-                }
-                if *argc != callee_chunk.param_count {
-                    return Err(VmError::new(
-                        VmErrorKind::ArityMismatch,
-                        format!(
-                            "Function `{}` arity mismatch: expected {}, got {}",
-                            callee_chunk.name, callee_chunk.param_count, argc
-                        ),
-                    ));
-                }
-                let new_frame = {
-                    frame.ip += 1;
-                    push_call_frame(
-                        frame,
-                        callee_chunk,
-                        *argc,
-                        None,
-                        &mut locals_pool,
-                        &mut stack_pool,
-                    )
-                };
                 frames.push(new_frame);
                 continue;
             }
@@ -554,6 +528,11 @@ pub(super) fn run_chunk(
 }
 
 #[inline(always)]
+fn stack_capacity_hint(chunk: &FunctionChunk) -> usize {
+    (chunk.code.len() / 4).clamp(8, 256)
+}
+
+#[inline(always)]
 fn handle_hot_instr(
     frame: &mut state::CallFrame<'_>,
     instr: &Instr,
@@ -739,6 +718,68 @@ impl HotOpProfile {
     }
 }
 
+#[inline(always)]
+fn call_idx_fast<'a>(
+    frame: &mut state::CallFrame<'_>,
+    ctx: IndexedCallCtx<'a, '_>,
+) -> Result<state::CallFrame<'a>, VmError> {
+    if frame.stack.len() < ctx.argc {
+        return Err(err_at(
+            VmErrorKind::StackUnderflow,
+            "Stack underflow on CallIdx",
+            ctx.function_name,
+            ctx.ip,
+        ));
+    }
+    let Some(callee_chunk) = ctx.fn_table.get(ctx.idx).copied() else {
+        return Err(err_at(
+            VmErrorKind::UnknownFunction,
+            format!("Invalid function index `{}`", ctx.idx),
+            ctx.function_name,
+            ctx.ip,
+        ));
+    };
+    if ctx.current_depth + ctx.opts.depth >= ctx.opts.config.max_call_depth {
+        return Err(VmError::new(
+            VmErrorKind::StackOverflow,
+            format!(
+                "Call stack limit exceeded ({})",
+                ctx.opts.config.max_call_depth
+            ),
+        ));
+    }
+    if ctx.argc != callee_chunk.param_count {
+        return Err(VmError::new(
+            VmErrorKind::ArityMismatch,
+            format!(
+                "Function `{}` arity mismatch: expected {}, got {}",
+                callee_chunk.name, callee_chunk.param_count, ctx.argc
+            ),
+        ));
+    }
+    frame.ip += 1;
+    Ok(push_call_frame(
+        frame,
+        callee_chunk,
+        ctx.argc,
+        None,
+        ctx.locals_pool,
+        ctx.stack_pool,
+    ))
+}
+
+struct IndexedCallCtx<'a, 'b> {
+    fn_table: &'a [&'a FunctionChunk],
+    idx: usize,
+    argc: usize,
+    current_depth: usize,
+    opts: RunOptions,
+    function_name: &'b str,
+    ip: usize,
+    locals_pool: &'b mut Vec<Vec<Value>>,
+    stack_pool: &'b mut Vec<Vec<Value>>,
+}
+
 fn push_call_frame<'a>(
     caller: &mut state::CallFrame<'_>,
     callee_chunk: &'a FunctionChunk,
@@ -752,7 +793,7 @@ fn push_call_frame<'a>(
         &callee_chunk.name,
         state::acquire_storage(
             callee_chunk.locals_count,
-            (callee_chunk.code.len() / 4).clamp(8, 256),
+            stack_capacity_hint(callee_chunk),
             locals_pool,
             stack_pool,
         ),
