@@ -513,6 +513,7 @@ fn main() -> Int {
 fn vm_reports_type_mismatch_for_len_on_non_collection_value() {
     let module = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -537,6 +538,7 @@ fn vm_reports_type_mismatch_for_len_on_non_collection_value() {
 fn vm_reports_struct_get_type_mismatch_on_non_struct() {
     let module = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -579,6 +581,7 @@ fn main() -> Int {
 fn vm_reports_unknown_struct_field_with_clear_message() {
     let module = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -613,6 +616,7 @@ fn vm_reports_unknown_struct_field_with_clear_message() {
 fn vm_reports_struct_set_path_with_non_struct_intermediate() {
     let module = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -645,6 +649,7 @@ fn vm_reports_struct_set_path_with_non_struct_intermediate() {
 fn vm_reports_struct_set_path_with_empty_path() {
     let module = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -1006,6 +1011,7 @@ fn main() -> Int {
 fn vm_reports_type_mismatch_for_loop_like_bad_condition() {
     let module = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -1138,6 +1144,7 @@ fn main() -> Int {
 fn vm_reports_callvalue_type_mismatch_for_non_function_callee() {
     let module = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -1162,6 +1169,7 @@ fn vm_reports_callvalue_type_mismatch_for_non_function_callee() {
 fn vm_reports_type_mismatch_for_function_value_equality() {
     let module = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -1187,6 +1195,7 @@ fn vm_reports_type_mismatch_for_function_value_equality() {
 fn vm_reports_type_mismatch_for_function_value_inequality() {
     let module = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -1380,6 +1389,7 @@ fn main() -> Int {
 fn bytecode_roundtrip_preserves_function_value_and_callvalue_instr() {
     let module = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![
             (
                 "inc".to_string(),
@@ -1450,6 +1460,7 @@ fn main() -> Int { return 1; }
 fn vm_reports_stack_underflow_for_invalid_program() {
     let module = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -1470,6 +1481,7 @@ fn vm_reports_stack_underflow_for_invalid_program() {
 fn vm_reports_type_mismatch_for_bad_jump_condition() {
     let module = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -2430,6 +2442,7 @@ fn main() -> Int {
 fn vm_reports_arr_builtin_runtime_arity_mismatch_from_manual_bytecode() {
     let module = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -2460,6 +2473,7 @@ fn vm_reports_arr_builtin_runtime_arity_mismatch_from_manual_bytecode() {
 fn vm_reports_arr_count_runtime_errors_from_manual_bytecode() {
     let arity_module = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -2486,6 +2500,7 @@ fn vm_reports_arr_count_runtime_errors_from_manual_bytecode() {
 
     let type_module = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -2519,6 +2534,7 @@ fn vm_reports_arr_count_runtime_errors_from_manual_bytecode() {
 fn vm_reports_arr_first_last_runtime_errors_from_manual_bytecode() {
     let first_arity_module = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -2546,6 +2562,7 @@ fn vm_reports_arr_first_last_runtime_errors_from_manual_bytecode() {
 
     let first_type_module = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -2572,6 +2589,7 @@ fn vm_reports_arr_first_last_runtime_errors_from_manual_bytecode() {
 
     let last_arity_module = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -2599,6 +2617,7 @@ fn vm_reports_arr_first_last_runtime_errors_from_manual_bytecode() {
 
     let last_type_module = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -2769,6 +2788,7 @@ fn main() -> Int {
 fn vm_reports_arr_join_runtime_type_mismatch_for_non_string_elements() {
     let module = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -2823,6 +2843,7 @@ fn main() -> Int {
 fn vm_reports_datetime_runtime_arity_mismatch_from_manual_bytecode() {
     let unix_arity_module = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -2849,6 +2870,7 @@ fn vm_reports_datetime_runtime_arity_mismatch_from_manual_bytecode() {
 
     let millis_arity_module = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -2904,6 +2926,7 @@ fn main() -> Int {
 fn vm_reports_datetime_from_runtime_errors_from_manual_bytecode() {
     let from_unix_arity_module = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -2929,6 +2952,7 @@ fn vm_reports_datetime_from_runtime_errors_from_manual_bytecode() {
 
     let from_millis_type_module = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -2995,6 +3019,7 @@ fn main() -> Int {
 fn vm_reports_datetime_parse_unix_runtime_errors_from_manual_bytecode() {
     let arity_module = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -3023,6 +3048,7 @@ fn vm_reports_datetime_parse_unix_runtime_errors_from_manual_bytecode() {
 
     let type_module = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -3077,6 +3103,7 @@ fn main() -> Int {
 fn vm_reports_datetime_component_runtime_errors_from_manual_bytecode() {
     let arity_module = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -3102,6 +3129,7 @@ fn vm_reports_datetime_component_runtime_errors_from_manual_bytecode() {
 
     let type_module = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -3224,6 +3252,7 @@ fn main() -> Int {
 fn vm_reports_random_seed_runtime_errors_from_manual_bytecode() {
     let arity_module = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -3249,6 +3278,7 @@ fn vm_reports_random_seed_runtime_errors_from_manual_bytecode() {
 
     let type_module = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -3300,6 +3330,7 @@ fn main() -> Int {
 fn vm_reports_random_int_float_runtime_arity_errors_from_manual_bytecode() {
     let int_arity = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -3326,6 +3357,7 @@ fn vm_reports_random_int_float_runtime_arity_errors_from_manual_bytecode() {
 
     let float_arity = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -3367,6 +3399,7 @@ fn main() -> Int {
 
     let type_module = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -3528,6 +3561,7 @@ fn main() -> Int {
 fn vm_vec_new_and_len_runtime_builtins_work() {
     let module = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -3560,6 +3594,7 @@ fn vm_vec_new_and_len_runtime_builtins_work() {
 fn vm_vec_push_get_set_delete_supports_in_place_mutation_and_shift() {
     let module = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -3660,6 +3695,7 @@ fn vm_vec_push_get_set_delete_supports_in_place_mutation_and_shift() {
 fn vm_vec_aliasing_uses_shared_handle_semantics() {
     let module = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -3704,6 +3740,7 @@ fn vm_vec_aliasing_uses_shared_handle_semantics() {
 fn vm_vec_delete_reports_index_out_of_bounds() {
     let module = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -3737,6 +3774,7 @@ fn vm_vec_delete_reports_index_out_of_bounds() {
 fn vm_vec_runtime_type_and_arity_errors_are_reported() {
     let arity_module = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -3763,6 +3801,7 @@ fn vm_vec_runtime_type_and_arity_errors_are_reported() {
 
     let type_module = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -3792,6 +3831,7 @@ fn vm_vec_runtime_type_and_arity_errors_are_reported() {
 fn vm_vec_get_set_delete_negative_index_errors() {
     let mk_module = |name: &str, argc: usize, extra: Vec<Instr>| BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -3843,6 +3883,7 @@ fn vm_vec_get_set_delete_negative_index_errors() {
 fn vm_vec_get_set_out_of_bounds_and_empty_errors() {
     let get_oob = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -3873,6 +3914,7 @@ fn vm_vec_get_set_out_of_bounds_and_empty_errors() {
 
     let set_oob = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -3907,6 +3949,7 @@ fn vm_vec_get_set_out_of_bounds_and_empty_errors() {
 fn vm_vec_delete_first_last_and_singleton_cases() {
     let module = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {
@@ -4003,6 +4046,7 @@ fn vm_vec_each_function_reports_arity_and_type_errors() {
             "len",
             BytecodeModule {
                 method_names: Vec::new(),
+                struct_shapes: Vec::new(),
                 functions: vec![(
                     "main".to_string(),
                     FunctionChunk {
@@ -4028,6 +4072,7 @@ fn vm_vec_each_function_reports_arity_and_type_errors() {
             "push",
             BytecodeModule {
                 method_names: Vec::new(),
+                struct_shapes: Vec::new(),
                 functions: vec![(
                     "main".to_string(),
                     FunctionChunk {
@@ -4058,6 +4103,7 @@ fn vm_vec_each_function_reports_arity_and_type_errors() {
             "get",
             BytecodeModule {
                 method_names: Vec::new(),
+                struct_shapes: Vec::new(),
                 functions: vec![(
                     "main".to_string(),
                     FunctionChunk {
@@ -4089,6 +4135,7 @@ fn vm_vec_each_function_reports_arity_and_type_errors() {
             "set",
             BytecodeModule {
                 method_names: Vec::new(),
+                struct_shapes: Vec::new(),
                 functions: vec![(
                     "main".to_string(),
                     FunctionChunk {
@@ -4121,6 +4168,7 @@ fn vm_vec_each_function_reports_arity_and_type_errors() {
             "delete",
             BytecodeModule {
                 method_names: Vec::new(),
+                struct_shapes: Vec::new(),
                 functions: vec![(
                     "main".to_string(),
                     FunctionChunk {
@@ -4160,6 +4208,7 @@ fn vm_vec_each_function_reports_arity_and_type_errors() {
 fn vm_vec_invalid_handle_reports_type_mismatch() {
     let module = BytecodeModule {
         method_names: Vec::new(),
+        struct_shapes: Vec::new(),
         functions: vec![(
             "main".to_string(),
             FunctionChunk {

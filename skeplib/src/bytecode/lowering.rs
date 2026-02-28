@@ -10,7 +10,7 @@ use crate::parser::Parser;
 use crate::resolver::{ModuleGraph, ModuleId, ResolveError, build_export_maps, resolve_project};
 use crate::vm::default_builtin_id;
 
-use super::{BytecodeModule, FunctionChunk, Instr, Value};
+use super::{BytecodeModule, FunctionChunk, Instr, StructShape, Value};
 
 pub fn compile_source(source: &str) -> Result<BytecodeModule, DiagnosticBag> {
     let (program, mut diags) = Parser::parse_source(source);
@@ -67,6 +67,8 @@ struct Compiler {
     namespace_call_targets: HashMap<String, String>,
     method_name_ids: HashMap<String, usize>,
     method_names: Vec<String>,
+    struct_shape_ids: HashMap<String, usize>,
+    struct_shapes: Vec<StructShape>,
 }
 
 #[derive(Clone, Default)]
@@ -133,6 +135,8 @@ impl Compiler {
         self.fn_lit_counter = 0;
         self.method_name_ids.clear();
         self.method_names.clear();
+        self.struct_shape_ids.clear();
+        self.struct_shapes.clear();
         const GLOBALS_INIT_FN: &str = "__globals_init";
         if self.module_id.is_none() && program.functions.iter().any(|f| f.name == GLOBALS_INIT_FN) {
             self.error(format!(
@@ -227,6 +231,7 @@ impl Compiler {
             module.functions.insert(chunk.name.clone(), chunk);
         }
         module.method_names = std::mem::take(&mut self.method_names);
+        module.struct_shapes = std::mem::take(&mut self.struct_shapes);
         module
     }
 
@@ -898,10 +903,16 @@ impl Compiler {
                 for (_, value) in fields {
                     self.compile_expr(value, ctx, code);
                 }
-                code.push(Instr::MakeStruct {
-                    name: self.resolve_struct_runtime_name(name),
-                    fields: fields.iter().map(|(k, _)| k.clone()).collect(),
-                });
+                let runtime_name = self.resolve_struct_runtime_name(name);
+                let field_names = fields.iter().map(|(k, _)| k.clone()).collect::<Vec<_>>();
+                if let Some(id) = self.intern_struct_shape(&runtime_name, &field_names) {
+                    code.push(Instr::MakeStructId { id });
+                } else {
+                    code.push(Instr::MakeStruct {
+                        name: runtime_name,
+                        fields: field_names,
+                    });
+                }
             }
             Expr::FnLit { params, body, .. } => {
                 let fn_name = self.compile_fn_lit(params, body);
@@ -922,6 +933,28 @@ impl Compiler {
         self.method_names.push(name.to_string());
         self.method_name_ids.insert(name.to_string(), id);
         id
+    }
+
+    fn intern_struct_shape(&mut self, runtime_name: &str, field_names: &[String]) -> Option<usize> {
+        let known = self.known_struct_layouts.get(runtime_name)?;
+        if field_names.len() != known.field_slots.len() {
+            return None;
+        }
+        for (slot, field_name) in field_names.iter().enumerate() {
+            if known.field_slots.get(field_name).copied() != Some(slot) {
+                return None;
+            }
+        }
+        if let Some(id) = self.struct_shape_ids.get(runtime_name).copied() {
+            return Some(id);
+        }
+        let id = self.struct_shapes.len();
+        self.struct_shapes.push(StructShape {
+            name: runtime_name.to_string(),
+            field_names: Rc::<[String]>::from(field_names.to_vec()),
+        });
+        self.struct_shape_ids.insert(runtime_name.to_string(), id);
+        Some(id)
     }
 
     fn flatten_index_target<'a>(
@@ -1050,6 +1083,7 @@ fn compile_project_graph_inner(
 
     let mut out = BytecodeModule::default();
     let mut linked_method_name_ids = HashMap::<String, usize>::new();
+    let mut linked_struct_shape_ids = HashMap::<String, usize>::new();
     let mut init_names = Vec::new();
     let mut ids = programs.keys().cloned().collect::<Vec<_>>();
     ids.sort();
@@ -1171,6 +1205,11 @@ fn compile_project_graph_inner(
             &mut linked_method_name_ids,
             &m.method_names,
         );
+        let struct_shape_id_remap = intern_linked_struct_shapes(
+            &mut out.struct_shapes,
+            &mut linked_struct_shape_ids,
+            &m.struct_shapes,
+        );
         let init = c.globals_init_name();
         if m.functions.contains_key(&init) {
             init_names.push(init);
@@ -1180,6 +1219,7 @@ fn compile_project_graph_inner(
         for n in names {
             if let Some(mut chunk) = m.functions.get(&n).cloned() {
                 remap_chunk_method_ids(&mut chunk, &method_id_remap);
+                remap_chunk_struct_shape_ids(&mut chunk, &struct_shape_id_remap);
                 if out.functions.insert(n.clone(), chunk).is_some() {
                     return Err(format!("Duplicate linked function symbol `{n}`"));
                 }
@@ -1249,10 +1289,40 @@ fn intern_linked_method_names(
     remap
 }
 
+fn intern_linked_struct_shapes(
+    out_struct_shapes: &mut Vec<StructShape>,
+    linked_struct_shape_ids: &mut HashMap<String, usize>,
+    module_struct_shapes: &[StructShape],
+) -> Vec<usize> {
+    let mut remap = Vec::with_capacity(module_struct_shapes.len());
+    for shape in module_struct_shapes {
+        let id = if let Some(id) = linked_struct_shape_ids.get(&shape.name).copied() {
+            id
+        } else {
+            let id = out_struct_shapes.len();
+            out_struct_shapes.push(shape.clone());
+            linked_struct_shape_ids.insert(shape.name.clone(), id);
+            id
+        };
+        remap.push(id);
+    }
+    remap
+}
+
 fn remap_chunk_method_ids(chunk: &mut FunctionChunk, method_id_remap: &[usize]) {
     for instr in &mut chunk.code {
         if let Instr::CallMethodId { id, .. } = instr
             && let Some(mapped) = method_id_remap.get(*id).copied()
+        {
+            *id = mapped;
+        }
+    }
+}
+
+fn remap_chunk_struct_shape_ids(chunk: &mut FunctionChunk, struct_shape_id_remap: &[usize]) {
+    for instr in &mut chunk.code {
+        if let Instr::MakeStructId { id } = instr
+            && let Some(mapped) = struct_shape_id_remap.get(*id).copied()
         {
             *id = mapped;
         }

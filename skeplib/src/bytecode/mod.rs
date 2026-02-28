@@ -94,6 +94,9 @@ pub enum Instr {
         name: String,
         fields: Vec<String>,
     },
+    MakeStructId {
+        id: usize,
+    },
     StructGet(String),
     StructGetSlot(usize),
     StructSetPath(Vec<String>),
@@ -113,4 +116,5 @@ pub struct FunctionChunk {
 pub struct BytecodeModule {
     pub functions: HashMap<String, FunctionChunk>,
     pub method_names: Vec<String>,
+    pub struct_shapes: Vec<StructShape>,
 }

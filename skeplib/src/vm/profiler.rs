@@ -114,6 +114,7 @@ impl OpCounters {
             | Instr::ArraySetChain(_)
             | Instr::ArrayLen => self.array += 1,
             Instr::MakeStruct { .. }
+            | Instr::MakeStructId { .. }
             | Instr::StructGet(_)
             | Instr::StructGetSlot(_)
             | Instr::StructSetPath(_)

@@ -236,6 +236,7 @@ impl Vm {
                 .into_iter()
                 .collect(),
             method_names: Vec::new(),
+            struct_shapes: Vec::new(),
         };
         Self::run_module_main(&module)
     }

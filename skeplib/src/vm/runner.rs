@@ -675,6 +675,9 @@ pub(super) fn run_chunk(
             Instr::MakeStruct { name, fields } => {
                 structs::make_struct(&mut frame.stack, name, fields, function_name, ip)?
             }
+            Instr::MakeStructId { id } => {
+                structs::make_struct_id(&mut frame.stack, env.module, *id, function_name, ip)?
+            }
             Instr::StructGet(field) => {
                 structs::struct_get(&mut frame.stack, field, function_name, ip)?
             }

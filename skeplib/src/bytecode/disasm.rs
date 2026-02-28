@@ -81,6 +81,7 @@ fn fmt_instr(i: &Instr) -> String {
         Instr::MakeStruct { name, fields } => {
             format!("MakeStruct {name} fields={}", fields.join(","))
         }
+        Instr::MakeStructId { id } => format!("MakeStructId {id}"),
         Instr::StructGet(field) => format!("StructGet {field}"),
         Instr::StructGetSlot(slot) => format!("StructGetSlot {slot}"),
         Instr::StructSetPath(path) => format!("StructSetPath {}", path.join(".")),

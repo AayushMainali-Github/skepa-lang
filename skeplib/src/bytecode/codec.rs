@@ -13,6 +13,14 @@ impl BytecodeModule {
         for name in &self.method_names {
             write_str(&mut out, name);
         }
+        write_u32(&mut out, self.struct_shapes.len() as u32);
+        for shape in &self.struct_shapes {
+            write_str(&mut out, &shape.name);
+            write_u32(&mut out, shape.field_names.len() as u32);
+            for field_name in shape.field_names.iter() {
+                write_str(&mut out, field_name);
+            }
+        }
         let mut funcs: Vec<_> = self.functions.values().collect();
         funcs.sort_by(|a, b| a.name.cmp(&b.name));
         for f in funcs {
@@ -43,6 +51,20 @@ impl BytecodeModule {
         for _ in 0..method_names_len {
             method_names.push(rd.read_str()?);
         }
+        let struct_shapes_len = rd.read_u32()? as usize;
+        let mut struct_shapes = Vec::with_capacity(struct_shapes_len);
+        for _ in 0..struct_shapes_len {
+            let name = rd.read_str()?;
+            let field_names_len = rd.read_u32()? as usize;
+            let mut field_names = Vec::with_capacity(field_names_len);
+            for _ in 0..field_names_len {
+                field_names.push(rd.read_str()?);
+            }
+            struct_shapes.push(StructShape {
+                name,
+                field_names: Rc::<[String]>::from(field_names),
+            });
+        }
         let mut functions = HashMap::new();
         for _ in 0..funcs_len {
             let name = rd.read_str()?;
@@ -66,6 +88,7 @@ impl BytecodeModule {
         Ok(Self {
             functions,
             method_names,
+            struct_shapes,
         })
     }
 }
@@ -255,6 +278,10 @@ fn encode_instr(i: &Instr, out: &mut Vec<u8>) {
                 write_str(out, f);
             }
         }
+        Instr::MakeStructId { id } => {
+            write_u8(out, 44);
+            write_u32(out, *id as u32);
+        }
         Instr::StructGet(field) => {
             write_u8(out, 34);
             write_str(out, field);
@@ -433,6 +460,9 @@ fn decode_instr(rd: &mut Reader<'_>) -> Result<Instr, String> {
             }
             Instr::MakeStruct { name, fields }
         }
+        44 => Instr::MakeStructId {
+            id: rd.read_u32()? as usize,
+        },
         34 => Instr::StructGet(rd.read_str()?),
         39 => Instr::StructGetSlot(rd.read_u32()? as usize),
         35 => {

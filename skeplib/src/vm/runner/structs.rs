@@ -1,4 +1,4 @@
-use crate::bytecode::{StructShape, Value};
+use crate::bytecode::{BytecodeModule, StructShape, Value};
 use crate::vm::{VmError, VmErrorKind};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -76,6 +76,24 @@ pub(super) fn make_struct(
         fields: Rc::<[Value]>::from(values),
     });
     Ok(())
+}
+
+pub(super) fn make_struct_id(
+    stack: &mut Vec<Value>,
+    module: &BytecodeModule,
+    id: usize,
+    function_name: &str,
+    ip: usize,
+) -> Result<(), VmError> {
+    let Some(shape) = module.struct_shapes.get(id) else {
+        return Err(super::err_at(
+            VmErrorKind::TypeMismatch,
+            format!("Unknown struct shape id `{id}`"),
+            function_name,
+            ip,
+        ));
+    };
+    make_struct(stack, &shape.name, &shape.field_names, function_name, ip)
 }
 
 pub(super) fn struct_get(
