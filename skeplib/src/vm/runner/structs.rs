@@ -1,5 +1,33 @@
 use crate::bytecode::Value;
 use crate::vm::{VmError, VmErrorKind};
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
+
+type FieldSlotCache = HashMap<String, HashMap<String, usize>>;
+
+fn cached_field_slot(name: &str, fields: &[(String, Value)], field: &str) -> Option<usize> {
+    static CACHE: OnceLock<Mutex<FieldSlotCache>> = OnceLock::new();
+    let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+
+    {
+        let cache = cache.lock().expect("struct field cache poisoned");
+        if let Some(slot) = cache
+            .get(name)
+            .and_then(|field_slots| field_slots.get(field))
+            .copied()
+        {
+            return Some(slot);
+        }
+    }
+
+    let slot = fields.iter().position(|(k, _)| k == field)?;
+    let mut cache = cache.lock().expect("struct field cache poisoned");
+    cache
+        .entry(name.to_string())
+        .or_default()
+        .insert(field.to_string(), slot);
+    Some(slot)
+}
 
 pub(super) fn make_struct(
     stack: &mut Vec<Value>,
@@ -51,7 +79,7 @@ pub(super) fn struct_get(
             ip,
         ));
     };
-    let Some((_, value)) = fields.iter().find(|(k, _)| k == field) else {
+    let Some(slot) = cached_field_slot(&name, &fields, field) else {
         return Err(super::err_at(
             VmErrorKind::TypeMismatch,
             format!("Unknown struct field `{field}` on `{name}`"),
@@ -59,7 +87,7 @@ pub(super) fn struct_get(
             ip,
         ));
     };
-    stack.push(value.clone());
+    stack.push(fields[slot].1.clone());
     Ok(())
 }
 
@@ -112,7 +140,7 @@ fn set_field_path(cur: Value, path: &[String], value: Value) -> Result<Value, St
         return Err("expected Struct along field path".to_string());
     };
     let key = &path[0];
-    let Some(pos) = fields.iter().position(|(k, _)| k == key) else {
+    let Some(pos) = cached_field_slot(&name, &fields, key) else {
         return Err(format!("unknown field `{key}` on struct `{name}`"));
     };
     if path.len() == 1 {
