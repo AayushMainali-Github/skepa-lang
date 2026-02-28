@@ -21,7 +21,7 @@ fn parse_expected_value(s: &str) -> Value {
         return Value::Float(v.trim().parse::<f64>().expect("valid Float value"));
     }
     if let Some(v) = t.strip_prefix("String:") {
-        return Value::String(v.trim().to_string());
+        return Value::String(v.trim().to_string().into());
     }
     panic!("unsupported expected value format `{t}`");
 }

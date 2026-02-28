@@ -30,7 +30,7 @@ pub(crate) fn builtin_fs_exists(
             "fs.exists expects String argument",
         ));
     };
-    let exists = std::path::Path::new(path)
+    let exists = std::path::Path::new(path.as_ref())
         .try_exists()
         .map_err(|e| VmError::new(VmErrorKind::HostError, format!("fs.exists failed: {e}")))?;
     Ok(Value::Bool(exists))
@@ -52,9 +52,9 @@ pub(crate) fn builtin_fs_read_text(
             "fs.readText expects String argument",
         ));
     };
-    let text = std::fs::read_to_string(path)
+    let text = std::fs::read_to_string(path.as_ref())
         .map_err(|e| VmError::new(VmErrorKind::HostError, format!("fs.readText failed: {e}")))?;
-    Ok(Value::String(text))
+    Ok(Value::String(text.into()))
 }
 
 pub(crate) fn builtin_fs_write_text(
@@ -79,7 +79,7 @@ pub(crate) fn builtin_fs_write_text(
             "fs.writeText argument 2 expects String",
         ));
     };
-    std::fs::write(path, data)
+    std::fs::write(path.as_ref(), data.as_ref())
         .map_err(|e| VmError::new(VmErrorKind::HostError, format!("fs.writeText failed: {e}")))?;
     Ok(Value::Unit)
 }
@@ -109,7 +109,7 @@ pub(crate) fn builtin_fs_append_text(
     let mut f = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
-        .open(path)
+        .open(path.as_ref())
         .map_err(|e| VmError::new(VmErrorKind::HostError, format!("fs.appendText failed: {e}")))?;
     use std::io::Write as _;
     f.write_all(data.as_bytes())
@@ -133,7 +133,7 @@ pub(crate) fn builtin_fs_mkdir_all(
             "fs.mkdirAll expects String argument",
         ));
     };
-    std::fs::create_dir_all(path)
+    std::fs::create_dir_all(path.as_ref())
         .map_err(|e| VmError::new(VmErrorKind::HostError, format!("fs.mkdirAll failed: {e}")))?;
     Ok(Value::Unit)
 }
@@ -154,7 +154,7 @@ pub(crate) fn builtin_fs_remove_file(
             "fs.removeFile expects String argument",
         ));
     };
-    std::fs::remove_file(path)
+    std::fs::remove_file(path.as_ref())
         .map_err(|e| VmError::new(VmErrorKind::HostError, format!("fs.removeFile failed: {e}")))?;
     Ok(Value::Unit)
 }
@@ -175,7 +175,7 @@ pub(crate) fn builtin_fs_remove_dir_all(
             "fs.removeDirAll expects String argument",
         ));
     };
-    std::fs::remove_dir_all(path).map_err(|e| {
+    std::fs::remove_dir_all(path.as_ref()).map_err(|e| {
         VmError::new(
             VmErrorKind::HostError,
             format!("fs.removeDirAll failed: {e}"),
@@ -206,6 +206,6 @@ pub(crate) fn builtin_fs_join(
             "fs.join argument 2 expects String",
         ));
     };
-    let joined = std::path::PathBuf::from(a).join(b);
-    Ok(Value::String(joined.to_string_lossy().into_owned()))
+    let joined = std::path::PathBuf::from(a.as_ref()).join(b.as_ref());
+    Ok(Value::String(joined.to_string_lossy().into_owned().into()))
 }

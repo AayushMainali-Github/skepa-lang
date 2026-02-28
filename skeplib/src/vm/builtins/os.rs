@@ -35,7 +35,7 @@ pub(crate) fn builtin_os_cwd(
     }
     let cwd = std::env::current_dir()
         .map_err(|e| VmError::new(VmErrorKind::HostError, format!("os.cwd failed: {e}")))?;
-    Ok(Value::String(cwd.to_string_lossy().into_owned()))
+    Ok(Value::String(cwd.to_string_lossy().into_owned().into()))
 }
 
 pub(crate) fn builtin_os_platform(
@@ -55,7 +55,7 @@ pub(crate) fn builtin_os_platform(
     } else {
         "linux"
     };
-    Ok(Value::String(name.to_string()))
+    Ok(Value::String(name.to_string().into()))
 }
 
 pub(crate) fn builtin_os_sleep(
@@ -134,5 +134,5 @@ pub(crate) fn builtin_os_exec_shell_out(
             format!("os.execShellOut stdout is not valid UTF-8: {e}"),
         )
     })?;
-    Ok(Value::String(stdout))
+    Ok(Value::String(stdout.into()))
 }

@@ -1150,8 +1150,8 @@ fn vm_reports_type_mismatch_for_function_value_equality() {
             FunctionChunk {
                 name: "main".to_string(),
                 code: vec![
-                    Instr::LoadConst(Value::Function("f".to_string())),
-                    Instr::LoadConst(Value::Function("f".to_string())),
+                    Instr::LoadConst(Value::Function("f".to_string().into())),
+                    Instr::LoadConst(Value::Function("f".to_string().into())),
                     Instr::Eq,
                     Instr::Return,
                 ],
@@ -1174,8 +1174,8 @@ fn vm_reports_type_mismatch_for_function_value_inequality() {
             FunctionChunk {
                 name: "main".to_string(),
                 code: vec![
-                    Instr::LoadConst(Value::Function("f".to_string())),
-                    Instr::LoadConst(Value::Function("g".to_string())),
+                    Instr::LoadConst(Value::Function("f".to_string().into())),
+                    Instr::LoadConst(Value::Function("g".to_string().into())),
                     Instr::Neq,
                     Instr::Return,
                 ],
@@ -1381,7 +1381,7 @@ fn bytecode_roundtrip_preserves_function_value_and_callvalue_instr() {
                 FunctionChunk {
                     name: "main".to_string(),
                     code: vec![
-                        Instr::LoadConst(Value::Function("inc".to_string())),
+                        Instr::LoadConst(Value::Function("inc".to_string().into())),
                         Instr::LoadConst(Value::Int(41)),
                         Instr::CallValue { argc: 1 },
                         Instr::Return,
@@ -1534,7 +1534,7 @@ fn main() -> String {
     let module = compile_source(src).expect("compile");
     let out = Vm::run_module_main(&module).expect("run");
     match out {
-        Value::String(s) => assert!(matches!(s.as_str(), "windows" | "linux" | "macos")),
+        Value::String(s) => assert!(matches!(&*s, "windows" | "linux" | "macos")),
         other => panic!("expected String from os.platform, got {:?}", other),
     }
 }
@@ -1926,7 +1926,7 @@ fn main() -> String {{
     );
     let module = compile_source(&src).expect("compile");
     let out = Vm::run_module_main(&module).expect("run");
-    assert_eq!(out, Value::String("hello".to_string()));
+    assert_eq!(out, Value::String("hello".to_string().into()));
     let _ = fs::remove_dir_all(root);
 }
 
@@ -1948,7 +1948,7 @@ fn main() -> String {{
     );
     let module = compile_source(&src).expect("compile");
     let out = Vm::run_module_main(&module).expect("run");
-    assert_eq!(out, Value::String("new".to_string()));
+    assert_eq!(out, Value::String("new".to_string().into()));
     let _ = fs::remove_dir_all(root);
 }
 
@@ -1970,7 +1970,7 @@ fn main() -> String {{
     );
     let module = compile_source(&src).expect("compile");
     let out = Vm::run_module_main(&module).expect("run");
-    assert_eq!(out, Value::String("ab".to_string()));
+    assert_eq!(out, Value::String("ab".to_string().into()));
     let _ = fs::remove_dir_all(root);
 }
 
@@ -2525,7 +2525,7 @@ fn vm_reports_arr_first_last_runtime_errors_from_manual_bytecode() {
             FunctionChunk {
                 name: "main".to_string(),
                 code: vec![
-                    Instr::LoadConst(Value::String("x".to_string())),
+                    Instr::LoadConst(Value::String("x".to_string().into())),
                     Instr::CallBuiltin {
                         package: "arr".to_string(),
                         name: "first".to_string(),
@@ -2576,7 +2576,7 @@ fn vm_reports_arr_first_last_runtime_errors_from_manual_bytecode() {
             FunctionChunk {
                 name: "main".to_string(),
                 code: vec![
-                    Instr::LoadConst(Value::String("x".to_string())),
+                    Instr::LoadConst(Value::String("x".to_string().into())),
                     Instr::CallBuiltin {
                         package: "arr".to_string(),
                         name: "last".to_string(),
@@ -2746,7 +2746,7 @@ fn vm_reports_arr_join_runtime_type_mismatch_for_non_string_elements() {
                 name: "main".to_string(),
                 code: vec![
                     Instr::LoadConst(Value::Array(vec![Value::Int(1), Value::Int(2)])),
-                    Instr::LoadConst(Value::String(",".to_string())),
+                    Instr::LoadConst(Value::String(",".to_string().into())),
                     Instr::CallBuiltin {
                         package: "arr".to_string(),
                         name: "join".to_string(),
@@ -2901,7 +2901,7 @@ fn vm_reports_datetime_from_runtime_errors_from_manual_bytecode() {
             FunctionChunk {
                 name: "main".to_string(),
                 code: vec![
-                    Instr::LoadConst(Value::String("bad".to_string())),
+                    Instr::LoadConst(Value::String("bad".to_string().into())),
                     Instr::CallBuiltin {
                         package: "datetime".to_string(),
                         name: "fromMillis".to_string(),
@@ -3070,7 +3070,7 @@ fn vm_reports_datetime_component_runtime_errors_from_manual_bytecode() {
             FunctionChunk {
                 name: "main".to_string(),
                 code: vec![
-                    Instr::LoadConst(Value::String("bad".to_string())),
+                    Instr::LoadConst(Value::String("bad".to_string().into())),
                     Instr::CallBuiltin {
                         package: "datetime".to_string(),
                         name: "second".to_string(),
@@ -3215,7 +3215,7 @@ fn vm_reports_random_seed_runtime_errors_from_manual_bytecode() {
             FunctionChunk {
                 name: "main".to_string(),
                 code: vec![
-                    Instr::LoadConst(Value::String("bad".to_string())),
+                    Instr::LoadConst(Value::String("bad".to_string().into())),
                     Instr::CallBuiltin {
                         package: "random".to_string(),
                         name: "seed".to_string(),
@@ -3330,7 +3330,7 @@ fn main() -> Int {
             FunctionChunk {
                 name: "main".to_string(),
                 code: vec![
-                    Instr::LoadConst(Value::String("x".to_string())),
+                    Instr::LoadConst(Value::String("x".to_string().into())),
                     Instr::LoadConst(Value::Int(2)),
                     Instr::CallBuiltin {
                         package: "random".to_string(),
@@ -4013,7 +4013,7 @@ fn vm_vec_each_function_reports_arity_and_type_errors() {
                                 name: "new".to_string(),
                                 argc: 0,
                             },
-                            Instr::LoadConst(Value::String("x".to_string())),
+                            Instr::LoadConst(Value::String("x".to_string().into())),
                             Instr::CallBuiltin {
                                 package: "vec".to_string(),
                                 name: "get".to_string(),

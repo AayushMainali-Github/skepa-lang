@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
+use std::rc::Rc;
 
 use crate::ast::{
     AssignTarget, BinaryOp, Expr, MatchLiteral, MatchPattern, Program, Stmt, TypeName, UnaryOp,
@@ -595,7 +596,9 @@ impl Compiler {
         match lit {
             MatchLiteral::Int(v) => code.push(Instr::LoadConst(Value::Int(*v))),
             MatchLiteral::Bool(v) => code.push(Instr::LoadConst(Value::Bool(*v))),
-            MatchLiteral::String(v) => code.push(Instr::LoadConst(Value::String(v.clone()))),
+            MatchLiteral::String(v) => {
+                code.push(Instr::LoadConst(Value::String(Rc::<str>::from(v.clone()))))
+            }
             MatchLiteral::Float(v) => match v.parse::<f64>() {
                 Ok(n) => code.push(Instr::LoadConst(Value::Float(n))),
                 Err(_) => {
@@ -618,18 +621,22 @@ impl Compiler {
                 }
             }
             Expr::BoolLit(v) => code.push(Instr::LoadConst(Value::Bool(*v))),
-            Expr::StringLit(v) => code.push(Instr::LoadConst(Value::String(v.clone()))),
+            Expr::StringLit(v) => {
+                code.push(Instr::LoadConst(Value::String(Rc::<str>::from(v.clone()))))
+            }
             Expr::Ident(name) => {
                 if let Some(slot) = ctx.lookup(name) {
                     code.push(Instr::LoadLocal(slot));
                 } else if let Some(slot) = self.global_slots.get(name).copied() {
                     code.push(Instr::LoadGlobal(slot));
                 } else if let Some(target) = self.direct_import_calls.get(name).cloned() {
-                    code.push(Instr::LoadConst(Value::Function(target)));
+                    code.push(Instr::LoadConst(Value::Function(Rc::<str>::from(target))));
                 } else if let Some(target) = self.local_fn_qualified.get(name).cloned() {
-                    code.push(Instr::LoadConst(Value::Function(target)));
+                    code.push(Instr::LoadConst(Value::Function(Rc::<str>::from(target))));
                 } else if self.function_names.contains(name) {
-                    code.push(Instr::LoadConst(Value::Function(name.clone())));
+                    code.push(Instr::LoadConst(Value::Function(Rc::<str>::from(
+                        name.clone(),
+                    ))));
                 } else {
                     self.error(format!("Unknown local `{name}`"));
                     code.push(Instr::LoadConst(Value::Int(0)));
@@ -848,7 +855,7 @@ impl Compiler {
             }
             Expr::FnLit { params, body, .. } => {
                 let fn_name = self.compile_fn_lit(params, body);
-                code.push(Instr::LoadConst(Value::Function(fn_name)));
+                code.push(Instr::LoadConst(Value::Function(Rc::<str>::from(fn_name))));
             }
         }
     }

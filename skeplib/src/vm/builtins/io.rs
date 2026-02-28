@@ -69,7 +69,7 @@ pub(crate) fn builtin_io_readline(
             "io.readLine expects 0 arguments",
         ));
     }
-    Ok(Value::String(host.read_line()?))
+    Ok(Value::String(host.read_line()?.into()))
 }
 
 pub(crate) fn builtin_io_print_int(
@@ -279,7 +279,7 @@ pub(crate) fn builtin_io_format(
         ));
     };
     let rendered = render_format(fmt, &args[1..])?;
-    Ok(Value::String(rendered))
+    Ok(Value::String(rendered.into()))
 }
 
 pub(crate) fn builtin_io_printf(

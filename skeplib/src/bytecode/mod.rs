@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::rc::Rc;
 
 mod codec;
 mod disasm;
@@ -11,10 +12,10 @@ pub enum Value {
     Int(i64),
     Float(f64),
     Bool(bool),
-    String(String),
+    String(Rc<str>),
     Array(Vec<Value>),
     VecHandle(u64),
-    Function(String),
+    Function(Rc<str>),
     Struct {
         name: String,
         fields: Vec<(String, Value)>,

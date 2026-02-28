@@ -218,7 +218,7 @@ pub(super) fn call_value(
             site.ip,
         ));
     };
-    let Some(chunk) = env.module.functions.get(&callee_name) else {
+    let Some(chunk) = env.module.functions.get(callee_name.as_ref()) else {
         return Err(super::err_at(
             VmErrorKind::UnknownFunction,
             format!("Unknown function `{callee_name}`"),

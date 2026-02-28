@@ -34,5 +34,5 @@ pub(crate) fn builtin_arr_join(
         };
         parts.push(s.clone());
     }
-    Ok(Value::String(parts.join(sep)))
+    Ok(Value::String(parts.join(sep).into()))
 }

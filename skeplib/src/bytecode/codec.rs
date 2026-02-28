@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use super::{BytecodeModule, FunctionChunk, Instr, Value};
 
@@ -286,7 +287,7 @@ fn decode_value(rd: &mut Reader<'_>) -> Result<Value, String> {
         0 => Ok(Value::Int(rd.read_i64()?)),
         1 => Ok(Value::Float(rd.read_f64()?)),
         2 => Ok(Value::Bool(rd.read_bool()?)),
-        3 => Ok(Value::String(rd.read_str()?)),
+        3 => Ok(Value::String(Rc::<str>::from(rd.read_str()?))),
         4 => {
             let n = rd.read_u32()? as usize;
             let mut items = Vec::with_capacity(n);
@@ -295,7 +296,7 @@ fn decode_value(rd: &mut Reader<'_>) -> Result<Value, String> {
             }
             Ok(Value::Array(items))
         }
-        5 => Ok(Value::Function(rd.read_str()?)),
+        5 => Ok(Value::Function(Rc::<str>::from(rd.read_str()?))),
         6 => Ok(Value::Unit),
         7 => {
             let name = rd.read_str()?;

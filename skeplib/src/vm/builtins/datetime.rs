@@ -160,7 +160,7 @@ pub(crate) fn builtin_datetime_from_unix(
             "datetime.fromUnix expects Int argument",
         ));
     };
-    Ok(Value::String(format_utc_from_unix_seconds(ts)))
+    Ok(Value::String(format_utc_from_unix_seconds(ts).into()))
 }
 
 pub(crate) fn builtin_datetime_from_millis(
@@ -183,7 +183,7 @@ pub(crate) fn builtin_datetime_from_millis(
     let millis = ms.rem_euclid(1_000);
     let base = format_utc_from_unix_seconds(secs);
     let prefix = base.strip_suffix('Z').unwrap_or(&base);
-    Ok(Value::String(format!("{prefix}.{millis:03}Z")))
+    Ok(Value::String(format!("{prefix}.{millis:03}Z").into()))
 }
 
 fn parse_u32_field(s: &str, name: &str) -> Result<u32, VmError> {

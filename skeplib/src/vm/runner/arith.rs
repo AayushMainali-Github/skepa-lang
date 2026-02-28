@@ -62,7 +62,7 @@ pub(super) fn add(stack: &mut Vec<Value>, function_name: &str, ip: usize) -> Res
     match (l, r) {
         (Value::Int(a), Value::Int(b)) => stack.push(Value::Int(a + b)),
         (Value::Float(a), Value::Float(b)) => stack.push(Value::Float(a + b)),
-        (Value::String(a), Value::String(b)) => stack.push(Value::String(format!("{a}{b}"))),
+        (Value::String(a), Value::String(b)) => stack.push(Value::String(format!("{a}{b}").into())),
         (Value::Array(mut a), Value::Array(b)) => {
             a.extend(b);
             stack.push(Value::Array(a));

@@ -51,7 +51,7 @@ pub(crate) fn builtin_str_contains(
         ));
     }
     match (&args[0], &args[1]) {
-        (Value::String(h), Value::String(n)) => Ok(Value::Bool(h.contains(n))),
+        (Value::String(h), Value::String(n)) => Ok(Value::Bool(h.contains(n.as_ref()))),
         _ => Err(VmError::new(
             VmErrorKind::TypeMismatch,
             "str.contains expects String, String arguments",
@@ -70,7 +70,7 @@ pub(crate) fn builtin_str_starts_with(
         ));
     }
     match (&args[0], &args[1]) {
-        (Value::String(s), Value::String(p)) => Ok(Value::Bool(s.starts_with(p))),
+        (Value::String(s), Value::String(p)) => Ok(Value::Bool(s.starts_with(p.as_ref()))),
         _ => Err(VmError::new(
             VmErrorKind::TypeMismatch,
             "str.startsWith expects String, String arguments",
@@ -89,7 +89,7 @@ pub(crate) fn builtin_str_ends_with(
         ));
     }
     match (&args[0], &args[1]) {
-        (Value::String(s), Value::String(p)) => Ok(Value::Bool(s.ends_with(p))),
+        (Value::String(s), Value::String(p)) => Ok(Value::Bool(s.ends_with(p.as_ref()))),
         _ => Err(VmError::new(
             VmErrorKind::TypeMismatch,
             "str.endsWith expects String, String arguments",
@@ -108,7 +108,7 @@ pub(crate) fn builtin_str_trim(
         ));
     }
     match &args[0] {
-        Value::String(s) => Ok(Value::String(s.trim().to_string())),
+        Value::String(s) => Ok(Value::String(s.trim().to_string().into())),
         _ => Err(VmError::new(
             VmErrorKind::TypeMismatch,
             "str.trim expects String argument",
@@ -127,7 +127,7 @@ pub(crate) fn builtin_str_to_lower(
         ));
     }
     match &args[0] {
-        Value::String(s) => Ok(Value::String(s.to_lowercase())),
+        Value::String(s) => Ok(Value::String(s.to_lowercase().into())),
         _ => Err(VmError::new(
             VmErrorKind::TypeMismatch,
             "str.toLower expects String argument",
@@ -146,7 +146,7 @@ pub(crate) fn builtin_str_to_upper(
         ));
     }
     match &args[0] {
-        Value::String(s) => Ok(Value::String(s.to_uppercase())),
+        Value::String(s) => Ok(Value::String(s.to_uppercase().into())),
         _ => Err(VmError::new(
             VmErrorKind::TypeMismatch,
             "str.toUpper expects String argument",
@@ -165,7 +165,7 @@ pub(crate) fn builtin_str_index_of(
         ));
     }
     match (&args[0], &args[1]) {
-        (Value::String(s), Value::String(n)) => match s.find(n) {
+        (Value::String(s), Value::String(n)) => match s.find(n.as_ref()) {
             Some(byte_idx) => Ok(Value::Int(s[..byte_idx].chars().count() as i64)),
             None => Ok(Value::Int(-1)),
         },
@@ -208,7 +208,7 @@ pub(crate) fn builtin_str_slice(
         .skip(*start as usize)
         .take((*end - *start) as usize)
         .collect();
-    Ok(Value::String(out))
+    Ok(Value::String(out.into()))
 }
 
 pub(crate) fn builtin_str_is_empty(
@@ -241,7 +241,7 @@ pub(crate) fn builtin_str_last_index_of(
         ));
     }
     match (&args[0], &args[1]) {
-        (Value::String(s), Value::String(n)) => match s.rfind(n) {
+        (Value::String(s), Value::String(n)) => match s.rfind(n.as_ref()) {
             Some(byte_idx) => Ok(Value::Int(s[..byte_idx].chars().count() as i64)),
             None => Ok(Value::Int(-1)),
         },
@@ -264,7 +264,7 @@ pub(crate) fn builtin_str_replace(
     }
     match (&args[0], &args[1], &args[2]) {
         (Value::String(s), Value::String(from), Value::String(to)) => {
-            Ok(Value::String(s.replace(from, to)))
+            Ok(Value::String(s.replace(from.as_ref(), to.as_ref()).into()))
         }
         _ => Err(VmError::new(
             VmErrorKind::TypeMismatch,
@@ -304,7 +304,7 @@ pub(crate) fn builtin_str_repeat(
                     ),
                 ));
             }
-            Ok(Value::String(s.repeat(count)))
+            Ok(Value::String(s.repeat(count).into()))
         }
         _ => Err(VmError::new(
             VmErrorKind::TypeMismatch,
