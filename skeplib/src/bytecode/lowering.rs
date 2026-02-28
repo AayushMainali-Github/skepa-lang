@@ -43,6 +43,10 @@ pub fn compile_project_entry(entry: &Path) -> Result<BytecodeModule, Vec<Resolve
     })
 }
 
+pub fn compile_project_graph(graph: &ModuleGraph, entry: &Path) -> Result<BytecodeModule, String> {
+    compile_project_graph_inner(graph, entry)
+}
+
 #[derive(Default)]
 struct Compiler {
     diags: DiagnosticBag,
@@ -932,7 +936,10 @@ impl Compiler {
     }
 }
 
-fn compile_project_graph(graph: &ModuleGraph, entry: &Path) -> Result<BytecodeModule, String> {
+fn compile_project_graph_inner(
+    graph: &ModuleGraph,
+    entry: &Path,
+) -> Result<BytecodeModule, String> {
     let mut programs = HashMap::<ModuleId, Program>::new();
     for (id, unit) in &graph.modules {
         let (program, diags) = Parser::parse_source(&unit.source);

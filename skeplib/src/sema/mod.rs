@@ -62,8 +62,18 @@ pub fn analyze_project_entry_phased(
     Ok(analyze_project_graph_phased(&graph))
 }
 
-fn analyze_project_graph(graph: &ModuleGraph) -> (SemaResult, DiagnosticBag) {
-    let (result, parse_diags, sema_diags) = analyze_project_graph_phased(graph);
+pub fn analyze_project_graph(graph: &ModuleGraph) -> (SemaResult, DiagnosticBag) {
+    analyze_project_graph_impl(graph)
+}
+
+pub fn analyze_project_graph_phased(
+    graph: &ModuleGraph,
+) -> (SemaResult, DiagnosticBag, DiagnosticBag) {
+    analyze_project_graph_phased_impl(graph)
+}
+
+fn analyze_project_graph_impl(graph: &ModuleGraph) -> (SemaResult, DiagnosticBag) {
+    let (result, parse_diags, sema_diags) = analyze_project_graph_phased_impl(graph);
     let mut all = DiagnosticBag::new();
     for d in parse_diags.into_vec() {
         all.push(d);
@@ -74,7 +84,9 @@ fn analyze_project_graph(graph: &ModuleGraph) -> (SemaResult, DiagnosticBag) {
     (result, all)
 }
 
-fn analyze_project_graph_phased(graph: &ModuleGraph) -> (SemaResult, DiagnosticBag, DiagnosticBag) {
+fn analyze_project_graph_phased_impl(
+    graph: &ModuleGraph,
+) -> (SemaResult, DiagnosticBag, DiagnosticBag) {
     let mut programs = HashMap::<ModuleId, Program>::new();
     let mut parse_diags_all = DiagnosticBag::new();
     let mut sema_diags_all = DiagnosticBag::new();

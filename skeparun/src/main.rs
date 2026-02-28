@@ -5,10 +5,10 @@ use std::process::ExitCode;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
-use skeplib::bytecode::{BytecodeModule, compile_project_entry};
+use skeplib::bytecode::{BytecodeModule, compile_project_graph};
 use skeplib::diagnostic::Diagnostic;
 use skeplib::resolver::{ResolveError, resolve_project};
-use skeplib::sema::analyze_project_entry_phased;
+use skeplib::sema::analyze_project_graph_phased;
 use skeplib::vm::{Vm, VmConfig};
 
 const EXIT_OK: u8 = 0;
@@ -156,58 +156,50 @@ fn run_file(path: &str, config: VmConfig) -> Result<ExitCode, String> {
     }
     profiler.record("read_source", started.elapsed());
 
-    if profiler.enabled() {
-        let started = Instant::now();
-        match resolve_project(Path::new(path)) {
-            Ok(graph) => {
-                profiler.record("resolve_only", started.elapsed());
+    let started = Instant::now();
+    let graph = match resolve_project(Path::new(path)) {
+        Ok(graph) => {
+            profiler.record("resolve_only", started.elapsed());
+            if profiler.enabled() {
                 eprintln!("[run-profile] modules_resolved={}", graph.modules.len());
             }
-            Err(errs) => {
-                profiler.record("resolve_only", started.elapsed());
-                print_resolve_errors(&errs);
-                profiler.print();
-                return Ok(ExitCode::from(EXIT_RESOLVE));
-            }
-        }
-    }
-
-    let started = Instant::now();
-    match analyze_project_entry_phased(Path::new(path)) {
-        Ok((_sema, parse_diags, sema_diags)) => {
-            profiler.record("sema_total", started.elapsed());
-            if profiler.enabled() {
-                eprintln!(
-                    "[run-profile] sema_parse_diags={} sema_diags={}",
-                    parse_diags.as_slice().len(),
-                    sema_diags.as_slice().len()
-                );
-            }
-            if !parse_diags.is_empty() || !sema_diags.is_empty() {
-                for d in parse_diags.as_slice() {
-                    print_diag("parse", d);
-                }
-                for d in sema_diags.as_slice() {
-                    print_diag("sema", d);
-                }
-                profiler.print();
-                return Ok(ExitCode::from(EXIT_SEMA));
-            }
+            graph
         }
         Err(errs) => {
-            profiler.record("sema_total", started.elapsed());
+            profiler.record("resolve_only", started.elapsed());
             print_resolve_errors(&errs);
             profiler.print();
             return Ok(ExitCode::from(EXIT_RESOLVE));
         }
+    };
+
+    let started = Instant::now();
+    let (_sema, parse_diags, sema_diags) = analyze_project_graph_phased(&graph);
+    profiler.record("sema_total", started.elapsed());
+    if profiler.enabled() {
+        eprintln!(
+            "[run-profile] sema_parse_diags={} sema_diags={}",
+            parse_diags.as_slice().len(),
+            sema_diags.as_slice().len()
+        );
+    }
+    if !parse_diags.is_empty() || !sema_diags.is_empty() {
+        for d in parse_diags.as_slice() {
+            print_diag("parse", d);
+        }
+        for d in sema_diags.as_slice() {
+            print_diag("sema", d);
+        }
+        profiler.print();
+        return Ok(ExitCode::from(EXIT_SEMA));
     }
 
     let started = Instant::now();
-    let module = match compile_project_entry(Path::new(path)) {
+    let module = match compile_project_graph(&graph, Path::new(path)) {
         Ok(m) => m,
-        Err(errs) => {
+        Err(err) => {
             profiler.record("codegen_total", started.elapsed());
-            print_resolve_errors(&errs);
+            eprintln!("[{}][codegen] {}", phase_code("codegen"), err);
             profiler.print();
             return Ok(ExitCode::from(EXIT_CODEGEN));
         }

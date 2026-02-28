@@ -15,6 +15,10 @@ mod host_trait;
 mod profiler;
 mod runner;
 
+use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
+use std::sync::{Mutex, OnceLock};
+
 use crate::bytecode::{BytecodeModule, FunctionChunk, Value};
 pub use config::VmConfig;
 pub use error::{VmError, VmErrorKind};
@@ -27,10 +31,47 @@ pub struct Vm;
 pub use builtins::{BuiltinHandler, BuiltinRegistry};
 
 impl Vm {
+    fn default_registry() -> &'static BuiltinRegistry {
+        static REGISTRY: OnceLock<BuiltinRegistry> = OnceLock::new();
+        REGISTRY.get_or_init(BuiltinRegistry::with_defaults)
+    }
+
     fn function_table(module: &BytecodeModule) -> Vec<&FunctionChunk> {
-        let mut funcs = module.functions.values().collect::<Vec<_>>();
-        funcs.sort_by(|a, b| a.name.cmp(&b.name));
-        funcs
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        struct CacheKey {
+            ptr: usize,
+            len: usize,
+            name_fingerprint: u64,
+        }
+
+        static FN_TABLE_CACHE: OnceLock<Mutex<HashMap<CacheKey, Vec<String>>>> = OnceLock::new();
+        let cache = FN_TABLE_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+        let mut name_fingerprint = 0u64;
+        for name in module.functions.keys() {
+            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+            name.hash(&mut hasher);
+            name_fingerprint ^= hasher.finish();
+        }
+        let key = CacheKey {
+            ptr: module as *const BytecodeModule as usize,
+            len: module.functions.len(),
+            name_fingerprint,
+        };
+        let names = {
+            let mut cache = cache.lock().expect("function table cache poisoned");
+            cache
+                .entry(key)
+                .or_insert_with(|| {
+                    let mut names = module.functions.keys().cloned().collect::<Vec<_>>();
+                    names.sort();
+                    names
+                })
+                .clone()
+        };
+        names
+            .iter()
+            .filter_map(|name| module.functions.get(name))
+            .collect()
     }
 
     pub fn run_module_main(module: &BytecodeModule) -> Result<Value, VmError> {
@@ -44,7 +85,7 @@ impl Vm {
         let _profile_session = profiler::SessionGuard::start("run_module_main");
         let _startup_timer = profiler::ScopedTimer::new(profiler::Event::VmStartup);
         let mut host = StdIoHost::default();
-        let reg = BuiltinRegistry::with_defaults();
+        let reg = Self::default_registry();
         let fn_table = Self::function_table(module);
         let globals_init_locals = module
             .functions
@@ -59,7 +100,7 @@ impl Vm {
                 fn_table: &fn_table,
                 globals: &mut globals,
                 host: &mut host,
-                reg: &reg,
+                reg,
             };
             let _ = runner::run_function(
                 &mut env,
@@ -73,7 +114,7 @@ impl Vm {
             fn_table: &fn_table,
             globals: &mut globals,
             host: &mut host,
-            reg: &reg,
+            reg,
         };
         let _main_timer = profiler::ScopedTimer::new(profiler::Event::MainRun);
         runner::run_function(
@@ -90,7 +131,7 @@ impl Vm {
     ) -> Result<Value, VmError> {
         let _profile_session = profiler::SessionGuard::start("run_module_main_with_host");
         let _startup_timer = profiler::ScopedTimer::new(profiler::Event::VmStartup);
-        let reg = BuiltinRegistry::with_defaults();
+        let reg = Self::default_registry();
         let fn_table = Self::function_table(module);
         let globals_init_locals = module
             .functions
@@ -105,7 +146,7 @@ impl Vm {
                 fn_table: &fn_table,
                 globals: &mut globals,
                 host,
-                reg: &reg,
+                reg,
             };
             let _ = runner::run_function(
                 &mut env,
@@ -122,7 +163,7 @@ impl Vm {
             fn_table: &fn_table,
             globals: &mut globals,
             host,
-            reg: &reg,
+            reg,
         };
         let _main_timer = profiler::ScopedTimer::new(profiler::Event::MainRun);
         runner::run_function(
