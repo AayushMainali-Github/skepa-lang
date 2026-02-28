@@ -8,6 +8,12 @@ mod lowering;
 pub use lowering::{compile_project_entry, compile_project_graph, compile_source};
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct StructShape {
+    pub name: String,
+    pub field_names: Rc<[String]>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     Int(i64),
     Float(f64),
@@ -18,8 +24,8 @@ pub enum Value {
     Function(Rc<str>),
     FunctionIdx(usize),
     Struct {
-        name: String,
-        fields: Rc<[(String, Value)]>,
+        shape: Rc<StructShape>,
+        fields: Rc<[Value]>,
     },
     Unit,
 }

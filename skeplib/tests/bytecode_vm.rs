@@ -1,7 +1,7 @@
 mod common;
 
 use common::{assert_has_diag, compile_err, compile_ok, vm_run_ok};
-use skeplib::bytecode::{BytecodeModule, FunctionChunk, Instr, Value, compile_source};
+use skeplib::bytecode::{BytecodeModule, FunctionChunk, Instr, StructShape, Value, compile_source};
 use skeplib::vm::{BuiltinHost, BuiltinRegistry, TestHost, Vm, VmConfig, VmErrorKind};
 use std::collections::VecDeque;
 use std::fs;
@@ -585,8 +585,11 @@ fn vm_reports_unknown_struct_field_with_clear_message() {
                 name: "main".to_string(),
                 code: vec![
                     Instr::LoadConst(Value::Struct {
-                        name: "User".to_string(),
-                        fields: vec![("id".to_string(), Value::Int(1))].into(),
+                        shape: std::rc::Rc::new(StructShape {
+                            name: "User".to_string(),
+                            field_names: vec!["id".to_string()].into(),
+                        }),
+                        fields: vec![Value::Int(1)].into(),
                     }),
                     Instr::StructGet("name".to_string()),
                     Instr::Return,
@@ -616,8 +619,11 @@ fn vm_reports_struct_set_path_with_non_struct_intermediate() {
                 name: "main".to_string(),
                 code: vec![
                     Instr::LoadConst(Value::Struct {
-                        name: "User".to_string(),
-                        fields: vec![("id".to_string(), Value::Int(1))].into(),
+                        shape: std::rc::Rc::new(StructShape {
+                            name: "User".to_string(),
+                            field_names: vec!["id".to_string()].into(),
+                        }),
+                        fields: vec![Value::Int(1)].into(),
                     }),
                     Instr::LoadConst(Value::Int(42)),
                     Instr::StructSetPath(vec!["id".to_string(), "x".to_string()]),
@@ -645,8 +651,11 @@ fn vm_reports_struct_set_path_with_empty_path() {
                 name: "main".to_string(),
                 code: vec![
                     Instr::LoadConst(Value::Struct {
-                        name: "User".to_string(),
-                        fields: vec![("id".to_string(), Value::Int(1))].into(),
+                        shape: std::rc::Rc::new(StructShape {
+                            name: "User".to_string(),
+                            field_names: vec!["id".to_string()].into(),
+                        }),
+                        fields: vec![Value::Int(1)].into(),
                     }),
                     Instr::LoadConst(Value::Int(42)),
                     Instr::StructSetPath(vec![]),

@@ -144,7 +144,7 @@ pub(super) fn resolve_method<'a>(
     method_name: &str,
     site: Site<'_>,
 ) -> Result<&'a FunctionChunk, VmError> {
-    let Value::Struct { name, .. } = receiver else {
+    let Value::Struct { shape, .. } = receiver else {
         return Err(super::err_at(
             VmErrorKind::TypeMismatch,
             "CallMethod receiver must be Struct",
@@ -152,10 +152,13 @@ pub(super) fn resolve_method<'a>(
             site.ip,
         ));
     };
-    let Some(callee_idx) = resolve_method_idx(module, fn_table, name, method_name) else {
+    let Some(callee_idx) = resolve_method_idx(module, fn_table, &shape.name, method_name) else {
         return Err(super::err_at(
             VmErrorKind::UnknownFunction,
-            format!("Unknown method `{}` on struct `{}`", method_name, name),
+            format!(
+                "Unknown method `{}` on struct `{}`",
+                method_name, shape.name
+            ),
             site.function_name,
             site.ip,
         ));
@@ -173,7 +176,7 @@ pub(super) fn resolve_method_id<'a>(
     static METHOD_ID_CACHE: OnceLock<Mutex<MethodIdCache>> = OnceLock::new();
     let cache = METHOD_ID_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
     let module_key = module_cache_key(module);
-    let Value::Struct { name, .. } = receiver else {
+    let Value::Struct { shape, .. } = receiver else {
         return Err(super::err_at(
             VmErrorKind::TypeMismatch,
             "CallMethod receiver must be Struct",
@@ -186,7 +189,7 @@ pub(super) fn resolve_method_id<'a>(
         let cache = cache.lock().expect("method id cache poisoned");
         if let Some(idx) = cache
             .get(&module_key)
-            .and_then(|methods| methods.get(name))
+            .and_then(|methods| methods.get(&shape.name))
             .and_then(|methods| methods.get(&method_id))
             .copied()
         {
@@ -202,10 +205,13 @@ pub(super) fn resolve_method_id<'a>(
             site.ip,
         ));
     };
-    let Some(callee_idx) = resolve_method_idx(module, fn_table, name, method_name) else {
+    let Some(callee_idx) = resolve_method_idx(module, fn_table, &shape.name, method_name) else {
         return Err(super::err_at(
             VmErrorKind::UnknownFunction,
-            format!("Unknown method `{}` on struct `{}`", method_name, name),
+            format!(
+                "Unknown method `{}` on struct `{}`",
+                method_name, shape.name
+            ),
             site.function_name,
             site.ip,
         ));
@@ -215,7 +221,7 @@ pub(super) fn resolve_method_id<'a>(
     cache
         .entry(module_key)
         .or_default()
-        .entry(name.clone())
+        .entry(shape.name.clone())
         .or_default()
         .insert(method_id, callee_idx);
     Ok(fn_table[callee_idx])

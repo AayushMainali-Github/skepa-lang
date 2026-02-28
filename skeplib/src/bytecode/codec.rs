@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use super::{BytecodeModule, FunctionChunk, Instr, Value};
+use super::{BytecodeModule, FunctionChunk, Instr, StructShape, Value};
 
 impl BytecodeModule {
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -127,12 +127,15 @@ fn encode_value(v: &Value, out: &mut Vec<u8>) {
             write_u32(out, *idx as u32);
         }
         Value::Unit => write_u8(out, 6),
-        Value::Struct { name, fields } => {
+        Value::Struct { shape, fields } => {
             write_u8(out, 7);
-            write_str(out, name);
+            write_str(out, &shape.name);
+            write_u32(out, shape.field_names.len() as u32);
+            for field_name in shape.field_names.iter() {
+                write_str(out, field_name);
+            }
             write_u32(out, fields.len() as u32);
-            for (k, v) in fields.iter() {
-                write_str(out, k);
+            for v in fields.iter() {
                 encode_value(v, out);
             }
         }
@@ -337,16 +340,22 @@ fn decode_value(rd: &mut Reader<'_>) -> Result<Value, String> {
         6 => Ok(Value::Unit),
         7 => {
             let name = rd.read_str()?;
+            let field_names_len = rd.read_u32()? as usize;
+            let mut field_names = Vec::with_capacity(field_names_len);
+            for _ in 0..field_names_len {
+                field_names.push(rd.read_str()?);
+            }
             let n = rd.read_u32()? as usize;
             let mut fields = Vec::with_capacity(n);
             for _ in 0..n {
-                let key = rd.read_str()?;
-                let value = decode_value(rd)?;
-                fields.push((key, value));
+                fields.push(decode_value(rd)?);
             }
             Ok(Value::Struct {
-                name,
-                fields: Rc::<[(String, Value)]>::from(fields),
+                shape: Rc::new(StructShape {
+                    name,
+                    field_names: Rc::<[String]>::from(field_names),
+                }),
+                fields: Rc::<[Value]>::from(fields),
             })
         }
         8 => Ok(Value::FunctionIdx(rd.read_u32()? as usize)),

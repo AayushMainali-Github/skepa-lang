@@ -1362,18 +1362,18 @@ fn rewrite_value_function_indexes(value: &mut Value, by_name: &HashMap<String, u
                 *value = Value::Array(Rc::<[Value]>::from(rewritten));
             }
         }
-        Value::Struct { name, fields } => {
+        Value::Struct { shape, fields } => {
             let mut rewritten = fields.as_ref().to_vec();
             let mut changed = false;
-            for (_, field_value) in &mut rewritten {
+            for field_value in &mut rewritten {
                 let before = field_value.clone();
                 rewrite_value_function_indexes(field_value, by_name);
                 changed |= *field_value != before;
             }
             if changed {
                 *value = Value::Struct {
-                    name: name.clone(),
-                    fields: Rc::<[(String, Value)]>::from(rewritten),
+                    shape: shape.clone(),
+                    fields: Rc::<[Value]>::from(rewritten),
                 };
             }
         }
