@@ -230,11 +230,22 @@ fn encode_instr(i: &Instr, out: &mut Vec<u8>) {
             write_u8(out, 34);
             write_str(out, field);
         }
+        Instr::StructGetSlot(slot) => {
+            write_u8(out, 39);
+            write_u32(out, *slot as u32);
+        }
         Instr::StructSetPath(path) => {
             write_u8(out, 35);
             write_u32(out, path.len() as u32);
             for p in path {
                 write_str(out, p);
+            }
+        }
+        Instr::StructSetPathSlots(path) => {
+            write_u8(out, 40);
+            write_u32(out, path.len() as u32);
+            for slot in path {
+                write_u32(out, *slot as u32);
             }
         }
     }
@@ -379,6 +390,7 @@ fn decode_instr(rd: &mut Reader<'_>) -> Result<Instr, String> {
             Instr::MakeStruct { name, fields }
         }
         34 => Instr::StructGet(rd.read_str()?),
+        39 => Instr::StructGetSlot(rd.read_u32()? as usize),
         35 => {
             let n = rd.read_u32()? as usize;
             let mut path = Vec::with_capacity(n);
@@ -386,6 +398,14 @@ fn decode_instr(rd: &mut Reader<'_>) -> Result<Instr, String> {
                 path.push(rd.read_str()?);
             }
             Instr::StructSetPath(path)
+        }
+        40 => {
+            let n = rd.read_u32()? as usize;
+            let mut path = Vec::with_capacity(n);
+            for _ in 0..n {
+                path.push(rd.read_u32()? as usize);
+            }
+            Instr::StructSetPathSlots(path)
         }
         t => return Err(format!("Unknown instruction tag {t}")),
     })

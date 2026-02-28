@@ -92,6 +92,41 @@ pub(super) fn struct_get(
     Ok(())
 }
 
+pub(super) fn struct_get_slot(
+    stack: &mut Vec<Value>,
+    slot: usize,
+    function_name: &str,
+    ip: usize,
+) -> Result<(), VmError> {
+    let _timer = super::super::profiler::ScopedTimer::new(super::super::profiler::Event::StructGet);
+    let Some(base) = stack.pop() else {
+        return Err(super::err_at(
+            VmErrorKind::StackUnderflow,
+            "StructGetSlot expects struct value",
+            function_name,
+            ip,
+        ));
+    };
+    let Value::Struct { name, fields } = base else {
+        return Err(super::err_at(
+            VmErrorKind::TypeMismatch,
+            "StructGetSlot expects Struct",
+            function_name,
+            ip,
+        ));
+    };
+    let Some((_, value)) = fields.get(slot) else {
+        return Err(super::err_at(
+            VmErrorKind::TypeMismatch,
+            format!("Unknown struct field slot `{slot}` on `{name}`"),
+            function_name,
+            ip,
+        ));
+    };
+    stack.push(value.clone());
+    Ok(())
+}
+
 pub(super) fn struct_set_path(
     stack: &mut Vec<Value>,
     path: &[String],
@@ -136,6 +171,50 @@ pub(super) fn struct_set_path(
     Ok(())
 }
 
+pub(super) fn struct_set_path_slots(
+    stack: &mut Vec<Value>,
+    path: &[usize],
+    function_name: &str,
+    ip: usize,
+) -> Result<(), VmError> {
+    let _timer =
+        super::super::profiler::ScopedTimer::new(super::super::profiler::Event::StructSetPath);
+    if path.is_empty() {
+        return Err(super::err_at(
+            VmErrorKind::TypeMismatch,
+            "StructSetPathSlots requires non-empty field path",
+            function_name,
+            ip,
+        ));
+    }
+    let Some(value) = stack.pop() else {
+        return Err(super::err_at(
+            VmErrorKind::StackUnderflow,
+            "StructSetPathSlots expects value",
+            function_name,
+            ip,
+        ));
+    };
+    let Some(base) = stack.pop() else {
+        return Err(super::err_at(
+            VmErrorKind::StackUnderflow,
+            "StructSetPathSlots expects struct value",
+            function_name,
+            ip,
+        ));
+    };
+    let updated = set_field_path_slots(base, path, value).map_err(|msg| {
+        super::err_at(
+            VmErrorKind::TypeMismatch,
+            format!("StructSetPathSlots failed: {msg}"),
+            function_name,
+            ip,
+        )
+    })?;
+    stack.push(updated);
+    Ok(())
+}
+
 fn set_field_path(cur: Value, path: &[String], value: Value) -> Result<Value, String> {
     let Value::Struct { name, fields } = cur else {
         return Err("expected Struct along field path".to_string());
@@ -155,6 +234,33 @@ fn set_field_path(cur: Value, path: &[String], value: Value) -> Result<Value, St
     let child = fields[pos].1.clone();
     let next = set_field_path(child, &path[1..], value)?;
     fields[pos].1 = next;
+    Ok(Value::Struct {
+        name,
+        fields: Rc::<[(String, Value)]>::from(fields),
+    })
+}
+
+fn set_field_path_slots(cur: Value, path: &[usize], value: Value) -> Result<Value, String> {
+    let Value::Struct { name, fields } = cur else {
+        return Err("expected Struct along field path".to_string());
+    };
+    let Some(_) = fields.get(path[0]) else {
+        return Err(format!(
+            "unknown field slot `{}` on struct `{name}`",
+            path[0]
+        ));
+    };
+    let mut fields = fields.as_ref().to_vec();
+    if path.len() == 1 {
+        fields[path[0]].1 = value;
+        return Ok(Value::Struct {
+            name,
+            fields: Rc::<[(String, Value)]>::from(fields),
+        });
+    }
+    let child = fields[path[0]].1.clone();
+    let next = set_field_path_slots(child, &path[1..], value)?;
+    fields[path[0]].1 = next;
     Ok(Value::Struct {
         name,
         fields: Rc::<[(String, Value)]>::from(fields),

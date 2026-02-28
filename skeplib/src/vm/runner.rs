@@ -606,8 +606,14 @@ pub(super) fn run_chunk(
             Instr::StructGet(field) => {
                 structs::struct_get(&mut frame.stack, field, function_name, ip)?
             }
+            Instr::StructGetSlot(slot) => {
+                structs::struct_get_slot(&mut frame.stack, *slot, function_name, ip)?
+            }
             Instr::StructSetPath(path) => {
                 structs::struct_set_path(&mut frame.stack, path, function_name, ip)?
+            }
+            Instr::StructSetPathSlots(path) => {
+                structs::struct_set_path_slots(&mut frame.stack, path, function_name, ip)?
             }
             Instr::Return => {
                 if profile_ops && opts.depth == 0 {

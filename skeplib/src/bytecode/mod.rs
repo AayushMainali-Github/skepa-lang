@@ -80,7 +80,9 @@ pub enum Instr {
         fields: Vec<String>,
     },
     StructGet(String),
+    StructGetSlot(usize),
     StructSetPath(Vec<String>),
+    StructSetPathSlots(Vec<usize>),
     Return,
 }
 

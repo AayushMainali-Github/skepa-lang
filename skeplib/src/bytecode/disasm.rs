@@ -77,7 +77,15 @@ fn fmt_instr(i: &Instr) -> String {
             format!("MakeStruct {name} fields={}", fields.join(","))
         }
         Instr::StructGet(field) => format!("StructGet {field}"),
+        Instr::StructGetSlot(slot) => format!("StructGetSlot {slot}"),
         Instr::StructSetPath(path) => format!("StructSetPath {}", path.join(".")),
+        Instr::StructSetPathSlots(path) => format!(
+            "StructSetPathSlots {}",
+            path.iter()
+                .map(|slot| slot.to_string())
+                .collect::<Vec<_>>()
+                .join(".")
+        ),
         Instr::Return => "Return".to_string(),
     }
 }

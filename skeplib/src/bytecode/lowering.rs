@@ -61,7 +61,14 @@ struct Compiler {
     local_fn_qualified: HashMap<String, String>,
     local_struct_runtime: HashMap<String, String>,
     imported_struct_runtime: HashMap<String, String>,
+    known_struct_layouts: HashMap<String, StructLayout>,
     namespace_call_targets: HashMap<String, String>,
+}
+
+#[derive(Clone, Default)]
+struct StructLayout {
+    field_slots: HashMap<String, usize>,
+    field_named_types: HashMap<String, String>,
 }
 
 impl Compiler {
@@ -116,6 +123,7 @@ impl Compiler {
             self.local_struct_runtime.clear();
             self.imported_struct_runtime.clear();
             self.namespace_call_targets.clear();
+            self.known_struct_layouts.clear();
         }
         self.lifted_functions.clear();
         self.fn_lit_counter = 0;
@@ -143,6 +151,20 @@ impl Compiler {
                 None => s.name.clone(),
             };
             self.local_struct_runtime.insert(s.name.clone(), runtime);
+        }
+        for s in &program.structs {
+            let runtime = self.resolve_struct_runtime_name(&s.name);
+            let mut layout = StructLayout::default();
+            for (slot, field) in s.fields.iter().enumerate() {
+                layout.field_slots.insert(field.name.clone(), slot);
+                if let TypeName::Named(type_name) = &field.ty {
+                    layout.field_named_types.insert(
+                        field.name.clone(),
+                        self.resolve_struct_runtime_name(type_name),
+                    );
+                }
+            }
+            self.known_struct_layouts.insert(runtime, layout);
         }
         for (idx, g) in program.globals.iter().enumerate() {
             self.global_slots.insert(g.name.clone(), idx);
@@ -389,7 +411,13 @@ impl Compiler {
                         if let Some(slot) = ctx.lookup(&root) {
                             code.push(Instr::LoadLocal(slot));
                             self.compile_expr(value, ctx, code);
-                            code.push(Instr::StructSetPath(fields));
+                            if let Some(root_ty) = ctx.named_type(&root)
+                                && let Some(slots) = self.resolve_field_slots(&root_ty, &fields)
+                            {
+                                code.push(Instr::StructSetPathSlots(slots));
+                            } else {
+                                code.push(Instr::StructSetPath(fields));
+                            }
                             code.push(Instr::StoreLocal(slot));
                         } else {
                             self.error("Path assignment not supported in bytecode v0".to_string());
@@ -837,8 +865,16 @@ impl Compiler {
             Expr::Field { .. } => {
                 if let Some((base, fields)) = Self::flatten_field_expr(expr) {
                     self.compile_expr(base, ctx, code);
-                    for field in fields {
-                        code.push(Instr::StructGet(field));
+                    if let Some(base_ty) = Self::infer_expr_named_type(base, ctx)
+                        && let Some(slots) = self.resolve_field_slots(&base_ty, &fields)
+                    {
+                        for slot in slots {
+                            code.push(Instr::StructGetSlot(slot));
+                        }
+                    } else {
+                        for field in fields {
+                            code.push(Instr::StructGet(field));
+                        }
                     }
                 } else {
                     self.error("Unsupported field access shape in bytecode compiler".to_string());
@@ -929,6 +965,24 @@ impl Compiler {
             Expr::StructLit { name, .. } => Some(name.clone()),
             _ => None,
         }
+    }
+
+    fn resolve_field_slots(&self, base_type: &str, fields: &[String]) -> Option<Vec<usize>> {
+        let mut current = self.resolve_struct_runtime_name(base_type);
+        let mut slots = Vec::with_capacity(fields.len());
+        for field in fields {
+            let layout = self.known_struct_layouts.get(&current)?;
+            let slot = *layout.field_slots.get(field)?;
+            slots.push(slot);
+            let Some(next) = layout.field_named_types.get(field) else {
+                if field != fields.last()? {
+                    return None;
+                }
+                break;
+            };
+            current = next.clone();
+        }
+        Some(slots)
     }
 
     fn resolve_qualified_import_call(&self, parts: &[String]) -> Option<String> {
