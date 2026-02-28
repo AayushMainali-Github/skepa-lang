@@ -64,6 +64,10 @@ pub enum Instr {
         name: String,
         argc: usize,
     },
+    CallMethodId {
+        id: usize,
+        argc: usize,
+    },
     CallBuiltin {
         package: String,
         name: String,
@@ -101,4 +105,5 @@ pub struct FunctionChunk {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct BytecodeModule {
     pub functions: HashMap<String, FunctionChunk>,
+    pub method_names: Vec<String>,
 }

@@ -575,6 +575,67 @@ pub(super) fn run_chunk(
                 frames.push(new_frame);
                 continue;
             }
+            Instr::CallMethodId { id, argc } => {
+                let _timer = super::profiler::ScopedTimer::new(super::profiler::Event::CallMethod);
+                if frame.stack.len() < *argc + 1 {
+                    return Err(err_at(
+                        VmErrorKind::StackUnderflow,
+                        "Stack underflow on CallMethodId",
+                        function_name,
+                        ip,
+                    ));
+                }
+                let receiver_index = frame.stack.len() - *argc - 1;
+                let receiver = frame.stack.remove(receiver_index);
+                let callee_chunk = calls::resolve_method_id(
+                    env.module,
+                    env.fn_table,
+                    &receiver,
+                    *id,
+                    calls::Site { function_name, ip },
+                )?;
+                if current_depth + opts.depth >= opts.config.max_call_depth {
+                    return Err(VmError::new(
+                        VmErrorKind::StackOverflow,
+                        format!("Call stack limit exceeded ({})", opts.config.max_call_depth),
+                    ));
+                }
+                if *argc + 1 != callee_chunk.param_count {
+                    return Err(VmError::new(
+                        VmErrorKind::ArityMismatch,
+                        format!(
+                            "Function `{}` arity mismatch: expected {}, got {}",
+                            callee_chunk.name,
+                            callee_chunk.param_count,
+                            argc + 1
+                        ),
+                    ));
+                }
+                let new_frame = {
+                    frame.ip += 1;
+                    let mut new_frame = state::CallFrame::with_storage(
+                        callee_chunk,
+                        &callee_chunk.name,
+                        acquire_storage(
+                            callee_chunk.locals_count,
+                            stack_capacity_hint(callee_chunk),
+                            &mut locals_pool,
+                            &mut stack_pool,
+                        ),
+                    );
+                    new_frame.locals.push(receiver);
+                    let split = frame.stack.len() - *argc;
+                    new_frame.locals.extend(frame.stack.split_off(split));
+                    if new_frame.locals.len() < callee_chunk.locals_count {
+                        new_frame
+                            .locals
+                            .resize(callee_chunk.locals_count, Value::Unit);
+                    }
+                    new_frame
+                };
+                frames.push(new_frame);
+                continue;
+            }
             Instr::CallBuiltin {
                 package,
                 name,

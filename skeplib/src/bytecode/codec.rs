@@ -7,8 +7,12 @@ impl BytecodeModule {
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut out = Vec::new();
         out.extend_from_slice(b"SKBC");
-        write_u32(&mut out, 2);
+        write_u32(&mut out, 3);
         write_u32(&mut out, self.functions.len() as u32);
+        write_u32(&mut out, self.method_names.len() as u32);
+        for name in &self.method_names {
+            write_str(&mut out, name);
+        }
         let mut funcs: Vec<_> = self.functions.values().collect();
         funcs.sort_by(|a, b| a.name.cmp(&b.name));
         for f in funcs {
@@ -30,10 +34,15 @@ impl BytecodeModule {
             return Err("Invalid bytecode magic header".to_string());
         }
         let version = rd.read_u32()?;
-        if version != 2 {
+        if version != 3 {
             return Err(format!("Unsupported bytecode version {version}"));
         }
         let funcs_len = rd.read_u32()? as usize;
+        let method_names_len = rd.read_u32()? as usize;
+        let mut method_names = Vec::with_capacity(method_names_len);
+        for _ in 0..method_names_len {
+            method_names.push(rd.read_str()?);
+        }
         let mut functions = HashMap::new();
         for _ in 0..funcs_len {
             let name = rd.read_str()?;
@@ -54,7 +63,10 @@ impl BytecodeModule {
                 },
             );
         }
-        Ok(Self { functions })
+        Ok(Self {
+            functions,
+            method_names,
+        })
     }
 }
 
@@ -190,6 +202,11 @@ fn encode_instr(i: &Instr, out: &mut Vec<u8>) {
         Instr::CallMethod { name, argc } => {
             write_u8(out, 36);
             write_str(out, name);
+            write_u32(out, *argc as u32);
+        }
+        Instr::CallMethodId { id, argc } => {
+            write_u8(out, 43);
+            write_u32(out, *id as u32);
             write_u32(out, *argc as u32);
         }
         Instr::CallBuiltin {
@@ -371,6 +388,10 @@ fn decode_instr(rd: &mut Reader<'_>) -> Result<Instr, String> {
         },
         36 => Instr::CallMethod {
             name: rd.read_str()?,
+            argc: rd.read_u32()? as usize,
+        },
+        43 => Instr::CallMethodId {
+            id: rd.read_u32()? as usize,
             argc: rd.read_u32()? as usize,
         },
         25 => Instr::CallBuiltin {

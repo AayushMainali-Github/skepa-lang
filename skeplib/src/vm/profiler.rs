@@ -101,7 +101,8 @@ impl OpCounters {
             Instr::Call { .. }
             | Instr::CallIdx { .. }
             | Instr::CallValue { .. }
-            | Instr::CallMethod { .. } => self.call += 1,
+            | Instr::CallMethod { .. }
+            | Instr::CallMethodId { .. } => self.call += 1,
             Instr::CallBuiltin { .. } | Instr::CallBuiltinId { .. } => {
                 self.call += 1;
                 self.builtin += 1;

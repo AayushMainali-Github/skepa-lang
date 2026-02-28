@@ -235,6 +235,7 @@ impl Vm {
             functions: vec![(chunk.name.clone(), chunk.clone())]
                 .into_iter()
                 .collect(),
+            method_names: Vec::new(),
         };
         Self::run_module_main(&module)
     }

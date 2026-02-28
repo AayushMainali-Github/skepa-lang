@@ -64,6 +64,8 @@ struct Compiler {
     imported_struct_runtime: HashMap<String, String>,
     known_struct_layouts: HashMap<String, StructLayout>,
     namespace_call_targets: HashMap<String, String>,
+    method_name_ids: HashMap<String, usize>,
+    method_names: Vec<String>,
 }
 
 #[derive(Clone, Default)]
@@ -128,6 +130,8 @@ impl Compiler {
         }
         self.lifted_functions.clear();
         self.fn_lit_counter = 0;
+        self.method_name_ids.clear();
+        self.method_names.clear();
         const GLOBALS_INIT_FN: &str = "__globals_init";
         if self.module_id.is_none() && program.functions.iter().any(|f| f.name == GLOBALS_INIT_FN) {
             self.error(format!(
@@ -221,6 +225,7 @@ impl Compiler {
         for chunk in self.lifted_functions.drain(..) {
             module.functions.insert(chunk.name.clone(), chunk);
         }
+        module.method_names = std::mem::take(&mut self.method_names);
         module
     }
 
@@ -824,8 +829,8 @@ impl Compiler {
                             for arg in args {
                                 self.compile_expr(arg, ctx, code);
                             }
-                            code.push(Instr::CallMethod {
-                                name: field.clone(),
+                            code.push(Instr::CallMethodId {
+                                id: self.intern_method_name(field),
                                 argc: args.len(),
                             });
                         }
@@ -834,8 +839,8 @@ impl Compiler {
                         for arg in args {
                             self.compile_expr(arg, ctx, code);
                         }
-                        code.push(Instr::CallMethod {
-                            name: field.clone(),
+                        code.push(Instr::CallMethodId {
+                            id: self.intern_method_name(field),
                             argc: args.len(),
                         });
                     }
@@ -906,6 +911,16 @@ impl Compiler {
 
     fn error(&mut self, message: String) {
         self.diags.error(message, Span::default());
+    }
+
+    fn intern_method_name(&mut self, name: &str) -> usize {
+        if let Some(id) = self.method_name_ids.get(name).copied() {
+            return id;
+        }
+        let id = self.method_names.len();
+        self.method_names.push(name.to_string());
+        self.method_name_ids.insert(name.to_string(), id);
+        id
     }
 
     fn flatten_index_target<'a>(
@@ -1033,6 +1048,7 @@ fn compile_project_graph_inner(
         .ok_or_else(|| "Entry module id not found in graph".to_string())?;
 
     let mut out = BytecodeModule::default();
+    let mut linked_method_name_ids = HashMap::<String, usize>::new();
     let mut init_names = Vec::new();
     let mut ids = programs.keys().cloned().collect::<Vec<_>>();
     ids.sort();
@@ -1149,6 +1165,11 @@ fn compile_project_graph_inner(
         }
 
         let m = c.compile_program(program);
+        let method_id_remap = intern_linked_method_names(
+            &mut out.method_names,
+            &mut linked_method_name_ids,
+            &m.method_names,
+        );
         let init = c.globals_init_name();
         if m.functions.contains_key(&init) {
             init_names.push(init);
@@ -1156,10 +1177,11 @@ fn compile_project_graph_inner(
         let mut names = m.functions.keys().cloned().collect::<Vec<_>>();
         names.sort();
         for n in names {
-            if let Some(chunk) = m.functions.get(&n).cloned()
-                && out.functions.insert(n.clone(), chunk).is_some()
-            {
-                return Err(format!("Duplicate linked function symbol `{n}`"));
+            if let Some(mut chunk) = m.functions.get(&n).cloned() {
+                remap_chunk_method_ids(&mut chunk, &method_id_remap);
+                if out.functions.insert(n.clone(), chunk).is_some() {
+                    return Err(format!("Duplicate linked function symbol `{n}`"));
+                }
             }
         }
     }
@@ -1203,6 +1225,36 @@ fn compile_project_graph_inner(
     peephole_optimize_module(&mut out);
     rewrite_direct_calls_to_indexes(&mut out);
     Ok(out)
+}
+
+fn intern_linked_method_names(
+    out_method_names: &mut Vec<String>,
+    linked_method_name_ids: &mut HashMap<String, usize>,
+    module_method_names: &[String],
+) -> Vec<usize> {
+    let mut remap = Vec::with_capacity(module_method_names.len());
+    for name in module_method_names {
+        let id = if let Some(id) = linked_method_name_ids.get(name).copied() {
+            id
+        } else {
+            let id = out_method_names.len();
+            out_method_names.push(name.clone());
+            linked_method_name_ids.insert(name.clone(), id);
+            id
+        };
+        remap.push(id);
+    }
+    remap
+}
+
+fn remap_chunk_method_ids(chunk: &mut FunctionChunk, method_id_remap: &[usize]) {
+    for instr in &mut chunk.code {
+        if let Instr::CallMethodId { id, .. } = instr
+            && let Some(mapped) = method_id_remap.get(*id).copied()
+        {
+            *id = mapped;
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default)]
