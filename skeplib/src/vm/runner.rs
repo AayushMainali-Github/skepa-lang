@@ -49,13 +49,8 @@ pub(super) fn run_chunk(
 ) -> Result<Value, VmError> {
     let _chunk_timer = super::profiler::ScopedTimer::new(super::profiler::Event::RunChunk);
     let profile_ops = std::env::var_os("SKEPA_VM_PROFILE_OPS").is_some();
-    let mut prof_load_local = 0u64;
-    let mut prof_store_local = 0u64;
-    let mut prof_add = 0u64;
+    let mut hot_prof = HotOpProfile::new(profile_ops);
     let mut prof_mod = 0u64;
-    let mut prof_lte = 0u64;
-    let mut prof_jump = 0u64;
-    let mut prof_jump_if_false = 0u64;
     if opts.depth >= opts.config.max_call_depth {
         return Err(VmError::new(
             VmErrorKind::StackOverflow,
@@ -111,7 +106,13 @@ pub(super) fn run_chunk(
             }
             if profile_ops {
                 eprintln!(
-                    "[vm-prof] {function_name}: LoadLocal={prof_load_local} StoreLocal={prof_store_local} Add={prof_add} ModInt={prof_mod} LteInt={prof_lte} Jump={prof_jump} JumpIfFalse={prof_jump_if_false}"
+                    "[vm-prof] {function_name}: LoadLocal={} StoreLocal={} Add={} ModInt={prof_mod} LteInt={} Jump={} JumpIfFalse={}",
+                    hot_prof.load_local,
+                    hot_prof.store_local,
+                    hot_prof.add,
+                    hot_prof.lte,
+                    hot_prof.jump,
+                    hot_prof.jump_if_false,
                 );
             }
             return Ok(ret);
@@ -123,33 +124,11 @@ pub(super) fn run_chunk(
             eprintln!("[trace] {}@{} {:?}", function_name, ip, instr);
         }
         super::profiler::record_instr(instr);
+        if handle_hot_instr(frame, instr, function_name, ip, &mut hot_prof)? {
+            continue;
+        }
         match instr {
-            Instr::LoadConst(v) => frame.stack.push(v.clone()),
-            Instr::LoadLocal(slot) => {
-                if profile_ops {
-                    prof_load_local += 1;
-                }
-                let Some(v) = frame.locals.get(*slot).cloned() else {
-                    return Err(invalid_local_slot(function_name, ip, *slot));
-                };
-                frame.stack.push(v);
-            }
-            Instr::StoreLocal(slot) => {
-                if profile_ops {
-                    prof_store_local += 1;
-                }
-                let Some(v) = frame.stack.pop() else {
-                    return Err(err_at(
-                        VmErrorKind::StackUnderflow,
-                        "Stack underflow on StoreLocal",
-                        function_name,
-                        ip,
-                    ));
-                };
-                if !frame.write_local(*slot, v) {
-                    return Err(invalid_local_slot(function_name, ip, *slot));
-                }
-            }
+            Instr::LoadConst(_) | Instr::LoadLocal(_) | Instr::StoreLocal(_) => unreachable!(),
             Instr::LoadGlobal(slot) => {
                 let Some(v) = env.globals.get(*slot).cloned() else {
                     return Err(err_at(
@@ -187,77 +166,14 @@ pub(super) fn run_chunk(
             }
             Instr::NegInt => arith::neg(&mut frame.stack, function_name, ip)?,
             Instr::NotBool => arith::not_bool(&mut frame.stack, function_name, ip)?,
-            Instr::Add => {
-                if profile_ops {
-                    prof_add += 1;
-                }
-                let stack = &mut frame.stack;
-                let Some(r) = stack.pop() else {
-                    return Err(err_at(
-                        VmErrorKind::StackUnderflow,
-                        "Add expects rhs",
-                        function_name,
-                        ip,
-                    ));
-                };
-                let Some(l) = stack.pop() else {
-                    return Err(err_at(
-                        VmErrorKind::StackUnderflow,
-                        "Add expects lhs",
-                        function_name,
-                        ip,
-                    ));
-                };
-                match (l, r) {
-                    (Value::Int(a), Value::Int(b)) => stack.push(Value::Int(a + b)),
-                    (l, r) => {
-                        stack.push(l);
-                        stack.push(r);
-                        arith::add(stack, function_name, ip)?
-                    }
-                }
-            }
+            Instr::Add => unreachable!(),
             Instr::SubInt
             | Instr::MulInt
             | Instr::DivInt
             | Instr::LtInt
-            | Instr::LteInt
             | Instr::GtInt
-            | Instr::GteInt => {
-                if matches!(instr, Instr::LteInt) {
-                    if profile_ops {
-                        prof_lte += 1;
-                    }
-                    let stack = &mut frame.stack;
-                    let Some(r) = stack.pop() else {
-                        return Err(err_at(
-                            VmErrorKind::StackUnderflow,
-                            "int binary op expects rhs",
-                            function_name,
-                            ip,
-                        ));
-                    };
-                    let Some(l) = stack.pop() else {
-                        stack.push(r);
-                        return Err(err_at(
-                            VmErrorKind::StackUnderflow,
-                            "int binary op expects lhs",
-                            function_name,
-                            ip,
-                        ));
-                    };
-                    match (l, r) {
-                        (Value::Int(l), Value::Int(r)) => stack.push(Value::Bool(l <= r)),
-                        (l, r) => {
-                            stack.push(l);
-                            stack.push(r);
-                            arith::numeric_binop(stack, instr, function_name, ip)?
-                        }
-                    }
-                } else {
-                    arith::numeric_binop(&mut frame.stack, instr, function_name, ip)?
-                }
-            }
+            | Instr::GteInt => arith::numeric_binop(&mut frame.stack, instr, function_name, ip)?,
+            Instr::LteInt => unreachable!(),
             Instr::ModInt => {
                 if profile_ops {
                     prof_mod += 1;
@@ -304,24 +220,7 @@ pub(super) fn run_chunk(
             Instr::AndBool | Instr::OrBool => {
                 arith::logical(&mut frame.stack, instr, function_name, ip)?
             }
-            Instr::Jump(target) => {
-                if profile_ops {
-                    prof_jump += 1;
-                }
-                frame.ip = control_flow::jump(*target);
-                continue;
-            }
-            Instr::JumpIfFalse(target) => {
-                if profile_ops {
-                    prof_jump_if_false += 1;
-                }
-                if let Some(next_ip) =
-                    control_flow::jump_if_false(&mut frame.stack, *target, function_name, ip)?
-                {
-                    frame.ip = next_ip;
-                    continue;
-                }
-            }
+            Instr::Jump(_) | Instr::JumpIfFalse(_) => unreachable!(),
             Instr::JumpIfTrue(target) => {
                 if let Some(next_ip) =
                     control_flow::jump_if_true(&mut frame.stack, *target, function_name, ip)?
@@ -627,7 +526,13 @@ pub(super) fn run_chunk(
             Instr::Return => {
                 if profile_ops && opts.depth == 0 {
                     eprintln!(
-                        "[vm-prof] {function_name}: LoadLocal={prof_load_local} StoreLocal={prof_store_local} Add={prof_add} ModInt={prof_mod} LteInt={prof_lte} Jump={prof_jump} JumpIfFalse={prof_jump_if_false}"
+                        "[vm-prof] {function_name}: LoadLocal={} StoreLocal={} Add={} ModInt={prof_mod} LteInt={} Jump={} JumpIfFalse={}",
+                        hot_prof.load_local,
+                        hot_prof.store_local,
+                        hot_prof.add,
+                        hot_prof.lte,
+                        hot_prof.jump,
+                        hot_prof.jump_if_false,
                     );
                 }
                 let ret = frame.stack.pop().unwrap_or(Value::Unit);
@@ -644,6 +549,192 @@ pub(super) fn run_chunk(
         }
         if let Some(frame) = frames.last_mut() {
             frame.ip += 1;
+        }
+    }
+}
+
+#[inline(always)]
+fn handle_hot_instr(
+    frame: &mut state::CallFrame<'_>,
+    instr: &Instr,
+    function_name: &str,
+    ip: usize,
+    prof: &mut HotOpProfile,
+) -> Result<bool, VmError> {
+    match instr {
+        Instr::LoadConst(v) => {
+            frame.stack.push(v.clone());
+            frame.ip += 1;
+            Ok(true)
+        }
+        Instr::LoadLocal(slot) => {
+            prof.bump_load_local();
+            let Some(v) = frame.locals.get(*slot).cloned() else {
+                return Err(invalid_local_slot(function_name, ip, *slot));
+            };
+            frame.stack.push(v);
+            frame.ip += 1;
+            Ok(true)
+        }
+        Instr::StoreLocal(slot) => {
+            prof.bump_store_local();
+            let Some(v) = frame.stack.pop() else {
+                return Err(err_at(
+                    VmErrorKind::StackUnderflow,
+                    "Stack underflow on StoreLocal",
+                    function_name,
+                    ip,
+                ));
+            };
+            if !frame.write_local(*slot, v) {
+                return Err(invalid_local_slot(function_name, ip, *slot));
+            }
+            frame.ip += 1;
+            Ok(true)
+        }
+        Instr::Add => {
+            prof.bump_add();
+            let stack = &mut frame.stack;
+            let Some(r) = stack.pop() else {
+                return Err(err_at(
+                    VmErrorKind::StackUnderflow,
+                    "Add expects rhs",
+                    function_name,
+                    ip,
+                ));
+            };
+            let Some(l) = stack.pop() else {
+                return Err(err_at(
+                    VmErrorKind::StackUnderflow,
+                    "Add expects lhs",
+                    function_name,
+                    ip,
+                ));
+            };
+            match (l, r) {
+                (Value::Int(a), Value::Int(b)) => stack.push(Value::Int(a + b)),
+                (l, r) => {
+                    stack.push(l);
+                    stack.push(r);
+                    arith::add(stack, function_name, ip)?;
+                }
+            }
+            frame.ip += 1;
+            Ok(true)
+        }
+        Instr::LteInt => {
+            prof.bump_lte();
+            let stack = &mut frame.stack;
+            let Some(r) = stack.pop() else {
+                return Err(err_at(
+                    VmErrorKind::StackUnderflow,
+                    "int binary op expects rhs",
+                    function_name,
+                    ip,
+                ));
+            };
+            let Some(l) = stack.pop() else {
+                stack.push(r);
+                return Err(err_at(
+                    VmErrorKind::StackUnderflow,
+                    "int binary op expects lhs",
+                    function_name,
+                    ip,
+                ));
+            };
+            match (l, r) {
+                (Value::Int(l), Value::Int(r)) => stack.push(Value::Bool(l <= r)),
+                (l, r) => {
+                    stack.push(l);
+                    stack.push(r);
+                    arith::numeric_binop(stack, instr, function_name, ip)?;
+                }
+            }
+            frame.ip += 1;
+            Ok(true)
+        }
+        Instr::Jump(target) => {
+            prof.bump_jump();
+            frame.ip = control_flow::jump(*target);
+            Ok(true)
+        }
+        Instr::JumpIfFalse(target) => {
+            prof.bump_jump_if_false();
+            if let Some(next_ip) =
+                control_flow::jump_if_false(&mut frame.stack, *target, function_name, ip)?
+            {
+                frame.ip = next_ip;
+            } else {
+                frame.ip += 1;
+            }
+            Ok(true)
+        }
+        _ => Ok(false),
+    }
+}
+
+struct HotOpProfile {
+    enabled: bool,
+    load_local: u64,
+    store_local: u64,
+    add: u64,
+    lte: u64,
+    jump: u64,
+    jump_if_false: u64,
+}
+
+impl HotOpProfile {
+    fn new(enabled: bool) -> Self {
+        Self {
+            enabled,
+            load_local: 0,
+            store_local: 0,
+            add: 0,
+            lte: 0,
+            jump: 0,
+            jump_if_false: 0,
+        }
+    }
+
+    #[inline(always)]
+    fn bump_load_local(&mut self) {
+        if self.enabled {
+            self.load_local += 1;
+        }
+    }
+
+    #[inline(always)]
+    fn bump_store_local(&mut self) {
+        if self.enabled {
+            self.store_local += 1;
+        }
+    }
+
+    #[inline(always)]
+    fn bump_add(&mut self) {
+        if self.enabled {
+            self.add += 1;
+        }
+    }
+
+    #[inline(always)]
+    fn bump_lte(&mut self) {
+        if self.enabled {
+            self.lte += 1;
+        }
+    }
+
+    #[inline(always)]
+    fn bump_jump(&mut self) {
+        if self.enabled {
+            self.jump += 1;
+        }
+    }
+
+    #[inline(always)]
+    fn bump_jump_if_false(&mut self) {
+        if self.enabled {
+            self.jump_if_false += 1;
         }
     }
 }
