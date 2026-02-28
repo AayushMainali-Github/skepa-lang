@@ -467,8 +467,9 @@ pub(super) fn run_chunk(
                 }
                 let callee_index = frame.stack.len() - *argc - 1;
                 let callee = frame.stack.remove(callee_index);
-                let (callee_chunk, callee_name) = calls::resolve_function_value(
+                let callee_chunk = calls::resolve_function_value(
                     env.module,
+                    env.fn_table,
                     callee,
                     calls::Site { function_name, ip },
                 )?;
@@ -483,7 +484,7 @@ pub(super) fn run_chunk(
                         VmErrorKind::ArityMismatch,
                         format!(
                             "Function `{}` arity mismatch: expected {}, got {}",
-                            callee_name, callee_chunk.param_count, argc
+                            callee_chunk.name, callee_chunk.param_count, argc
                         ),
                     ));
                 }

@@ -16,6 +16,7 @@ pub enum Value {
     Array(Rc<[Value]>),
     VecHandle(u64),
     Function(Rc<str>),
+    FunctionIdx(usize),
     Struct {
         name: String,
         fields: Rc<[(String, Value)]>,

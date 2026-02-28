@@ -77,26 +77,29 @@ pub(super) fn resolve_chunk_idx<'a>(
 
 pub(super) fn resolve_function_value<'a>(
     module: &'a BytecodeModule,
+    fn_table: &'a [&'a FunctionChunk],
     callee: Value,
     site: Site<'_>,
-) -> Result<(&'a FunctionChunk, std::rc::Rc<str>), VmError> {
-    let Value::Function(callee_name) = &callee else {
-        return Err(super::err_at(
+) -> Result<&'a FunctionChunk, VmError> {
+    match callee {
+        Value::FunctionIdx(callee_idx) => resolve_chunk_idx(fn_table, callee_idx, site),
+        Value::Function(callee_name) => {
+            module.functions.get(callee_name.as_ref()).ok_or_else(|| {
+                super::err_at(
+                    VmErrorKind::UnknownFunction,
+                    format!("Unknown function `{callee_name}`"),
+                    site.function_name,
+                    site.ip,
+                )
+            })
+        }
+        _ => Err(super::err_at(
             VmErrorKind::TypeMismatch,
             "CallValue callee must be Function",
             site.function_name,
             site.ip,
-        ));
-    };
-    let chunk = module.functions.get(callee_name.as_ref()).ok_or_else(|| {
-        super::err_at(
-            VmErrorKind::UnknownFunction,
-            format!("Unknown function `{callee_name}`"),
-            site.function_name,
-            site.ip,
-        )
-    })?;
-    Ok((chunk, callee_name.clone()))
+        )),
+    }
 }
 
 fn resolve_method_idx(

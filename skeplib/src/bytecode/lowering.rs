@@ -28,6 +28,7 @@ pub fn compile_source(source: &str) -> Result<BytecodeModule, DiagnosticBag> {
         let mut module = module;
         peephole_optimize_module(&mut module);
         rewrite_direct_calls_to_indexes(&mut module);
+        rewrite_function_values_to_indexes(&mut module);
         Ok(module)
     } else {
         Err(diags)
@@ -1224,6 +1225,7 @@ fn compile_project_graph_inner(
 
     peephole_optimize_module(&mut out);
     rewrite_direct_calls_to_indexes(&mut out);
+    rewrite_function_values_to_indexes(&mut out);
     Ok(out)
 }
 
@@ -1321,6 +1323,66 @@ fn rewrite_direct_calls_to_indexes(module: &mut BytecodeModule) {
                 *instr = new_instr;
             }
         }
+    }
+}
+
+fn rewrite_function_values_to_indexes(module: &mut BytecodeModule) {
+    let mut names = module.functions.keys().cloned().collect::<Vec<_>>();
+    names.sort();
+    let by_name = names
+        .into_iter()
+        .enumerate()
+        .map(|(idx, n)| (n, idx))
+        .collect::<HashMap<_, _>>();
+
+    for chunk in module.functions.values_mut() {
+        for instr in &mut chunk.code {
+            rewrite_instr_function_values(instr, &by_name);
+        }
+    }
+}
+
+fn rewrite_instr_function_values(instr: &mut Instr, by_name: &HashMap<String, usize>) {
+    if let Instr::LoadConst(value) = instr {
+        rewrite_value_function_indexes(value, by_name);
+    }
+}
+
+fn rewrite_value_function_indexes(value: &mut Value, by_name: &HashMap<String, usize>) {
+    match value {
+        Value::Array(items) => {
+            let mut rewritten = items.as_ref().to_vec();
+            let mut changed = false;
+            for item in &mut rewritten {
+                let before = item.clone();
+                rewrite_value_function_indexes(item, by_name);
+                changed |= *item != before;
+            }
+            if changed {
+                *value = Value::Array(Rc::<[Value]>::from(rewritten));
+            }
+        }
+        Value::Struct { name, fields } => {
+            let mut rewritten = fields.as_ref().to_vec();
+            let mut changed = false;
+            for (_, field_value) in &mut rewritten {
+                let before = field_value.clone();
+                rewrite_value_function_indexes(field_value, by_name);
+                changed |= *field_value != before;
+            }
+            if changed {
+                *value = Value::Struct {
+                    name: name.clone(),
+                    fields: Rc::<[(String, Value)]>::from(rewritten),
+                };
+            }
+        }
+        Value::Function(fn_name) => {
+            if let Some(idx) = by_name.get(fn_name.as_ref()).copied() {
+                *value = Value::FunctionIdx(idx);
+            }
+        }
+        _ => {}
     }
 }
 

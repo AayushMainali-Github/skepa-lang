@@ -27,6 +27,7 @@ fn fmt_value(v: &Value) -> String {
         Value::Array(items) => format!("Array(len={})", items.len()),
         Value::VecHandle(id) => format!("VecHandle({id})"),
         Value::Function(name) => format!("Function({name})"),
+        Value::FunctionIdx(idx) => format!("FunctionIdx({idx})"),
         Value::Struct { name, fields } => format!("Struct({name}, fields={})", fields.len()),
         Value::Unit => "Unit".to_string(),
     }

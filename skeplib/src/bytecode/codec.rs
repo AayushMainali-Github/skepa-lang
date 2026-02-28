@@ -7,7 +7,7 @@ impl BytecodeModule {
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut out = Vec::new();
         out.extend_from_slice(b"SKBC");
-        write_u32(&mut out, 3);
+        write_u32(&mut out, 4);
         write_u32(&mut out, self.functions.len() as u32);
         write_u32(&mut out, self.method_names.len() as u32);
         for name in &self.method_names {
@@ -34,7 +34,7 @@ impl BytecodeModule {
             return Err("Invalid bytecode magic header".to_string());
         }
         let version = rd.read_u32()?;
-        if version != 3 {
+        if version != 4 {
             return Err(format!("Unsupported bytecode version {version}"));
         }
         let funcs_len = rd.read_u32()? as usize;
@@ -121,6 +121,10 @@ fn encode_value(v: &Value, out: &mut Vec<u8>) {
         Value::Function(name) => {
             write_u8(out, 5);
             write_str(out, name);
+        }
+        Value::FunctionIdx(idx) => {
+            write_u8(out, 8);
+            write_u32(out, *idx as u32);
         }
         Value::Unit => write_u8(out, 6),
         Value::Struct { name, fields } => {
@@ -345,6 +349,7 @@ fn decode_value(rd: &mut Reader<'_>) -> Result<Value, String> {
                 fields: Rc::<[(String, Value)]>::from(fields),
             })
         }
+        8 => Ok(Value::FunctionIdx(rd.read_u32()? as usize)),
         t => Err(format!("Unknown value tag {t}")),
     }
 }
