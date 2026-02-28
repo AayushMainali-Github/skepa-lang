@@ -2,6 +2,14 @@ use crate::bytecode::Value;
 use crate::vm::{VmError, VmErrorKind};
 use std::rc::Rc;
 
+fn string_scalar_len(s: &str) -> i64 {
+    if s.is_ascii() {
+        s.len() as i64
+    } else {
+        s.chars().count() as i64
+    }
+}
+
 pub(super) fn make_array(
     stack: &mut Vec<Value>,
     n: usize,
@@ -261,7 +269,7 @@ pub(super) fn array_len(
     };
     match arr_v {
         Value::Array(items) => stack.push(Value::Int(items.len() as i64)),
-        Value::String(s) => stack.push(Value::Int(s.chars().count() as i64)),
+        Value::String(s) => stack.push(Value::Int(string_scalar_len(&s))),
         _ => {
             return Err(super::err_at(
                 VmErrorKind::TypeMismatch,

@@ -4,6 +4,22 @@ use super::{BuiltinHost, BuiltinRegistry, VmError, VmErrorKind};
 
 const MAX_STR_REPEAT_OUTPUT_BYTES: usize = 1_000_000;
 
+fn scalar_len(s: &str) -> i64 {
+    if s.is_ascii() {
+        s.len() as i64
+    } else {
+        s.chars().count() as i64
+    }
+}
+
+fn scalar_prefix_len(s: &str, byte_idx: usize) -> i64 {
+    if s.is_ascii() {
+        byte_idx as i64
+    } else {
+        s[..byte_idx].chars().count() as i64
+    }
+}
+
 #[allow(dead_code)]
 pub(super) fn register(r: &mut BuiltinRegistry) {
     r.register("str", "len", builtin_str_len);
@@ -32,7 +48,7 @@ pub(crate) fn builtin_str_len(
         ));
     }
     match &args[0] {
-        Value::String(s) => Ok(Value::Int(s.chars().count() as i64)),
+        Value::String(s) => Ok(Value::Int(scalar_len(s))),
         _ => Err(VmError::new(
             VmErrorKind::TypeMismatch,
             "str.len expects String argument",
@@ -166,7 +182,7 @@ pub(crate) fn builtin_str_index_of(
     }
     match (&args[0], &args[1]) {
         (Value::String(s), Value::String(n)) => match s.find(n.as_ref()) {
-            Some(byte_idx) => Ok(Value::Int(s[..byte_idx].chars().count() as i64)),
+            Some(byte_idx) => Ok(Value::Int(scalar_prefix_len(s, byte_idx))),
             None => Ok(Value::Int(-1)),
         },
         _ => Err(VmError::new(
@@ -193,7 +209,7 @@ pub(crate) fn builtin_str_slice(
             "str.slice expects String, Int, Int arguments",
         ));
     };
-    let len = s.chars().count() as i64;
+    let len = scalar_len(s);
     if *start < 0 || *end < 0 || *start > *end || *end > len {
         return Err(VmError::new(
             VmErrorKind::IndexOutOfBounds,
@@ -203,11 +219,14 @@ pub(crate) fn builtin_str_slice(
             ),
         ));
     }
-    let out: String = s
-        .chars()
-        .skip(*start as usize)
-        .take((*end - *start) as usize)
-        .collect();
+    let out = if s.is_ascii() {
+        s[*start as usize..*end as usize].to_string()
+    } else {
+        s.chars()
+            .skip(*start as usize)
+            .take((*end - *start) as usize)
+            .collect()
+    };
     Ok(Value::String(out.into()))
 }
 
@@ -242,7 +261,7 @@ pub(crate) fn builtin_str_last_index_of(
     }
     match (&args[0], &args[1]) {
         (Value::String(s), Value::String(n)) => match s.rfind(n.as_ref()) {
-            Some(byte_idx) => Ok(Value::Int(s[..byte_idx].chars().count() as i64)),
+            Some(byte_idx) => Ok(Value::Int(scalar_prefix_len(s, byte_idx))),
             None => Ok(Value::Int(-1)),
         },
         _ => Err(VmError::new(
