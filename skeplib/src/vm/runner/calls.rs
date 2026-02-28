@@ -24,6 +24,11 @@ struct ModuleCacheKey {
 type MethodMap = HashMap<String, HashMap<String, usize>>;
 type MethodCache = HashMap<ModuleCacheKey, MethodMap>;
 
+pub(super) fn take_call_args(stack: &mut Vec<Value>, argc: usize) -> Vec<Value> {
+    let split = stack.len() - argc;
+    stack.split_off(split)
+}
+
 fn module_cache_key(module: &BytecodeModule) -> ModuleCacheKey {
     let mut name_fingerprint = 0u64;
     for name in module.functions.keys() {
@@ -35,22 +40,6 @@ fn module_cache_key(module: &BytecodeModule) -> ModuleCacheKey {
         ptr: module as *const BytecodeModule as usize,
         len: module.functions.len(),
         name_fingerprint,
-    }
-}
-
-pub(super) fn take_call_args(stack: &mut Vec<Value>, argc: usize) -> Vec<Value> {
-    match argc {
-        0 => Vec::new(),
-        1 => vec![stack.pop().expect("call arg stack underflow")],
-        2 => {
-            let b = stack.pop().expect("call arg stack underflow");
-            let a = stack.pop().expect("call arg stack underflow");
-            vec![a, b]
-        }
-        _ => {
-            let split = stack.len() - argc;
-            stack.split_off(split)
-        }
     }
 }
 

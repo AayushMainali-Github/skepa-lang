@@ -340,31 +340,32 @@ pub(super) fn run_chunk(
                     callee_name,
                     calls::Site { function_name, ip },
                 )?;
-                let call_args = calls::take_call_args(&mut frame.stack, *argc);
                 if current_depth + opts.depth >= opts.config.max_call_depth {
                     return Err(VmError::new(
                         VmErrorKind::StackOverflow,
                         format!("Call stack limit exceeded ({})", opts.config.max_call_depth),
                     ));
                 }
-                if call_args.len() != callee_chunk.param_count {
+                if *argc != callee_chunk.param_count {
                     return Err(VmError::new(
                         VmErrorKind::ArityMismatch,
                         format!(
                             "Function `{}` arity mismatch: expected {}, got {}",
-                            callee_name,
-                            callee_chunk.param_count,
-                            call_args.len()
+                            callee_name, callee_chunk.param_count, argc
                         ),
                     ));
                 }
-                frame.ip += 1;
-                frames.push(state::CallFrame::new(
-                    callee_chunk,
-                    callee_name,
-                    call_args,
-                    stack_capacity_hint(callee_chunk),
-                ));
+                let new_frame = {
+                    frame.ip += 1;
+                    state::CallFrame::from_stack(
+                        callee_chunk,
+                        callee_name,
+                        &mut frame.stack,
+                        *argc,
+                        stack_capacity_hint(callee_chunk),
+                    )
+                };
+                frames.push(new_frame);
                 continue;
             }
             Instr::CallIdx { idx, argc } => {
@@ -382,31 +383,32 @@ pub(super) fn run_chunk(
                     *idx,
                     calls::Site { function_name, ip },
                 )?;
-                let call_args = calls::take_call_args(&mut frame.stack, *argc);
                 if current_depth + opts.depth >= opts.config.max_call_depth {
                     return Err(VmError::new(
                         VmErrorKind::StackOverflow,
                         format!("Call stack limit exceeded ({})", opts.config.max_call_depth),
                     ));
                 }
-                if call_args.len() != callee_chunk.param_count {
+                if *argc != callee_chunk.param_count {
                     return Err(VmError::new(
                         VmErrorKind::ArityMismatch,
                         format!(
                             "Function `{}` arity mismatch: expected {}, got {}",
-                            callee_chunk.name,
-                            callee_chunk.param_count,
-                            call_args.len()
+                            callee_chunk.name, callee_chunk.param_count, argc
                         ),
                     ));
                 }
-                frame.ip += 1;
-                frames.push(state::CallFrame::new(
-                    callee_chunk,
-                    &callee_chunk.name,
-                    call_args,
-                    stack_capacity_hint(callee_chunk),
-                ));
+                let new_frame = {
+                    frame.ip += 1;
+                    state::CallFrame::from_stack(
+                        callee_chunk,
+                        &callee_chunk.name,
+                        &mut frame.stack,
+                        *argc,
+                        stack_capacity_hint(callee_chunk),
+                    )
+                };
+                frames.push(new_frame);
                 continue;
             }
             Instr::CallValue { argc } => {
@@ -419,15 +421,8 @@ pub(super) fn run_chunk(
                         ip,
                     ));
                 }
-                let call_args = calls::take_call_args(&mut frame.stack, *argc);
-                let Some(callee) = frame.stack.pop() else {
-                    return Err(err_at(
-                        VmErrorKind::StackUnderflow,
-                        "CallValue expects callable on stack",
-                        function_name,
-                        ip,
-                    ));
-                };
+                let callee_index = frame.stack.len() - *argc - 1;
+                let callee = frame.stack.remove(callee_index);
                 let (callee_chunk, callee_name) = calls::resolve_function_value(
                     env.module,
                     callee,
@@ -439,24 +434,26 @@ pub(super) fn run_chunk(
                         format!("Call stack limit exceeded ({})", opts.config.max_call_depth),
                     ));
                 }
-                if call_args.len() != callee_chunk.param_count {
+                if *argc != callee_chunk.param_count {
                     return Err(VmError::new(
                         VmErrorKind::ArityMismatch,
                         format!(
                             "Function `{}` arity mismatch: expected {}, got {}",
-                            callee_name,
-                            callee_chunk.param_count,
-                            call_args.len()
+                            callee_name, callee_chunk.param_count, argc
                         ),
                     ));
                 }
-                frame.ip += 1;
-                frames.push(state::CallFrame::new(
-                    callee_chunk,
-                    &callee_chunk.name,
-                    call_args,
-                    stack_capacity_hint(callee_chunk),
-                ));
+                let new_frame = {
+                    frame.ip += 1;
+                    state::CallFrame::from_stack(
+                        callee_chunk,
+                        &callee_chunk.name,
+                        &mut frame.stack,
+                        *argc,
+                        stack_capacity_hint(callee_chunk),
+                    )
+                };
+                frames.push(new_frame);
                 continue;
             }
             Instr::CallMethod {
@@ -472,15 +469,8 @@ pub(super) fn run_chunk(
                         ip,
                     ));
                 }
-                let mut call_args = calls::take_call_args(&mut frame.stack, *argc);
-                let Some(receiver) = frame.stack.pop() else {
-                    return Err(err_at(
-                        VmErrorKind::StackUnderflow,
-                        "CallMethod expects receiver",
-                        function_name,
-                        ip,
-                    ));
-                };
+                let receiver_index = frame.stack.len() - *argc - 1;
+                let receiver = frame.stack.remove(receiver_index);
                 let callee_chunk = calls::resolve_method(
                     env.module,
                     env.fn_table,
@@ -488,33 +478,35 @@ pub(super) fn run_chunk(
                     method_name,
                     calls::Site { function_name, ip },
                 )?;
-                let mut full_args = Vec::with_capacity(*argc + 1);
-                full_args.push(receiver);
-                full_args.append(&mut call_args);
                 if current_depth + opts.depth >= opts.config.max_call_depth {
                     return Err(VmError::new(
                         VmErrorKind::StackOverflow,
                         format!("Call stack limit exceeded ({})", opts.config.max_call_depth),
                     ));
                 }
-                if full_args.len() != callee_chunk.param_count {
+                if *argc + 1 != callee_chunk.param_count {
                     return Err(VmError::new(
                         VmErrorKind::ArityMismatch,
                         format!(
                             "Function `{}` arity mismatch: expected {}, got {}",
                             callee_chunk.name,
                             callee_chunk.param_count,
-                            full_args.len()
+                            argc + 1
                         ),
                     ));
                 }
-                frame.ip += 1;
-                frames.push(state::CallFrame::new(
-                    callee_chunk,
-                    &callee_chunk.name,
-                    full_args,
-                    stack_capacity_hint(callee_chunk),
-                ));
+                let new_frame = {
+                    frame.ip += 1;
+                    state::CallFrame::from_stack_with_removed_prefix_value(
+                        callee_chunk,
+                        &callee_chunk.name,
+                        &mut frame.stack,
+                        *argc,
+                        receiver,
+                        stack_capacity_hint(callee_chunk),
+                    )
+                };
+                frames.push(new_frame);
                 continue;
             }
             Instr::CallBuiltin {
