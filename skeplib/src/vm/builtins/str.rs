@@ -4,6 +4,7 @@ use super::{BuiltinHost, BuiltinRegistry, VmError, VmErrorKind};
 
 const MAX_STR_REPEAT_OUTPUT_BYTES: usize = 1_000_000;
 
+#[allow(dead_code)]
 pub(super) fn register(r: &mut BuiltinRegistry) {
     r.register("str", "len", builtin_str_len);
     r.register("str", "contains", builtin_str_contains);
@@ -20,7 +21,10 @@ pub(super) fn register(r: &mut BuiltinRegistry) {
     r.register("str", "repeat", builtin_str_repeat);
 }
 
-fn builtin_str_len(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+pub(crate) fn builtin_str_len(
+    _host: &mut dyn BuiltinHost,
+    args: Vec<Value>,
+) -> Result<Value, VmError> {
     if args.len() != 1 {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,
@@ -36,7 +40,10 @@ fn builtin_str_len(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Valu
     }
 }
 
-fn builtin_str_contains(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+pub(crate) fn builtin_str_contains(
+    _host: &mut dyn BuiltinHost,
+    args: Vec<Value>,
+) -> Result<Value, VmError> {
     if args.len() != 2 {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,
@@ -52,7 +59,7 @@ fn builtin_str_contains(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result
     }
 }
 
-fn builtin_str_starts_with(
+pub(crate) fn builtin_str_starts_with(
     _host: &mut dyn BuiltinHost,
     args: Vec<Value>,
 ) -> Result<Value, VmError> {
@@ -71,7 +78,10 @@ fn builtin_str_starts_with(
     }
 }
 
-fn builtin_str_ends_with(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+pub(crate) fn builtin_str_ends_with(
+    _host: &mut dyn BuiltinHost,
+    args: Vec<Value>,
+) -> Result<Value, VmError> {
     if args.len() != 2 {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,
@@ -87,7 +97,10 @@ fn builtin_str_ends_with(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Resul
     }
 }
 
-fn builtin_str_trim(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+pub(crate) fn builtin_str_trim(
+    _host: &mut dyn BuiltinHost,
+    args: Vec<Value>,
+) -> Result<Value, VmError> {
     if args.len() != 1 {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,
@@ -103,7 +116,10 @@ fn builtin_str_trim(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Val
     }
 }
 
-fn builtin_str_to_lower(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+pub(crate) fn builtin_str_to_lower(
+    _host: &mut dyn BuiltinHost,
+    args: Vec<Value>,
+) -> Result<Value, VmError> {
     if args.len() != 1 {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,
@@ -119,7 +135,10 @@ fn builtin_str_to_lower(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result
     }
 }
 
-fn builtin_str_to_upper(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+pub(crate) fn builtin_str_to_upper(
+    _host: &mut dyn BuiltinHost,
+    args: Vec<Value>,
+) -> Result<Value, VmError> {
     if args.len() != 1 {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,
@@ -135,7 +154,10 @@ fn builtin_str_to_upper(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result
     }
 }
 
-fn builtin_str_index_of(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+pub(crate) fn builtin_str_index_of(
+    _host: &mut dyn BuiltinHost,
+    args: Vec<Value>,
+) -> Result<Value, VmError> {
     if args.len() != 2 {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,
@@ -154,7 +176,10 @@ fn builtin_str_index_of(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result
     }
 }
 
-fn builtin_str_slice(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+pub(crate) fn builtin_str_slice(
+    _host: &mut dyn BuiltinHost,
+    args: Vec<Value>,
+) -> Result<Value, VmError> {
     if args.len() != 3 {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,
@@ -186,7 +211,10 @@ fn builtin_str_slice(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Va
     Ok(Value::String(out))
 }
 
-fn builtin_str_is_empty(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+pub(crate) fn builtin_str_is_empty(
+    _host: &mut dyn BuiltinHost,
+    args: Vec<Value>,
+) -> Result<Value, VmError> {
     if args.len() != 1 {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,
@@ -202,7 +230,7 @@ fn builtin_str_is_empty(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result
     }
 }
 
-fn builtin_str_last_index_of(
+pub(crate) fn builtin_str_last_index_of(
     _host: &mut dyn BuiltinHost,
     args: Vec<Value>,
 ) -> Result<Value, VmError> {
@@ -224,7 +252,10 @@ fn builtin_str_last_index_of(
     }
 }
 
-fn builtin_str_replace(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+pub(crate) fn builtin_str_replace(
+    _host: &mut dyn BuiltinHost,
+    args: Vec<Value>,
+) -> Result<Value, VmError> {
     if args.len() != 3 {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,
@@ -242,7 +273,10 @@ fn builtin_str_replace(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<
     }
 }
 
-fn builtin_str_repeat(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+pub(crate) fn builtin_str_repeat(
+    _host: &mut dyn BuiltinHost,
+    args: Vec<Value>,
+) -> Result<Value, VmError> {
     if args.len() != 2 {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,

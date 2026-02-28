@@ -2,7 +2,7 @@ use crate::bytecode::Value;
 
 use super::super::{BuiltinHost, VmError, VmErrorKind};
 
-pub(super) fn builtin_arr_len(
+pub(crate) fn builtin_arr_len(
     _host: &mut dyn BuiltinHost,
     args: Vec<Value>,
 ) -> Result<Value, VmError> {
@@ -21,7 +21,7 @@ pub(super) fn builtin_arr_len(
     }
 }
 
-pub(super) fn builtin_arr_is_empty(
+pub(crate) fn builtin_arr_is_empty(
     _host: &mut dyn BuiltinHost,
     args: Vec<Value>,
 ) -> Result<Value, VmError> {
@@ -40,7 +40,7 @@ pub(super) fn builtin_arr_is_empty(
     }
 }
 
-pub(super) fn builtin_arr_contains(
+pub(crate) fn builtin_arr_contains(
     _host: &mut dyn BuiltinHost,
     args: Vec<Value>,
 ) -> Result<Value, VmError> {
@@ -59,7 +59,7 @@ pub(super) fn builtin_arr_contains(
     }
 }
 
-pub(super) fn builtin_arr_index_of(
+pub(crate) fn builtin_arr_index_of(
     _host: &mut dyn BuiltinHost,
     args: Vec<Value>,
 ) -> Result<Value, VmError> {
@@ -85,7 +85,7 @@ pub(super) fn builtin_arr_index_of(
     }
 }
 
-pub(super) fn builtin_arr_count(
+pub(crate) fn builtin_arr_count(
     _host: &mut dyn BuiltinHost,
     args: Vec<Value>,
 ) -> Result<Value, VmError> {
@@ -107,7 +107,7 @@ pub(super) fn builtin_arr_count(
     }
 }
 
-pub(super) fn builtin_arr_first(
+pub(crate) fn builtin_arr_first(
     _host: &mut dyn BuiltinHost,
     args: Vec<Value>,
 ) -> Result<Value, VmError> {
@@ -129,7 +129,7 @@ pub(super) fn builtin_arr_first(
     }
 }
 
-pub(super) fn builtin_arr_last(
+pub(crate) fn builtin_arr_last(
     _host: &mut dyn BuiltinHost,
     args: Vec<Value>,
 ) -> Result<Value, VmError> {

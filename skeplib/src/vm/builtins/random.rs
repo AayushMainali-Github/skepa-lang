@@ -2,13 +2,17 @@ use crate::bytecode::Value;
 
 use super::{BuiltinHost, BuiltinRegistry, VmError, VmErrorKind};
 
+#[allow(dead_code)]
 pub(super) fn register(r: &mut BuiltinRegistry) {
     r.register("random", "seed", builtin_random_seed);
     r.register("random", "int", builtin_random_int);
     r.register("random", "float", builtin_random_float);
 }
 
-fn builtin_random_seed(host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+pub(crate) fn builtin_random_seed(
+    host: &mut dyn BuiltinHost,
+    args: Vec<Value>,
+) -> Result<Value, VmError> {
     if args.len() != 1 {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,
@@ -25,7 +29,10 @@ fn builtin_random_seed(host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<V
     Ok(Value::Unit)
 }
 
-fn builtin_random_int(host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+pub(crate) fn builtin_random_int(
+    host: &mut dyn BuiltinHost,
+    args: Vec<Value>,
+) -> Result<Value, VmError> {
     if args.len() != 2 {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,
@@ -56,7 +63,10 @@ fn builtin_random_int(host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Va
     Ok(Value::Int(min + offset))
 }
 
-fn builtin_random_float(host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+pub(crate) fn builtin_random_float(
+    host: &mut dyn BuiltinHost,
+    args: Vec<Value>,
+) -> Result<Value, VmError> {
     if !args.is_empty() {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,

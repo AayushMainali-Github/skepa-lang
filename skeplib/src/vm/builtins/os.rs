@@ -2,6 +2,7 @@ use crate::bytecode::Value;
 
 use super::{BuiltinHost, BuiltinRegistry, VmError, VmErrorKind};
 
+#[allow(dead_code)]
 pub(super) fn register(r: &mut BuiltinRegistry) {
     r.register("os", "cwd", builtin_os_cwd);
     r.register("os", "platform", builtin_os_platform);
@@ -22,7 +23,10 @@ fn shell_command(cmd: &str) -> std::process::Command {
     }
 }
 
-fn builtin_os_cwd(_host: &mut dyn BuiltinHost, _args: Vec<Value>) -> Result<Value, VmError> {
+pub(crate) fn builtin_os_cwd(
+    _host: &mut dyn BuiltinHost,
+    _args: Vec<Value>,
+) -> Result<Value, VmError> {
     if !_args.is_empty() {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,
@@ -34,7 +38,10 @@ fn builtin_os_cwd(_host: &mut dyn BuiltinHost, _args: Vec<Value>) -> Result<Valu
     Ok(Value::String(cwd.to_string_lossy().into_owned()))
 }
 
-fn builtin_os_platform(_host: &mut dyn BuiltinHost, _args: Vec<Value>) -> Result<Value, VmError> {
+pub(crate) fn builtin_os_platform(
+    _host: &mut dyn BuiltinHost,
+    _args: Vec<Value>,
+) -> Result<Value, VmError> {
     if !_args.is_empty() {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,
@@ -51,7 +58,10 @@ fn builtin_os_platform(_host: &mut dyn BuiltinHost, _args: Vec<Value>) -> Result
     Ok(Value::String(name.to_string()))
 }
 
-fn builtin_os_sleep(_host: &mut dyn BuiltinHost, _args: Vec<Value>) -> Result<Value, VmError> {
+pub(crate) fn builtin_os_sleep(
+    _host: &mut dyn BuiltinHost,
+    _args: Vec<Value>,
+) -> Result<Value, VmError> {
     if _args.len() != 1 {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,
@@ -74,7 +84,10 @@ fn builtin_os_sleep(_host: &mut dyn BuiltinHost, _args: Vec<Value>) -> Result<Va
     Ok(Value::Unit)
 }
 
-fn builtin_os_exec_shell(_host: &mut dyn BuiltinHost, _args: Vec<Value>) -> Result<Value, VmError> {
+pub(crate) fn builtin_os_exec_shell(
+    _host: &mut dyn BuiltinHost,
+    _args: Vec<Value>,
+) -> Result<Value, VmError> {
     if _args.len() != 1 {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,
@@ -93,7 +106,7 @@ fn builtin_os_exec_shell(_host: &mut dyn BuiltinHost, _args: Vec<Value>) -> Resu
     Ok(Value::Int(status.code().unwrap_or(-1) as i64))
 }
 
-fn builtin_os_exec_shell_out(
+pub(crate) fn builtin_os_exec_shell_out(
     _host: &mut dyn BuiltinHost,
     _args: Vec<Value>,
 ) -> Result<Value, VmError> {

@@ -1,5 +1,8 @@
 use crate::bytecode::{BytecodeModule, FunctionChunk, Value};
 use crate::vm::{BuiltinHost, BuiltinRegistry, VmError, VmErrorKind};
+use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
+use std::sync::{Mutex, OnceLock};
 
 pub(super) struct CallEnv<'a> {
     pub module: &'a BytecodeModule,
@@ -13,6 +16,65 @@ pub(super) struct CallEnv<'a> {
 pub(super) struct Site<'a> {
     pub function_name: &'a str,
     pub ip: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct ModuleCacheKey {
+    ptr: usize,
+    len: usize,
+    name_fingerprint: u64,
+}
+
+type MethodMap = HashMap<String, HashMap<String, usize>>;
+type MethodCache = HashMap<ModuleCacheKey, MethodMap>;
+
+fn module_cache_key(module: &BytecodeModule) -> ModuleCacheKey {
+    let mut name_fingerprint = 0u64;
+    for name in module.functions.keys() {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        name.hash(&mut hasher);
+        name_fingerprint ^= hasher.finish();
+    }
+    ModuleCacheKey {
+        ptr: module as *const BytecodeModule as usize,
+        len: module.functions.len(),
+        name_fingerprint,
+    }
+}
+
+fn resolve_method_idx(
+    module: &BytecodeModule,
+    fn_table: &[&FunctionChunk],
+    struct_name: &str,
+    method_name: &str,
+) -> Option<usize> {
+    static METHOD_CACHE: OnceLock<Mutex<MethodCache>> = OnceLock::new();
+    let cache = METHOD_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    let module_key = module_cache_key(module);
+
+    {
+        let cache = cache.lock().expect("method cache poisoned");
+        if let Some(idx) = cache
+            .get(&module_key)
+            .and_then(|methods| methods.get(struct_name))
+            .and_then(|methods| methods.get(method_name))
+            .copied()
+        {
+            return Some(idx);
+        }
+    }
+
+    let mangled = format!("__impl_{struct_name}__{method_name}");
+    let idx = fn_table.iter().position(|chunk| chunk.name == mangled)?;
+
+    let mut cache = cache.lock().expect("method cache poisoned");
+    cache
+        .entry(module_key)
+        .or_default()
+        .entry(struct_name.to_string())
+        .or_default()
+        .insert(method_name.to_string(), idx);
+    Some(idx)
 }
 
 fn take_call_args(stack: &mut Vec<Value>, argc: usize) -> Vec<Value> {
@@ -236,8 +298,7 @@ pub(super) fn call_method(
             site.ip,
         ));
     };
-    let mut callee_name = String::new();
-    let chunk = {
+    let (callee_idx, chunk) = {
         let Value::Struct { name, .. } = &receiver else {
             return Err(super::err_at(
                 VmErrorKind::TypeMismatch,
@@ -246,12 +307,8 @@ pub(super) fn call_method(
                 site.ip,
             ));
         };
-        callee_name.reserve("__impl_".len() + name.len() + 2 + method_name.len());
-        callee_name.push_str("__impl_");
-        callee_name.push_str(name);
-        callee_name.push_str("__");
-        callee_name.push_str(method_name);
-        let Some(chunk) = env.module.functions.get(&callee_name) else {
+        let Some(callee_idx) = resolve_method_idx(env.module, env.fn_table, name, method_name)
+        else {
             return Err(super::err_at(
                 VmErrorKind::UnknownFunction,
                 format!("Unknown method `{}` on struct `{}`", method_name, name),
@@ -259,7 +316,8 @@ pub(super) fn call_method(
                 site.ip,
             ));
         };
-        chunk
+        let chunk = env.fn_table[callee_idx];
+        (callee_idx, chunk)
     };
     let mut full_args = Vec::with_capacity(argc + 1);
     full_args.push(receiver);
@@ -273,7 +331,7 @@ pub(super) fn call_method(
             reg: env.reg,
         },
         chunk,
-        &callee_name,
+        &env.fn_table[callee_idx].name,
         full_args,
         super::RunOptions {
             depth: env.opts.depth + 1,

@@ -2,6 +2,7 @@ use crate::bytecode::Value;
 
 use super::{BuiltinHost, BuiltinRegistry, VmError, VmErrorKind};
 
+#[allow(dead_code)]
 pub(super) fn register(r: &mut BuiltinRegistry) {
     r.register("fs", "exists", builtin_fs_exists);
     r.register("fs", "readText", builtin_fs_read_text);
@@ -13,7 +14,10 @@ pub(super) fn register(r: &mut BuiltinRegistry) {
     r.register("fs", "join", builtin_fs_join);
 }
 
-fn builtin_fs_exists(_host: &mut dyn BuiltinHost, _args: Vec<Value>) -> Result<Value, VmError> {
+pub(crate) fn builtin_fs_exists(
+    _host: &mut dyn BuiltinHost,
+    _args: Vec<Value>,
+) -> Result<Value, VmError> {
     if _args.len() != 1 {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,
@@ -32,7 +36,10 @@ fn builtin_fs_exists(_host: &mut dyn BuiltinHost, _args: Vec<Value>) -> Result<V
     Ok(Value::Bool(exists))
 }
 
-fn builtin_fs_read_text(_host: &mut dyn BuiltinHost, _args: Vec<Value>) -> Result<Value, VmError> {
+pub(crate) fn builtin_fs_read_text(
+    _host: &mut dyn BuiltinHost,
+    _args: Vec<Value>,
+) -> Result<Value, VmError> {
     if _args.len() != 1 {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,
@@ -50,7 +57,10 @@ fn builtin_fs_read_text(_host: &mut dyn BuiltinHost, _args: Vec<Value>) -> Resul
     Ok(Value::String(text))
 }
 
-fn builtin_fs_write_text(_host: &mut dyn BuiltinHost, _args: Vec<Value>) -> Result<Value, VmError> {
+pub(crate) fn builtin_fs_write_text(
+    _host: &mut dyn BuiltinHost,
+    _args: Vec<Value>,
+) -> Result<Value, VmError> {
     if _args.len() != 2 {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,
@@ -74,7 +84,7 @@ fn builtin_fs_write_text(_host: &mut dyn BuiltinHost, _args: Vec<Value>) -> Resu
     Ok(Value::Unit)
 }
 
-fn builtin_fs_append_text(
+pub(crate) fn builtin_fs_append_text(
     _host: &mut dyn BuiltinHost,
     _args: Vec<Value>,
 ) -> Result<Value, VmError> {
@@ -107,7 +117,10 @@ fn builtin_fs_append_text(
     Ok(Value::Unit)
 }
 
-fn builtin_fs_mkdir_all(_host: &mut dyn BuiltinHost, _args: Vec<Value>) -> Result<Value, VmError> {
+pub(crate) fn builtin_fs_mkdir_all(
+    _host: &mut dyn BuiltinHost,
+    _args: Vec<Value>,
+) -> Result<Value, VmError> {
     if _args.len() != 1 {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,
@@ -125,7 +138,7 @@ fn builtin_fs_mkdir_all(_host: &mut dyn BuiltinHost, _args: Vec<Value>) -> Resul
     Ok(Value::Unit)
 }
 
-fn builtin_fs_remove_file(
+pub(crate) fn builtin_fs_remove_file(
     _host: &mut dyn BuiltinHost,
     _args: Vec<Value>,
 ) -> Result<Value, VmError> {
@@ -146,7 +159,7 @@ fn builtin_fs_remove_file(
     Ok(Value::Unit)
 }
 
-fn builtin_fs_remove_dir_all(
+pub(crate) fn builtin_fs_remove_dir_all(
     _host: &mut dyn BuiltinHost,
     _args: Vec<Value>,
 ) -> Result<Value, VmError> {
@@ -171,7 +184,10 @@ fn builtin_fs_remove_dir_all(
     Ok(Value::Unit)
 }
 
-fn builtin_fs_join(_host: &mut dyn BuiltinHost, _args: Vec<Value>) -> Result<Value, VmError> {
+pub(crate) fn builtin_fs_join(
+    _host: &mut dyn BuiltinHost,
+    _args: Vec<Value>,
+) -> Result<Value, VmError> {
     if _args.len() != 2 {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,

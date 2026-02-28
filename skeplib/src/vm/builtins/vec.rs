@@ -2,6 +2,7 @@ use crate::bytecode::Value;
 
 use super::{BuiltinHost, BuiltinRegistry, VmError, VmErrorKind};
 
+#[allow(dead_code)]
 pub(super) fn register(r: &mut BuiltinRegistry) {
     r.register("vec", "new", builtin_vec_new);
     r.register("vec", "len", builtin_vec_len);
@@ -31,7 +32,10 @@ fn expect_int(arg: &Value, fn_name: &str, arg_pos: usize) -> Result<i64, VmError
     }
 }
 
-fn builtin_vec_new(host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+pub(crate) fn builtin_vec_new(
+    host: &mut dyn BuiltinHost,
+    args: Vec<Value>,
+) -> Result<Value, VmError> {
     if !args.is_empty() {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,
@@ -41,7 +45,10 @@ fn builtin_vec_new(host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value
     Ok(Value::VecHandle(host.vec_new()?))
 }
 
-fn builtin_vec_len(host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+pub(crate) fn builtin_vec_len(
+    host: &mut dyn BuiltinHost,
+    args: Vec<Value>,
+) -> Result<Value, VmError> {
     if args.len() != 1 {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,
@@ -52,7 +59,10 @@ fn builtin_vec_len(host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value
     Ok(Value::Int(host.vec_len(id)? as i64))
 }
 
-fn builtin_vec_push(host: &mut dyn BuiltinHost, mut args: Vec<Value>) -> Result<Value, VmError> {
+pub(crate) fn builtin_vec_push(
+    host: &mut dyn BuiltinHost,
+    mut args: Vec<Value>,
+) -> Result<Value, VmError> {
     if args.len() != 2 {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,
@@ -66,7 +76,10 @@ fn builtin_vec_push(host: &mut dyn BuiltinHost, mut args: Vec<Value>) -> Result<
     Ok(Value::Unit)
 }
 
-fn builtin_vec_get(host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+pub(crate) fn builtin_vec_get(
+    host: &mut dyn BuiltinHost,
+    args: Vec<Value>,
+) -> Result<Value, VmError> {
     if args.len() != 2 {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,
@@ -78,7 +91,10 @@ fn builtin_vec_get(host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value
     host.vec_get(id, idx)
 }
 
-fn builtin_vec_set(host: &mut dyn BuiltinHost, mut args: Vec<Value>) -> Result<Value, VmError> {
+pub(crate) fn builtin_vec_set(
+    host: &mut dyn BuiltinHost,
+    mut args: Vec<Value>,
+) -> Result<Value, VmError> {
     if args.len() != 3 {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,
@@ -94,7 +110,10 @@ fn builtin_vec_set(host: &mut dyn BuiltinHost, mut args: Vec<Value>) -> Result<V
     Ok(Value::Unit)
 }
 
-fn builtin_vec_delete(host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+pub(crate) fn builtin_vec_delete(
+    host: &mut dyn BuiltinHost,
+    args: Vec<Value>,
+) -> Result<Value, VmError> {
     if args.len() != 2 {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,

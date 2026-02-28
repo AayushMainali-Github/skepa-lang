@@ -2,7 +2,7 @@ use crate::bytecode::Value;
 
 use super::super::{BuiltinHost, VmError, VmErrorKind};
 
-pub(super) fn builtin_arr_join(
+pub(crate) fn builtin_arr_join(
     _host: &mut dyn BuiltinHost,
     args: Vec<Value>,
 ) -> Result<Value, VmError> {

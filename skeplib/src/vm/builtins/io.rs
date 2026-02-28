@@ -2,6 +2,7 @@ use crate::bytecode::Value;
 
 use super::{BuiltinHost, BuiltinRegistry, VmError, VmErrorKind};
 
+#[allow(dead_code)]
 pub(super) fn register(r: &mut BuiltinRegistry) {
     r.register("io", "print", builtin_io_print);
     r.register("io", "println", builtin_io_println);
@@ -14,7 +15,10 @@ pub(super) fn register(r: &mut BuiltinRegistry) {
     r.register("io", "readLine", builtin_io_readline);
 }
 
-fn builtin_io_print(host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+pub(crate) fn builtin_io_print(
+    host: &mut dyn BuiltinHost,
+    args: Vec<Value>,
+) -> Result<Value, VmError> {
     if args.len() != 1 {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,
@@ -33,7 +37,10 @@ fn builtin_io_print(host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Valu
     Ok(Value::Unit)
 }
 
-fn builtin_io_println(host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+pub(crate) fn builtin_io_println(
+    host: &mut dyn BuiltinHost,
+    args: Vec<Value>,
+) -> Result<Value, VmError> {
     if args.len() != 1 {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,
@@ -52,7 +59,10 @@ fn builtin_io_println(host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Va
     Ok(Value::Unit)
 }
 
-fn builtin_io_readline(host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+pub(crate) fn builtin_io_readline(
+    host: &mut dyn BuiltinHost,
+    args: Vec<Value>,
+) -> Result<Value, VmError> {
     if !args.is_empty() {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,
@@ -62,7 +72,10 @@ fn builtin_io_readline(host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<V
     Ok(Value::String(host.read_line()?))
 }
 
-fn builtin_io_print_int(host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+pub(crate) fn builtin_io_print_int(
+    host: &mut dyn BuiltinHost,
+    args: Vec<Value>,
+) -> Result<Value, VmError> {
     if args.len() != 1 {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,
@@ -81,7 +94,10 @@ fn builtin_io_print_int(host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<
     Ok(Value::Unit)
 }
 
-fn builtin_io_print_float(host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+pub(crate) fn builtin_io_print_float(
+    host: &mut dyn BuiltinHost,
+    args: Vec<Value>,
+) -> Result<Value, VmError> {
     if args.len() != 1 {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,
@@ -100,7 +116,10 @@ fn builtin_io_print_float(host: &mut dyn BuiltinHost, args: Vec<Value>) -> Resul
     Ok(Value::Unit)
 }
 
-fn builtin_io_print_bool(host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+pub(crate) fn builtin_io_print_bool(
+    host: &mut dyn BuiltinHost,
+    args: Vec<Value>,
+) -> Result<Value, VmError> {
     if args.len() != 1 {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,
@@ -119,7 +138,10 @@ fn builtin_io_print_bool(host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result
     Ok(Value::Unit)
 }
 
-fn builtin_io_print_string(host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+pub(crate) fn builtin_io_print_string(
+    host: &mut dyn BuiltinHost,
+    args: Vec<Value>,
+) -> Result<Value, VmError> {
     if args.len() != 1 {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,
@@ -240,7 +262,10 @@ fn render_format(fmt: &str, values: &[Value]) -> Result<String, VmError> {
     Ok(out)
 }
 
-fn builtin_io_format(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+pub(crate) fn builtin_io_format(
+    _host: &mut dyn BuiltinHost,
+    args: Vec<Value>,
+) -> Result<Value, VmError> {
     if args.is_empty() {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,
@@ -257,7 +282,10 @@ fn builtin_io_format(_host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Va
     Ok(Value::String(rendered))
 }
 
-fn builtin_io_printf(host: &mut dyn BuiltinHost, args: Vec<Value>) -> Result<Value, VmError> {
+pub(crate) fn builtin_io_printf(
+    host: &mut dyn BuiltinHost,
+    args: Vec<Value>,
+) -> Result<Value, VmError> {
     if args.is_empty() {
         return Err(VmError::new(
             VmErrorKind::ArityMismatch,
