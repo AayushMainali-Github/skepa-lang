@@ -170,36 +170,66 @@ impl ProfileSession {
             .started_at
             .map(|started| started.elapsed())
             .unwrap_or_default();
+        let total_ms = total.as_secs_f64() * 1_000.0;
         eprintln!(
             "[vm-profile] session={} total_ms={:.3}",
-            self.label,
-            total.as_secs_f64() * 1_000.0
+            self.label, total_ms
         );
-        eprintln!(
-            "[vm-profile] ops total={} load_const={} load_local={} store_local={} load_global={} store_global={} pop={} arith={} compare={} logical={} jump={} call={} builtin={} array={} struct={} return={}",
-            self.ops.total,
-            self.ops.load_const,
-            self.ops.load_local,
-            self.ops.store_local,
-            self.ops.load_global,
-            self.ops.store_global,
-            self.ops.pop,
-            self.ops.arith,
-            self.ops.compare,
-            self.ops.logical,
-            self.ops.jump,
-            self.ops.call,
-            self.ops.builtin,
-            self.ops.array,
-            self.ops.structure,
-            self.ops.ret,
-        );
-        for (name, stats) in &self.events {
+        let mut op_rows = vec![
+            ("load_const", self.ops.load_const),
+            ("load_local", self.ops.load_local),
+            ("store_local", self.ops.store_local),
+            ("load_global", self.ops.load_global),
+            ("store_global", self.ops.store_global),
+            ("pop", self.ops.pop),
+            ("arith", self.ops.arith),
+            ("compare", self.ops.compare),
+            ("logical", self.ops.logical),
+            ("jump", self.ops.jump),
+            ("call", self.ops.call),
+            ("builtin", self.ops.builtin),
+            ("array", self.ops.array),
+            ("struct", self.ops.structure),
+            ("return", self.ops.ret),
+        ];
+        op_rows.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(b.0)));
+        eprintln!("[vm-profile] op_breakdown total={}", self.ops.total);
+        for (name, count) in op_rows.into_iter().filter(|(_, count)| *count > 0) {
+            let pct = if self.ops.total == 0 {
+                0.0
+            } else {
+                (count as f64 / self.ops.total as f64) * 100.0
+            };
+            eprintln!("[vm-profile] op={} count={} pct={:.1}", name, count, pct);
+        }
+
+        let mut event_rows = self
+            .events
+            .iter()
+            .map(|(name, stats)| {
+                (
+                    *name,
+                    stats.count,
+                    stats.total,
+                    stats.total.as_secs_f64() * 1_000.0,
+                )
+            })
+            .collect::<Vec<_>>();
+        event_rows.sort_by(|a, b| b.2.cmp(&a.2).then_with(|| a.0.cmp(b.0)));
+        for (name, count, _, event_total_ms) in event_rows {
+            let pct = if total_ms <= f64::EPSILON {
+                0.0
+            } else {
+                (event_total_ms / total_ms) * 100.0
+            };
+            let avg_us = if count == 0 {
+                0.0
+            } else {
+                (event_total_ms * 1_000.0) / count as f64
+            };
             eprintln!(
-                "[vm-profile] event={} count={} total_ms={:.3}",
-                name,
-                stats.count,
-                stats.total.as_secs_f64() * 1_000.0
+                "[vm-profile] event={} count={} total_ms={:.3} pct={:.1} avg_us={:.3}",
+                name, count, event_total_ms, pct, avg_us
             );
         }
     }

@@ -55,16 +55,26 @@ impl PhaseProfiler {
         let Some(started_at) = self.started_at else {
             return;
         };
+        let total_ms = started_at.elapsed().as_secs_f64() * 1_000.0;
         eprintln!(
             "[run-profile] session={} total_ms={:.3}",
-            self.label,
-            started_at.elapsed().as_secs_f64() * 1_000.0
+            self.label, total_ms
         );
-        for (phase, elapsed) in &self.phases {
+        let mut phases = self
+            .phases
+            .iter()
+            .map(|(phase, elapsed)| (*phase, *elapsed, elapsed.as_secs_f64() * 1_000.0))
+            .collect::<Vec<_>>();
+        phases.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(b.0)));
+        for (phase, _, phase_ms) in phases {
+            let pct = if total_ms <= f64::EPSILON {
+                0.0
+            } else {
+                (phase_ms / total_ms) * 100.0
+            };
             eprintln!(
-                "[run-profile] phase={} total_ms={:.3}",
-                phase,
-                elapsed.as_secs_f64() * 1_000.0
+                "[run-profile] phase={} total_ms={:.3} pct={:.1}",
+                phase, phase_ms, pct
             );
         }
     }
