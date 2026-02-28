@@ -41,6 +41,7 @@ pub(super) fn call(
     env: &mut CallEnv<'_>,
     site: Site<'_>,
 ) -> Result<(), VmError> {
+    let _timer = super::super::profiler::ScopedTimer::new(super::super::profiler::Event::Call);
     if stack.len() < argc {
         return Err(super::err_at(
             VmErrorKind::StackUnderflow,
@@ -85,6 +86,7 @@ pub(super) fn call_idx(
     env: &mut CallEnv<'_>,
     site: Site<'_>,
 ) -> Result<(), VmError> {
+    let _timer = super::super::profiler::ScopedTimer::new(super::super::profiler::Event::CallIdx);
     if stack.len() < argc {
         return Err(super::err_at(
             VmErrorKind::StackUnderflow,
@@ -128,6 +130,7 @@ pub(super) fn call_value(
     env: &mut CallEnv<'_>,
     site: Site<'_>,
 ) -> Result<(), VmError> {
+    let _timer = super::super::profiler::ScopedTimer::new(super::super::profiler::Event::CallValue);
     if stack.len() < argc + 1 {
         return Err(super::err_at(
             VmErrorKind::StackUnderflow,
@@ -189,6 +192,8 @@ pub(super) fn call_builtin(
     env: &mut CallEnv<'_>,
     site: Site<'_>,
 ) -> Result<(), VmError> {
+    let _timer =
+        super::super::profiler::ScopedTimer::new(super::super::profiler::Event::CallBuiltin);
     if stack.len() < argc {
         return Err(super::err_at(
             VmErrorKind::StackUnderflow,
@@ -198,6 +203,8 @@ pub(super) fn call_builtin(
         ));
     }
     let call_args = take_call_args(stack, argc);
+    let _dispatch_timer =
+        super::super::profiler::ScopedTimer::new(super::super::profiler::Event::BuiltinDispatch);
     let ret = env.reg.call(env.host, package, name, call_args)?;
     stack.push(ret);
     Ok(())
@@ -210,6 +217,8 @@ pub(super) fn call_method(
     env: &mut CallEnv<'_>,
     site: Site<'_>,
 ) -> Result<(), VmError> {
+    let _timer =
+        super::super::profiler::ScopedTimer::new(super::super::profiler::Event::CallMethod);
     if stack.len() < argc + 1 {
         return Err(super::err_at(
             VmErrorKind::StackUnderflow,

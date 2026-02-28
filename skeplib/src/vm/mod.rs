@@ -12,6 +12,7 @@ mod config;
 mod error;
 mod host;
 mod host_trait;
+mod profiler;
 mod runner;
 
 use crate::bytecode::{BytecodeModule, FunctionChunk, Value};
@@ -40,6 +41,8 @@ impl Vm {
         module: &BytecodeModule,
         config: VmConfig,
     ) -> Result<Value, VmError> {
+        let _profile_session = profiler::SessionGuard::start("run_module_main");
+        let _startup_timer = profiler::ScopedTimer::new(profiler::Event::VmStartup);
         let mut host = StdIoHost::default();
         let reg = BuiltinRegistry::with_defaults();
         let fn_table = Self::function_table(module);
@@ -50,6 +53,7 @@ impl Vm {
             .unwrap_or(0);
         let mut globals = vec![Value::Unit; globals_init_locals];
         if module.functions.contains_key("__globals_init") {
+            let _globals_timer = profiler::ScopedTimer::new(profiler::Event::GlobalsInit);
             let mut env = runner::ExecEnv {
                 module,
                 fn_table: &fn_table,
@@ -71,6 +75,7 @@ impl Vm {
             host: &mut host,
             reg: &reg,
         };
+        let _main_timer = profiler::ScopedTimer::new(profiler::Event::MainRun);
         runner::run_function(
             &mut env,
             "main",
@@ -83,6 +88,8 @@ impl Vm {
         module: &BytecodeModule,
         host: &mut dyn BuiltinHost,
     ) -> Result<Value, VmError> {
+        let _profile_session = profiler::SessionGuard::start("run_module_main_with_host");
+        let _startup_timer = profiler::ScopedTimer::new(profiler::Event::VmStartup);
         let reg = BuiltinRegistry::with_defaults();
         let fn_table = Self::function_table(module);
         let globals_init_locals = module
@@ -92,6 +99,7 @@ impl Vm {
             .unwrap_or(0);
         let mut globals = vec![Value::Unit; globals_init_locals];
         if module.functions.contains_key("__globals_init") {
+            let _globals_timer = profiler::ScopedTimer::new(profiler::Event::GlobalsInit);
             let mut env = runner::ExecEnv {
                 module,
                 fn_table: &fn_table,
@@ -116,6 +124,7 @@ impl Vm {
             host,
             reg: &reg,
         };
+        let _main_timer = profiler::ScopedTimer::new(profiler::Event::MainRun);
         runner::run_function(
             &mut env,
             "main",
@@ -132,6 +141,8 @@ impl Vm {
         host: &mut dyn BuiltinHost,
         reg: &BuiltinRegistry,
     ) -> Result<Value, VmError> {
+        let _profile_session = profiler::SessionGuard::start("run_module_main_with_registry");
+        let _startup_timer = profiler::ScopedTimer::new(profiler::Event::VmStartup);
         let fn_table = Self::function_table(module);
         let globals_init_locals = module
             .functions
@@ -140,6 +151,7 @@ impl Vm {
             .unwrap_or(0);
         let mut globals = vec![Value::Unit; globals_init_locals];
         if module.functions.contains_key("__globals_init") {
+            let _globals_timer = profiler::ScopedTimer::new(profiler::Event::GlobalsInit);
             let mut env = runner::ExecEnv {
                 module,
                 fn_table: &fn_table,
@@ -164,6 +176,7 @@ impl Vm {
             host,
             reg,
         };
+        let _main_timer = profiler::ScopedTimer::new(profiler::Event::MainRun);
         runner::run_function(
             &mut env,
             "main",

@@ -47,6 +47,7 @@ pub(super) fn run_chunk(
     args: Vec<Value>,
     opts: RunOptions,
 ) -> Result<Value, VmError> {
+    let _chunk_timer = super::profiler::ScopedTimer::new(super::profiler::Event::RunChunk);
     let profile_ops = std::env::var_os("SKEPA_VM_PROFILE_OPS").is_some();
     let mut prof_load_local = 0u64;
     let mut prof_store_local = 0u64;
@@ -81,6 +82,7 @@ pub(super) fn run_chunk(
         if opts.config.trace {
             eprintln!("[trace] {}@{} {:?}", function_name, ip, chunk.code[ip]);
         }
+        super::profiler::record_instr(&chunk.code[ip]);
         match &chunk.code[ip] {
             Instr::LoadConst(v) => state.push_const(v.clone()),
             Instr::LoadLocal(slot) => {
