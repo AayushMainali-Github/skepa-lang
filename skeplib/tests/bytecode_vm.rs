@@ -583,7 +583,7 @@ fn vm_reports_unknown_struct_field_with_clear_message() {
                 code: vec![
                     Instr::LoadConst(Value::Struct {
                         name: "User".to_string(),
-                        fields: vec![("id".to_string(), Value::Int(1))],
+                        fields: vec![("id".to_string(), Value::Int(1))].into(),
                     }),
                     Instr::StructGet("name".to_string()),
                     Instr::Return,
@@ -613,7 +613,7 @@ fn vm_reports_struct_set_path_with_non_struct_intermediate() {
                 code: vec![
                     Instr::LoadConst(Value::Struct {
                         name: "User".to_string(),
-                        fields: vec![("id".to_string(), Value::Int(1))],
+                        fields: vec![("id".to_string(), Value::Int(1))].into(),
                     }),
                     Instr::LoadConst(Value::Int(42)),
                     Instr::StructSetPath(vec!["id".to_string(), "x".to_string()]),
@@ -641,7 +641,7 @@ fn vm_reports_struct_set_path_with_empty_path() {
                 code: vec![
                     Instr::LoadConst(Value::Struct {
                         name: "User".to_string(),
-                        fields: vec![("id".to_string(), Value::Int(1))],
+                        fields: vec![("id".to_string(), Value::Int(1))].into(),
                     }),
                     Instr::LoadConst(Value::Int(42)),
                     Instr::StructSetPath(vec![]),

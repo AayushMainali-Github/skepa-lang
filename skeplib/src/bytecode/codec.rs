@@ -115,7 +115,7 @@ fn encode_value(v: &Value, out: &mut Vec<u8>) {
             write_u8(out, 7);
             write_str(out, name);
             write_u32(out, fields.len() as u32);
-            for (k, v) in fields {
+            for (k, v) in fields.iter() {
                 write_str(out, k);
                 encode_value(v, out);
             }
@@ -307,7 +307,10 @@ fn decode_value(rd: &mut Reader<'_>) -> Result<Value, String> {
                 let value = decode_value(rd)?;
                 fields.push((key, value));
             }
-            Ok(Value::Struct { name, fields })
+            Ok(Value::Struct {
+                name,
+                fields: Rc::<[(String, Value)]>::from(fields),
+            })
         }
         t => Err(format!("Unknown value tag {t}")),
     }

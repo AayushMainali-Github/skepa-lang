@@ -1,6 +1,7 @@
 use crate::bytecode::Value;
 use crate::vm::{VmError, VmErrorKind};
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::sync::{Mutex, OnceLock};
 
 type FieldSlotCache = HashMap<String, HashMap<String, usize>>;
@@ -51,7 +52,7 @@ pub(super) fn make_struct(
     let zipped = fields.iter().cloned().zip(values).collect::<Vec<_>>();
     stack.push(Value::Struct {
         name: name.to_string(),
-        fields: zipped,
+        fields: Rc::<[(String, Value)]>::from(zipped),
     });
     Ok(())
 }
@@ -136,19 +137,26 @@ pub(super) fn struct_set_path(
 }
 
 fn set_field_path(cur: Value, path: &[String], value: Value) -> Result<Value, String> {
-    let Value::Struct { name, mut fields } = cur else {
+    let Value::Struct { name, fields } = cur else {
         return Err("expected Struct along field path".to_string());
     };
     let key = &path[0];
     let Some(pos) = cached_field_slot(&name, &fields, key) else {
         return Err(format!("unknown field `{key}` on struct `{name}`"));
     };
+    let mut fields = fields.as_ref().to_vec();
     if path.len() == 1 {
         fields[pos].1 = value;
-        return Ok(Value::Struct { name, fields });
+        return Ok(Value::Struct {
+            name,
+            fields: Rc::<[(String, Value)]>::from(fields),
+        });
     }
     let child = fields[pos].1.clone();
     let next = set_field_path(child, &path[1..], value)?;
     fields[pos].1 = next;
-    Ok(Value::Struct { name, fields })
+    Ok(Value::Struct {
+        name,
+        fields: Rc::<[(String, Value)]>::from(fields),
+    })
 }

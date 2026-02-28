@@ -18,7 +18,7 @@ pub enum Value {
     Function(Rc<str>),
     Struct {
         name: String,
-        fields: Vec<(String, Value)>,
+        fields: Rc<[(String, Value)]>,
     },
     Unit,
 }
