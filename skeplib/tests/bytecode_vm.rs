@@ -2413,7 +2413,7 @@ fn vm_reports_arr_builtin_runtime_arity_mismatch_from_manual_bytecode() {
             FunctionChunk {
                 name: "main".to_string(),
                 code: vec![
-                    Instr::LoadConst(Value::Array(vec![Value::Int(1)])),
+                    Instr::LoadConst(Value::Array(vec![Value::Int(1)].into())),
                     Instr::LoadConst(Value::Int(1)),
                     Instr::CallBuiltin {
                         package: "arr".to_string(),
@@ -2442,7 +2442,7 @@ fn vm_reports_arr_count_runtime_errors_from_manual_bytecode() {
             FunctionChunk {
                 name: "main".to_string(),
                 code: vec![
-                    Instr::LoadConst(Value::Array(vec![Value::Int(1)])),
+                    Instr::LoadConst(Value::Array(vec![Value::Int(1)].into())),
                     Instr::CallBuiltin {
                         package: "arr".to_string(),
                         name: "count".to_string(),
@@ -2499,7 +2499,7 @@ fn vm_reports_arr_first_last_runtime_errors_from_manual_bytecode() {
             FunctionChunk {
                 name: "main".to_string(),
                 code: vec![
-                    Instr::LoadConst(Value::Array(vec![Value::Int(1)])),
+                    Instr::LoadConst(Value::Array(vec![Value::Int(1)].into())),
                     Instr::LoadConst(Value::Int(2)),
                     Instr::CallBuiltin {
                         package: "arr".to_string(),
@@ -2550,7 +2550,7 @@ fn vm_reports_arr_first_last_runtime_errors_from_manual_bytecode() {
             FunctionChunk {
                 name: "main".to_string(),
                 code: vec![
-                    Instr::LoadConst(Value::Array(vec![Value::Int(1)])),
+                    Instr::LoadConst(Value::Array(vec![Value::Int(1)].into())),
                     Instr::LoadConst(Value::Int(2)),
                     Instr::CallBuiltin {
                         package: "arr".to_string(),
@@ -2745,7 +2745,7 @@ fn vm_reports_arr_join_runtime_type_mismatch_for_non_string_elements() {
             FunctionChunk {
                 name: "main".to_string(),
                 code: vec![
-                    Instr::LoadConst(Value::Array(vec![Value::Int(1), Value::Int(2)])),
+                    Instr::LoadConst(Value::Array(vec![Value::Int(1), Value::Int(2)].into())),
                     Instr::LoadConst(Value::String(",".to_string().into())),
                     Instr::CallBuiltin {
                         package: "arr".to_string(),

@@ -25,7 +25,7 @@ pub(crate) fn builtin_arr_join(
         ));
     };
     let mut parts = Vec::with_capacity(items.len());
-    for item in items {
+    for item in items.iter() {
         let Value::String(s) = item else {
             return Err(VmError::new(
                 VmErrorKind::TypeMismatch,

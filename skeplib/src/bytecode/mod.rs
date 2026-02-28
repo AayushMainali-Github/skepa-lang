@@ -13,7 +13,7 @@ pub enum Value {
     Float(f64),
     Bool(bool),
     String(Rc<str>),
-    Array(Vec<Value>),
+    Array(Rc<[Value]>),
     VecHandle(u64),
     Function(Rc<str>),
     Struct {

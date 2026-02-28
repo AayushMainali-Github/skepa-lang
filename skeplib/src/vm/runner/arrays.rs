@@ -1,5 +1,6 @@
 use crate::bytecode::Value;
 use crate::vm::{VmError, VmErrorKind};
+use std::rc::Rc;
 
 pub(super) fn make_array(
     stack: &mut Vec<Value>,
@@ -18,7 +19,7 @@ pub(super) fn make_array(
     }
     let start = stack.len() - n;
     let items = stack.split_off(start);
-    stack.push(Value::Array(items));
+    stack.push(Value::Array(Rc::<[Value]>::from(items)));
     Ok(())
 }
 
@@ -38,7 +39,7 @@ pub(super) fn make_array_repeat(
             ip,
         ));
     };
-    stack.push(Value::Array(vec![v; n]));
+    stack.push(Value::Array(Rc::<[Value]>::from(vec![v; n])));
     Ok(())
 }
 
@@ -130,7 +131,7 @@ pub(super) fn array_set(
             ip,
         ));
     };
-    let Value::Array(mut items) = arr_v else {
+    let Value::Array(items) = arr_v else {
         return Err(super::err_at(
             VmErrorKind::TypeMismatch,
             "ArraySet expects Array",
@@ -138,6 +139,7 @@ pub(super) fn array_set(
             ip,
         ));
     };
+    let mut items = items.as_ref().to_vec();
     if idx < 0 || idx as usize >= items.len() {
         return Err(super::err_at(
             VmErrorKind::IndexOutOfBounds,
@@ -147,7 +149,7 @@ pub(super) fn array_set(
         ));
     }
     items[idx as usize] = val;
-    stack.push(Value::Array(items));
+    stack.push(Value::Array(Rc::<[Value]>::from(items)));
     Ok(())
 }
 
@@ -273,9 +275,10 @@ pub(super) fn array_len(
 }
 
 fn set_deep(cur: Value, indices: &[i64], val: Value) -> Result<Value, VmErrorKind> {
-    let Value::Array(mut items) = cur else {
+    let Value::Array(items) = cur else {
         return Err(VmErrorKind::TypeMismatch);
     };
+    let mut items = items.as_ref().to_vec();
     let idx = indices[0];
     if idx < 0 || idx as usize >= items.len() {
         return Err(VmErrorKind::IndexOutOfBounds);
@@ -283,10 +286,10 @@ fn set_deep(cur: Value, indices: &[i64], val: Value) -> Result<Value, VmErrorKin
     let u = idx as usize;
     if indices.len() == 1 {
         items[u] = val;
-        return Ok(Value::Array(items));
+        return Ok(Value::Array(Rc::<[Value]>::from(items)));
     }
     let child = items[u].clone();
     let next = set_deep(child, &indices[1..], val)?;
     items[u] = next;
-    Ok(Value::Array(items))
+    Ok(Value::Array(Rc::<[Value]>::from(items)))
 }

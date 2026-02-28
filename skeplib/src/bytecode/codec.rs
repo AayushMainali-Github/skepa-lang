@@ -99,7 +99,7 @@ fn encode_value(v: &Value, out: &mut Vec<u8>) {
         Value::Array(items) => {
             write_u8(out, 4);
             write_u32(out, items.len() as u32);
-            for item in items {
+            for item in items.iter() {
                 encode_value(item, out);
             }
         }
@@ -294,7 +294,7 @@ fn decode_value(rd: &mut Reader<'_>) -> Result<Value, String> {
             for _ in 0..n {
                 items.push(decode_value(rd)?);
             }
-            Ok(Value::Array(items))
+            Ok(Value::Array(Rc::<[Value]>::from(items)))
         }
         5 => Ok(Value::Function(Rc::<str>::from(rd.read_str()?))),
         6 => Ok(Value::Unit),
