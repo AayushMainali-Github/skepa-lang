@@ -32,6 +32,17 @@ impl FrameStorage {
     }
 }
 
+pub(super) fn acquire_storage(
+    locals_len: usize,
+    stack_capacity: usize,
+    locals_pool: &mut Vec<Vec<Value>>,
+    stack_pool: &mut Vec<Vec<Value>>,
+) -> FrameStorage {
+    let locals = locals_pool.pop().unwrap_or_default();
+    let stack = stack_pool.pop().unwrap_or_default();
+    FrameStorage::new(locals, stack, locals_len, stack_capacity.max(8))
+}
+
 impl<'a> CallFrame<'a> {
     pub(super) fn with_storage(
         chunk: &'a FunctionChunk,
@@ -53,6 +64,15 @@ impl<'a> CallFrame<'a> {
         FrameStorage {
             locals: self.locals,
             stack: self.stack,
+        }
+    }
+
+    pub(super) fn write_local(&mut self, slot: usize, value: Value) -> bool {
+        if let Some(local) = self.locals.get_mut(slot) {
+            *local = value;
+            true
+        } else {
+            false
         }
     }
 }

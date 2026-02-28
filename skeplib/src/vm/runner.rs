@@ -77,19 +77,11 @@ pub(super) fn run_chunk(
     let stack_capacity_hint = |chunk: &FunctionChunk| (chunk.code.len() / 4).clamp(8, 256);
     let mut locals_pool: Vec<Vec<Value>> = Vec::new();
     let mut stack_pool: Vec<Vec<Value>> = Vec::new();
-    let acquire_storage = |locals_len: usize,
-                           stack_capacity: usize,
-                           locals_pool: &mut Vec<Vec<Value>>,
-                           stack_pool: &mut Vec<Vec<Value>>| {
-        let locals = locals_pool.pop().unwrap_or_default();
-        let stack = stack_pool.pop().unwrap_or_default();
-        state::FrameStorage::new(locals, stack, locals_len, stack_capacity.max(8))
-    };
     let mut frames = Vec::with_capacity((opts.depth + 1).clamp(1, 64));
     let mut root_frame = state::CallFrame::with_storage(
         chunk,
         function_name,
-        acquire_storage(
+        state::acquire_storage(
             chunk.locals_count,
             stack_capacity_hint(chunk),
             &mut locals_pool,
@@ -138,12 +130,7 @@ pub(super) fn run_chunk(
                     prof_load_local += 1;
                 }
                 let Some(v) = frame.locals.get(*slot).cloned() else {
-                    return Err(err_at(
-                        VmErrorKind::InvalidLocal,
-                        format!("Invalid local slot {slot}"),
-                        function_name,
-                        ip,
-                    ));
+                    return Err(invalid_local_slot(function_name, ip, *slot));
                 };
                 frame.stack.push(v);
             }
@@ -159,10 +146,9 @@ pub(super) fn run_chunk(
                         ip,
                     ));
                 };
-                if *slot >= frame.locals.len() {
-                    frame.locals.resize(*slot + 1, Value::Unit);
+                if !frame.write_local(*slot, v) {
+                    return Err(invalid_local_slot(function_name, ip, *slot));
                 }
-                frame.locals[*slot] = v;
             }
             Instr::LoadGlobal(slot) => {
                 let Some(v) = env.globals.get(*slot).cloned() else {
@@ -379,24 +365,14 @@ pub(super) fn run_chunk(
                 }
                 let new_frame = {
                     frame.ip += 1;
-                    let mut new_frame = state::CallFrame::with_storage(
+                    push_call_frame(
+                        frame,
                         callee_chunk,
-                        callee_name,
-                        acquire_storage(
-                            callee_chunk.locals_count,
-                            stack_capacity_hint(callee_chunk),
-                            &mut locals_pool,
-                            &mut stack_pool,
-                        ),
-                    );
-                    let split = frame.stack.len() - *argc;
-                    new_frame.locals.extend(frame.stack.split_off(split));
-                    if new_frame.locals.len() < callee_chunk.locals_count {
-                        new_frame
-                            .locals
-                            .resize(callee_chunk.locals_count, Value::Unit);
-                    }
-                    new_frame
+                        *argc,
+                        None,
+                        &mut locals_pool,
+                        &mut stack_pool,
+                    )
                 };
                 frames.push(new_frame);
                 continue;
@@ -433,24 +409,14 @@ pub(super) fn run_chunk(
                 }
                 let new_frame = {
                     frame.ip += 1;
-                    let mut new_frame = state::CallFrame::with_storage(
+                    push_call_frame(
+                        frame,
                         callee_chunk,
-                        &callee_chunk.name,
-                        acquire_storage(
-                            callee_chunk.locals_count,
-                            stack_capacity_hint(callee_chunk),
-                            &mut locals_pool,
-                            &mut stack_pool,
-                        ),
-                    );
-                    let split = frame.stack.len() - *argc;
-                    new_frame.locals.extend(frame.stack.split_off(split));
-                    if new_frame.locals.len() < callee_chunk.locals_count {
-                        new_frame
-                            .locals
-                            .resize(callee_chunk.locals_count, Value::Unit);
-                    }
-                    new_frame
+                        *argc,
+                        None,
+                        &mut locals_pool,
+                        &mut stack_pool,
+                    )
                 };
                 frames.push(new_frame);
                 continue;
@@ -490,24 +456,14 @@ pub(super) fn run_chunk(
                 }
                 let new_frame = {
                     frame.ip += 1;
-                    let mut new_frame = state::CallFrame::with_storage(
+                    push_call_frame(
+                        frame,
                         callee_chunk,
-                        &callee_chunk.name,
-                        acquire_storage(
-                            callee_chunk.locals_count,
-                            stack_capacity_hint(callee_chunk),
-                            &mut locals_pool,
-                            &mut stack_pool,
-                        ),
-                    );
-                    let split = frame.stack.len() - *argc;
-                    new_frame.locals.extend(frame.stack.split_off(split));
-                    if new_frame.locals.len() < callee_chunk.locals_count {
-                        new_frame
-                            .locals
-                            .resize(callee_chunk.locals_count, Value::Unit);
-                    }
-                    new_frame
+                        *argc,
+                        None,
+                        &mut locals_pool,
+                        &mut stack_pool,
+                    )
                 };
                 frames.push(new_frame);
                 continue;
@@ -553,25 +509,14 @@ pub(super) fn run_chunk(
                 }
                 let new_frame = {
                     frame.ip += 1;
-                    let mut new_frame = state::CallFrame::with_storage(
+                    push_call_frame(
+                        frame,
                         callee_chunk,
-                        &callee_chunk.name,
-                        acquire_storage(
-                            callee_chunk.locals_count,
-                            stack_capacity_hint(callee_chunk),
-                            &mut locals_pool,
-                            &mut stack_pool,
-                        ),
-                    );
-                    new_frame.locals.push(receiver);
-                    let split = frame.stack.len() - *argc;
-                    new_frame.locals.extend(frame.stack.split_off(split));
-                    if new_frame.locals.len() < callee_chunk.locals_count {
-                        new_frame
-                            .locals
-                            .resize(callee_chunk.locals_count, Value::Unit);
-                    }
-                    new_frame
+                        *argc,
+                        Some(receiver),
+                        &mut locals_pool,
+                        &mut stack_pool,
+                    )
                 };
                 frames.push(new_frame);
                 continue;
@@ -614,25 +559,14 @@ pub(super) fn run_chunk(
                 }
                 let new_frame = {
                     frame.ip += 1;
-                    let mut new_frame = state::CallFrame::with_storage(
+                    push_call_frame(
+                        frame,
                         callee_chunk,
-                        &callee_chunk.name,
-                        acquire_storage(
-                            callee_chunk.locals_count,
-                            stack_capacity_hint(callee_chunk),
-                            &mut locals_pool,
-                            &mut stack_pool,
-                        ),
-                    );
-                    new_frame.locals.push(receiver);
-                    let split = frame.stack.len() - *argc;
-                    new_frame.locals.extend(frame.stack.split_off(split));
-                    if new_frame.locals.len() < callee_chunk.locals_count {
-                        new_frame
-                            .locals
-                            .resize(callee_chunk.locals_count, Value::Unit);
-                    }
-                    new_frame
+                        *argc,
+                        Some(receiver),
+                        &mut locals_pool,
+                        &mut stack_pool,
+                    )
                 };
                 frames.push(new_frame);
                 continue;
@@ -712,6 +646,47 @@ pub(super) fn run_chunk(
             frame.ip += 1;
         }
     }
+}
+
+fn push_call_frame<'a>(
+    caller: &mut state::CallFrame<'_>,
+    callee_chunk: &'a FunctionChunk,
+    argc: usize,
+    receiver: Option<Value>,
+    locals_pool: &mut Vec<Vec<Value>>,
+    stack_pool: &mut Vec<Vec<Value>>,
+) -> state::CallFrame<'a> {
+    let mut new_frame = state::CallFrame::with_storage(
+        callee_chunk,
+        &callee_chunk.name,
+        state::acquire_storage(
+            callee_chunk.locals_count,
+            (callee_chunk.code.len() / 4).clamp(8, 256),
+            locals_pool,
+            stack_pool,
+        ),
+    );
+    if let Some(receiver) = receiver {
+        new_frame.locals.push(receiver);
+    }
+    let split = caller.stack.len() - argc;
+    new_frame.locals.extend(caller.stack.split_off(split));
+    if new_frame.locals.len() < callee_chunk.locals_count {
+        new_frame
+            .locals
+            .resize(callee_chunk.locals_count, Value::Unit);
+    }
+    new_frame
+}
+
+#[cold]
+fn invalid_local_slot(function_name: &str, ip: usize, slot: usize) -> VmError {
+    err_at(
+        VmErrorKind::InvalidLocal,
+        format!("Invalid local slot {slot}"),
+        function_name,
+        ip,
+    )
 }
 
 pub(super) fn err_at(
