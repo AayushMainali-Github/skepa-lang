@@ -1,84 +1,30 @@
-use crate::bytecode::Value;
-use crate::vm::{VmError, VmErrorKind};
+use crate::bytecode::{FunctionChunk, Value};
 
-pub(super) struct VmState {
-    stack: Vec<Value>,
-    locals: Vec<Value>,
+pub(super) struct CallFrame<'a> {
+    pub chunk: &'a FunctionChunk,
+    pub function_name: &'a str,
+    pub ip: usize,
+    pub locals: Vec<Value>,
+    pub stack: Vec<Value>,
 }
 
-impl VmState {
-    pub(super) fn new(locals_count: usize, stack_capacity: usize, args: Vec<Value>) -> Self {
-        let target_len = locals_count;
+impl<'a> CallFrame<'a> {
+    pub(super) fn new(
+        chunk: &'a FunctionChunk,
+        function_name: &'a str,
+        args: Vec<Value>,
+        stack_capacity: usize,
+    ) -> Self {
         let mut locals = args;
-        if locals.len() < target_len {
-            locals.resize(target_len, Value::Unit);
+        if locals.len() < chunk.locals_count {
+            locals.resize(chunk.locals_count, Value::Unit);
         }
         Self {
-            stack: Vec::with_capacity(stack_capacity.max(8)),
+            chunk,
+            function_name,
+            ip: 0,
             locals,
+            stack: Vec::with_capacity(stack_capacity.max(8)),
         }
-    }
-
-    pub(super) fn stack_mut(&mut self) -> &mut Vec<Value> {
-        &mut self.stack
-    }
-
-    pub(super) fn push_const(&mut self, v: Value) {
-        self.stack.push(v);
-    }
-
-    pub(super) fn load_local(
-        &mut self,
-        slot: usize,
-        function_name: &str,
-        ip: usize,
-    ) -> Result<(), VmError> {
-        let Some(v) = self.locals.get(slot).cloned() else {
-            return Err(super::err_at(
-                VmErrorKind::InvalidLocal,
-                format!("Invalid local slot {slot}"),
-                function_name,
-                ip,
-            ));
-        };
-        self.stack.push(v);
-        Ok(())
-    }
-
-    pub(super) fn store_local(
-        &mut self,
-        slot: usize,
-        function_name: &str,
-        ip: usize,
-    ) -> Result<(), VmError> {
-        let Some(v) = self.stack.pop() else {
-            return Err(super::err_at(
-                VmErrorKind::StackUnderflow,
-                "Stack underflow on StoreLocal",
-                function_name,
-                ip,
-            ));
-        };
-        if slot >= self.locals.len() {
-            self.locals.resize(slot + 1, Value::Unit);
-        }
-        self.locals[slot] = v;
-        Ok(())
-    }
-
-    pub(super) fn pop_discard(&mut self, function_name: &str, ip: usize) -> Result<(), VmError> {
-        if self.stack.pop().is_none() {
-            return Err(super::err_at(
-                VmErrorKind::StackUnderflow,
-                "Stack underflow on Pop",
-                function_name,
-                ip,
-            ));
-        }
-        Ok(())
-    }
-
-    pub(super) fn finish_return(&mut self) -> Value {
-        self.stack.pop().unwrap_or(Value::Unit)
     }
 }

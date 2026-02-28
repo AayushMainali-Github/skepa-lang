@@ -74,28 +74,73 @@ pub(super) fn run_chunk(
         ));
     }
 
-    let stack_capacity_hint = (chunk.code.len() / 4).clamp(8, 256);
-    let mut state = state::VmState::new(chunk.locals_count, stack_capacity_hint, args);
+    let stack_capacity_hint = |chunk: &FunctionChunk| (chunk.code.len() / 4).clamp(8, 256);
+    let mut frames = Vec::with_capacity((opts.depth + 1).clamp(1, 64));
+    frames.push(state::CallFrame::new(
+        chunk,
+        function_name,
+        args,
+        stack_capacity_hint(chunk),
+    ));
 
-    let mut ip = 0usize;
-    while ip < chunk.code.len() {
-        if opts.config.trace {
-            eprintln!("[trace] {}@{} {:?}", function_name, ip, chunk.code[ip]);
+    loop {
+        let current_depth = frames.len();
+        let Some(frame) = frames.last_mut() else {
+            return Ok(Value::Unit);
+        };
+        if frame.ip >= frame.chunk.code.len() {
+            let ret = Value::Unit;
+            frames.pop();
+            if let Some(parent) = frames.last_mut() {
+                parent.stack.push(ret);
+                continue;
+            }
+            if profile_ops {
+                eprintln!(
+                    "[vm-prof] {function_name}: LoadLocal={prof_load_local} StoreLocal={prof_store_local} Add={prof_add} ModInt={prof_mod} LteInt={prof_lte} Jump={prof_jump} JumpIfFalse={prof_jump_if_false}"
+                );
+            }
+            return Ok(ret);
         }
-        super::profiler::record_instr(&chunk.code[ip]);
-        match &chunk.code[ip] {
-            Instr::LoadConst(v) => state.push_const(v.clone()),
+        let function_name = frame.function_name;
+        let ip = frame.ip;
+        let instr = &frame.chunk.code[ip];
+        if opts.config.trace {
+            eprintln!("[trace] {}@{} {:?}", function_name, ip, instr);
+        }
+        super::profiler::record_instr(instr);
+        match instr {
+            Instr::LoadConst(v) => frame.stack.push(v.clone()),
             Instr::LoadLocal(slot) => {
                 if profile_ops {
                     prof_load_local += 1;
                 }
-                state.load_local(*slot, function_name, ip)?
+                let Some(v) = frame.locals.get(*slot).cloned() else {
+                    return Err(err_at(
+                        VmErrorKind::InvalidLocal,
+                        format!("Invalid local slot {slot}"),
+                        function_name,
+                        ip,
+                    ));
+                };
+                frame.stack.push(v);
             }
             Instr::StoreLocal(slot) => {
                 if profile_ops {
                     prof_store_local += 1;
                 }
-                state.store_local(*slot, function_name, ip)?
+                let Some(v) = frame.stack.pop() else {
+                    return Err(err_at(
+                        VmErrorKind::StackUnderflow,
+                        "Stack underflow on StoreLocal",
+                        function_name,
+                        ip,
+                    ));
+                };
+                if *slot >= frame.locals.len() {
+                    frame.locals.resize(*slot + 1, Value::Unit);
+                }
+                frame.locals[*slot] = v;
             }
             Instr::LoadGlobal(slot) => {
                 let Some(v) = env.globals.get(*slot).cloned() else {
@@ -106,10 +151,10 @@ pub(super) fn run_chunk(
                         ip,
                     ));
                 };
-                state.push_const(v);
+                frame.stack.push(v);
             }
             Instr::StoreGlobal(slot) => {
-                let Some(v) = state.stack_mut().pop() else {
+                let Some(v) = frame.stack.pop() else {
                     return Err(err_at(
                         VmErrorKind::StackUnderflow,
                         "Stack underflow on StoreGlobal",
@@ -122,14 +167,23 @@ pub(super) fn run_chunk(
                 }
                 env.globals[*slot] = v;
             }
-            Instr::Pop => state.pop_discard(function_name, ip)?,
-            Instr::NegInt => arith::neg(state.stack_mut(), function_name, ip)?,
-            Instr::NotBool => arith::not_bool(state.stack_mut(), function_name, ip)?,
+            Instr::Pop => {
+                if frame.stack.pop().is_none() {
+                    return Err(err_at(
+                        VmErrorKind::StackUnderflow,
+                        "Stack underflow on Pop",
+                        function_name,
+                        ip,
+                    ));
+                }
+            }
+            Instr::NegInt => arith::neg(&mut frame.stack, function_name, ip)?,
+            Instr::NotBool => arith::not_bool(&mut frame.stack, function_name, ip)?,
             Instr::Add => {
                 if profile_ops {
                     prof_add += 1;
                 }
-                let stack = state.stack_mut();
+                let stack = &mut frame.stack;
                 let Some(r) = stack.pop() else {
                     return Err(err_at(
                         VmErrorKind::StackUnderflow,
@@ -162,11 +216,11 @@ pub(super) fn run_chunk(
             | Instr::LteInt
             | Instr::GtInt
             | Instr::GteInt => {
-                if matches!(&chunk.code[ip], Instr::LteInt) {
+                if matches!(instr, Instr::LteInt) {
                     if profile_ops {
                         prof_lte += 1;
                     }
-                    let stack = state.stack_mut();
+                    let stack = &mut frame.stack;
                     let Some(r) = stack.pop() else {
                         return Err(err_at(
                             VmErrorKind::StackUnderflow,
@@ -189,18 +243,18 @@ pub(super) fn run_chunk(
                         (l, r) => {
                             stack.push(l);
                             stack.push(r);
-                            arith::numeric_binop(stack, &chunk.code[ip], function_name, ip)?
+                            arith::numeric_binop(stack, instr, function_name, ip)?
                         }
                     }
                 } else {
-                    arith::numeric_binop(state.stack_mut(), &chunk.code[ip], function_name, ip)?
+                    arith::numeric_binop(&mut frame.stack, instr, function_name, ip)?
                 }
             }
             Instr::ModInt => {
                 if profile_ops {
                     prof_mod += 1;
                 }
-                let stack = state.stack_mut();
+                let stack = &mut frame.stack;
                 let Some(r) = stack.pop() else {
                     return Err(err_at(
                         VmErrorKind::TypeMismatch,
@@ -237,16 +291,16 @@ pub(super) fn run_chunk(
                     }
                 }
             }
-            Instr::Eq => arith::eq(state.stack_mut(), function_name, ip)?,
-            Instr::Neq => arith::neq(state.stack_mut(), function_name, ip)?,
+            Instr::Eq => arith::eq(&mut frame.stack, function_name, ip)?,
+            Instr::Neq => arith::neq(&mut frame.stack, function_name, ip)?,
             Instr::AndBool | Instr::OrBool => {
-                arith::logical(state.stack_mut(), &chunk.code[ip], function_name, ip)?
+                arith::logical(&mut frame.stack, instr, function_name, ip)?
             }
             Instr::Jump(target) => {
                 if profile_ops {
                     prof_jump += 1;
                 }
-                ip = control_flow::jump(*target);
+                frame.ip = control_flow::jump(*target);
                 continue;
             }
             Instr::JumpIfFalse(target) => {
@@ -254,118 +308,248 @@ pub(super) fn run_chunk(
                     prof_jump_if_false += 1;
                 }
                 if let Some(next_ip) =
-                    control_flow::jump_if_false(state.stack_mut(), *target, function_name, ip)?
+                    control_flow::jump_if_false(&mut frame.stack, *target, function_name, ip)?
                 {
-                    ip = next_ip;
+                    frame.ip = next_ip;
                     continue;
                 }
             }
             Instr::JumpIfTrue(target) => {
                 if let Some(next_ip) =
-                    control_flow::jump_if_true(state.stack_mut(), *target, function_name, ip)?
+                    control_flow::jump_if_true(&mut frame.stack, *target, function_name, ip)?
                 {
-                    ip = next_ip;
+                    frame.ip = next_ip;
                     continue;
                 }
             }
             Instr::Call {
                 name: callee_name,
                 argc,
-            } => calls::call(
-                state.stack_mut(),
-                callee_name,
-                *argc,
-                &mut calls::CallEnv {
-                    module: env.module,
-                    fn_table: env.fn_table,
-                    globals: env.globals,
-                    host: env.host,
-                    reg: env.reg,
-                    opts,
-                },
-                calls::Site { function_name, ip },
-            )?,
-            Instr::CallIdx { idx, argc } => calls::call_idx(
-                state.stack_mut(),
-                *idx,
-                *argc,
-                &mut calls::CallEnv {
-                    module: env.module,
-                    fn_table: env.fn_table,
-                    globals: env.globals,
-                    host: env.host,
-                    reg: env.reg,
-                    opts,
-                },
-                calls::Site { function_name, ip },
-            )?,
-            Instr::CallValue { argc } => calls::call_value(
-                state.stack_mut(),
-                *argc,
-                &mut calls::CallEnv {
-                    module: env.module,
-                    fn_table: env.fn_table,
-                    globals: env.globals,
-                    host: env.host,
-                    reg: env.reg,
-                    opts,
-                },
-                calls::Site { function_name, ip },
-            )?,
+            } => {
+                let _timer = super::profiler::ScopedTimer::new(super::profiler::Event::Call);
+                if frame.stack.len() < *argc {
+                    return Err(err_at(
+                        VmErrorKind::StackUnderflow,
+                        "Stack underflow on Call",
+                        function_name,
+                        ip,
+                    ));
+                }
+                let callee_chunk = calls::resolve_chunk(
+                    env.module,
+                    callee_name,
+                    calls::Site { function_name, ip },
+                )?;
+                let call_args = calls::take_call_args(&mut frame.stack, *argc);
+                if current_depth + opts.depth >= opts.config.max_call_depth {
+                    return Err(VmError::new(
+                        VmErrorKind::StackOverflow,
+                        format!("Call stack limit exceeded ({})", opts.config.max_call_depth),
+                    ));
+                }
+                if call_args.len() != callee_chunk.param_count {
+                    return Err(VmError::new(
+                        VmErrorKind::ArityMismatch,
+                        format!(
+                            "Function `{}` arity mismatch: expected {}, got {}",
+                            callee_name,
+                            callee_chunk.param_count,
+                            call_args.len()
+                        ),
+                    ));
+                }
+                frame.ip += 1;
+                frames.push(state::CallFrame::new(
+                    callee_chunk,
+                    callee_name,
+                    call_args,
+                    stack_capacity_hint(callee_chunk),
+                ));
+                continue;
+            }
+            Instr::CallIdx { idx, argc } => {
+                let _timer = super::profiler::ScopedTimer::new(super::profiler::Event::CallIdx);
+                if frame.stack.len() < *argc {
+                    return Err(err_at(
+                        VmErrorKind::StackUnderflow,
+                        "Stack underflow on CallIdx",
+                        function_name,
+                        ip,
+                    ));
+                }
+                let callee_chunk = calls::resolve_chunk_idx(
+                    env.fn_table,
+                    *idx,
+                    calls::Site { function_name, ip },
+                )?;
+                let call_args = calls::take_call_args(&mut frame.stack, *argc);
+                if current_depth + opts.depth >= opts.config.max_call_depth {
+                    return Err(VmError::new(
+                        VmErrorKind::StackOverflow,
+                        format!("Call stack limit exceeded ({})", opts.config.max_call_depth),
+                    ));
+                }
+                if call_args.len() != callee_chunk.param_count {
+                    return Err(VmError::new(
+                        VmErrorKind::ArityMismatch,
+                        format!(
+                            "Function `{}` arity mismatch: expected {}, got {}",
+                            callee_chunk.name,
+                            callee_chunk.param_count,
+                            call_args.len()
+                        ),
+                    ));
+                }
+                frame.ip += 1;
+                frames.push(state::CallFrame::new(
+                    callee_chunk,
+                    &callee_chunk.name,
+                    call_args,
+                    stack_capacity_hint(callee_chunk),
+                ));
+                continue;
+            }
+            Instr::CallValue { argc } => {
+                let _timer = super::profiler::ScopedTimer::new(super::profiler::Event::CallValue);
+                if frame.stack.len() < *argc + 1 {
+                    return Err(err_at(
+                        VmErrorKind::StackUnderflow,
+                        "Stack underflow on CallValue",
+                        function_name,
+                        ip,
+                    ));
+                }
+                let call_args = calls::take_call_args(&mut frame.stack, *argc);
+                let Some(callee) = frame.stack.pop() else {
+                    return Err(err_at(
+                        VmErrorKind::StackUnderflow,
+                        "CallValue expects callable on stack",
+                        function_name,
+                        ip,
+                    ));
+                };
+                let (callee_chunk, callee_name) = calls::resolve_function_value(
+                    env.module,
+                    callee,
+                    calls::Site { function_name, ip },
+                )?;
+                if current_depth + opts.depth >= opts.config.max_call_depth {
+                    return Err(VmError::new(
+                        VmErrorKind::StackOverflow,
+                        format!("Call stack limit exceeded ({})", opts.config.max_call_depth),
+                    ));
+                }
+                if call_args.len() != callee_chunk.param_count {
+                    return Err(VmError::new(
+                        VmErrorKind::ArityMismatch,
+                        format!(
+                            "Function `{}` arity mismatch: expected {}, got {}",
+                            callee_name,
+                            callee_chunk.param_count,
+                            call_args.len()
+                        ),
+                    ));
+                }
+                frame.ip += 1;
+                frames.push(state::CallFrame::new(
+                    callee_chunk,
+                    &callee_chunk.name,
+                    call_args,
+                    stack_capacity_hint(callee_chunk),
+                ));
+                continue;
+            }
             Instr::CallMethod {
                 name: method_name,
                 argc,
-            } => calls::call_method(
-                state.stack_mut(),
-                method_name,
-                *argc,
-                &mut calls::CallEnv {
-                    module: env.module,
-                    fn_table: env.fn_table,
-                    globals: env.globals,
-                    host: env.host,
-                    reg: env.reg,
-                    opts,
-                },
-                calls::Site { function_name, ip },
-            )?,
+            } => {
+                let _timer = super::profiler::ScopedTimer::new(super::profiler::Event::CallMethod);
+                if frame.stack.len() < *argc + 1 {
+                    return Err(err_at(
+                        VmErrorKind::StackUnderflow,
+                        "Stack underflow on CallMethod",
+                        function_name,
+                        ip,
+                    ));
+                }
+                let mut call_args = calls::take_call_args(&mut frame.stack, *argc);
+                let Some(receiver) = frame.stack.pop() else {
+                    return Err(err_at(
+                        VmErrorKind::StackUnderflow,
+                        "CallMethod expects receiver",
+                        function_name,
+                        ip,
+                    ));
+                };
+                let callee_chunk = calls::resolve_method(
+                    env.module,
+                    env.fn_table,
+                    &receiver,
+                    method_name,
+                    calls::Site { function_name, ip },
+                )?;
+                let mut full_args = Vec::with_capacity(*argc + 1);
+                full_args.push(receiver);
+                full_args.append(&mut call_args);
+                if current_depth + opts.depth >= opts.config.max_call_depth {
+                    return Err(VmError::new(
+                        VmErrorKind::StackOverflow,
+                        format!("Call stack limit exceeded ({})", opts.config.max_call_depth),
+                    ));
+                }
+                if full_args.len() != callee_chunk.param_count {
+                    return Err(VmError::new(
+                        VmErrorKind::ArityMismatch,
+                        format!(
+                            "Function `{}` arity mismatch: expected {}, got {}",
+                            callee_chunk.name,
+                            callee_chunk.param_count,
+                            full_args.len()
+                        ),
+                    ));
+                }
+                frame.ip += 1;
+                frames.push(state::CallFrame::new(
+                    callee_chunk,
+                    &callee_chunk.name,
+                    full_args,
+                    stack_capacity_hint(callee_chunk),
+                ));
+                continue;
+            }
             Instr::CallBuiltin {
                 package,
                 name,
                 argc,
             } => calls::call_builtin(
-                state.stack_mut(),
+                &mut frame.stack,
                 package,
                 name,
                 *argc,
                 &mut calls::CallEnv {
-                    module: env.module,
-                    fn_table: env.fn_table,
-                    globals: env.globals,
                     host: env.host,
                     reg: env.reg,
-                    opts,
                 },
                 calls::Site { function_name, ip },
             )?,
-            Instr::MakeArray(n) => arrays::make_array(state.stack_mut(), *n, function_name, ip)?,
+            Instr::MakeArray(n) => arrays::make_array(&mut frame.stack, *n, function_name, ip)?,
             Instr::MakeArrayRepeat(n) => {
-                arrays::make_array_repeat(state.stack_mut(), *n, function_name, ip)?
+                arrays::make_array_repeat(&mut frame.stack, *n, function_name, ip)?
             }
-            Instr::ArrayGet => arrays::array_get(state.stack_mut(), function_name, ip)?,
-            Instr::ArraySet => arrays::array_set(state.stack_mut(), function_name, ip)?,
+            Instr::ArrayGet => arrays::array_get(&mut frame.stack, function_name, ip)?,
+            Instr::ArraySet => arrays::array_set(&mut frame.stack, function_name, ip)?,
             Instr::ArraySetChain(depth) => {
-                arrays::array_set_chain(state.stack_mut(), *depth, function_name, ip)?
+                arrays::array_set_chain(&mut frame.stack, *depth, function_name, ip)?
             }
-            Instr::ArrayLen => arrays::array_len(state.stack_mut(), function_name, ip)?,
+            Instr::ArrayLen => arrays::array_len(&mut frame.stack, function_name, ip)?,
             Instr::MakeStruct { name, fields } => {
-                structs::make_struct(state.stack_mut(), name, fields, function_name, ip)?
+                structs::make_struct(&mut frame.stack, name, fields, function_name, ip)?
             }
             Instr::StructGet(field) => {
-                structs::struct_get(state.stack_mut(), field, function_name, ip)?
+                structs::struct_get(&mut frame.stack, field, function_name, ip)?
             }
             Instr::StructSetPath(path) => {
-                structs::struct_set_path(state.stack_mut(), path, function_name, ip)?
+                structs::struct_set_path(&mut frame.stack, path, function_name, ip)?
             }
             Instr::Return => {
                 if profile_ops && opts.depth == 0 {
@@ -373,17 +557,19 @@ pub(super) fn run_chunk(
                         "[vm-prof] {function_name}: LoadLocal={prof_load_local} StoreLocal={prof_store_local} Add={prof_add} ModInt={prof_mod} LteInt={prof_lte} Jump={prof_jump} JumpIfFalse={prof_jump_if_false}"
                     );
                 }
-                return Ok(state.finish_return());
+                let ret = frame.stack.pop().unwrap_or(Value::Unit);
+                frames.pop();
+                if let Some(parent) = frames.last_mut() {
+                    parent.stack.push(ret);
+                    continue;
+                }
+                return Ok(ret);
             }
         }
-        ip += 1;
+        if let Some(frame) = frames.last_mut() {
+            frame.ip += 1;
+        }
     }
-    if profile_ops && opts.depth == 0 {
-        eprintln!(
-            "[vm-prof] {function_name}: LoadLocal={prof_load_local} StoreLocal={prof_store_local} Add={prof_add} ModInt={prof_mod} LteInt={prof_lte} Jump={prof_jump} JumpIfFalse={prof_jump_if_false}"
-        );
-    }
-    Ok(Value::Unit)
 }
 
 pub(super) fn err_at(
