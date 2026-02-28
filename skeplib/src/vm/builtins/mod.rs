@@ -17,6 +17,13 @@ pub type BuiltinHandler = fn(&mut dyn BuiltinHost, Vec<Value>) -> Result<Value, 
 
 macro_rules! default_builtins {
     ($(($id:expr, $pkg:literal, $name:literal, $handler:path)),+ $(,)?) => {
+        pub(crate) fn default_builtin_name_by_id(id: u16) -> Option<&'static str> {
+            match id {
+                $($id => Some(concat!($pkg, ".", $name)),)+
+                _ => None,
+            }
+        }
+
         pub(crate) fn default_builtin_id(package: &str, name: &str) -> Option<u16> {
             match (package, name) {
                 $(($pkg, $name) => Some($id),)+

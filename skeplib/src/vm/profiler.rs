@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
@@ -143,6 +144,7 @@ struct ProfileSession {
     started_at: Option<Instant>,
     ops: OpCounters,
     events: Vec<(&'static str, EventStats)>,
+    builtin_events: HashMap<String, EventStats>,
 }
 
 impl ProfileSession {
@@ -232,6 +234,36 @@ impl ProfileSession {
                 name, count, event_total_ms, pct, avg_us
             );
         }
+
+        let mut builtin_rows = self
+            .builtin_events
+            .iter()
+            .map(|(name, stats)| {
+                (
+                    name.as_str(),
+                    stats.count,
+                    stats.total,
+                    stats.total.as_secs_f64() * 1_000.0,
+                )
+            })
+            .collect::<Vec<_>>();
+        builtin_rows.sort_by(|a, b| b.2.cmp(&a.2).then_with(|| a.0.cmp(b.0)));
+        for (name, count, _, total_ms) in builtin_rows.into_iter().take(12) {
+            let session_pct = if total_ms <= f64::EPSILON || total.as_secs_f64() <= f64::EPSILON {
+                0.0
+            } else {
+                total_ms / (total.as_secs_f64() * 1_000.0) * 100.0
+            };
+            let avg_us = if count == 0 {
+                0.0
+            } else {
+                (total_ms * 1_000.0) / count as f64
+            };
+            eprintln!(
+                "[vm-profile] builtin={} count={} total_ms={:.3} pct={:.1} avg_us={:.3}",
+                name, count, total_ms, session_pct, avg_us
+            );
+        }
     }
 }
 
@@ -317,6 +349,21 @@ fn record_event(event: Event, elapsed: Duration) {
     ACTIVE_SESSION.with(|slot| {
         if let Some(session) = slot.borrow_mut().as_mut() {
             session.record_event(event, elapsed);
+        }
+    });
+}
+
+pub(crate) fn record_builtin_call(name: &str, elapsed: Duration) {
+    if !enabled() {
+        return;
+    }
+    ACTIVE_SESSION.with(|slot| {
+        if let Some(session) = slot.borrow_mut().as_mut() {
+            session
+                .builtin_events
+                .entry(name.to_string())
+                .or_default()
+                .record(elapsed);
         }
     });
 }
