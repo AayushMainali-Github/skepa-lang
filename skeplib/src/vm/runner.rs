@@ -590,6 +590,16 @@ pub(super) fn run_chunk(
                 },
                 calls::Site { function_name, ip },
             )?,
+            Instr::CallBuiltinId { id, argc } => calls::call_builtin_id(
+                &mut frame.stack,
+                *id,
+                *argc,
+                &mut calls::CallEnv {
+                    host: env.host,
+                    reg: env.reg,
+                },
+                calls::Site { function_name, ip },
+            )?,
             Instr::MakeArray(n) => arrays::make_array(&mut frame.stack, *n, function_name, ip)?,
             Instr::MakeArrayRepeat(n) => {
                 arrays::make_array_repeat(&mut frame.stack, *n, function_name, ip)?

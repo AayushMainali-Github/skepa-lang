@@ -8,6 +8,7 @@ use crate::ast::{
 use crate::diagnostic::{DiagnosticBag, Span};
 use crate::parser::Parser;
 use crate::resolver::{ModuleGraph, ModuleId, ResolveError, build_export_maps, resolve_project};
+use crate::vm::default_builtin_id;
 
 use super::{BytecodeModule, FunctionChunk, Instr, Value};
 
@@ -771,11 +772,18 @@ impl Compiler {
                         for arg in args {
                             self.compile_expr(arg, ctx, code);
                         }
-                        code.push(Instr::CallBuiltin {
-                            package: parts[0].clone(),
-                            name: parts[1].clone(),
-                            argc: args.len(),
-                        });
+                        if let Some(id) = default_builtin_id(&parts[0], &parts[1]) {
+                            code.push(Instr::CallBuiltinId {
+                                id,
+                                argc: args.len(),
+                            });
+                        } else {
+                            code.push(Instr::CallBuiltin {
+                                package: parts[0].clone(),
+                                name: parts[1].clone(),
+                                argc: args.len(),
+                            });
+                        }
                         return;
                     }
                     if let Some(parts) = Self::expr_to_parts(callee)

@@ -67,6 +67,7 @@ fn fmt_instr(i: &Instr) -> String {
             name,
             argc,
         } => format!("CallBuiltin {package}.{name} argc={argc}"),
+        Instr::CallBuiltinId { id, argc } => format!("CallBuiltinId {id} argc={argc}"),
         Instr::MakeArray(n) => format!("MakeArray {n}"),
         Instr::MakeArrayRepeat(n) => format!("MakeArrayRepeat {n}"),
         Instr::ArrayGet => "ArrayGet".to_string(),

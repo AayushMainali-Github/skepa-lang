@@ -69,6 +69,10 @@ pub enum Instr {
         name: String,
         argc: usize,
     },
+    CallBuiltinId {
+        id: u16,
+        argc: usize,
+    },
     MakeArray(usize),
     MakeArrayRepeat(usize),
     ArrayGet,

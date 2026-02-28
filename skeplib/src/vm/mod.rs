@@ -28,6 +28,7 @@ pub use host_trait::BuiltinHost;
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Vm;
 
+pub(crate) use builtins::default_builtin_id;
 pub use builtins::{BuiltinHandler, BuiltinRegistry};
 
 impl Vm {

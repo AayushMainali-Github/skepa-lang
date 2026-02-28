@@ -202,6 +202,11 @@ fn encode_instr(i: &Instr, out: &mut Vec<u8>) {
             write_str(out, name);
             write_u32(out, *argc as u32);
         }
+        Instr::CallBuiltinId { id, argc } => {
+            write_u8(out, 41);
+            write_u32(out, *id as u32);
+            write_u32(out, *argc as u32);
+        }
         Instr::MakeArray(n) => {
             write_u8(out, 26);
             write_u32(out, *n as u32);
@@ -371,6 +376,10 @@ fn decode_instr(rd: &mut Reader<'_>) -> Result<Instr, String> {
         25 => Instr::CallBuiltin {
             package: rd.read_str()?,
             name: rd.read_str()?,
+            argc: rd.read_u32()? as usize,
+        },
+        41 => Instr::CallBuiltinId {
+            id: rd.read_u32()? as u16,
             argc: rd.read_u32()? as usize,
         },
         26 => Instr::MakeArray(rd.read_u32()? as usize),

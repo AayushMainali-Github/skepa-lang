@@ -183,3 +183,28 @@ pub(super) fn call_builtin(
     stack.push(ret);
     Ok(())
 }
+
+pub(super) fn call_builtin_id(
+    stack: &mut Vec<Value>,
+    id: u16,
+    argc: usize,
+    env: &mut CallEnv<'_>,
+    site: Site<'_>,
+) -> Result<(), VmError> {
+    let _timer =
+        super::super::profiler::ScopedTimer::new(super::super::profiler::Event::CallBuiltin);
+    if stack.len() < argc {
+        return Err(super::err_at(
+            VmErrorKind::StackUnderflow,
+            "Stack underflow on CallBuiltinId",
+            site.function_name,
+            site.ip,
+        ));
+    }
+    let call_args = take_call_args(stack, argc);
+    let _dispatch_timer =
+        super::super::profiler::ScopedTimer::new(super::super::profiler::Event::BuiltinDispatch);
+    let ret = env.reg.call_by_id(env.host, id, call_args)?;
+    stack.push(ret);
+    Ok(())
+}
