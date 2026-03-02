@@ -3,3 +3,5 @@
 Cargo.lock
 .DS_Store
 syntax.md
+tmp_skepabench_debug/
+skepabench-*/
