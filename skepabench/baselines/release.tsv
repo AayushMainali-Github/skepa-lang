@@ -1,20 +1,20 @@
 warmups	4
 runs	15
-profile	release
+profile	release+strict
 case	kind	status	median_ms	min_ms	max_ms	reason
-compile_small_parse	lib	measured	0.008	0.007	0.013	
-compile_small_resolve	lib	measured	0.111	0.101	0.142	
-compile_small_sema	lib	measured	0.021	0.020	0.028	
-compile_small_codegen	lib	measured	0.022	0.022	0.031	
-compile_medium_resolve	lib	measured	0.360	0.349	0.415	
-compile_medium_sema	lib	measured	0.080	0.079	0.082	
-compile_medium_codegen	lib	measured	0.082	0.081	0.087	
-runtime_loop_heavy	lib	measured	130.771	129.502	133.115	
-runtime_call_heavy	lib	measured	121.308	102.309	143.025	
-runtime_array_heavy	lib	measured	174.612	156.999	201.465	
-runtime_struct_heavy	lib	measured	99.516	85.044	122.820	
-runtime_string_heavy	lib	measured	81.807	70.345	104.448	
-cli_small_check	cli	measured	8.637	8.301	10.540	
-cli_small_run	cli	measured	8.728	8.409	9.588	
-cli_medium_check	cli	measured	9.086	8.732	9.643	
-cli_medium_run	cli	measured	12.728	12.058	13.820	
+compile_small_parse	lib	measured	0.013	0.011	0.023	
+compile_small_resolve	lib	measured	0.187	0.114	0.290	
+compile_small_sema	lib	measured	0.022	0.022	0.038	
+compile_small_codegen	lib	measured	0.035	0.024	0.036	
+compile_medium_resolve	lib	measured	0.599	0.548	0.697	
+compile_medium_sema	lib	measured	0.144	0.132	0.635	
+compile_medium_codegen	lib	measured	0.158	0.139	0.204	
+runtime_loop_heavy	lib	measured	183.009	157.098	268.069	
+runtime_call_heavy	lib	measured	128.240	111.731	152.274	
+runtime_array_heavy	lib	measured	201.182	181.531	297.442	
+runtime_struct_heavy	lib	measured	134.994	115.484	154.895	
+runtime_string_heavy	lib	measured	308.096	296.846	393.984	
+cli_small_check	cli	measured	8.540	7.867	10.090	
+cli_small_run	cli	measured	9.470	7.922	10.230	
+cli_medium_check	cli	measured	11.129	10.391	13.047	
+cli_medium_run	cli	measured	19.838	17.794	22.574	
