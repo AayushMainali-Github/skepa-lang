@@ -67,15 +67,6 @@ impl<'a> CallFrame<'a> {
         }
     }
 
-    pub(super) fn write_local(&mut self, slot: usize, value: Value) -> bool {
-        if let Some(local) = self.locals.get_mut(slot) {
-            *local = value;
-            true
-        } else {
-            false
-        }
-    }
-
     #[inline(always)]
     pub(super) fn read_local_cloned(&self, slot: usize) -> Option<Value> {
         if slot < self.locals.len() {
@@ -83,6 +74,19 @@ impl<'a> CallFrame<'a> {
             Some(unsafe { self.locals.get_unchecked(slot).clone() })
         } else {
             None
+        }
+    }
+
+    #[inline(always)]
+    pub(super) fn write_local_fast(&mut self, slot: usize, value: Value) -> bool {
+        if slot < self.locals.len() {
+            // Compiled bytecode keeps frame locals pre-sized, so this is the hot path.
+            unsafe {
+                *self.locals.get_unchecked_mut(slot) = value;
+            }
+            true
+        } else {
+            false
         }
     }
 

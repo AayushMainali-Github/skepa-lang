@@ -565,7 +565,7 @@ fn handle_hot_instr(
                     ip,
                 ));
             };
-            if !frame.write_local(*slot, v) {
+            if !frame.write_local_fast(*slot, v) {
                 return Err(invalid_local_slot(function_name, ip, *slot));
             }
             frame.ip += 1;
@@ -622,12 +622,25 @@ fn handle_hot_instr(
         }
         Instr::JumpIfFalse(target) => {
             prof.bump_jump_if_false();
-            if let Some(next_ip) =
-                control_flow::jump_if_false(&mut frame.stack, *target, function_name, ip)?
-            {
-                frame.ip = next_ip;
-            } else {
-                frame.ip += 1;
+            let Some(cond) = frame.stack.pop() else {
+                return Err(err_at(
+                    VmErrorKind::TypeMismatch,
+                    "JumpIfFalse expects Bool",
+                    function_name,
+                    ip,
+                ));
+            };
+            match cond {
+                Value::Bool(false) => frame.ip = *target,
+                Value::Bool(true) => frame.ip += 1,
+                _ => {
+                    return Err(err_at(
+                        VmErrorKind::TypeMismatch,
+                        "JumpIfFalse expects Bool",
+                        function_name,
+                        ip,
+                    ));
+                }
             }
             Ok(true)
         }
