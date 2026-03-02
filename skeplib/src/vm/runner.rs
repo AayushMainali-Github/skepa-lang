@@ -198,7 +198,9 @@ pub(super) fn run_chunk(
             Instr::AndBool | Instr::OrBool => {
                 arith::logical(&mut frame.stack, instr, function_name, ip)?
             }
-            Instr::Jump(_) | Instr::JumpIfFalse(_) => unreachable!(),
+            Instr::Jump(_) | Instr::JumpIfFalse(_) | Instr::JumpIfLocalLtConst { .. } => {
+                unreachable!()
+            }
             Instr::JumpIfTrue(target) => {
                 if let Some(next_ip) =
                     control_flow::jump_if_true(&mut frame.stack, *target, function_name, ip)?
@@ -598,6 +600,27 @@ fn handle_hot_instr(
         Instr::Jump(target) => {
             frame.ip = control_flow::jump(*target);
             Ok(true)
+        }
+        Instr::JumpIfLocalLtConst { slot, rhs, target } => {
+            let Some(value) = frame.locals.get(*slot) else {
+                return Err(invalid_local_slot(function_name, ip, *slot));
+            };
+            match value {
+                Value::Int(current) => {
+                    if *current < *rhs {
+                        frame.ip += 1;
+                    } else {
+                        frame.ip = *target;
+                    }
+                    Ok(true)
+                }
+                _ => Err(err_at(
+                    VmErrorKind::TypeMismatch,
+                    "JumpIfLocalLtConst expects Int local",
+                    function_name,
+                    ip,
+                )),
+            }
         }
         Instr::JumpIfFalse(target) => {
             let Some(cond) = frame.stack.pop() else {

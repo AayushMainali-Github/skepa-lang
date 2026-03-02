@@ -61,6 +61,9 @@ fn fmt_instr(i: &Instr) -> String {
         Instr::Jump(t) => format!("Jump {t}"),
         Instr::JumpIfFalse(t) => format!("JumpIfFalse {t}"),
         Instr::JumpIfTrue(t) => format!("JumpIfTrue {t}"),
+        Instr::JumpIfLocalLtConst { slot, rhs, target } => {
+            format!("JumpIfLocalLtConst slot={slot} rhs={rhs} target={target}")
+        }
         Instr::Call { name, argc } => format!("Call {name} argc={argc}"),
         Instr::CallIdx { idx, argc } => format!("CallIdx {idx} argc={argc}"),
         Instr::CallValue { argc } => format!("CallValue argc={argc}"),

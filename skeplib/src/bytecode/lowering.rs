@@ -461,9 +461,7 @@ impl Compiler {
                 then_body,
                 else_body,
             } => {
-                self.compile_expr(cond, ctx, code);
-                let jmp_false_at = code.len();
-                code.push(Instr::JumpIfFalse(usize::MAX));
+                let jmp_false_at = self.compile_cond_jump_false(cond, ctx, code);
 
                 for s in then_body {
                     self.compile_stmt(s, ctx, loops, code);
@@ -471,13 +469,13 @@ impl Compiler {
 
                 if else_body.is_empty() {
                     let after_then = code.len();
-                    code[jmp_false_at] = Instr::JumpIfFalse(after_then);
+                    Self::patch_jump_false_target(code, jmp_false_at, after_then);
                 } else {
                     let jmp_end_at = code.len();
                     code.push(Instr::Jump(usize::MAX));
 
                     let else_start = code.len();
-                    code[jmp_false_at] = Instr::JumpIfFalse(else_start);
+                    Self::patch_jump_false_target(code, jmp_false_at, else_start);
 
                     for s in else_body {
                         self.compile_stmt(s, ctx, loops, code);
@@ -493,9 +491,7 @@ impl Compiler {
                     continue_target: loop_start,
                     break_jumps: Vec::new(),
                 });
-                self.compile_expr(cond, ctx, code);
-                let jmp_false_at = code.len();
-                code.push(Instr::JumpIfFalse(usize::MAX));
+                let jmp_false_at = self.compile_cond_jump_false(cond, ctx, code);
 
                 for s in body {
                     self.compile_stmt(s, ctx, loops, code);
@@ -503,7 +499,7 @@ impl Compiler {
 
                 code.push(Instr::Jump(loop_start));
                 let loop_end = code.len();
-                code[jmp_false_at] = Instr::JumpIfFalse(loop_end);
+                Self::patch_jump_false_target(code, jmp_false_at, loop_end);
                 if let Some(lp) = loops.pop() {
                     for at in lp.break_jumps {
                         code[at] = Instr::Jump(loop_end);
@@ -552,7 +548,7 @@ impl Compiler {
                 code.push(Instr::Jump(step_start));
 
                 let loop_end = code.len();
-                code[jmp_false_at] = Instr::JumpIfFalse(loop_end);
+                Self::patch_jump_false_target(code, jmp_false_at, loop_end);
                 if let Some(lp) = loops.pop() {
                     for at in lp.break_jumps {
                         code[at] = Instr::Jump(loop_end);
@@ -925,6 +921,55 @@ impl Compiler {
 
     fn error(&mut self, message: String) {
         self.diags.error(message, Span::default());
+    }
+
+    fn compile_cond_jump_false(
+        &mut self,
+        cond: &Expr,
+        ctx: &mut FnCtx,
+        code: &mut Vec<Instr>,
+    ) -> usize {
+        if let Some(instr) = Self::specialized_cond_jump_false(cond, ctx) {
+            let at = code.len();
+            code.push(instr);
+            at
+        } else {
+            self.compile_expr(cond, ctx, code);
+            let at = code.len();
+            code.push(Instr::JumpIfFalse(usize::MAX));
+            at
+        }
+    }
+
+    fn specialized_cond_jump_false(cond: &Expr, ctx: &FnCtx) -> Option<Instr> {
+        let Expr::Binary { left, op, right } = cond else {
+            return None;
+        };
+        if *op != BinaryOp::Lt {
+            return None;
+        }
+        let Expr::Ident(name) = &**left else {
+            return None;
+        };
+        let Expr::IntLit(rhs) = &**right else {
+            return None;
+        };
+        let slot = ctx.lookup(name)?;
+        Some(Instr::JumpIfLocalLtConst {
+            slot,
+            rhs: *rhs,
+            target: usize::MAX,
+        })
+    }
+
+    fn patch_jump_false_target(code: &mut [Instr], at: usize, target: usize) {
+        match &mut code[at] {
+            Instr::JumpIfFalse(existing) => *existing = target,
+            Instr::JumpIfLocalLtConst {
+                target: existing, ..
+            } => *existing = target,
+            instr => unreachable!("expected jump-false instruction, found {instr:?}"),
+        }
     }
 
     fn intern_method_name(&mut self, name: &str) -> usize {

@@ -215,6 +215,12 @@ fn encode_instr(i: &Instr, out: &mut Vec<u8>) {
             write_u8(out, 23);
             write_u32(out, *t as u32);
         }
+        Instr::JumpIfLocalLtConst { slot, rhs, target } => {
+            write_u8(out, 46);
+            write_u32(out, *slot as u32);
+            write_i64(out, *rhs);
+            write_u32(out, *target as u32);
+        }
         Instr::Call { name, argc } => {
             write_u8(out, 24);
             write_str(out, name);
@@ -420,6 +426,11 @@ fn decode_instr(rd: &mut Reader<'_>) -> Result<Instr, String> {
         21 => Instr::Jump(rd.read_u32()? as usize),
         22 => Instr::JumpIfFalse(rd.read_u32()? as usize),
         23 => Instr::JumpIfTrue(rd.read_u32()? as usize),
+        46 => Instr::JumpIfLocalLtConst {
+            slot: rd.read_u32()? as usize,
+            rhs: rd.read_i64()?,
+            target: rd.read_u32()? as usize,
+        },
         24 => Instr::Call {
             name: rd.read_str()?,
             argc: rd.read_u32()? as usize,

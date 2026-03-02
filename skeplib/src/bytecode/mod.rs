@@ -56,6 +56,11 @@ pub enum Instr {
     Jump(usize),
     JumpIfFalse(usize),
     JumpIfTrue(usize),
+    JumpIfLocalLtConst {
+        slot: usize,
+        rhs: i64,
+        target: usize,
+    },
     Call {
         name: String,
         argc: usize,
