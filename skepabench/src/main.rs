@@ -12,25 +12,45 @@ use skeplib::resolver::resolve_project;
 use skeplib::sema::analyze_project_graph_phased;
 use skeplib::vm::Vm;
 
-const DEFAULT_WARMUPS: usize = 4;
-const DEFAULT_RUNS: usize = 15;
+const DEFAULT_WARMUPS: usize = 1;
+const DEFAULT_RUNS: usize = 3;
 
-const LOOP_ITERATIONS: usize = 1_000_000;
-const CALL_ITERATIONS: usize = 500_000;
-const ARRAY_ITERATIONS: usize = 400_000;
-const STRUCT_ITERATIONS: usize = 250_000;
-const STRING_ITERATIONS: usize = 100_000;
-const MEDIUM_ACCUMULATE_LIMIT: usize = 20_000;
+const STRICT_WARMUPS: usize = 4;
+const STRICT_RUNS: usize = 15;
+
+const DEFAULT_LOOP_ITERATIONS: usize = 250_000;
+const DEFAULT_CALL_ITERATIONS: usize = 120_000;
+const DEFAULT_ARRAY_ITERATIONS: usize = 100_000;
+const DEFAULT_STRUCT_ITERATIONS: usize = 60_000;
+const DEFAULT_STRING_ITERATIONS: usize = 15_000;
+const DEFAULT_MEDIUM_ACCUMULATE_LIMIT: usize = 8_000;
+
+const STRICT_LOOP_ITERATIONS: usize = 1_000_000;
+const STRICT_CALL_ITERATIONS: usize = 500_000;
+const STRICT_ARRAY_ITERATIONS: usize = 400_000;
+const STRICT_STRUCT_ITERATIONS: usize = 250_000;
+const STRICT_STRING_ITERATIONS: usize = 100_000;
+const STRICT_MEDIUM_ACCUMULATE_LIMIT: usize = 20_000;
 
 struct CliOptions {
     warmups: usize,
     runs: usize,
     profile: String,
+    strict: bool,
     filter: Option<String>,
     json: bool,
     save_baseline: bool,
     compare: bool,
     baseline_path: Option<PathBuf>,
+}
+
+struct WorkloadConfig {
+    loop_iterations: usize,
+    call_iterations: usize,
+    array_iterations: usize,
+    struct_iterations: usize,
+    string_iterations: usize,
+    medium_accumulate_limit: usize,
 }
 
 enum CaseKind {
@@ -103,8 +123,14 @@ fn main() -> ExitCode {
 }
 
 fn run() -> Result<(), String> {
-    let opts = parse_args(env::args().skip(1))?;
-    let workspace = BenchWorkspace::create().map_err(|err| err.to_string())?;
+    let mut opts = parse_args(env::args().skip(1))?;
+    if opts.strict && opts.warmups == DEFAULT_WARMUPS && opts.runs == DEFAULT_RUNS {
+        opts.warmups = STRICT_WARMUPS;
+        opts.runs = STRICT_RUNS;
+    }
+    let workloads = workload_config(&opts);
+    let workspace =
+        BenchWorkspace::create(workloads.medium_accumulate_limit).map_err(|err| err.to_string())?;
     let mut cases = benchmark_cases(&workspace, &opts)?;
 
     let mut results = Vec::new();
@@ -163,6 +189,7 @@ fn parse_args(mut args: impl Iterator<Item = String>) -> Result<CliOptions, Stri
     let mut warmups = DEFAULT_WARMUPS;
     let mut runs = DEFAULT_RUNS;
     let mut profile = String::from("debug");
+    let mut strict = false;
     let mut filter = None;
     let mut json = false;
     let mut save_baseline = false;
@@ -196,6 +223,9 @@ fn parse_args(mut args: impl Iterator<Item = String>) -> Result<CliOptions, Stri
                 }
                 profile = value;
             }
+            "--strict" => {
+                strict = true;
+            }
             "--filter" => {
                 let Some(value) = args.next() else {
                     return Err("Missing value for --filter".to_string());
@@ -219,7 +249,7 @@ fn parse_args(mut args: impl Iterator<Item = String>) -> Result<CliOptions, Stri
             }
             "--help" | "-h" => {
                 return Err(
-                    "Usage: cargo run -p skepabench -- [--warmups N] [--runs N] [--profile debug|release] [--filter SUBSTR] [--json] [--save-baseline] [--compare] [--baseline-path PATH]"
+                    "Usage: cargo run -p skepabench -- [--warmups N] [--runs N] [--profile debug|release] [--strict] [--filter SUBSTR] [--json] [--save-baseline] [--compare] [--baseline-path PATH]"
                         .to_string(),
                 );
             }
@@ -235,6 +265,7 @@ fn parse_args(mut args: impl Iterator<Item = String>) -> Result<CliOptions, Stri
         warmups,
         runs,
         profile,
+        strict,
         filter,
         json,
         save_baseline,
@@ -247,6 +278,7 @@ fn benchmark_cases(
     workspace: &BenchWorkspace,
     opts: &CliOptions,
 ) -> Result<Vec<BenchCase>, String> {
+    let workloads = workload_config(opts);
     let small_src = fs::read_to_string(&workspace.small_file).map_err(|err| err.to_string())?;
     let medium_graph = resolve_project(&workspace.medium_entry).map_err(format_resolve_errors)?;
     let small_graph = resolve_project(&workspace.small_file).map_err(format_resolve_errors)?;
@@ -256,15 +288,15 @@ fn benchmark_cases(
     let medium_graph_for_codegen = medium_graph.clone();
 
     let loop_module =
-        compile_source(&src_loop_accumulate(LOOP_ITERATIONS)).map_err(format_diags)?;
-    let call_module =
-        compile_source(&src_function_call_chain(CALL_ITERATIONS)).map_err(format_diags)?;
+        compile_source(&src_loop_accumulate(workloads.loop_iterations)).map_err(format_diags)?;
+    let call_module = compile_source(&src_function_call_chain(workloads.call_iterations))
+        .map_err(format_diags)?;
     let array_module =
-        compile_source(&src_array_workload(ARRAY_ITERATIONS)).map_err(format_diags)?;
-    let struct_module =
-        compile_source(&src_struct_method_workload(STRUCT_ITERATIONS)).map_err(format_diags)?;
+        compile_source(&src_array_workload(workloads.array_iterations)).map_err(format_diags)?;
+    let struct_module = compile_source(&src_struct_method_workload(workloads.struct_iterations))
+        .map_err(format_diags)?;
     let string_module =
-        compile_source(&src_string_workload(STRING_ITERATIONS)).map_err(format_diags)?;
+        compile_source(&src_string_workload(workloads.string_iterations)).map_err(format_diags)?;
 
     let mut cases = vec![
         BenchCase {
@@ -513,8 +545,8 @@ fn duration_ms(duration: Duration) -> f64 {
 
 fn print_table_report(opts: &CliOptions, results: &[BenchRecord]) {
     println!(
-        "skepabench warmups={} runs={} profile={}",
-        opts.warmups, opts.runs, opts.profile
+        "skepabench warmups={} runs={} profile={} strict={}",
+        opts.warmups, opts.runs, opts.profile, opts.strict
     );
     println!(
         "{:<28} {:<8} {:>10} {:>10} {:>10}",
@@ -565,7 +597,11 @@ fn baseline_report_from_results(opts: &CliOptions, results: &[BenchRecord]) -> B
     BaselineReport {
         warmups: opts.warmups,
         runs: opts.runs,
-        profile: opts.profile.clone(),
+        profile: if opts.strict {
+            format!("{}+strict", opts.profile)
+        } else {
+            opts.profile.clone()
+        },
         results: results
             .iter()
             .map(|result| match &result.outcome {
@@ -596,6 +632,28 @@ fn default_baseline_path(profile: &str) -> PathBuf {
     PathBuf::from("skepabench")
         .join("baselines")
         .join(format!("{profile}.tsv"))
+}
+
+fn workload_config(opts: &CliOptions) -> WorkloadConfig {
+    if opts.strict {
+        WorkloadConfig {
+            loop_iterations: STRICT_LOOP_ITERATIONS,
+            call_iterations: STRICT_CALL_ITERATIONS,
+            array_iterations: STRICT_ARRAY_ITERATIONS,
+            struct_iterations: STRICT_STRUCT_ITERATIONS,
+            string_iterations: STRICT_STRING_ITERATIONS,
+            medium_accumulate_limit: STRICT_MEDIUM_ACCUMULATE_LIMIT,
+        }
+    } else {
+        WorkloadConfig {
+            loop_iterations: DEFAULT_LOOP_ITERATIONS,
+            call_iterations: DEFAULT_CALL_ITERATIONS,
+            array_iterations: DEFAULT_ARRAY_ITERATIONS,
+            struct_iterations: DEFAULT_STRUCT_ITERATIONS,
+            string_iterations: DEFAULT_STRING_ITERATIONS,
+            medium_accumulate_limit: DEFAULT_MEDIUM_ACCUMULATE_LIMIT,
+        }
+    }
 }
 
 fn compare_results(baseline: &BaselineReport, results: &[BenchRecord]) -> Vec<CompareRow> {
@@ -936,7 +994,7 @@ fn format_diags(diags: DiagnosticBag) -> String {
 }
 
 impl BenchWorkspace {
-    fn create() -> io::Result<Self> {
+    fn create(medium_accumulate_limit: usize) -> io::Result<Self> {
         let root = unique_temp_dir("skepabench")?;
         fs::create_dir_all(&root)?;
 
@@ -948,7 +1006,7 @@ impl BenchWorkspace {
         let model_dir = root.join("models");
         fs::create_dir_all(&math_dir)?;
         fs::create_dir_all(&model_dir)?;
-        fs::write(&medium_entry, src_medium_main())?;
+        fs::write(&medium_entry, src_medium_main(medium_accumulate_limit))?;
         fs::write(math_dir.join("math.sk"), src_medium_math())?;
         fs::write(model_dir.join("user.sk"), src_medium_user())?;
 
@@ -996,14 +1054,14 @@ fn main() -> Int {
     .to_string()
 }
 
-fn src_medium_main() -> String {
+fn src_medium_main(medium_accumulate_limit: usize) -> String {
     format!(
         r#"
 from utils.math import accumulate;
 from models.user import makeUser;
 
 fn main() -> Int {{
-  let total = accumulate({MEDIUM_ACCUMULATE_LIMIT});
+  let total = accumulate({medium_accumulate_limit});
   let u = makeUser(3, "skepa");
   if (u.bump(4) == 7 && total > 0) {{
     return 0;

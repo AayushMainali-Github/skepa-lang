@@ -5,3 +5,6 @@ Cargo.lock
 syntax.md
 tmp_skepabench_debug/
 skepabench-*/
+target_bench_tmp/
+tmp_call_*.sk
+tmp_call_*.txt
