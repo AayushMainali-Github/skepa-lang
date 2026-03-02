@@ -2,7 +2,6 @@ use std::env;
 use std::fs;
 use std::path::Path;
 use std::process::ExitCode;
-use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
 use skeplib::bytecode::{BytecodeModule, compile_project_graph};
@@ -20,6 +19,7 @@ const EXIT_DECODE: u8 = 13;
 const EXIT_RUNTIME: u8 = 14;
 const EXIT_RESOLVE: u8 = 15;
 
+#[cfg(feature = "cli-profiler")]
 #[derive(Default)]
 struct PhaseProfiler {
     label: &'static str,
@@ -27,6 +27,7 @@ struct PhaseProfiler {
     phases: Vec<(&'static str, Duration)>,
 }
 
+#[cfg(feature = "cli-profiler")]
 impl PhaseProfiler {
     fn new(label: &'static str) -> Self {
         let started_at = if profiling_enabled() {
@@ -80,7 +81,29 @@ impl PhaseProfiler {
     }
 }
 
+#[cfg(not(feature = "cli-profiler"))]
+#[derive(Default)]
+struct PhaseProfiler;
+
+#[cfg(not(feature = "cli-profiler"))]
+impl PhaseProfiler {
+    fn new(_: &'static str) -> Self {
+        Self
+    }
+
+    fn enabled(&self) -> bool {
+        false
+    }
+
+    fn record(&mut self, _: &'static str, _: Duration) {}
+
+    fn print(&self) {}
+}
+
+#[cfg(feature = "cli-profiler")]
 fn profiling_enabled() -> bool {
+    use std::sync::OnceLock;
+
     static ENABLED: OnceLock<bool> = OnceLock::new();
     *ENABLED.get_or_init(|| std::env::var_os("SKEPA_PROFILE_RUN").is_some())
 }

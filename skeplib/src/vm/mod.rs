@@ -12,7 +12,61 @@ mod config;
 mod error;
 mod host;
 mod host_trait;
+#[cfg(feature = "vm-profiler")]
 mod profiler;
+#[cfg(not(feature = "vm-profiler"))]
+mod profiler {
+    use std::time::Duration;
+
+    use crate::bytecode::Instr;
+
+    #[derive(Debug, Clone, Copy)]
+    pub(crate) enum Event {
+        VmStartup,
+        GlobalsInit,
+        MainRun,
+        RunChunk,
+        Call,
+        CallIdx,
+        CallValue,
+        CallMethod,
+        CallBuiltin,
+        BuiltinDispatch,
+        ArrayMake,
+        ArrayMakeRepeat,
+        ArrayGet,
+        ArraySet,
+        ArraySetChain,
+        ArrayLen,
+        StructMake,
+        StructGet,
+        StructSetPath,
+    }
+
+    pub(crate) struct SessionGuard;
+
+    impl SessionGuard {
+        pub(crate) fn start(_: &str) -> Self {
+            Self
+        }
+    }
+
+    pub(crate) struct ScopedTimer;
+
+    impl ScopedTimer {
+        pub(crate) fn new(_: Event) -> Self {
+            Self
+        }
+    }
+
+    pub(crate) fn enabled() -> bool {
+        false
+    }
+
+    pub(crate) fn record_instr(_: &Instr) {}
+
+    pub(crate) fn record_builtin_call(_: &str, _: Duration) {}
+}
 mod runner;
 
 use std::collections::HashMap;
