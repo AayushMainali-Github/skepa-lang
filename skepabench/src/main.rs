@@ -12,8 +12,15 @@ use skeplib::resolver::resolve_project;
 use skeplib::sema::analyze_project_graph_phased;
 use skeplib::vm::Vm;
 
-const DEFAULT_WARMUPS: usize = 2;
-const DEFAULT_RUNS: usize = 9;
+const DEFAULT_WARMUPS: usize = 4;
+const DEFAULT_RUNS: usize = 15;
+
+const LOOP_ITERATIONS: usize = 1_000_000;
+const CALL_ITERATIONS: usize = 500_000;
+const ARRAY_ITERATIONS: usize = 400_000;
+const STRUCT_ITERATIONS: usize = 250_000;
+const STRING_ITERATIONS: usize = 100_000;
+const MEDIUM_ACCUMULATE_LIMIT: usize = 20_000;
 
 struct CliOptions {
     warmups: usize,
@@ -248,12 +255,16 @@ fn benchmark_cases(
     let medium_graph_for_sema = medium_graph.clone();
     let medium_graph_for_codegen = medium_graph.clone();
 
-    let loop_module = compile_source(&src_loop_accumulate(250_000)).map_err(format_diags)?;
-    let call_module = compile_source(&src_function_call_chain(120_000)).map_err(format_diags)?;
-    let array_module = compile_source(&src_array_workload(100_000)).map_err(format_diags)?;
+    let loop_module =
+        compile_source(&src_loop_accumulate(LOOP_ITERATIONS)).map_err(format_diags)?;
+    let call_module =
+        compile_source(&src_function_call_chain(CALL_ITERATIONS)).map_err(format_diags)?;
+    let array_module =
+        compile_source(&src_array_workload(ARRAY_ITERATIONS)).map_err(format_diags)?;
     let struct_module =
-        compile_source(&src_struct_method_workload(60_000)).map_err(format_diags)?;
-    let string_module = compile_source(&src_string_workload(15_000)).map_err(format_diags)?;
+        compile_source(&src_struct_method_workload(STRUCT_ITERATIONS)).map_err(format_diags)?;
+    let string_module =
+        compile_source(&src_string_workload(STRING_ITERATIONS)).map_err(format_diags)?;
 
     let mut cases = vec![
         BenchCase {
@@ -986,19 +997,21 @@ fn main() -> Int {
 }
 
 fn src_medium_main() -> String {
-    r#"
+    format!(
+        r#"
 from utils.math import accumulate;
 from models.user import makeUser;
 
-fn main() -> Int {
-  let total = accumulate(2000);
+fn main() -> Int {{
+  let total = accumulate({MEDIUM_ACCUMULATE_LIMIT});
   let u = makeUser(3, "skepa");
-  if (u.bump(4) == 7 && total > 0) {
+  if (u.bump(4) == 7 && total > 0) {{
     return 0;
-  }
+  }}
   return 1;
-}
+}}
 "#
+    )
     .trim()
     .to_string()
 }
