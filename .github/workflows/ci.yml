@@ -19,9 +19,7 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: Run Workspace Tests
         run: cargo test --workspace
-      - name: Run Perf Regression Suite
-        run: cargo test -p skeplib --test perf_regression -- --ignored
-      - name: Run Ignored Perf Sanity Suite
-        run: cargo test -p skeplib --test parser_perf -- --ignored
-      - name: Run Project Perf Regression
-        run: cargo test -p skeplib --test project_perf_regression
+      - name: Build Release Bench Targets
+        run: cargo build --release -p skepac -p skeparun -p skepabench
+      - name: Run Release Benchmark Compare
+        run: cargo run --release -p skepabench -- --profile release --compare
