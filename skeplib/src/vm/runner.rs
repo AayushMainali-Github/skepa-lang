@@ -273,6 +273,27 @@ pub(super) fn run_chunk(
                 frames.push(new_frame);
                 continue;
             }
+            Instr::CallIdxAddConst(rhs) => {
+                let Some(value) = frame.stack.pop() else {
+                    return Err(err_at(
+                        VmErrorKind::StackUnderflow,
+                        "Stack underflow on CallIdxAddConst",
+                        function_name,
+                        ip,
+                    ));
+                };
+                match value {
+                    Value::Int(lhs) => frame.stack.push(Value::Int(lhs + rhs)),
+                    _ => {
+                        return Err(err_at(
+                            VmErrorKind::TypeMismatch,
+                            "CallIdxAddConst expects Int argument",
+                            function_name,
+                            ip,
+                        ));
+                    }
+                }
+            }
             Instr::CallValue { argc } => {
                 if frame.stack.len() < *argc + 1 {
                     return Err(err_at(

@@ -69,6 +69,7 @@ pub enum Instr {
         idx: usize,
         argc: usize,
     },
+    CallIdxAddConst(i64),
     CallValue {
         argc: usize,
     },

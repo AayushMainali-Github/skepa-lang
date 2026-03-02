@@ -231,6 +231,10 @@ fn encode_instr(i: &Instr, out: &mut Vec<u8>) {
             write_u32(out, *idx as u32);
             write_u32(out, *argc as u32);
         }
+        Instr::CallIdxAddConst(rhs) => {
+            write_u8(out, 47);
+            write_i64(out, *rhs);
+        }
         Instr::CallValue { argc } => {
             write_u8(out, 37);
             write_u32(out, *argc as u32);
@@ -439,6 +443,7 @@ fn decode_instr(rd: &mut Reader<'_>) -> Result<Instr, String> {
             idx: rd.read_u32()? as usize,
             argc: rd.read_u32()? as usize,
         },
+        47 => Instr::CallIdxAddConst(rd.read_i64()?),
         37 => Instr::CallValue {
             argc: rd.read_u32()? as usize,
         },

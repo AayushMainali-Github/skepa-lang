@@ -66,6 +66,7 @@ fn fmt_instr(i: &Instr) -> String {
         }
         Instr::Call { name, argc } => format!("Call {name} argc={argc}"),
         Instr::CallIdx { idx, argc } => format!("CallIdx {idx} argc={argc}"),
+        Instr::CallIdxAddConst(rhs) => format!("CallIdxAddConst {rhs}"),
         Instr::CallValue { argc } => format!("CallValue argc={argc}"),
         Instr::CallMethod { name, argc } => format!("CallMethod {name} argc={argc}"),
         Instr::CallMethodId { id, argc } => format!("CallMethodId {id} argc={argc}"),

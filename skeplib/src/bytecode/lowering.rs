@@ -28,6 +28,7 @@ pub fn compile_source(source: &str) -> Result<BytecodeModule, DiagnosticBag> {
         let mut module = module;
         peephole_optimize_module(&mut module);
         rewrite_direct_calls_to_indexes(&mut module);
+        rewrite_trivial_direct_calls(&mut module);
         rewrite_function_values_to_indexes(&mut module);
         Ok(module)
     } else {
@@ -1312,6 +1313,7 @@ fn compile_project_graph_inner(
 
     peephole_optimize_module(&mut out);
     rewrite_direct_calls_to_indexes(&mut out);
+    rewrite_trivial_direct_calls(&mut out);
     rewrite_function_values_to_indexes(&mut out);
     Ok(out)
 }
@@ -1440,6 +1442,57 @@ fn rewrite_direct_calls_to_indexes(module: &mut BytecodeModule) {
                 *instr = new_instr;
             }
         }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum TrivialDirectCall {
+    AddConst(i64),
+}
+
+fn rewrite_trivial_direct_calls(module: &mut BytecodeModule) {
+    let mut names = module.functions.keys().cloned().collect::<Vec<_>>();
+    names.sort();
+    let trivial = names
+        .iter()
+        .map(|name| {
+            module
+                .functions
+                .get(name)
+                .and_then(trivial_direct_call_pattern)
+        })
+        .collect::<Vec<_>>();
+
+    for chunk in module.functions.values_mut() {
+        for instr in &mut chunk.code {
+            if let Instr::CallIdx { idx, argc } = instr
+                && *argc == 1
+                && let Some(Some(TrivialDirectCall::AddConst(rhs))) = trivial.get(*idx)
+            {
+                *instr = Instr::CallIdxAddConst(*rhs);
+            }
+        }
+    }
+}
+
+fn trivial_direct_call_pattern(chunk: &FunctionChunk) -> Option<TrivialDirectCall> {
+    if chunk.param_count != 1 || chunk.locals_count != 1 {
+        return None;
+    }
+    match chunk.code.as_slice() {
+        [
+            Instr::LoadLocal(0),
+            Instr::LoadConst(Value::Int(rhs)),
+            Instr::Add,
+            Instr::Return,
+        ] => Some(TrivialDirectCall::AddConst(*rhs)),
+        [
+            Instr::LoadConst(Value::Int(rhs)),
+            Instr::LoadLocal(0),
+            Instr::Add,
+            Instr::Return,
+        ] => Some(TrivialDirectCall::AddConst(*rhs)),
+        _ => None,
     }
 }
 
