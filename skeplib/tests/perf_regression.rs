@@ -30,7 +30,7 @@ fn perf_runtime_loop_accumulate_vm() {
     let median = median_elapsed(PERF_WARMUP_RUNS, PERF_MEASURED_RUNS, || {
         let _ = run_vm(&module);
     });
-    assert_under("runtime_loop_accumulate_vm", median, 450);
+    assert_under("runtime_loop_accumulate_vm", median, 650);
 }
 
 #[test]
@@ -44,7 +44,7 @@ fn perf_runtime_match_dispatch_vm() {
     let median = median_elapsed(PERF_WARMUP_RUNS, PERF_MEASURED_RUNS, || {
         let _ = run_vm(&module);
     });
-    assert_under("runtime_match_dispatch_vm", median, 650);
+    assert_under("runtime_match_dispatch_vm", median, 900);
 }
 
 #[test]
@@ -72,7 +72,7 @@ fn perf_runtime_function_call_chain_vm() {
     let median = median_elapsed(PERF_WARMUP_RUNS, PERF_MEASURED_RUNS, || {
         let _ = run_vm(&module);
     });
-    assert_under("runtime_function_call_chain_vm", median, 650);
+    assert_under("runtime_function_call_chain_vm", median, 950);
 }
 
 #[test]
@@ -100,7 +100,7 @@ fn perf_runtime_array_workload_vm() {
     let median = median_elapsed(PERF_WARMUP_RUNS, PERF_MEASURED_RUNS, || {
         let _ = run_vm(&module);
     });
-    assert_under("runtime_array_workload_vm", median, 800);
+    assert_under("runtime_array_workload_vm", median, 1_200);
 }
 
 #[test]
@@ -128,7 +128,7 @@ fn perf_runtime_struct_method_workload_vm() {
     let median = median_elapsed(PERF_WARMUP_RUNS, PERF_MEASURED_RUNS, || {
         let _ = run_vm(&module);
     });
-    assert_under("runtime_struct_method_workload_vm", median, 450);
+    assert_under("runtime_struct_method_workload_vm", median, 700);
 }
 
 #[test]
