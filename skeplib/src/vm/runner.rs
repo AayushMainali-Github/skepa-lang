@@ -515,6 +515,10 @@ pub(super) fn run_chunk(
                 },
                 calls::Site { function_name, ip },
             )?,
+            Instr::StrLen
+            | Instr::StrIndexOfConst(_)
+            | Instr::StrSliceConst { .. }
+            | Instr::StrContainsConst(_) => unreachable!("handled in hot instruction path"),
             Instr::MakeArray(n) => arrays::make_array(&mut frame.stack, *n, function_name, ip)?,
             Instr::MakeArrayRepeat(n) => {
                 arrays::make_array_repeat(&mut frame.stack, *n, function_name, ip)?
@@ -637,6 +641,72 @@ fn handle_hot_instr(
                 }
                 _ => Ok(false),
             }
+        }
+        Instr::StrLen => {
+            let Some(value) = frame.stack.pop() else {
+                return Err(err_at(
+                    VmErrorKind::StackUnderflow,
+                    "Stack underflow on StrLen",
+                    function_name,
+                    ip,
+                ));
+            };
+            frame
+                .stack
+                .push(super::builtins::str::direct_str_len(value)?);
+            frame.ip += 1;
+            Ok(true)
+        }
+        Instr::StrIndexOfConst(needle) => {
+            let Some(value) = frame.stack.pop() else {
+                return Err(err_at(
+                    VmErrorKind::StackUnderflow,
+                    "Stack underflow on StrIndexOfConst",
+                    function_name,
+                    ip,
+                ));
+            };
+            frame
+                .stack
+                .push(super::builtins::str::direct_str_index_of_const(
+                    value, needle,
+                )?);
+            frame.ip += 1;
+            Ok(true)
+        }
+        Instr::StrSliceConst { start, end } => {
+            let Some(value) = frame.stack.pop() else {
+                return Err(err_at(
+                    VmErrorKind::StackUnderflow,
+                    "Stack underflow on StrSliceConst",
+                    function_name,
+                    ip,
+                ));
+            };
+            frame
+                .stack
+                .push(super::builtins::str::direct_str_slice_const(
+                    value, *start, *end,
+                )?);
+            frame.ip += 1;
+            Ok(true)
+        }
+        Instr::StrContainsConst(needle) => {
+            let Some(value) = frame.stack.pop() else {
+                return Err(err_at(
+                    VmErrorKind::StackUnderflow,
+                    "Stack underflow on StrContainsConst",
+                    function_name,
+                    ip,
+                ));
+            };
+            frame
+                .stack
+                .push(super::builtins::str::direct_str_contains_const(
+                    value, needle,
+                )?);
+            frame.ip += 1;
+            Ok(true)
         }
         Instr::Add => {
             let Some((l, r)) = frame.pop2() else {

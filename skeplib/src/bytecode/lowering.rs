@@ -791,6 +791,9 @@ impl Compiler {
                         && parts.len() == 2
                         && matches!(&**base, Expr::Ident(pkg) if ctx.lookup(pkg).is_none())
                     {
+                        if self.specialized_builtin_call(&parts, args, ctx, code) {
+                            return;
+                        }
                         for arg in args {
                             self.compile_expr(arg, ctx, code);
                         }
@@ -929,6 +932,44 @@ impl Compiler {
                 let fn_name = self.compile_fn_lit(params, body);
                 code.push(Instr::LoadConst(Value::Function(Rc::<str>::from(fn_name))));
             }
+        }
+    }
+
+    fn specialized_builtin_call(
+        &mut self,
+        parts: &[String],
+        args: &[Expr],
+        ctx: &mut FnCtx,
+        code: &mut Vec<Instr>,
+    ) -> bool {
+        if parts.len() != 2 || parts[0] != "str" {
+            return false;
+        }
+        match (parts[1].as_str(), args) {
+            ("len", [arg]) => {
+                self.compile_expr(arg, ctx, code);
+                code.push(Instr::StrLen);
+                true
+            }
+            ("indexOf", [arg, Expr::StringLit(needle)]) => {
+                self.compile_expr(arg, ctx, code);
+                code.push(Instr::StrIndexOfConst(Rc::<str>::from(needle.clone())));
+                true
+            }
+            ("slice", [arg, Expr::IntLit(start), Expr::IntLit(end)]) => {
+                self.compile_expr(arg, ctx, code);
+                code.push(Instr::StrSliceConst {
+                    start: *start,
+                    end: *end,
+                });
+                true
+            }
+            ("contains", [arg, Expr::StringLit(needle)]) => {
+                self.compile_expr(arg, ctx, code);
+                code.push(Instr::StrContainsConst(Rc::<str>::from(needle.clone())));
+                true
+            }
+            _ => false,
         }
     }
 

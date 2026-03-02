@@ -99,6 +99,13 @@ pub enum Instr {
         id: u16,
         argc: usize,
     },
+    StrLen,
+    StrIndexOfConst(Rc<str>),
+    StrSliceConst {
+        start: i64,
+        end: i64,
+    },
+    StrContainsConst(Rc<str>),
     MakeArray(usize),
     MakeArrayRepeat(usize),
     ArrayGet,

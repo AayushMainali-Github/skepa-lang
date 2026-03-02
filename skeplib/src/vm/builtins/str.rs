@@ -47,13 +47,7 @@ pub(crate) fn builtin_str_len(
             "str.len expects 1 argument",
         ));
     }
-    match &args[0] {
-        Value::String(s) => Ok(Value::Int(scalar_len(s))),
-        _ => Err(VmError::new(
-            VmErrorKind::TypeMismatch,
-            "str.len expects String argument",
-        )),
-    }
+    direct_str_len(args.into_iter().next().unwrap())
 }
 
 pub(crate) fn builtin_str_contains(
@@ -66,8 +60,8 @@ pub(crate) fn builtin_str_contains(
             "str.contains expects 2 arguments",
         ));
     }
-    match (&args[0], &args[1]) {
-        (Value::String(h), Value::String(n)) => Ok(Value::Bool(h.contains(n.as_ref()))),
+    match &args[1] {
+        Value::String(needle) => direct_str_contains_const(args[0].clone(), needle),
         _ => Err(VmError::new(
             VmErrorKind::TypeMismatch,
             "str.contains expects String, String arguments",
@@ -180,11 +174,8 @@ pub(crate) fn builtin_str_index_of(
             "str.indexOf expects 2 arguments",
         ));
     }
-    match (&args[0], &args[1]) {
-        (Value::String(s), Value::String(n)) => match s.find(n.as_ref()) {
-            Some(byte_idx) => Ok(Value::Int(scalar_prefix_len(s, byte_idx))),
-            None => Ok(Value::Int(-1)),
-        },
+    match &args[1] {
+        Value::String(needle) => direct_str_index_of_const(args[0].clone(), needle),
         _ => Err(VmError::new(
             VmErrorKind::TypeMismatch,
             "str.indexOf expects String, String arguments",
@@ -219,15 +210,7 @@ pub(crate) fn builtin_str_slice(
             ),
         ));
     }
-    let out = if s.is_ascii() {
-        s[*start as usize..*end as usize].to_string()
-    } else {
-        s.chars()
-            .skip(*start as usize)
-            .take((*end - *start) as usize)
-            .collect()
-    };
-    Ok(Value::String(out.into()))
+    direct_str_slice_const(args[0].clone(), *start, *end)
 }
 
 pub(crate) fn builtin_str_is_empty(
@@ -267,6 +250,64 @@ pub(crate) fn builtin_str_last_index_of(
         _ => Err(VmError::new(
             VmErrorKind::TypeMismatch,
             "str.lastIndexOf expects String, String arguments",
+        )),
+    }
+}
+
+pub(crate) fn direct_str_len(arg: Value) -> Result<Value, VmError> {
+    match arg {
+        Value::String(s) => Ok(Value::Int(scalar_len(&s))),
+        _ => Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "str.len expects String argument",
+        )),
+    }
+}
+
+pub(crate) fn direct_str_index_of_const(arg: Value, needle: &str) -> Result<Value, VmError> {
+    match arg {
+        Value::String(s) => match s.find(needle) {
+            Some(byte_idx) => Ok(Value::Int(scalar_prefix_len(&s, byte_idx))),
+            None => Ok(Value::Int(-1)),
+        },
+        _ => Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "str.indexOf expects String, String arguments",
+        )),
+    }
+}
+
+pub(crate) fn direct_str_slice_const(arg: Value, start: i64, end: i64) -> Result<Value, VmError> {
+    let Value::String(s) = arg else {
+        return Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "str.slice expects String, Int, Int arguments",
+        ));
+    };
+    let len = scalar_len(&s);
+    if start < 0 || end < 0 || start > end || end > len {
+        return Err(VmError::new(
+            VmErrorKind::IndexOutOfBounds,
+            format!("str.slice bounds out of range: start={start}, end={end}, len={len}"),
+        ));
+    }
+    let out = if s.is_ascii() {
+        s[start as usize..end as usize].to_string()
+    } else {
+        s.chars()
+            .skip(start as usize)
+            .take((end - start) as usize)
+            .collect()
+    };
+    Ok(Value::String(out.into()))
+}
+
+pub(crate) fn direct_str_contains_const(arg: Value, needle: &str) -> Result<Value, VmError> {
+    match arg {
+        Value::String(s) => Ok(Value::Bool(s.contains(needle))),
+        _ => Err(VmError::new(
+            VmErrorKind::TypeMismatch,
+            "str.contains expects String, String arguments",
         )),
     }
 }

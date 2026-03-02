@@ -278,6 +278,20 @@ fn encode_instr(i: &Instr, out: &mut Vec<u8>) {
             write_u32(out, *id as u32);
             write_u32(out, *argc as u32);
         }
+        Instr::StrLen => write_u8(out, 52),
+        Instr::StrIndexOfConst(needle) => {
+            write_u8(out, 53);
+            write_str(out, needle);
+        }
+        Instr::StrSliceConst { start, end } => {
+            write_u8(out, 54);
+            write_i64(out, *start);
+            write_i64(out, *end);
+        }
+        Instr::StrContainsConst(needle) => {
+            write_u8(out, 55);
+            write_str(out, needle);
+        }
         Instr::MakeArray(n) => {
             write_u8(out, 26);
             write_u32(out, *n as u32);
@@ -491,6 +505,13 @@ fn decode_instr(rd: &mut Reader<'_>) -> Result<Instr, String> {
             id: rd.read_u32()? as u16,
             argc: rd.read_u32()? as usize,
         },
+        52 => Instr::StrLen,
+        53 => Instr::StrIndexOfConst(Rc::<str>::from(rd.read_str()?)),
+        54 => Instr::StrSliceConst {
+            start: rd.read_i64()?,
+            end: rd.read_i64()?,
+        },
+        55 => Instr::StrContainsConst(Rc::<str>::from(rd.read_str()?)),
         26 => Instr::MakeArray(rd.read_u32()? as usize),
         27 => Instr::MakeArrayRepeat(rd.read_u32()? as usize),
         28 => Instr::ArrayGet,

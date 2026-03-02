@@ -4,7 +4,7 @@ mod fs;
 mod io;
 mod os;
 mod random;
-mod str;
+pub(crate) mod str;
 mod vec;
 
 use std::collections::HashMap;
