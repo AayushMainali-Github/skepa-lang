@@ -103,6 +103,7 @@ pub enum Instr {
     ArrayGet,
     ArraySet,
     ArraySetLocal(usize),
+    ArrayIncLocal(usize),
     ArraySetChain(usize),
     ArrayLen,
     MakeStruct {

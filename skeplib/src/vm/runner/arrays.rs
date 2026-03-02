@@ -218,6 +218,79 @@ pub(super) fn array_set_local(
     Ok(())
 }
 
+pub(super) fn array_inc_local(
+    frame: &mut CallFrame<'_>,
+    slot: usize,
+    function_name: &str,
+    ip: usize,
+) -> Result<(), VmError> {
+    let Some(idx_v) = frame.stack.pop() else {
+        return Err(super::err_at(
+            VmErrorKind::StackUnderflow,
+            "ArrayIncLocal expects index",
+            function_name,
+            ip,
+        ));
+    };
+    let Value::Int(idx) = idx_v else {
+        return Err(super::err_at(
+            VmErrorKind::TypeMismatch,
+            "ArrayIncLocal index must be Int",
+            function_name,
+            ip,
+        ));
+    };
+    let Some(local) = frame.locals.get_mut(slot) else {
+        return Err(super::err_at(
+            VmErrorKind::InvalidLocal,
+            format!("Invalid local slot {slot}"),
+            function_name,
+            ip,
+        ));
+    };
+    let Value::Array(items) = local else {
+        return Err(super::err_at(
+            VmErrorKind::TypeMismatch,
+            "ArrayIncLocal expects Array local",
+            function_name,
+            ip,
+        ));
+    };
+    if idx < 0 || idx as usize >= items.len() {
+        return Err(super::err_at(
+            VmErrorKind::IndexOutOfBounds,
+            format!("Array index {} out of bounds (len={})", idx, items.len()),
+            function_name,
+            ip,
+        ));
+    }
+    let items_mut = Rc::make_mut(items);
+    let Some(value) = items_mut.get_mut(idx as usize) else {
+        return Err(super::err_at(
+            VmErrorKind::IndexOutOfBounds,
+            format!(
+                "Array index {} out of bounds (len={})",
+                idx,
+                items_mut.len()
+            ),
+            function_name,
+            ip,
+        ));
+    };
+    match value {
+        Value::Int(current) => {
+            *current += 1;
+            Ok(())
+        }
+        _ => Err(super::err_at(
+            VmErrorKind::TypeMismatch,
+            "ArrayIncLocal expects Int element",
+            function_name,
+            ip,
+        )),
+    }
+}
+
 pub(super) fn array_set_chain(
     stack: &mut Vec<Value>,
     depth: usize,

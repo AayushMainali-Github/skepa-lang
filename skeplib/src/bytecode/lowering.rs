@@ -407,9 +407,16 @@ impl Compiler {
                     if let Some((root, indices)) = Self::flatten_index_target(base, index) {
                         if let Some(slot) = ctx.lookup(&root) {
                             if indices.len() == 1 {
-                                self.compile_expr(indices[0], ctx, code);
-                                self.compile_expr(value, ctx, code);
-                                code.push(Instr::ArraySetLocal(slot));
+                                if let Some(instr) =
+                                    Self::specialized_local_array_assign(&root, indices[0], value)
+                                {
+                                    self.compile_expr(indices[0], ctx, code);
+                                    code.push(instr.with_slot(slot));
+                                } else {
+                                    self.compile_expr(indices[0], ctx, code);
+                                    self.compile_expr(value, ctx, code);
+                                    code.push(Instr::ArraySetLocal(slot));
+                                }
                             } else {
                                 code.push(Instr::LoadLocal(slot));
                                 for idx in &indices {
@@ -1008,6 +1015,42 @@ impl Compiler {
         }
     }
 
+    fn specialized_local_array_assign(
+        root: &str,
+        index: &Expr,
+        value: &Expr,
+    ) -> Option<SpecializedArrayAssign> {
+        let Expr::Binary { left, op, right } = value else {
+            return None;
+        };
+        if *op != BinaryOp::Add {
+            return None;
+        }
+        match (&**left, &**right) {
+            (Expr::IntLit(1), other) | (other, Expr::IntLit(1)) => {
+                if Self::is_same_local_index_expr(root, index, other) {
+                    return Some(SpecializedArrayAssign::IncLocal);
+                }
+            }
+            _ => {}
+        }
+        None
+    }
+
+    fn is_same_local_index_expr(root: &str, index: &Expr, expr: &Expr) -> bool {
+        let Expr::Index {
+            base,
+            index: other_index,
+        } = expr
+        else {
+            return false;
+        };
+        let Expr::Ident(name) = &**base else {
+            return false;
+        };
+        name == root && **other_index == *index
+    }
+
     fn patch_jump_false_target(code: &mut [Instr], at: usize, target: usize) {
         match &mut code[at] {
             Instr::JumpIfFalse(existing) => *existing = target,
@@ -1434,6 +1477,18 @@ struct FnCtx {
     locals: HashMap<String, usize>,
     local_named_types: HashMap<String, String>,
     next_local: usize,
+}
+
+enum SpecializedArrayAssign {
+    IncLocal,
+}
+
+impl SpecializedArrayAssign {
+    fn with_slot(self, slot: usize) -> Instr {
+        match self {
+            Self::IncLocal => Instr::ArrayIncLocal(slot),
+        }
+    }
 }
 
 impl FnCtx {

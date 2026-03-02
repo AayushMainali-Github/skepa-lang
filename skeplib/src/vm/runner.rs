@@ -477,6 +477,7 @@ pub(super) fn run_chunk(
             Instr::ArrayGet => arrays::array_get(&mut frame.stack, function_name, ip)?,
             Instr::ArraySet => arrays::array_set(&mut frame.stack, function_name, ip)?,
             Instr::ArraySetLocal(slot) => arrays::array_set_local(frame, *slot, function_name, ip)?,
+            Instr::ArrayIncLocal(slot) => arrays::array_inc_local(frame, *slot, function_name, ip)?,
             Instr::ArraySetChain(depth) => {
                 arrays::array_set_chain(&mut frame.stack, *depth, function_name, ip)?
             }
