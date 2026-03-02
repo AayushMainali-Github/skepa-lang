@@ -114,8 +114,6 @@ pub(super) fn run_chunk(
             Instr::LoadConst(_)
             | Instr::LoadLocal(_)
             | Instr::StoreLocal(_)
-            | Instr::CopyLocal { .. }
-            | Instr::IntOpLocalsToLocal { .. }
             | Instr::AddLocalToLocal { .. }
             | Instr::AddConstToLocal { .. } => unreachable!(),
             Instr::LoadGlobal(slot) => {
@@ -204,11 +202,142 @@ pub(super) fn run_chunk(
             Instr::AndBool | Instr::OrBool => {
                 arith::logical(&mut frame.stack, instr, function_name, ip)?
             }
-            Instr::Jump(_)
-            | Instr::JumpIfFalse(_)
-            | Instr::JumpIfLocalLtConst { .. }
-            | Instr::JumpIfLocalIntCmp { .. } => {
+            Instr::Jump(_) | Instr::JumpIfFalse(_) | Instr::JumpIfLocalLtConst { .. } => {
                 unreachable!()
+            }
+            Instr::CopyLocal { dst, src } => {
+                let Some(v) = frame.locals.get(*src).cloned() else {
+                    return Err(invalid_local_slot(function_name, ip, *src));
+                };
+                if *dst >= frame.locals.len() {
+                    return Err(invalid_local_slot(function_name, ip, *dst));
+                }
+                frame.locals[*dst] = v;
+            }
+            Instr::IntOpLocalsToLocal { dst, lhs, rhs, op } => {
+                let Some(lhs_value) = frame.locals.get(*lhs).cloned() else {
+                    return Err(invalid_local_slot(function_name, ip, *lhs));
+                };
+                let Some(rhs_value) = frame.locals.get(*rhs).cloned() else {
+                    return Err(invalid_local_slot(function_name, ip, *rhs));
+                };
+                let out = match (lhs_value, rhs_value, op) {
+                    (Value::Int(lhs), Value::Int(rhs), IntBinOp::Add) => Value::Int(lhs + rhs),
+                    (Value::Int(lhs), Value::Int(rhs), IntBinOp::Sub) => Value::Int(lhs - rhs),
+                    (Value::Int(lhs), Value::Int(rhs), IntBinOp::Mul) => Value::Int(lhs * rhs),
+                    (Value::Int(lhs), Value::Int(rhs), IntBinOp::Div) => {
+                        if rhs == 0 {
+                            return Err(err_at(
+                                VmErrorKind::DivisionByZero,
+                                "division by zero",
+                                function_name,
+                                ip,
+                            ));
+                        }
+                        Value::Int(lhs / rhs)
+                    }
+                    (Value::Int(lhs), Value::Int(rhs), IntBinOp::Mod) => {
+                        if rhs == 0 {
+                            return Err(err_at(
+                                VmErrorKind::DivisionByZero,
+                                "modulo by zero",
+                                function_name,
+                                ip,
+                            ));
+                        }
+                        Value::Int(lhs % rhs)
+                    }
+                    (lhs, rhs, _) => {
+                        frame.stack.push(lhs);
+                        frame.stack.push(rhs);
+                        let generic = match op {
+                            IntBinOp::Add => Instr::Add,
+                            IntBinOp::Sub => Instr::SubInt,
+                            IntBinOp::Mul => Instr::MulInt,
+                            IntBinOp::Div => Instr::DivInt,
+                            IntBinOp::Mod => Instr::ModInt,
+                        };
+                        match generic {
+                            Instr::Add => arith::add(&mut frame.stack, function_name, ip)?,
+                            Instr::ModInt => arith::mod_int(&mut frame.stack, function_name, ip)?,
+                            _ => arith::numeric_binop(&mut frame.stack, &generic, function_name, ip)?,
+                        }
+                        frame.stack.pop().unwrap_or(Value::Unit)
+                    }
+                };
+                if *dst >= frame.locals.len() {
+                    return Err(invalid_local_slot(function_name, ip, *dst));
+                }
+                frame.locals[*dst] = out;
+            }
+            Instr::JumpIfLocalIntCmp { lhs, rhs, op, target } => {
+                let Some(lhs_value) = frame.locals.get(*lhs).cloned() else {
+                    return Err(invalid_local_slot(function_name, ip, *lhs));
+                };
+                let Some(rhs_value) = frame.locals.get(*rhs).cloned() else {
+                    return Err(invalid_local_slot(function_name, ip, *rhs));
+                };
+                match (lhs_value, rhs_value) {
+                    (Value::Int(lhs), Value::Int(rhs)) => {
+                        let passed = match op {
+                            IntCmpOp::Eq => lhs == rhs,
+                            IntCmpOp::Neq => lhs != rhs,
+                            IntCmpOp::Lt => lhs < rhs,
+                            IntCmpOp::Lte => lhs <= rhs,
+                            IntCmpOp::Gt => lhs > rhs,
+                            IntCmpOp::Gte => lhs >= rhs,
+                        };
+                        if passed {
+                            frame.ip += 1;
+                            continue;
+                        }
+                        frame.ip = *target;
+                        continue;
+                    }
+                    (lhs, rhs) => {
+                        frame.stack.push(lhs);
+                        frame.stack.push(rhs);
+                        let generic = match op {
+                            IntCmpOp::Eq => Instr::Eq,
+                            IntCmpOp::Neq => Instr::Neq,
+                            IntCmpOp::Lt => Instr::LtInt,
+                            IntCmpOp::Lte => Instr::LteInt,
+                            IntCmpOp::Gt => Instr::GtInt,
+                            IntCmpOp::Gte => Instr::GteInt,
+                        };
+                        match generic {
+                            Instr::Eq => arith::eq(&mut frame.stack, function_name, ip)?,
+                            Instr::Neq => arith::neq(&mut frame.stack, function_name, ip)?,
+                            _ => arith::numeric_binop(&mut frame.stack, &generic, function_name, ip)?,
+                        }
+                        let Some(cond) = frame.stack.pop() else {
+                            return Err(err_at(
+                                VmErrorKind::TypeMismatch,
+                                "JumpIfLocalIntCmp expects Bool result",
+                                function_name,
+                                ip,
+                            ));
+                        };
+                        match cond {
+                            Value::Bool(true) => {
+                                frame.ip += 1;
+                                continue;
+                            }
+                            Value::Bool(false) => {
+                                frame.ip = *target;
+                                continue;
+                            }
+                            _ => {
+                                return Err(err_at(
+                                    VmErrorKind::TypeMismatch,
+                                    "JumpIfLocalIntCmp expects Bool result",
+                                    function_name,
+                                    ip,
+                                ));
+                            }
+                        }
+                    }
+                }
             }
             Instr::JumpIfTrue(target) => {
                 if let Some(next_ip) =
@@ -614,61 +743,6 @@ fn handle_hot_instr(
             frame.ip += 1;
             Ok(true)
         }
-        Instr::CopyLocal { dst, src } => {
-            let Some(v) = frame.read_local_cloned(*src) else {
-                return Err(invalid_local_slot(function_name, ip, *src));
-            };
-            if !frame.write_local_fast(*dst, v) {
-                return Err(invalid_local_slot(function_name, ip, *dst));
-            }
-            frame.ip += 1;
-            Ok(true)
-        }
-        Instr::IntOpLocalsToLocal { dst, lhs, rhs, op } => {
-            let Some(lhs_value) = frame.read_local_cloned(*lhs) else {
-                return Err(invalid_local_slot(function_name, ip, *lhs));
-            };
-            let Some(rhs_value) = frame.read_local_cloned(*rhs) else {
-                return Err(invalid_local_slot(function_name, ip, *rhs));
-            };
-            match (lhs_value, rhs_value) {
-                (Value::Int(lhs), Value::Int(rhs)) => {
-                    let out = match op {
-                        IntBinOp::Add => lhs + rhs,
-                        IntBinOp::Sub => lhs - rhs,
-                        IntBinOp::Mul => lhs * rhs,
-                        IntBinOp::Div => {
-                            if rhs == 0 {
-                                return Err(err_at(
-                                    VmErrorKind::DivisionByZero,
-                                    "division by zero",
-                                    function_name,
-                                    ip,
-                                ));
-                            }
-                            lhs / rhs
-                        }
-                        IntBinOp::Mod => {
-                            if rhs == 0 {
-                                return Err(err_at(
-                                    VmErrorKind::DivisionByZero,
-                                    "modulo by zero",
-                                    function_name,
-                                    ip,
-                                ));
-                            }
-                            lhs % rhs
-                        }
-                    };
-                    if !frame.write_local_fast(*dst, Value::Int(out)) {
-                        return Err(invalid_local_slot(function_name, ip, *dst));
-                    }
-                    frame.ip += 1;
-                    Ok(true)
-                }
-                _ => Ok(false),
-            }
-        }
         Instr::AddLocalToLocal { dst, src } => {
             let Some(lhs) = frame.read_local_cloned(*dst) else {
                 return Err(invalid_local_slot(function_name, ip, *dst));
@@ -851,43 +925,6 @@ fn handle_hot_instr(
                 _ => Err(err_at(
                     VmErrorKind::TypeMismatch,
                     "JumpIfLocalLtConst expects Int local",
-                    function_name,
-                    ip,
-                )),
-            }
-        }
-        Instr::JumpIfLocalIntCmp {
-            lhs,
-            rhs,
-            op,
-            target,
-        } => {
-            let Some(lhs_value) = frame.read_local_cloned(*lhs) else {
-                return Err(invalid_local_slot(function_name, ip, *lhs));
-            };
-            let Some(rhs_value) = frame.read_local_cloned(*rhs) else {
-                return Err(invalid_local_slot(function_name, ip, *rhs));
-            };
-            match (lhs_value, rhs_value) {
-                (Value::Int(lhs), Value::Int(rhs)) => {
-                    let passed = match op {
-                        IntCmpOp::Eq => lhs == rhs,
-                        IntCmpOp::Neq => lhs != rhs,
-                        IntCmpOp::Lt => lhs < rhs,
-                        IntCmpOp::Lte => lhs <= rhs,
-                        IntCmpOp::Gt => lhs > rhs,
-                        IntCmpOp::Gte => lhs >= rhs,
-                    };
-                    if passed {
-                        frame.ip += 1;
-                    } else {
-                        frame.ip = *target;
-                    }
-                    Ok(true)
-                }
-                _ => Err(err_at(
-                    VmErrorKind::TypeMismatch,
-                    "JumpIfLocalIntCmp expects Int locals",
                     function_name,
                     ip,
                 )),
