@@ -58,8 +58,6 @@ pub(super) fn make_struct(
     function_name: &str,
     ip: usize,
 ) -> Result<(), VmError> {
-    let _timer =
-        super::super::profiler::ScopedTimer::new(super::super::profiler::Event::StructMake);
     if stack.len() < fields.len() {
         return Err(super::err_at(
             VmErrorKind::StackUnderflow,
@@ -102,7 +100,6 @@ pub(super) fn struct_get(
     function_name: &str,
     ip: usize,
 ) -> Result<(), VmError> {
-    let _timer = super::super::profiler::ScopedTimer::new(super::super::profiler::Event::StructGet);
     let Some(base) = stack.pop() else {
         return Err(super::err_at(
             VmErrorKind::StackUnderflow,
@@ -137,7 +134,6 @@ pub(super) fn struct_get_slot(
     function_name: &str,
     ip: usize,
 ) -> Result<(), VmError> {
-    let _timer = super::super::profiler::ScopedTimer::new(super::super::profiler::Event::StructGet);
     let Some(base) = stack.pop() else {
         return Err(super::err_at(
             VmErrorKind::StackUnderflow,
@@ -172,8 +168,6 @@ pub(super) fn struct_set_path(
     function_name: &str,
     ip: usize,
 ) -> Result<(), VmError> {
-    let _timer =
-        super::super::profiler::ScopedTimer::new(super::super::profiler::Event::StructSetPath);
     if path.is_empty() {
         return Err(super::err_at(
             VmErrorKind::TypeMismatch,
@@ -216,8 +210,6 @@ pub(super) fn struct_set_path_slots(
     function_name: &str,
     ip: usize,
 ) -> Result<(), VmError> {
-    let _timer =
-        super::super::profiler::ScopedTimer::new(super::super::profiler::Event::StructSetPath);
     if path.is_empty() {
         return Err(super::err_at(
             VmErrorKind::TypeMismatch,

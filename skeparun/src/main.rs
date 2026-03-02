@@ -2,7 +2,6 @@ use std::env;
 use std::fs;
 use std::path::Path;
 use std::process::ExitCode;
-use std::time::{Duration, Instant};
 
 use skeplib::bytecode::{BytecodeModule, compile_project_graph};
 use skeplib::diagnostic::Diagnostic;
@@ -18,95 +17,6 @@ const EXIT_CODEGEN: u8 = 12;
 const EXIT_DECODE: u8 = 13;
 const EXIT_RUNTIME: u8 = 14;
 const EXIT_RESOLVE: u8 = 15;
-
-#[cfg(feature = "cli-profiler")]
-#[derive(Default)]
-struct PhaseProfiler {
-    label: &'static str,
-    started_at: Option<Instant>,
-    phases: Vec<(&'static str, Duration)>,
-}
-
-#[cfg(feature = "cli-profiler")]
-impl PhaseProfiler {
-    fn new(label: &'static str) -> Self {
-        let started_at = if profiling_enabled() {
-            Some(Instant::now())
-        } else {
-            None
-        };
-        Self {
-            label,
-            started_at,
-            phases: Vec::new(),
-        }
-    }
-
-    fn enabled(&self) -> bool {
-        self.started_at.is_some()
-    }
-
-    fn record(&mut self, phase: &'static str, elapsed: Duration) {
-        if self.enabled() {
-            self.phases.push((phase, elapsed));
-        }
-    }
-
-    fn print(&self) {
-        let Some(started_at) = self.started_at else {
-            return;
-        };
-        let total_ms = started_at.elapsed().as_secs_f64() * 1_000.0;
-        eprintln!(
-            "[run-profile] session={} total_ms={:.3}",
-            self.label, total_ms
-        );
-        let mut phases = self
-            .phases
-            .iter()
-            .map(|(phase, elapsed)| (*phase, *elapsed, elapsed.as_secs_f64() * 1_000.0))
-            .collect::<Vec<_>>();
-        phases.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(b.0)));
-        for (phase, _, phase_ms) in phases {
-            let pct = if total_ms <= f64::EPSILON {
-                0.0
-            } else {
-                (phase_ms / total_ms) * 100.0
-            };
-            eprintln!(
-                "[run-profile] phase={} total_ms={:.3} pct={:.1}",
-                phase, phase_ms, pct
-            );
-        }
-    }
-}
-
-#[cfg(not(feature = "cli-profiler"))]
-#[derive(Default)]
-struct PhaseProfiler;
-
-#[cfg(not(feature = "cli-profiler"))]
-impl PhaseProfiler {
-    fn new(_: &'static str) -> Self {
-        Self
-    }
-
-    fn enabled(&self) -> bool {
-        false
-    }
-
-    fn record(&mut self, _: &'static str, _: Duration) {}
-
-    fn print(&self) {}
-}
-
-#[cfg(feature = "cli-profiler")]
-fn profiling_enabled() -> bool {
-    use std::sync::OnceLock;
-
-    static ENABLED: OnceLock<bool> = OnceLock::new();
-    *ENABLED.get_or_init(|| std::env::var_os("SKEPA_PROFILE_RUN").is_some())
-}
 
 fn main() -> ExitCode {
     match run() {
@@ -180,42 +90,20 @@ fn parse_run_args(
 }
 
 fn run_file(path: &str, config: VmConfig) -> Result<ExitCode, String> {
-    let mut profiler = PhaseProfiler::new("run");
-
-    let started = Instant::now();
     if let Err(e) = fs::read_to_string(path) {
         eprintln!("Failed to read `{path}`: {e}");
         return Ok(ExitCode::from(EXIT_IO));
     }
-    profiler.record("read_source", started.elapsed());
 
-    let started = Instant::now();
     let graph = match resolve_project(Path::new(path)) {
-        Ok(graph) => {
-            profiler.record("resolve_only", started.elapsed());
-            if profiler.enabled() {
-                eprintln!("[run-profile] modules_resolved={}", graph.modules.len());
-            }
-            graph
-        }
+        Ok(graph) => graph,
         Err(errs) => {
-            profiler.record("resolve_only", started.elapsed());
             print_resolve_errors(&errs);
-            profiler.print();
             return Ok(ExitCode::from(EXIT_RESOLVE));
         }
     };
 
-    let started = Instant::now();
     let (_sema, parse_diags, sema_diags) = analyze_project_graph_phased(&graph);
-    profiler.record("sema_total", started.elapsed());
-    if profiler.enabled() {
-        eprintln!(
-            "[run-profile] sema_parse_diags={} sema_diags={}",
-            parse_diags.as_slice().len(),
-            sema_diags.as_slice().len()
-        );
-    }
     if !parse_diags.is_empty() || !sema_diags.is_empty() {
         for d in parse_diags.as_slice() {
             print_diag("parse", d);
@@ -223,24 +111,18 @@ fn run_file(path: &str, config: VmConfig) -> Result<ExitCode, String> {
         for d in sema_diags.as_slice() {
             print_diag("sema", d);
         }
-        profiler.print();
         return Ok(ExitCode::from(EXIT_SEMA));
     }
 
-    let started = Instant::now();
     let module = match compile_project_graph(&graph, Path::new(path)) {
         Ok(m) => m,
         Err(err) => {
-            profiler.record("codegen_total", started.elapsed());
             eprintln!("[{}][codegen] {}", phase_code("codegen"), err);
-            profiler.print();
             return Ok(ExitCode::from(EXIT_CODEGEN));
         }
     };
-    profiler.record("codegen_total", started.elapsed());
 
-    let started = Instant::now();
-    let result = match Vm::run_module_main_with_config(&module, config) {
+    match Vm::run_module_main_with_config(&module, config) {
         Ok(value) => match value {
             skeplib::bytecode::Value::Int(code) => Ok(ExitCode::from((code & 0xFF) as u8)),
             _ => Ok(ExitCode::from(EXIT_OK)),
@@ -249,16 +131,10 @@ fn run_file(path: &str, config: VmConfig) -> Result<ExitCode, String> {
             eprintln!("[{}][runtime] {e}", e.kind.code());
             Ok(ExitCode::from(EXIT_RUNTIME))
         }
-    };
-    profiler.record("vm_execute", started.elapsed());
-    profiler.print();
-    result
+    }
 }
 
 fn run_bytecode_file(path: &str, config: VmConfig) -> Result<ExitCode, String> {
-    let mut profiler = PhaseProfiler::new("run-bc");
-
-    let started = Instant::now();
     let bytes = match fs::read(path) {
         Ok(b) => b,
         Err(e) => {
@@ -266,22 +142,16 @@ fn run_bytecode_file(path: &str, config: VmConfig) -> Result<ExitCode, String> {
             return Ok(ExitCode::from(EXIT_IO));
         }
     };
-    profiler.record("read_bytecode", started.elapsed());
 
-    let started = Instant::now();
     let module = match BytecodeModule::from_bytes(&bytes) {
         Ok(m) => m,
         Err(e) => {
-            profiler.record("decode_bytecode", started.elapsed());
             eprintln!("Failed to decode `{path}`: {e}");
-            profiler.print();
             return Ok(ExitCode::from(EXIT_DECODE));
         }
     };
-    profiler.record("decode_bytecode", started.elapsed());
 
-    let started = Instant::now();
-    let result = match Vm::run_module_main_with_config(&module, config) {
+    match Vm::run_module_main_with_config(&module, config) {
         Ok(value) => match value {
             skeplib::bytecode::Value::Int(code) => Ok(ExitCode::from((code & 0xFF) as u8)),
             _ => Ok(ExitCode::from(EXIT_OK)),
@@ -290,10 +160,7 @@ fn run_bytecode_file(path: &str, config: VmConfig) -> Result<ExitCode, String> {
             eprintln!("[{}][runtime] {e}", e.kind.code());
             Ok(ExitCode::from(EXIT_RUNTIME))
         }
-    };
-    profiler.record("vm_execute", started.elapsed());
-    profiler.print();
-    result
+    }
 }
 
 fn print_diag(phase: &str, d: &Diagnostic) {

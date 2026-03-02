@@ -235,8 +235,6 @@ pub(super) fn call_builtin(
     env: &mut CallEnv<'_>,
     site: Site<'_>,
 ) -> Result<(), VmError> {
-    let _timer =
-        super::super::profiler::ScopedTimer::new(super::super::profiler::Event::CallBuiltin);
     if stack.len() < argc {
         return Err(super::err_at(
             VmErrorKind::StackUnderflow,
@@ -246,20 +244,7 @@ pub(super) fn call_builtin(
         ));
     }
     let call_args = take_call_args(stack, argc);
-    let dispatch_started_at = if super::super::profiler::enabled() {
-        Some(std::time::Instant::now())
-    } else {
-        None
-    };
-    let _dispatch_timer =
-        super::super::profiler::ScopedTimer::new(super::super::profiler::Event::BuiltinDispatch);
     let ret = env.reg.call(env.host, package, name, call_args)?;
-    if let Some(started_at) = dispatch_started_at {
-        super::super::profiler::record_builtin_call(
-            &format!("{package}.{name}"),
-            started_at.elapsed(),
-        );
-    }
     stack.push(ret);
     Ok(())
 }
@@ -271,8 +256,6 @@ pub(super) fn call_builtin_id(
     env: &mut CallEnv<'_>,
     site: Site<'_>,
 ) -> Result<(), VmError> {
-    let _timer =
-        super::super::profiler::ScopedTimer::new(super::super::profiler::Event::CallBuiltin);
     if stack.len() < argc {
         return Err(super::err_at(
             VmErrorKind::StackUnderflow,
@@ -282,20 +265,7 @@ pub(super) fn call_builtin_id(
         ));
     }
     let call_args = take_call_args(stack, argc);
-    let dispatch_started_at = if super::super::profiler::enabled() {
-        Some(std::time::Instant::now())
-    } else {
-        None
-    };
-    let _dispatch_timer =
-        super::super::profiler::ScopedTimer::new(super::super::profiler::Event::BuiltinDispatch);
     let ret = env.reg.call_by_id(env.host, id, call_args)?;
-    if let Some(started_at) = dispatch_started_at {
-        let label = super::super::builtins::default_builtin_name_by_id(id)
-            .map(str::to_string)
-            .unwrap_or_else(|| format!("builtin_id.{id}"));
-        super::super::profiler::record_builtin_call(&label, started_at.elapsed());
-    }
     stack.push(ret);
     Ok(())
 }

@@ -12,61 +12,6 @@ mod config;
 mod error;
 mod host;
 mod host_trait;
-#[cfg(feature = "vm-profiler")]
-mod profiler;
-#[cfg(not(feature = "vm-profiler"))]
-mod profiler {
-    use std::time::Duration;
-
-    use crate::bytecode::Instr;
-
-    #[derive(Debug, Clone, Copy)]
-    pub(crate) enum Event {
-        VmStartup,
-        GlobalsInit,
-        MainRun,
-        RunChunk,
-        Call,
-        CallIdx,
-        CallValue,
-        CallMethod,
-        CallBuiltin,
-        BuiltinDispatch,
-        ArrayMake,
-        ArrayMakeRepeat,
-        ArrayGet,
-        ArraySet,
-        ArraySetChain,
-        ArrayLen,
-        StructMake,
-        StructGet,
-        StructSetPath,
-    }
-
-    pub(crate) struct SessionGuard;
-
-    impl SessionGuard {
-        pub(crate) fn start(_: &str) -> Self {
-            Self
-        }
-    }
-
-    pub(crate) struct ScopedTimer;
-
-    impl ScopedTimer {
-        pub(crate) fn new(_: Event) -> Self {
-            Self
-        }
-    }
-
-    pub(crate) fn enabled() -> bool {
-        false
-    }
-
-    pub(crate) fn record_instr(_: &Instr) {}
-
-    pub(crate) fn record_builtin_call(_: &str, _: Duration) {}
-}
 mod runner;
 
 use std::collections::HashMap;
@@ -137,8 +82,6 @@ impl Vm {
         module: &BytecodeModule,
         config: VmConfig,
     ) -> Result<Value, VmError> {
-        let _profile_session = profiler::SessionGuard::start("run_module_main");
-        let _startup_timer = profiler::ScopedTimer::new(profiler::Event::VmStartup);
         let mut host = StdIoHost::default();
         let reg = Self::default_registry();
         let fn_table = Self::function_table(module);
@@ -149,7 +92,6 @@ impl Vm {
             .unwrap_or(0);
         let mut globals = vec![Value::Unit; globals_init_locals];
         if module.functions.contains_key("__globals_init") {
-            let _globals_timer = profiler::ScopedTimer::new(profiler::Event::GlobalsInit);
             let mut env = runner::ExecEnv {
                 module,
                 fn_table: &fn_table,
@@ -171,7 +113,6 @@ impl Vm {
             host: &mut host,
             reg,
         };
-        let _main_timer = profiler::ScopedTimer::new(profiler::Event::MainRun);
         runner::run_function(
             &mut env,
             "main",
@@ -184,8 +125,6 @@ impl Vm {
         module: &BytecodeModule,
         host: &mut dyn BuiltinHost,
     ) -> Result<Value, VmError> {
-        let _profile_session = profiler::SessionGuard::start("run_module_main_with_host");
-        let _startup_timer = profiler::ScopedTimer::new(profiler::Event::VmStartup);
         let reg = Self::default_registry();
         let fn_table = Self::function_table(module);
         let globals_init_locals = module
@@ -195,7 +134,6 @@ impl Vm {
             .unwrap_or(0);
         let mut globals = vec![Value::Unit; globals_init_locals];
         if module.functions.contains_key("__globals_init") {
-            let _globals_timer = profiler::ScopedTimer::new(profiler::Event::GlobalsInit);
             let mut env = runner::ExecEnv {
                 module,
                 fn_table: &fn_table,
@@ -220,7 +158,6 @@ impl Vm {
             host,
             reg,
         };
-        let _main_timer = profiler::ScopedTimer::new(profiler::Event::MainRun);
         runner::run_function(
             &mut env,
             "main",
@@ -237,8 +174,6 @@ impl Vm {
         host: &mut dyn BuiltinHost,
         reg: &BuiltinRegistry,
     ) -> Result<Value, VmError> {
-        let _profile_session = profiler::SessionGuard::start("run_module_main_with_registry");
-        let _startup_timer = profiler::ScopedTimer::new(profiler::Event::VmStartup);
         let fn_table = Self::function_table(module);
         let globals_init_locals = module
             .functions
@@ -247,7 +182,6 @@ impl Vm {
             .unwrap_or(0);
         let mut globals = vec![Value::Unit; globals_init_locals];
         if module.functions.contains_key("__globals_init") {
-            let _globals_timer = profiler::ScopedTimer::new(profiler::Event::GlobalsInit);
             let mut env = runner::ExecEnv {
                 module,
                 fn_table: &fn_table,
@@ -272,7 +206,6 @@ impl Vm {
             host,
             reg,
         };
-        let _main_timer = profiler::ScopedTimer::new(profiler::Event::MainRun);
         runner::run_function(
             &mut env,
             "main",

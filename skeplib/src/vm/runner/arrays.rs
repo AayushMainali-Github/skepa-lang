@@ -16,7 +16,6 @@ pub(super) fn make_array(
     function_name: &str,
     ip: usize,
 ) -> Result<(), VmError> {
-    let _timer = super::super::profiler::ScopedTimer::new(super::super::profiler::Event::ArrayMake);
     if stack.len() < n {
         return Err(super::err_at(
             VmErrorKind::StackUnderflow,
@@ -37,8 +36,6 @@ pub(super) fn make_array_repeat(
     function_name: &str,
     ip: usize,
 ) -> Result<(), VmError> {
-    let _timer =
-        super::super::profiler::ScopedTimer::new(super::super::profiler::Event::ArrayMakeRepeat);
     let Some(v) = stack.pop() else {
         return Err(super::err_at(
             VmErrorKind::StackUnderflow,
@@ -56,7 +53,6 @@ pub(super) fn array_get(
     function_name: &str,
     ip: usize,
 ) -> Result<(), VmError> {
-    let _timer = super::super::profiler::ScopedTimer::new(super::super::profiler::Event::ArrayGet);
     let Some(idx_v) = stack.pop() else {
         return Err(super::err_at(
             VmErrorKind::StackUnderflow,
@@ -106,7 +102,6 @@ pub(super) fn array_set(
     function_name: &str,
     ip: usize,
 ) -> Result<(), VmError> {
-    let _timer = super::super::profiler::ScopedTimer::new(super::super::profiler::Event::ArraySet);
     let Some(val) = stack.pop() else {
         return Err(super::err_at(
             VmErrorKind::StackUnderflow,
@@ -167,8 +162,6 @@ pub(super) fn array_set_chain(
     function_name: &str,
     ip: usize,
 ) -> Result<(), VmError> {
-    let _timer =
-        super::super::profiler::ScopedTimer::new(super::super::profiler::Event::ArraySetChain);
     if depth == 0 {
         return Err(super::err_at(
             VmErrorKind::TypeMismatch,
@@ -258,7 +251,6 @@ pub(super) fn array_len(
     function_name: &str,
     ip: usize,
 ) -> Result<(), VmError> {
-    let _timer = super::super::profiler::ScopedTimer::new(super::super::profiler::Event::ArrayLen);
     let Some(arr_v) = stack.pop() else {
         return Err(super::err_at(
             VmErrorKind::StackUnderflow,
