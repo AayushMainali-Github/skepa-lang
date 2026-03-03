@@ -187,6 +187,97 @@ impl<'a> CallFrame<'a> {
     }
 
     #[inline(always)]
+    pub(super) fn compute_int_local_const_to_local(
+        &mut self,
+        src: usize,
+        dst: usize,
+        op: crate::bytecode::IntLocalConstOp,
+        rhs: i64,
+    ) -> Option<Result<(), crate::vm::VmErrorKind>> {
+        if src >= self.locals.len() || dst >= self.locals.len() {
+            return None;
+        }
+        let result = match self.locals.get(src)? {
+            Value::Int(lhs) => match op {
+                crate::bytecode::IntLocalConstOp::Add => *lhs + rhs,
+                crate::bytecode::IntLocalConstOp::Sub => *lhs - rhs,
+                crate::bytecode::IntLocalConstOp::Mul => *lhs * rhs,
+                crate::bytecode::IntLocalConstOp::Div => {
+                    if rhs == 0 {
+                        return Some(Err(crate::vm::VmErrorKind::DivisionByZero));
+                    }
+                    *lhs / rhs
+                }
+                crate::bytecode::IntLocalConstOp::Mod => {
+                    if rhs == 0 {
+                        return Some(Err(crate::vm::VmErrorKind::DivisionByZero));
+                    }
+                    *lhs % rhs
+                }
+            },
+            _ => return Some(Err(crate::vm::VmErrorKind::TypeMismatch)),
+        };
+        match unsafe { self.locals.get_unchecked_mut(dst) } {
+            Value::Int(value) => {
+                *value = result;
+                Some(Ok(()))
+            }
+            slot => {
+                *slot = Value::Int(result);
+                Some(Ok(()))
+            }
+        }
+    }
+
+    #[inline(always)]
+    pub(super) fn compute_int_local_local_to_local(
+        &mut self,
+        lhs: usize,
+        rhs: usize,
+        dst: usize,
+        op: crate::bytecode::IntLocalConstOp,
+    ) -> Option<Result<(), crate::vm::VmErrorKind>> {
+        if lhs >= self.locals.len() || rhs >= self.locals.len() || dst >= self.locals.len() {
+            return None;
+        }
+        let left = match self.locals.get(lhs)? {
+            Value::Int(value) => *value,
+            _ => return Some(Err(crate::vm::VmErrorKind::TypeMismatch)),
+        };
+        let right = match self.locals.get(rhs)? {
+            Value::Int(value) => *value,
+            _ => return Some(Err(crate::vm::VmErrorKind::TypeMismatch)),
+        };
+        let result = match op {
+            crate::bytecode::IntLocalConstOp::Add => left + right,
+            crate::bytecode::IntLocalConstOp::Sub => left - right,
+            crate::bytecode::IntLocalConstOp::Mul => left * right,
+            crate::bytecode::IntLocalConstOp::Div => {
+                if right == 0 {
+                    return Some(Err(crate::vm::VmErrorKind::DivisionByZero));
+                }
+                left / right
+            }
+            crate::bytecode::IntLocalConstOp::Mod => {
+                if right == 0 {
+                    return Some(Err(crate::vm::VmErrorKind::DivisionByZero));
+                }
+                left % right
+            }
+        };
+        match unsafe { self.locals.get_unchecked_mut(dst) } {
+            Value::Int(value) => {
+                *value = result;
+                Some(Ok(()))
+            }
+            slot => {
+                *slot = Value::Int(result);
+                Some(Ok(()))
+            }
+        }
+    }
+
+    #[inline(always)]
     pub(super) fn pop2(&mut self) -> Option<(Value, Value)> {
         let rhs = self.stack.pop()?;
         let lhs = self.stack.pop()?;

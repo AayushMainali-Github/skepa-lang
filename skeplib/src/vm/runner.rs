@@ -117,7 +117,9 @@ pub(super) fn run_chunk(
             | Instr::AddLocalToLocal { .. }
             | Instr::AddConstToLocal { .. }
             | Instr::IntLocalConstOp { .. }
-            | Instr::IntStackOpToLocal { .. } => unreachable!(),
+            | Instr::IntLocalConstOpToLocal { .. }
+            | Instr::IntStackOpToLocal { .. }
+            | Instr::IntLocalLocalOpToLocal { .. } => unreachable!(),
             Instr::LoadGlobal(slot) => {
                 let Some(v) = env.globals.get(*slot).cloned() else {
                     return Err(err_at(
@@ -797,6 +799,31 @@ fn handle_hot_instr(
                 _ => Ok(false),
             }
         }
+        Instr::IntLocalConstOpToLocal { src, dst, op, rhs } => {
+            match frame.compute_int_local_const_to_local(*src, *dst, *op, *rhs) {
+                Some(Ok(())) => {
+                    frame.ip += 1;
+                    Ok(true)
+                }
+                Some(Err(VmErrorKind::DivisionByZero)) => Err(err_at(
+                    VmErrorKind::DivisionByZero,
+                    match op {
+                        IntLocalConstOp::Div => "division by zero",
+                        IntLocalConstOp::Mod => "modulo by zero",
+                        _ => "division by zero",
+                    },
+                    function_name,
+                    ip,
+                )),
+                Some(Err(VmErrorKind::TypeMismatch)) => Ok(false),
+                Some(Err(_)) => Ok(false),
+                None => Err(if *src >= frame.locals.len() {
+                    invalid_local_slot(function_name, ip, *src)
+                } else {
+                    invalid_local_slot(function_name, ip, *dst)
+                }),
+            }
+        }
         Instr::IntStackOpToLocal { slot, op } => match frame.apply_stack_int_to_local(*slot, *op) {
             Some(Ok(())) => {
                 frame.ip += 1;
@@ -822,6 +849,36 @@ fn handle_hot_instr(
             Some(Err(_)) => Ok(false),
             None => Err(invalid_local_slot(function_name, ip, *slot)),
         },
+        Instr::IntLocalLocalOpToLocal { lhs, rhs, dst, op } => {
+            match frame.compute_int_local_local_to_local(*lhs, *rhs, *dst, *op) {
+                Some(Ok(())) => {
+                    frame.ip += 1;
+                    Ok(true)
+                }
+                Some(Err(VmErrorKind::DivisionByZero)) => Err(err_at(
+                    VmErrorKind::DivisionByZero,
+                    match op {
+                        IntLocalConstOp::Div => "division by zero",
+                        IntLocalConstOp::Mod => "modulo by zero",
+                        _ => "division by zero",
+                    },
+                    function_name,
+                    ip,
+                )),
+                Some(Err(VmErrorKind::TypeMismatch)) => Ok(false),
+                Some(Err(_)) => Ok(false),
+                None => {
+                    let bad = if *lhs >= frame.locals.len() {
+                        *lhs
+                    } else if *rhs >= frame.locals.len() {
+                        *rhs
+                    } else {
+                        *dst
+                    };
+                    Err(invalid_local_slot(function_name, ip, bad))
+                }
+            }
+        }
         Instr::StrLen => {
             let Some(value) = frame.stack.pop() else {
                 return Err(err_at(

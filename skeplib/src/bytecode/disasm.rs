@@ -62,6 +62,16 @@ fn fmt_instr(i: &Instr) -> String {
             };
             format!("IntLocalConstOp slot={slot} op={op_name} rhs={rhs}")
         }
+        Instr::IntLocalConstOpToLocal { src, dst, op, rhs } => {
+            let op_name = match op {
+                IntLocalConstOp::Add => "Add",
+                IntLocalConstOp::Sub => "Sub",
+                IntLocalConstOp::Mul => "Mul",
+                IntLocalConstOp::Div => "Div",
+                IntLocalConstOp::Mod => "Mod",
+            };
+            format!("IntLocalConstOpToLocal src={src} dst={dst} op={op_name} rhs={rhs}")
+        }
         Instr::IntStackOpToLocal { slot, op } => {
             let op_name = match op {
                 IntLocalConstOp::Add => "Add",
@@ -71,6 +81,16 @@ fn fmt_instr(i: &Instr) -> String {
                 IntLocalConstOp::Mod => "Mod",
             };
             format!("IntStackOpToLocal slot={slot} op={op_name}")
+        }
+        Instr::IntLocalLocalOpToLocal { lhs, rhs, dst, op } => {
+            let op_name = match op {
+                IntLocalConstOp::Add => "Add",
+                IntLocalConstOp::Sub => "Sub",
+                IntLocalConstOp::Mul => "Mul",
+                IntLocalConstOp::Div => "Div",
+                IntLocalConstOp::Mod => "Mod",
+            };
+            format!("IntLocalLocalOpToLocal lhs={lhs} rhs={rhs} dst={dst} op={op_name}")
         }
         Instr::LoadGlobal(s) => format!("LoadGlobal {s}"),
         Instr::StoreGlobal(s) => format!("StoreGlobal {s}"),

@@ -385,7 +385,6 @@ impl Compiler {
     ) {
         match stmt {
             Stmt::Let { name, ty, value } => {
-                self.compile_expr(value, ctx, code);
                 let explicit_named = match ty {
                     Some(TypeName::Named(type_name)) => {
                         Some(self.resolve_struct_runtime_name(type_name))
@@ -409,7 +408,12 @@ impl Compiler {
                 } else {
                     ctx.alloc_local(name.clone())
                 };
-                code.push(Instr::StoreLocal(slot));
+                if let Some(instr) = Self::specialized_local_value_to_local(value, ctx, slot) {
+                    code.push(instr);
+                } else {
+                    self.compile_expr(value, ctx, code);
+                    code.push(Instr::StoreLocal(slot));
+                }
             }
             Stmt::Assign { target, value } => match target {
                 AssignTarget::Ident(name) => {
@@ -418,6 +422,10 @@ impl Compiler {
                             Self::specialized_local_stack_assign(value, ctx, name, slot)
                         {
                             self.compile_expr(rhs, ctx, code);
+                            code.push(instr);
+                        } else if let Some(instr) =
+                            Self::specialized_local_value_to_local(value, ctx, slot)
+                        {
                             code.push(instr);
                         } else if let Some(instr) = Self::specialized_local_assign(value, ctx, slot)
                         {
@@ -1202,6 +1210,37 @@ impl Compiler {
         Some((right, Instr::IntStackOpToLocal { slot: dst, op }))
     }
 
+    fn specialized_local_value_to_local(value: &Expr, ctx: &FnCtx, dst: usize) -> Option<Instr> {
+        let Expr::Binary { left, op, right } = value else {
+            return None;
+        };
+        if let Some((src, rhs, op)) = Self::specialized_local_const_source(op, left, right, ctx) {
+            return Some(Instr::IntLocalConstOpToLocal { src, dst, op, rhs });
+        }
+        let Expr::Ident(left_name) = &**left else {
+            return None;
+        };
+        let Expr::Ident(right_name) = &**right else {
+            return None;
+        };
+        if ctx.primitive_type(left_name) != Some(PrimitiveType::Int)
+            || ctx.primitive_type(right_name) != Some(PrimitiveType::Int)
+        {
+            return None;
+        }
+        let lhs = ctx.lookup(left_name)?;
+        let rhs = ctx.lookup(right_name)?;
+        let op = match op {
+            BinaryOp::Add => IntLocalConstOp::Add,
+            BinaryOp::Sub => IntLocalConstOp::Sub,
+            BinaryOp::Mul => IntLocalConstOp::Mul,
+            BinaryOp::Div => IntLocalConstOp::Div,
+            BinaryOp::Mod => IntLocalConstOp::Mod,
+            _ => return None,
+        };
+        Some(Instr::IntLocalLocalOpToLocal { lhs, rhs, dst, op })
+    }
+
     fn specialized_local_array_assign(
         root: &str,
         index: &Expr,
@@ -1324,6 +1363,16 @@ impl Compiler {
         right: &Expr,
         ctx: &FnCtx,
     ) -> Option<Instr> {
+        let (slot, rhs, op) = Self::specialized_local_const_source(op, left, right, ctx)?;
+        Some(Instr::IntLocalConstOp { slot, op, rhs })
+    }
+
+    fn specialized_local_const_source(
+        op: &BinaryOp,
+        left: &Expr,
+        right: &Expr,
+        ctx: &FnCtx,
+    ) -> Option<(usize, i64, IntLocalConstOp)> {
         let Expr::Ident(name) = left else {
             return None;
         };
@@ -1341,11 +1390,7 @@ impl Compiler {
             BinaryOp::Mod => IntLocalConstOp::Mod,
             _ => return None,
         };
-        Some(Instr::IntLocalConstOp {
-            slot,
-            op,
-            rhs: *rhs,
-        })
+        Some((slot, *rhs, op))
     }
 
     fn specialized_local_local_expr(
