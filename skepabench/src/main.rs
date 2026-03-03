@@ -23,6 +23,8 @@ const ARITH_CHAIN_ITERATIONS: usize = 3_000_000;
 const CALL_ITERATIONS: usize = 2_000_000;
 const ARRAY_ITERATIONS: usize = 1_600_000;
 const STRUCT_ITERATIONS: usize = 1_000_000;
+const STRUCT_FIELD_ITERATIONS: usize = 2_500_000;
+const STRUCT_COMPLEX_METHOD_ITERATIONS: usize = 1_500_000;
 const STRING_ITERATIONS: usize = 400_000;
 const MEDIUM_ACCUMULATE_LIMIT: usize = 80_000;
 
@@ -46,6 +48,8 @@ struct WorkloadConfig {
     call_iterations: usize,
     array_iterations: usize,
     struct_iterations: usize,
+    struct_field_iterations: usize,
+    struct_complex_method_iterations: usize,
     string_iterations: usize,
     medium_accumulate_limit: usize,
 }
@@ -296,6 +300,14 @@ fn benchmark_cases(
         compile_source(&src_array_workload(workloads.array_iterations)).map_err(format_diags)?;
     let struct_module = compile_source(&src_struct_method_workload(workloads.struct_iterations))
         .map_err(format_diags)?;
+    let struct_field_module = compile_source(&src_struct_field_workload(
+        workloads.struct_field_iterations,
+    ))
+    .map_err(format_diags)?;
+    let struct_complex_method_module = compile_source(&src_struct_complex_method_workload(
+        workloads.struct_complex_method_iterations,
+    ))
+    .map_err(format_diags)?;
     let string_module =
         compile_source(&src_string_workload(workloads.string_iterations)).map_err(format_diags)?;
 
@@ -417,6 +429,16 @@ fn benchmark_cases(
             name: "runtime_struct_heavy",
             kind: CaseKind::Library,
             runner: Box::new(move || run_module(&struct_module)),
+        },
+        BenchCase {
+            name: "runtime_struct_field_heavy",
+            kind: CaseKind::Library,
+            runner: Box::new(move || run_module(&struct_field_module)),
+        },
+        BenchCase {
+            name: "runtime_struct_method_complex",
+            kind: CaseKind::Library,
+            runner: Box::new(move || run_module(&struct_complex_method_module)),
         },
         BenchCase {
             name: "runtime_string_heavy",
@@ -662,6 +684,8 @@ fn workload_config(opts: &CliOptions) -> WorkloadConfig {
         call_iterations: CALL_ITERATIONS,
         array_iterations: ARRAY_ITERATIONS,
         struct_iterations: STRUCT_ITERATIONS,
+        struct_field_iterations: STRUCT_FIELD_ITERATIONS,
+        struct_complex_method_iterations: STRUCT_COMPLEX_METHOD_ITERATIONS,
         string_iterations: STRING_ITERATIONS,
         medium_accumulate_limit: MEDIUM_ACCUMULATE_LIMIT,
     }
@@ -1274,6 +1298,51 @@ fn main() -> Int {{
     i = i + 1;
   }}
   return acc;
+}}
+"#
+    )
+}
+
+fn src_struct_field_workload(iterations: usize) -> String {
+    format!(
+        r#"
+struct Pair {{ a: Int, b: Int }}
+
+fn main() -> Int {{
+  let p = Pair {{ a: 11, b: 7 }};
+  let i = 0;
+  let acc = 0;
+  while (i < {iterations}) {{
+    acc = acc + p.a;
+    acc = acc + p.b;
+    i = i + 1;
+  }}
+  return acc;
+}}
+"#
+    )
+}
+
+fn src_struct_complex_method_workload(iterations: usize) -> String {
+    format!(
+        r#"
+struct Pair {{ a: Int, b: Int }}
+
+impl Pair {{
+  fn mix(self, x: Int) -> Int {{
+    return ((self.a + x) * 3 + self.b) % 1000000007;
+  }}
+}}
+
+fn main() -> Int {{
+  let p = Pair {{ a: 11, b: 7 }};
+  let i = 0;
+  let total = 0;
+  while (i < {iterations}) {{
+    total = total + p.mix(i % 13);
+    i = i + 1;
+  }}
+  return total;
 }}
 "#
     )
