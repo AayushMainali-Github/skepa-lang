@@ -418,16 +418,15 @@ impl Compiler {
             Stmt::Assign { target, value } => match target {
                 AssignTarget::Ident(name) => {
                     if let Some(slot) = ctx.lookup(name) {
-                        if let Some((rhs, instr)) =
+                        if let Some(instr) = Self::specialized_local_assign(value, ctx, slot) {
+                            code.push(instr);
+                        } else if let Some((rhs, instr)) =
                             Self::specialized_local_stack_assign(value, ctx, name, slot)
                         {
                             self.compile_expr(rhs, ctx, code);
                             code.push(instr);
                         } else if let Some(instr) =
                             Self::specialized_local_value_to_local(value, ctx, slot)
-                        {
-                            code.push(instr);
-                        } else if let Some(instr) = Self::specialized_local_assign(value, ctx, slot)
                         {
                             code.push(instr);
                         } else {
