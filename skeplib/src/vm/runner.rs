@@ -119,6 +119,7 @@ pub(super) fn run_chunk(
             | Instr::IntLocalConstOp { .. }
             | Instr::IntLocalConstOpToLocal { .. }
             | Instr::IntStackOpToLocal { .. }
+            | Instr::IntStackConstOp { .. }
             | Instr::IntLocalLocalOpToLocal { .. } => unreachable!(),
             Instr::LoadGlobal(slot) => {
                 let Some(v) = env.globals.get(*slot).cloned() else {
@@ -849,6 +850,54 @@ fn handle_hot_instr(
             Some(Err(_)) => Ok(false),
             None => Err(invalid_local_slot(function_name, ip, *slot)),
         },
+        Instr::IntStackConstOp { op, rhs } => {
+            let Some(value) = frame.stack.pop() else {
+                return Err(err_at(
+                    VmErrorKind::StackUnderflow,
+                    "Stack underflow on IntStackConstOp",
+                    function_name,
+                    ip,
+                ));
+            };
+            match value {
+                Value::Int(lhs) => {
+                    let result = match op {
+                        IntLocalConstOp::Add => Value::Int(lhs + *rhs),
+                        IntLocalConstOp::Sub => Value::Int(lhs - *rhs),
+                        IntLocalConstOp::Mul => Value::Int(lhs * *rhs),
+                        IntLocalConstOp::Div => {
+                            if *rhs == 0 {
+                                return Err(err_at(
+                                    VmErrorKind::DivisionByZero,
+                                    "division by zero",
+                                    function_name,
+                                    ip,
+                                ));
+                            }
+                            Value::Int(lhs / *rhs)
+                        }
+                        IntLocalConstOp::Mod => {
+                            if *rhs == 0 {
+                                return Err(err_at(
+                                    VmErrorKind::DivisionByZero,
+                                    "modulo by zero",
+                                    function_name,
+                                    ip,
+                                ));
+                            }
+                            Value::Int(lhs % *rhs)
+                        }
+                    };
+                    frame.stack.push(result);
+                    frame.ip += 1;
+                    Ok(true)
+                }
+                other => {
+                    frame.stack.push(other);
+                    Ok(false)
+                }
+            }
+        }
         Instr::IntLocalLocalOpToLocal { lhs, rhs, dst, op } => {
             match frame.compute_int_local_local_to_local(*lhs, *rhs, *dst, *op) {
                 Some(Ok(())) => {

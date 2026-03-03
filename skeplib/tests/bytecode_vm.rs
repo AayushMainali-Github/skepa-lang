@@ -2124,7 +2124,7 @@ fn main() -> Int {
     let module = compile_source(src).expect("compile");
     let txt = module.disassemble();
     assert!(txt.contains("JumpIfTrue"));
-    assert!(txt.contains("ModInt"));
+    assert!(txt.contains("ModInt") || txt.contains("IntStackConstOp op=Mod"));
 }
 
 #[test]

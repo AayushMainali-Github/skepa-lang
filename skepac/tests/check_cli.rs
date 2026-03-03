@@ -438,7 +438,7 @@ fn main() -> Int {
     assert!(output.status.success(), "{:?}", output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("JumpIfTrue"));
-    assert!(stdout.contains("ModInt"));
+    assert!(stdout.contains("ModInt") || stdout.contains("IntStackConstOp op=Mod"));
 }
 
 #[test]

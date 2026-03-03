@@ -785,6 +785,11 @@ impl Compiler {
                         Self::specialized_local_local_expr(op, left, right, ctx)
                     {
                         code.push(instr);
+                    } else if let Some((left_expr, instr)) =
+                        Self::specialized_stack_const_expr(op, left, right, ctx)
+                    {
+                        self.compile_expr(left_expr, ctx, code);
+                        code.push(instr);
                     } else {
                         self.compile_expr(left, ctx, code);
                         self.compile_expr(right, ctx, code);
@@ -1391,6 +1396,28 @@ impl Compiler {
             _ => return None,
         };
         Some((slot, *rhs, op))
+    }
+
+    fn specialized_stack_const_expr<'a>(
+        op: &BinaryOp,
+        left: &'a Expr,
+        right: &Expr,
+        ctx: &FnCtx,
+    ) -> Option<(&'a Expr, Instr)> {
+        let Expr::IntLit(rhs) = right else {
+            return None;
+        };
+        if Self::infer_expr_primitive_type(left, ctx) != Some(PrimitiveType::Int) {
+            return None;
+        }
+        let op = match op {
+            BinaryOp::Sub => IntLocalConstOp::Sub,
+            BinaryOp::Mul => IntLocalConstOp::Mul,
+            BinaryOp::Div => IntLocalConstOp::Div,
+            BinaryOp::Mod => IntLocalConstOp::Mod,
+            _ => return None,
+        };
+        Some((left, Instr::IntStackConstOp { op, rhs: *rhs }))
     }
 
     fn specialized_local_local_expr(
