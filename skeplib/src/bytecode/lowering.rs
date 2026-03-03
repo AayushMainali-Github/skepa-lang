@@ -65,6 +65,7 @@ struct Compiler {
     local_struct_runtime: HashMap<String, String>,
     imported_struct_runtime: HashMap<String, String>,
     known_struct_layouts: HashMap<String, StructLayout>,
+    inlinable_methods: HashMap<String, InlinableMethod>,
     namespace_call_targets: HashMap<String, String>,
     method_name_ids: HashMap<String, usize>,
     method_names: Vec<String>,
@@ -76,6 +77,19 @@ struct Compiler {
 struct StructLayout {
     field_slots: HashMap<String, usize>,
     field_named_types: HashMap<String, String>,
+}
+
+#[derive(Clone, Copy)]
+enum InlinableMethod {
+    StructFieldAdd {
+        field_slot: usize,
+    },
+    StructFieldAddMulFieldMod {
+        lhs_field_slot: usize,
+        rhs_field_slot: usize,
+        mul: i64,
+        modulo: i64,
+    },
 }
 
 impl Compiler {
@@ -131,6 +145,7 @@ impl Compiler {
             self.imported_struct_runtime.clear();
             self.namespace_call_targets.clear();
             self.known_struct_layouts.clear();
+            self.inlinable_methods.clear();
         }
         self.lifted_functions.clear();
         self.fn_lit_counter = 0;
@@ -176,6 +191,17 @@ impl Compiler {
                 }
             }
             self.known_struct_layouts.insert(runtime, layout);
+        }
+        for imp in &program.impls {
+            let target_name = self.resolve_struct_runtime_name(&imp.target);
+            for method in &imp.methods {
+                let mangled = Self::mangle_method_name(&target_name, &method.name);
+                if let Some(pattern) =
+                    Self::detect_inlinable_method(method, &target_name, &self.known_struct_layouts)
+                {
+                    self.inlinable_methods.insert(mangled, pattern);
+                }
+            }
         }
         for (idx, g) in program.globals.iter().enumerate() {
             self.global_slots.insert(g.name.clone(), idx);
@@ -855,6 +881,9 @@ impl Compiler {
                         let target_name = self.resolve_struct_runtime_name(&base_ty);
                         let mangled = Self::mangle_method_name(&target_name, field);
                         if self.function_names.contains(&mangled) {
+                            if self.try_inline_method_call(base, &mangled, args, ctx, code) {
+                                return;
+                            }
                             self.compile_expr(base, ctx, code);
                             for arg in args {
                                 self.compile_expr(arg, ctx, code);
@@ -1449,6 +1478,196 @@ impl Compiler {
         let mut full = prefix;
         full.extend_from_slice(&parts[1..]);
         Some(full.join("."))
+    }
+
+    fn try_inline_method_call(
+        &mut self,
+        base: &Expr,
+        mangled: &str,
+        args: &[Expr],
+        ctx: &mut FnCtx,
+        code: &mut Vec<Instr>,
+    ) -> bool {
+        let Expr::Ident(base_name) = base else {
+            return false;
+        };
+        let Some(base_slot) = ctx.lookup(base_name) else {
+            return false;
+        };
+        let Some(pattern) = self.inlinable_methods.get(mangled).copied() else {
+            return false;
+        };
+        match pattern {
+            InlinableMethod::StructFieldAdd { field_slot } => {
+                if args.len() != 1 {
+                    return false;
+                }
+                code.push(Instr::StructGetLocalSlot {
+                    slot: base_slot,
+                    field_slot,
+                });
+                self.compile_expr(&args[0], ctx, code);
+                code.push(Instr::Add);
+                true
+            }
+            InlinableMethod::StructFieldAddMulFieldMod {
+                lhs_field_slot,
+                rhs_field_slot,
+                mul,
+                modulo,
+            } => {
+                if args.len() != 1 {
+                    return false;
+                }
+                code.push(Instr::StructGetLocalSlot {
+                    slot: base_slot,
+                    field_slot: lhs_field_slot,
+                });
+                self.compile_expr(&args[0], ctx, code);
+                code.push(Instr::Add);
+                code.push(Instr::LoadConst(Value::Int(mul)));
+                code.push(Instr::MulInt);
+                code.push(Instr::StructGetLocalSlot {
+                    slot: base_slot,
+                    field_slot: rhs_field_slot,
+                });
+                code.push(Instr::Add);
+                code.push(Instr::LoadConst(Value::Int(modulo)));
+                code.push(Instr::ModInt);
+                true
+            }
+        }
+    }
+
+    fn detect_inlinable_method(
+        method: &crate::ast::MethodDecl,
+        target_name: &str,
+        layouts: &HashMap<String, StructLayout>,
+    ) -> Option<InlinableMethod> {
+        let layout = layouts.get(target_name)?;
+        if method.params.len() != 2 {
+            return None;
+        }
+        let arg_name = &method.params[1].name;
+        let [Stmt::Return(Some(expr))] = method.body.as_slice() else {
+            return None;
+        };
+        if let Some(field_name) = Self::match_self_field_plus_arg(expr, arg_name) {
+            return Some(InlinableMethod::StructFieldAdd {
+                field_slot: *layout.field_slots.get(field_name)?,
+            });
+        }
+        let (lhs_field, rhs_field, mul, modulo) =
+            Self::match_self_field_add_mul_field_mod(expr, arg_name)?;
+        Some(InlinableMethod::StructFieldAddMulFieldMod {
+            lhs_field_slot: *layout.field_slots.get(lhs_field)?,
+            rhs_field_slot: *layout.field_slots.get(rhs_field)?,
+            mul,
+            modulo,
+        })
+    }
+
+    fn match_self_field_plus_arg<'a>(expr: &'a Expr, arg_name: &str) -> Option<&'a str> {
+        let expr = Self::strip_groups(expr);
+        let Expr::Binary { left, op, right } = expr else {
+            return None;
+        };
+        if *op != BinaryOp::Add {
+            return None;
+        }
+        match (Self::strip_groups(left), Self::strip_groups(right)) {
+            (Expr::Field { base, field }, Expr::Ident(arg)) if arg == arg_name => {
+                let Expr::Ident(self_name) = Self::strip_groups(base) else {
+                    return None;
+                };
+                if self_name == "self" {
+                    Some(field.as_str())
+                } else {
+                    None
+                }
+            }
+            (Expr::Ident(arg), Expr::Field { base, field }) if arg == arg_name => {
+                let Expr::Ident(self_name) = Self::strip_groups(base) else {
+                    return None;
+                };
+                if self_name == "self" {
+                    Some(field.as_str())
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
+
+    fn match_self_field_add_mul_field_mod<'a>(
+        expr: &'a Expr,
+        arg_name: &str,
+    ) -> Option<(&'a str, &'a str, i64, i64)> {
+        let expr = Self::strip_groups(expr);
+        let Expr::Binary {
+            left: mod_left,
+            op: mod_op,
+            right: mod_right,
+        } = expr
+        else {
+            return None;
+        };
+        if *mod_op != BinaryOp::Mod {
+            return None;
+        }
+        let Expr::IntLit(modulo) = Self::strip_groups(mod_right) else {
+            return None;
+        };
+        let mod_left = Self::strip_groups(mod_left);
+        let Expr::Binary {
+            left: add_left,
+            op: add_op,
+            right: add_right,
+        } = mod_left
+        else {
+            return None;
+        };
+        if *add_op != BinaryOp::Add {
+            return None;
+        }
+        let Expr::Field {
+            base: rhs_base,
+            field: rhs_field,
+        } = Self::strip_groups(add_right)
+        else {
+            return None;
+        };
+        let Expr::Ident(rhs_self) = Self::strip_groups(rhs_base) else {
+            return None;
+        };
+        if rhs_self != "self" {
+            return None;
+        }
+        let add_left = Self::strip_groups(add_left);
+        let Expr::Binary {
+            left: mul_left,
+            op: mul_op,
+            right: mul_right,
+        } = add_left
+        else {
+            return None;
+        };
+        if *mul_op != BinaryOp::Mul {
+            return None;
+        }
+        let Expr::IntLit(mul) = Self::strip_groups(mul_right) else {
+            return None;
+        };
+        let lhs_field = Self::match_self_field_plus_arg(mul_left, arg_name)?;
+        Some((lhs_field, rhs_field.as_str(), *mul, *modulo))
+    }
+
+    fn strip_groups(mut expr: &Expr) -> &Expr {
+        while let Expr::Group(inner) = expr {
+            expr = inner;
+        }
+        expr
     }
 }
 
