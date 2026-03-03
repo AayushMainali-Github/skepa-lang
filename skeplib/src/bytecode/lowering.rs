@@ -66,6 +66,7 @@ struct Compiler {
     imported_struct_runtime: HashMap<String, String>,
     known_struct_layouts: HashMap<String, StructLayout>,
     inlinable_methods: HashMap<String, InlinableMethod>,
+    inlinable_functions: HashMap<String, InlinableFunction>,
     namespace_call_targets: HashMap<String, String>,
     method_name_ids: HashMap<String, usize>,
     method_names: Vec<String>,
@@ -90,6 +91,11 @@ enum InlinableMethod {
         mul: i64,
         modulo: i64,
     },
+}
+
+#[derive(Clone, Copy)]
+enum InlinableFunction {
+    AddConst(i64),
 }
 
 impl Compiler {
@@ -146,6 +152,7 @@ impl Compiler {
             self.namespace_call_targets.clear();
             self.known_struct_layouts.clear();
             self.inlinable_methods.clear();
+            self.inlinable_functions.clear();
         }
         self.lifted_functions.clear();
         self.fn_lit_counter = 0;
@@ -153,6 +160,7 @@ impl Compiler {
         self.method_names.clear();
         self.struct_shape_ids.clear();
         self.struct_shapes.clear();
+        self.inlinable_functions.clear();
         const GLOBALS_INIT_FN: &str = "__globals_init";
         if self.module_id.is_none() && program.functions.iter().any(|f| f.name == GLOBALS_INIT_FN) {
             self.error(format!(
@@ -163,6 +171,12 @@ impl Compiler {
             let q = self.qualify_local_fn_name(&func.name);
             self.local_fn_qualified.insert(func.name.clone(), q.clone());
             self.function_names.insert(q);
+        }
+        for func in &program.functions {
+            let q = self.qualify_local_fn_name(&func.name);
+            if let Some(pattern) = Self::detect_inlinable_function(func) {
+                self.inlinable_functions.insert(q, pattern);
+            }
         }
         for imp in &program.impls {
             for method in &imp.methods {
@@ -408,7 +422,7 @@ impl Compiler {
                 } else {
                     ctx.alloc_local(name.clone())
                 };
-                if let Some(instr) = Self::specialized_local_value_to_local(value, ctx, slot) {
+                if let Some(instr) = self.specialized_local_value_to_local(value, ctx, slot) {
                     code.push(instr);
                 } else {
                     self.compile_expr(value, ctx, code);
@@ -426,7 +440,7 @@ impl Compiler {
                             self.compile_expr(rhs, ctx, code);
                             code.push(instr);
                         } else if let Some(instr) =
-                            Self::specialized_local_value_to_local(value, ctx, slot)
+                            self.specialized_local_value_to_local(value, ctx, slot)
                         {
                             code.push(instr);
                         } else {
@@ -1214,7 +1228,15 @@ impl Compiler {
         Some((right, Instr::IntStackOpToLocal { slot: dst, op }))
     }
 
-    fn specialized_local_value_to_local(value: &Expr, ctx: &FnCtx, dst: usize) -> Option<Instr> {
+    fn specialized_local_value_to_local(
+        &self,
+        value: &Expr,
+        ctx: &FnCtx,
+        dst: usize,
+    ) -> Option<Instr> {
+        if let Some(instr) = self.specialized_inlined_function_call_to_local(value, ctx, dst) {
+            return Some(instr);
+        }
         let Expr::Binary { left, op, right } = value else {
             return None;
         };
@@ -1395,6 +1417,73 @@ impl Compiler {
             _ => return None,
         };
         Some((slot, *rhs, op))
+    }
+
+    fn specialized_inlined_function_call_to_local(
+        &self,
+        value: &Expr,
+        ctx: &FnCtx,
+        dst: usize,
+    ) -> Option<Instr> {
+        let Expr::Call { callee, args } = value else {
+            return None;
+        };
+        if args.len() != 1 {
+            return None;
+        }
+        let Expr::Ident(arg_name) = &args[0] else {
+            return None;
+        };
+        if ctx.primitive_type(arg_name) != Some(PrimitiveType::Int) {
+            return None;
+        }
+        let src = ctx.lookup(arg_name)?;
+        let callee_name = match &**callee {
+            Expr::Ident(name) => self
+                .local_fn_qualified
+                .get(name)
+                .cloned()
+                .or_else(|| self.direct_import_calls.get(name).cloned())?,
+            Expr::Path(parts) => parts.join("."),
+            _ => return None,
+        };
+        match self.inlinable_functions.get(&callee_name).copied()? {
+            InlinableFunction::AddConst(rhs) if src == dst => {
+                Some(Instr::AddConstToLocal { slot: src, rhs })
+            }
+            InlinableFunction::AddConst(rhs) => Some(Instr::IntLocalConstOpToLocal {
+                src,
+                dst,
+                op: IntLocalConstOp::Add,
+                rhs,
+            }),
+        }
+    }
+
+    fn detect_inlinable_function(func: &crate::ast::FnDecl) -> Option<InlinableFunction> {
+        if func.params.len() != 1 {
+            return None;
+        }
+        let param_name = &func.params[0].name;
+        let [Stmt::Return(Some(expr))] = func.body.as_slice() else {
+            return None;
+        };
+        let expr = Self::strip_groups(expr);
+        let Expr::Binary { left, op, right } = expr else {
+            return None;
+        };
+        if *op != BinaryOp::Add {
+            return None;
+        }
+        match (Self::strip_groups(left), Self::strip_groups(right)) {
+            (Expr::Ident(name), Expr::IntLit(rhs)) if name == param_name => {
+                Some(InlinableFunction::AddConst(*rhs))
+            }
+            (Expr::IntLit(rhs), Expr::Ident(name)) if name == param_name => {
+                Some(InlinableFunction::AddConst(*rhs))
+            }
+            _ => None,
+        }
     }
 
     fn specialized_stack_const_expr<'a>(
