@@ -219,16 +219,13 @@ impl<'a> CallFrame<'a> {
             },
             _ => return Some(Err(crate::vm::VmErrorKind::TypeMismatch)),
         };
-        match unsafe { self.locals.get_unchecked_mut(dst) } {
-            Value::Int(value) => {
-                *value = result;
-                Some(Ok(()))
-            }
-            slot => {
-                *slot = Value::Int(result);
-                Some(Ok(()))
-            }
+        let slot = unsafe { self.locals.get_unchecked_mut(dst) };
+        if let Value::Int(value) = slot {
+            *value = result;
+        } else {
+            *slot = Value::Int(result);
         }
+        Some(Ok(()))
     }
 
     #[inline(always)]
