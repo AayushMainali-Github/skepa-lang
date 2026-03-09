@@ -286,6 +286,13 @@ pub(crate) fn str_index_of_const_ref(s: &str, needle: &str) -> Option<i64> {
         .map(|byte_idx| scalar_prefix_len(s, byte_idx))
 }
 
+pub(crate) fn str_index_of_const_or_neg1(s: &str, needle: &str) -> i64 {
+    match s.find(needle) {
+        Some(byte_idx) => scalar_prefix_len(s, byte_idx),
+        None => -1,
+    }
+}
+
 pub(crate) fn direct_str_slice_const(arg: Value, start: i64, end: i64) -> Result<Value, VmError> {
     let Value::String(s) = arg else {
         return Err(VmError::new(

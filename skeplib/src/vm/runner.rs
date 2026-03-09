@@ -982,7 +982,7 @@ fn handle_hot_instr(
             };
             match value {
                 Value::String(s) => frame.stack.push(Value::Int(
-                    super::builtins::str::str_index_of_const_ref(s, needle).unwrap_or(-1),
+                    super::builtins::str::str_index_of_const_or_neg1(s, needle),
                 )),
                 _ => {
                     return Err(err_at(
