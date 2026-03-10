@@ -201,6 +201,72 @@ pub(super) fn struct_get_local_slot(
     Ok(())
 }
 
+pub(super) fn struct_get_local_slot_add_to_local(
+    locals: &mut [Value],
+    struct_slot: usize,
+    field_slot: usize,
+    dst: usize,
+    function_name: &str,
+    ip: usize,
+) -> Result<(), VmError> {
+    let Some(base) = locals.get(struct_slot) else {
+        return Err(super::err_at(
+            VmErrorKind::InvalidLocal,
+            format!("Invalid local slot {struct_slot}"),
+            function_name,
+            ip,
+        ));
+    };
+    let Value::Struct { shape, fields } = base else {
+        return Err(super::err_at(
+            VmErrorKind::TypeMismatch,
+            "StructGetLocalSlotAddToLocal expects Struct local",
+            function_name,
+            ip,
+        ));
+    };
+    let Some(value) = fields.get(field_slot) else {
+        return Err(super::err_at(
+            VmErrorKind::TypeMismatch,
+            format!(
+                "Unknown struct field slot `{field_slot}` on `{}`",
+                shape.name
+            ),
+            function_name,
+            ip,
+        ));
+    };
+    let Value::Int(field_value) = value else {
+        return Err(super::err_at(
+            VmErrorKind::TypeMismatch,
+            "StructGetLocalSlotAddToLocal expects Int field",
+            function_name,
+            ip,
+        ));
+    };
+    let field_value = *field_value;
+    let Some(dst_slot) = locals.get_mut(dst) else {
+        return Err(super::err_at(
+            VmErrorKind::InvalidLocal,
+            format!("Invalid local slot {dst}"),
+            function_name,
+            ip,
+        ));
+    };
+    match dst_slot {
+        Value::Int(acc) => {
+            *acc += field_value;
+            Ok(())
+        }
+        _ => Err(super::err_at(
+            VmErrorKind::TypeMismatch,
+            "StructGetLocalSlotAddToLocal expects Int destination local",
+            function_name,
+            ip,
+        )),
+    }
+}
+
 pub(super) fn struct_set_path(
     stack: &mut Vec<Value>,
     path: &[String],

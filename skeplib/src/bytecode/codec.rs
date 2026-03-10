@@ -451,6 +451,16 @@ fn encode_instr(i: &Instr, out: &mut Vec<u8>) {
             write_u32(out, *slot as u32);
             write_u32(out, *field_slot as u32);
         }
+        Instr::StructGetLocalSlotAddToLocal {
+            struct_slot,
+            field_slot,
+            dst,
+        } => {
+            write_u8(out, 68);
+            write_u32(out, *struct_slot as u32);
+            write_u32(out, *field_slot as u32);
+            write_u32(out, *dst as u32);
+        }
         Instr::StructGetSlot(slot) => {
             write_u8(out, 39);
             write_u32(out, *slot as u32);
@@ -744,6 +754,11 @@ fn decode_instr(rd: &mut Reader<'_>) -> Result<Instr, String> {
         64 => Instr::StructGetLocalSlot {
             slot: rd.read_u32()? as usize,
             field_slot: rd.read_u32()? as usize,
+        },
+        68 => Instr::StructGetLocalSlotAddToLocal {
+            struct_slot: rd.read_u32()? as usize,
+            field_slot: rd.read_u32()? as usize,
+            dst: rd.read_u32()? as usize,
         },
         39 => Instr::StructGetSlot(rd.read_u32()? as usize),
         35 => {

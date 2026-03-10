@@ -180,6 +180,11 @@ pub enum Instr {
         slot: usize,
         field_slot: usize,
     },
+    StructGetLocalSlotAddToLocal {
+        struct_slot: usize,
+        field_slot: usize,
+        dst: usize,
+    },
     StructGetSlot(usize),
     StructSetPath(Vec<String>),
     StructSetPathSlots(Vec<usize>),

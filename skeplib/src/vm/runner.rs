@@ -626,6 +626,18 @@ pub(super) fn run_chunk(
                 function_name,
                 ip,
             )?,
+            Instr::StructGetLocalSlotAddToLocal {
+                struct_slot,
+                field_slot,
+                dst,
+            } => structs::struct_get_local_slot_add_to_local(
+                &mut frame.locals,
+                *struct_slot,
+                *field_slot,
+                *dst,
+                function_name,
+                ip,
+            )?,
             Instr::StructGetSlot(slot) => {
                 structs::struct_get_slot(&mut frame.stack, *slot, function_name, ip)?
             }

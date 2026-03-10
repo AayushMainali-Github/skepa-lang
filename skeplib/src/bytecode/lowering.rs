@@ -2368,6 +2368,7 @@ fn peephole_optimize_chunk(chunk: &mut FunctionChunk) {
     if chunk.code.is_empty() {
         return;
     }
+    rewrite_struct_local_field_add_to_local(chunk);
     let len = chunk.code.len();
     let mut remove = vec![false; len];
     for (i, instr) in chunk.code.iter().enumerate() {
@@ -2405,4 +2406,30 @@ fn peephole_optimize_chunk(chunk: &mut FunctionChunk) {
         remapped.push(mapped);
     }
     chunk.code = remapped;
+}
+
+fn rewrite_struct_local_field_add_to_local(chunk: &mut FunctionChunk) {
+    let mut rewritten = Vec::with_capacity(chunk.code.len());
+    let mut i = 0;
+    while i < chunk.code.len() {
+        if let (
+            Instr::StructGetLocalSlot { slot, field_slot },
+            Instr::IntStackOpToLocal {
+                slot: dst,
+                op: IntLocalConstOp::Add,
+            },
+        ) = (&chunk.code[i], chunk.code.get(i + 1).unwrap_or(&Instr::Pop))
+        {
+            rewritten.push(Instr::StructGetLocalSlotAddToLocal {
+                struct_slot: *slot,
+                field_slot: *field_slot,
+                dst: *dst,
+            });
+            i += 2;
+            continue;
+        }
+        rewritten.push(chunk.code[i].clone());
+        i += 1;
+    }
+    chunk.code = rewritten;
 }

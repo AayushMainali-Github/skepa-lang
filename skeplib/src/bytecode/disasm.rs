@@ -170,6 +170,13 @@ fn fmt_instr(i: &Instr) -> String {
         Instr::StructGetLocalSlot { slot, field_slot } => {
             format!("StructGetLocalSlot slot={slot} field_slot={field_slot}")
         }
+        Instr::StructGetLocalSlotAddToLocal {
+            struct_slot,
+            field_slot,
+            dst,
+        } => format!(
+            "StructGetLocalSlotAddToLocal struct_slot={struct_slot} field_slot={field_slot} dst={dst}"
+        ),
         Instr::StructGetSlot(slot) => format!("StructGetSlot {slot}"),
         Instr::StructSetPath(path) => format!("StructSetPath {}", path.join(".")),
         Instr::StructSetPathSlots(path) => format!(
