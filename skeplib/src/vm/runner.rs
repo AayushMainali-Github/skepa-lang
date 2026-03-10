@@ -120,6 +120,7 @@ pub(super) fn run_chunk(
             | Instr::IntLocalConstOpToLocal { .. }
             | Instr::IntStackOpToLocal { .. }
             | Instr::IntStackConstOp { .. }
+            | Instr::IntStackConstOpToLocal { .. }
             | Instr::IntLocalLocalOpToLocal { .. } => unreachable!(),
             Instr::LoadGlobal(slot) => {
                 let Some(v) = env.globals.get(*slot).cloned() else {
@@ -906,6 +907,32 @@ fn handle_hot_instr(
                 _ => Ok(false),
             }
         }
+        Instr::IntStackConstOpToLocal {
+            slot,
+            stack_op,
+            local_op,
+            rhs,
+        } => match frame.apply_stack_const_op_to_local(*slot, *stack_op, *local_op, *rhs) {
+            Some(Ok(())) => {
+                frame.ip += 1;
+                Ok(true)
+            }
+            Some(Err(VmErrorKind::StackUnderflow)) => Err(err_at(
+                VmErrorKind::StackUnderflow,
+                "Stack underflow on IntStackConstOpToLocal",
+                function_name,
+                ip,
+            )),
+            Some(Err(VmErrorKind::DivisionByZero)) => Err(err_at(
+                VmErrorKind::DivisionByZero,
+                "division by zero",
+                function_name,
+                ip,
+            )),
+            Some(Err(VmErrorKind::TypeMismatch)) => Ok(false),
+            Some(Err(_)) => Ok(false),
+            None => Err(invalid_local_slot(function_name, ip, *slot)),
+        },
         Instr::IntLocalLocalOpToLocal { lhs, rhs, dst, op } => {
             match frame.compute_int_local_local_to_local(*lhs, *rhs, *dst, *op) {
                 Some(Ok(())) => {

@@ -76,6 +76,12 @@ pub enum Instr {
         op: IntLocalConstOp,
         rhs: i64,
     },
+    IntStackConstOpToLocal {
+        slot: usize,
+        stack_op: IntLocalConstOp,
+        local_op: IntLocalConstOp,
+        rhs: i64,
+    },
     IntLocalLocalOpToLocal {
         lhs: usize,
         rhs: usize,

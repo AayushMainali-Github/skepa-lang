@@ -263,6 +263,36 @@ fn encode_instr(i: &Instr, out: &mut Vec<u8>) {
             );
             write_i64(out, *rhs);
         }
+        Instr::IntStackConstOpToLocal {
+            slot,
+            stack_op,
+            local_op,
+            rhs,
+        } => {
+            write_u8(out, 71);
+            write_u32(out, *slot as u32);
+            write_u8(
+                out,
+                match stack_op {
+                    IntLocalConstOp::Add => 0,
+                    IntLocalConstOp::Sub => 1,
+                    IntLocalConstOp::Mul => 2,
+                    IntLocalConstOp::Div => 3,
+                    IntLocalConstOp::Mod => 4,
+                },
+            );
+            write_u8(
+                out,
+                match local_op {
+                    IntLocalConstOp::Add => 0,
+                    IntLocalConstOp::Sub => 1,
+                    IntLocalConstOp::Mul => 2,
+                    IntLocalConstOp::Div => 3,
+                    IntLocalConstOp::Mod => 4,
+                },
+            );
+            write_i64(out, *rhs);
+        }
         Instr::IntLocalLocalOpToLocal { lhs, rhs, dst, op } => {
             write_u8(out, 66);
             write_u32(out, *lhs as u32);
@@ -635,6 +665,26 @@ fn decode_instr(rd: &mut Reader<'_>) -> Result<Instr, String> {
                 3 => IntLocalConstOp::Div,
                 4 => IntLocalConstOp::Mod,
                 other => return Err(format!("Unknown IntStackConstOp tag {other}")),
+            },
+            rhs: rd.read_i64()?,
+        },
+        71 => Instr::IntStackConstOpToLocal {
+            slot: rd.read_u32()? as usize,
+            stack_op: match rd.read_u8()? {
+                0 => IntLocalConstOp::Add,
+                1 => IntLocalConstOp::Sub,
+                2 => IntLocalConstOp::Mul,
+                3 => IntLocalConstOp::Div,
+                4 => IntLocalConstOp::Mod,
+                other => return Err(format!("Unknown IntStackConstOpToLocal stack tag {other}")),
+            },
+            local_op: match rd.read_u8()? {
+                0 => IntLocalConstOp::Add,
+                1 => IntLocalConstOp::Sub,
+                2 => IntLocalConstOp::Mul,
+                3 => IntLocalConstOp::Div,
+                4 => IntLocalConstOp::Mod,
+                other => return Err(format!("Unknown IntStackConstOpToLocal local tag {other}")),
             },
             rhs: rd.read_i64()?,
         },

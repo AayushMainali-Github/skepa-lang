@@ -229,6 +229,67 @@ impl<'a> CallFrame<'a> {
     }
 
     #[inline(always)]
+    pub(super) fn apply_stack_const_op_to_local(
+        &mut self,
+        slot: usize,
+        stack_op: crate::bytecode::IntLocalConstOp,
+        local_op: crate::bytecode::IntLocalConstOp,
+        rhs: i64,
+    ) -> Option<Result<(), crate::vm::VmErrorKind>> {
+        if slot >= self.locals.len() {
+            return None;
+        }
+        let Some(value) = self.stack.last() else {
+            return Some(Err(crate::vm::VmErrorKind::StackUnderflow));
+        };
+        let rhs_value = match value {
+            Value::Int(v) => *v,
+            _ => return Some(Err(crate::vm::VmErrorKind::TypeMismatch)),
+        };
+        let stack_result = match stack_op {
+            crate::bytecode::IntLocalConstOp::Add => rhs_value + rhs,
+            crate::bytecode::IntLocalConstOp::Sub => rhs_value - rhs,
+            crate::bytecode::IntLocalConstOp::Mul => rhs_value * rhs,
+            crate::bytecode::IntLocalConstOp::Div => {
+                if rhs == 0 {
+                    return Some(Err(crate::vm::VmErrorKind::DivisionByZero));
+                }
+                rhs_value / rhs
+            }
+            crate::bytecode::IntLocalConstOp::Mod => {
+                if rhs == 0 {
+                    return Some(Err(crate::vm::VmErrorKind::DivisionByZero));
+                }
+                rhs_value % rhs
+            }
+        };
+        match unsafe { self.locals.get_unchecked_mut(slot) } {
+            Value::Int(lhs) => {
+                match local_op {
+                    crate::bytecode::IntLocalConstOp::Add => *lhs += stack_result,
+                    crate::bytecode::IntLocalConstOp::Sub => *lhs -= stack_result,
+                    crate::bytecode::IntLocalConstOp::Mul => *lhs *= stack_result,
+                    crate::bytecode::IntLocalConstOp::Div => {
+                        if stack_result == 0 {
+                            return Some(Err(crate::vm::VmErrorKind::DivisionByZero));
+                        }
+                        *lhs /= stack_result;
+                    }
+                    crate::bytecode::IntLocalConstOp::Mod => {
+                        if stack_result == 0 {
+                            return Some(Err(crate::vm::VmErrorKind::DivisionByZero));
+                        }
+                        *lhs %= stack_result;
+                    }
+                }
+                self.stack.pop();
+                Some(Ok(()))
+            }
+            _ => Some(Err(crate::vm::VmErrorKind::TypeMismatch)),
+        }
+    }
+
+    #[inline(always)]
     pub(super) fn compute_int_local_local_to_local(
         &mut self,
         lhs: usize,
