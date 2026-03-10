@@ -320,7 +320,7 @@ impl Compiler {
         self.lifted_functions.push(FunctionChunk {
             name: name.clone(),
             code,
-            locals_count: ctx.locals_count(),
+            locals_count: ctx.next_local,
             param_count: params.len(),
         });
         name
@@ -353,7 +353,7 @@ impl Compiler {
         FunctionChunk {
             name: self.qualify_local_fn_name(&func.name),
             code,
-            locals_count: ctx.locals_count(),
+            locals_count: ctx.next_local,
             param_count: func.params.len(),
         }
     }
@@ -385,7 +385,7 @@ impl Compiler {
         FunctionChunk {
             name: name.to_string(),
             code,
-            locals_count: ctx.locals_count(),
+            locals_count: ctx.next_local,
             param_count: method.params.len(),
         }
     }
@@ -534,7 +534,9 @@ impl Compiler {
             } => {
                 let jmp_false_at = self.compile_cond_jump_false(cond, ctx, code);
 
-                self.compile_scoped_stmts(then_body, ctx, loops, code);
+                for s in then_body {
+                    self.compile_stmt(s, ctx, loops, code);
+                }
 
                 if else_body.is_empty() {
                     let after_then = code.len();
@@ -546,7 +548,9 @@ impl Compiler {
                     let else_start = code.len();
                     Self::patch_jump_false_target(code, jmp_false_at, else_start);
 
-                    self.compile_scoped_stmts(else_body, ctx, loops, code);
+                    for s in else_body {
+                        self.compile_stmt(s, ctx, loops, code);
+                    }
 
                     let end = code.len();
                     code[jmp_end_at] = Instr::Jump(end);
@@ -560,7 +564,9 @@ impl Compiler {
                 });
                 let jmp_false_at = self.compile_cond_jump_false(cond, ctx, code);
 
-                self.compile_scoped_stmts(body, ctx, loops, code);
+                for s in body {
+                    self.compile_stmt(s, ctx, loops, code);
+                }
 
                 code.push(Instr::Jump(loop_start));
                 let loop_end = code.len();
@@ -647,7 +653,9 @@ impl Compiler {
                     let jmp_false_at = code.len();
                     code.push(Instr::JumpIfFalse(usize::MAX));
 
-                    self.compile_scoped_stmts(&arm.body, ctx, loops, code);
+                    for s in &arm.body {
+                        self.compile_stmt(s, ctx, loops, code);
+                    }
 
                     let jmp_end_at = code.len();
                     code.push(Instr::Jump(usize::MAX));
@@ -708,20 +716,6 @@ impl Compiler {
                 }
             },
         }
-    }
-
-    fn compile_scoped_stmts(
-        &mut self,
-        stmts: &[Stmt],
-        ctx: &mut FnCtx,
-        loops: &mut Vec<LoopCtx>,
-        code: &mut Vec<Instr>,
-    ) {
-        let scope = ctx.enter_scope();
-        for stmt in stmts {
-            self.compile_stmt(stmt, ctx, loops, code);
-        }
-        ctx.exit_scope(scope);
     }
 
     fn compile_expr(&mut self, expr: &Expr, ctx: &mut FnCtx, code: &mut Vec<Instr>) {
@@ -2125,16 +2119,6 @@ struct FnCtx {
     local_named_types: HashMap<String, String>,
     local_primitive_types: HashMap<String, PrimitiveType>,
     next_local: usize,
-    max_local: usize,
-    free_locals: Vec<usize>,
-    scope_allocations: Vec<Vec<usize>>,
-}
-
-struct ScopeSnapshot {
-    locals: HashMap<String, usize>,
-    local_named_types: HashMap<String, String>,
-    local_primitive_types: HashMap<String, PrimitiveType>,
-    free_locals: Vec<usize>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -2160,7 +2144,8 @@ impl SpecializedArrayAssign {
 
 impl FnCtx {
     fn alloc_local(&mut self, name: String) -> usize {
-        let slot = self.alloc_slot();
+        let slot = self.next_local;
+        self.next_local += 1;
         self.locals.insert(name, slot);
         slot
     }
@@ -2192,7 +2177,9 @@ impl FnCtx {
     }
 
     fn alloc_anonymous_local(&mut self) -> usize {
-        self.alloc_slot()
+        let slot = self.next_local;
+        self.next_local += 1;
+        slot
     }
 
     fn lookup(&self, name: &str) -> Option<usize> {
@@ -2205,44 +2192,6 @@ impl FnCtx {
 
     fn primitive_type(&self, name: &str) -> Option<PrimitiveType> {
         self.local_primitive_types.get(name).copied()
-    }
-
-    fn enter_scope(&mut self) -> ScopeSnapshot {
-        self.scope_allocations.push(Vec::new());
-        ScopeSnapshot {
-            locals: self.locals.clone(),
-            local_named_types: self.local_named_types.clone(),
-            local_primitive_types: self.local_primitive_types.clone(),
-            free_locals: self.free_locals.clone(),
-        }
-    }
-
-    fn exit_scope(&mut self, snapshot: ScopeSnapshot) {
-        let mut released = self.scope_allocations.pop().unwrap_or_default();
-        released.sort_unstable();
-        released.dedup();
-        self.locals = snapshot.locals;
-        self.local_named_types = snapshot.local_named_types;
-        self.local_primitive_types = snapshot.local_primitive_types;
-        self.free_locals = snapshot.free_locals;
-        self.free_locals.extend(released.into_iter().rev());
-    }
-
-    fn locals_count(&self) -> usize {
-        self.max_local.max(self.next_local)
-    }
-
-    fn alloc_slot(&mut self) -> usize {
-        let slot = self.free_locals.pop().unwrap_or_else(|| {
-            let slot = self.next_local;
-            self.next_local += 1;
-            slot
-        });
-        self.max_local = self.max_local.max(slot + 1);
-        if let Some(scope) = self.scope_allocations.last_mut() {
-            scope.push(slot);
-        }
-        slot
     }
 }
 
@@ -2419,7 +2368,6 @@ fn peephole_optimize_chunk(chunk: &mut FunctionChunk) {
     if chunk.code.is_empty() {
         return;
     }
-    collapse_int_local_const_chains(chunk);
     let len = chunk.code.len();
     let mut remove = vec![false; len];
     for (i, instr) in chunk.code.iter().enumerate() {
@@ -2457,87 +2405,4 @@ fn peephole_optimize_chunk(chunk: &mut FunctionChunk) {
         remapped.push(mapped);
     }
     chunk.code = remapped;
-}
-
-fn collapse_int_local_const_chains(chunk: &mut FunctionChunk) {
-    let len = chunk.code.len();
-    let mut i = 0;
-    while i < len {
-        let Instr::IntLocalConstOpToLocal { src, dst, .. } = chunk.code[i] else {
-            i += 1;
-            continue;
-        };
-        if src == dst {
-            i += 1;
-            continue;
-        }
-
-        let temp = dst;
-        let mut intermediates = Vec::new();
-        let mut j = i + 1;
-        let mut prev_dst = dst;
-        while let Some(Instr::IntLocalConstOpToLocal {
-            src: next_src,
-            dst: next_dst,
-            ..
-        }) = chunk.code.get(j)
-        {
-            if *next_src != prev_dst {
-                break;
-            }
-            intermediates.push(prev_dst);
-            prev_dst = *next_dst;
-            j += 1;
-        }
-        if j == i + 1 {
-            i += 1;
-            continue;
-        }
-
-        let final_dst = prev_dst;
-        let intermediate_slots = &intermediates;
-        if intermediate_slots
-            .iter()
-            .any(|slot| slot == &final_dst || chunk.code[j..].iter().any(|instr| instr_refs_local(instr, *slot)))
-        {
-            i += 1;
-            continue;
-        }
-
-        for k in i + 1..j {
-            if let Instr::IntLocalConstOpToLocal { src, dst, .. } = &mut chunk.code[k] {
-                *src = temp;
-                if k + 1 != j {
-                    *dst = temp;
-                }
-            }
-        }
-        i = j;
-    }
-}
-
-fn instr_refs_local(instr: &Instr, slot: usize) -> bool {
-    match instr {
-        Instr::LoadLocal(s)
-        | Instr::StoreLocal(s)
-        | Instr::AddConstToLocal { slot: s, .. }
-        | Instr::IntLocalConstOp { slot: s, .. }
-        | Instr::IntStackOpToLocal { slot: s, .. }
-        | Instr::JumpIfLocalLtConst { slot: s, .. }
-        | Instr::StrLenLocal(s)
-        | Instr::ArrayGetLocal(s)
-        | Instr::ArraySetLocal(s)
-        | Instr::ArrayIncLocal(s)
-        | Instr::StructGetLocalSlot { slot: s, .. } => *s == slot,
-        Instr::AddLocalToLocal { dst, src } => *dst == slot || *src == slot,
-        Instr::IntLocalLocalOp { lhs, rhs, .. } => *lhs == slot || *rhs == slot,
-        Instr::IntLocalConstOpToLocal { src, dst, .. } => *src == slot || *dst == slot,
-        Instr::IntLocalLocalOpToLocal { lhs, rhs, dst, .. } => {
-            *lhs == slot || *rhs == slot || *dst == slot
-        }
-        Instr::StrIndexOfLocalConst { slot: s, .. }
-        | Instr::StrSliceLocalConst { slot: s, .. }
-        | Instr::StrContainsLocalConst { slot: s, .. } => *s == slot,
-        _ => false,
-    }
 }
