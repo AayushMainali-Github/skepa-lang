@@ -267,6 +267,157 @@ pub(super) fn struct_get_local_slot_add_to_local(
     }
 }
 
+pub(super) fn struct_field_add_mul_field_mod_local_to_local(
+    locals: &mut [Value],
+    struct_slot: usize,
+    arg_slot: usize,
+    arg_op: crate::bytecode::IntLocalConstOp,
+    arg_rhs: i64,
+    lhs_field_slot: usize,
+    rhs_field_slot: usize,
+    mul: i64,
+    modulo: i64,
+    dst: usize,
+    function_name: &str,
+    ip: usize,
+) -> Result<(), VmError> {
+    let Some(base) = locals.get(struct_slot) else {
+        return Err(super::err_at(
+            VmErrorKind::InvalidLocal,
+            format!("Invalid local slot {struct_slot}"),
+            function_name,
+            ip,
+        ));
+    };
+    let Value::Struct { shape, fields } = base else {
+        return Err(super::err_at(
+            VmErrorKind::TypeMismatch,
+            "StructFieldAddMulFieldModLocalToLocal expects Struct local",
+            function_name,
+            ip,
+        ));
+    };
+    let lhs_field = match fields.get(lhs_field_slot) {
+        Some(Value::Int(v)) => *v,
+        Some(_) => {
+            return Err(super::err_at(
+                VmErrorKind::TypeMismatch,
+                "StructFieldAddMulFieldModLocalToLocal expects Int lhs field",
+                function_name,
+                ip,
+            ))
+        }
+        None => {
+            return Err(super::err_at(
+                VmErrorKind::TypeMismatch,
+                format!(
+                    "Unknown struct field slot `{lhs_field_slot}` on `{}`",
+                    shape.name
+                ),
+                function_name,
+                ip,
+            ))
+        }
+    };
+    let rhs_field = match fields.get(rhs_field_slot) {
+        Some(Value::Int(v)) => *v,
+        Some(_) => {
+            return Err(super::err_at(
+                VmErrorKind::TypeMismatch,
+                "StructFieldAddMulFieldModLocalToLocal expects Int rhs field",
+                function_name,
+                ip,
+            ))
+        }
+        None => {
+            return Err(super::err_at(
+                VmErrorKind::TypeMismatch,
+                format!(
+                    "Unknown struct field slot `{rhs_field_slot}` on `{}`",
+                    shape.name
+                ),
+                function_name,
+                ip,
+            ))
+        }
+    };
+    let arg_value = match locals.get(arg_slot) {
+        Some(Value::Int(v)) => *v,
+        Some(_) => {
+            return Err(super::err_at(
+                VmErrorKind::TypeMismatch,
+                "StructFieldAddMulFieldModLocalToLocal expects Int argument local",
+                function_name,
+                ip,
+            ))
+        }
+        None => {
+            return Err(super::err_at(
+                VmErrorKind::InvalidLocal,
+                format!("Invalid local slot {arg_slot}"),
+                function_name,
+                ip,
+            ))
+        }
+    };
+    let arg_value = match arg_op {
+        crate::bytecode::IntLocalConstOp::Add => arg_value + arg_rhs,
+        crate::bytecode::IntLocalConstOp::Sub => arg_value - arg_rhs,
+        crate::bytecode::IntLocalConstOp::Mul => arg_value * arg_rhs,
+        crate::bytecode::IntLocalConstOp::Div => {
+            if arg_rhs == 0 {
+                return Err(super::err_at(
+                    VmErrorKind::DivisionByZero,
+                    "division by zero",
+                    function_name,
+                    ip,
+                ));
+            }
+            arg_value / arg_rhs
+        }
+        crate::bytecode::IntLocalConstOp::Mod => {
+            if arg_rhs == 0 {
+                return Err(super::err_at(
+                    VmErrorKind::DivisionByZero,
+                    "modulo by zero",
+                    function_name,
+                    ip,
+                ));
+            }
+            arg_value % arg_rhs
+        }
+    };
+    if modulo == 0 {
+        return Err(super::err_at(
+            VmErrorKind::DivisionByZero,
+            "modulo by zero",
+            function_name,
+            ip,
+        ));
+    }
+    let result = (((lhs_field + arg_value) * mul) + rhs_field) % modulo;
+    let Some(dst_slot) = locals.get_mut(dst) else {
+        return Err(super::err_at(
+            VmErrorKind::InvalidLocal,
+            format!("Invalid local slot {dst}"),
+            function_name,
+            ip,
+        ));
+    };
+    match dst_slot {
+        Value::Int(acc) => {
+            *acc += result;
+            Ok(())
+        }
+        _ => Err(super::err_at(
+            VmErrorKind::TypeMismatch,
+            "StructFieldAddMulFieldModLocalToLocal expects Int destination local",
+            function_name,
+            ip,
+        )),
+    }
+}
+
 pub(super) fn struct_set_path(
     stack: &mut Vec<Value>,
     path: &[String],

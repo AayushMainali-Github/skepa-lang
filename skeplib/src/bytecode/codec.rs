@@ -491,6 +491,37 @@ fn encode_instr(i: &Instr, out: &mut Vec<u8>) {
             write_u32(out, *field_slot as u32);
             write_u32(out, *dst as u32);
         }
+        Instr::StructFieldAddMulFieldModLocalToLocal {
+            struct_slot,
+            arg_slot,
+            arg_op,
+            arg_rhs,
+            lhs_field_slot,
+            rhs_field_slot,
+            mul,
+            modulo,
+            dst,
+        } => {
+            write_u8(out, 72);
+            write_u32(out, *struct_slot as u32);
+            write_u32(out, *arg_slot as u32);
+            write_u8(
+                out,
+                match arg_op {
+                    IntLocalConstOp::Add => 0,
+                    IntLocalConstOp::Sub => 1,
+                    IntLocalConstOp::Mul => 2,
+                    IntLocalConstOp::Div => 3,
+                    IntLocalConstOp::Mod => 4,
+                },
+            );
+            write_i64(out, *arg_rhs);
+            write_u32(out, *lhs_field_slot as u32);
+            write_u32(out, *rhs_field_slot as u32);
+            write_i64(out, *mul);
+            write_i64(out, *modulo);
+            write_u32(out, *dst as u32);
+        }
         Instr::StructGetSlot(slot) => {
             write_u8(out, 39);
             write_u32(out, *slot as u32);
@@ -808,6 +839,28 @@ fn decode_instr(rd: &mut Reader<'_>) -> Result<Instr, String> {
         68 => Instr::StructGetLocalSlotAddToLocal {
             struct_slot: rd.read_u32()? as usize,
             field_slot: rd.read_u32()? as usize,
+            dst: rd.read_u32()? as usize,
+        },
+        72 => Instr::StructFieldAddMulFieldModLocalToLocal {
+            struct_slot: rd.read_u32()? as usize,
+            arg_slot: rd.read_u32()? as usize,
+            arg_op: match rd.read_u8()? {
+                0 => IntLocalConstOp::Add,
+                1 => IntLocalConstOp::Sub,
+                2 => IntLocalConstOp::Mul,
+                3 => IntLocalConstOp::Div,
+                4 => IntLocalConstOp::Mod,
+                other => {
+                    return Err(format!(
+                        "Unknown StructFieldAddMulFieldModLocalToLocal arg tag {other}"
+                    ))
+                }
+            },
+            arg_rhs: rd.read_i64()?,
+            lhs_field_slot: rd.read_u32()? as usize,
+            rhs_field_slot: rd.read_u32()? as usize,
+            mul: rd.read_i64()?,
+            modulo: rd.read_i64()?,
             dst: rd.read_u32()? as usize,
         },
         39 => Instr::StructGetSlot(rd.read_u32()? as usize),

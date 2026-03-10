@@ -639,6 +639,30 @@ pub(super) fn run_chunk(
                 function_name,
                 ip,
             )?,
+            Instr::StructFieldAddMulFieldModLocalToLocal {
+                struct_slot,
+                arg_slot,
+                arg_op,
+                arg_rhs,
+                lhs_field_slot,
+                rhs_field_slot,
+                mul,
+                modulo,
+                dst,
+            } => structs::struct_field_add_mul_field_mod_local_to_local(
+                &mut frame.locals,
+                *struct_slot,
+                *arg_slot,
+                *arg_op,
+                *arg_rhs,
+                *lhs_field_slot,
+                *rhs_field_slot,
+                *mul,
+                *modulo,
+                *dst,
+                function_name,
+                ip,
+            )?,
             Instr::StructGetSlot(slot) => {
                 structs::struct_get_slot(&mut frame.stack, *slot, function_name, ip)?
             }

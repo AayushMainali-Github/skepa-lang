@@ -201,6 +201,28 @@ fn fmt_instr(i: &Instr) -> String {
         } => format!(
             "StructGetLocalSlotAddToLocal struct_slot={struct_slot} field_slot={field_slot} dst={dst}"
         ),
+        Instr::StructFieldAddMulFieldModLocalToLocal {
+            struct_slot,
+            arg_slot,
+            arg_op,
+            arg_rhs,
+            lhs_field_slot,
+            rhs_field_slot,
+            mul,
+            modulo,
+            dst,
+        } => {
+            let arg_op_name = match arg_op {
+                IntLocalConstOp::Add => "Add",
+                IntLocalConstOp::Sub => "Sub",
+                IntLocalConstOp::Mul => "Mul",
+                IntLocalConstOp::Div => "Div",
+                IntLocalConstOp::Mod => "Mod",
+            };
+            format!(
+                "StructFieldAddMulFieldModLocalToLocal struct_slot={struct_slot} arg_slot={arg_slot} arg_op={arg_op_name} arg_rhs={arg_rhs} lhs_field_slot={lhs_field_slot} rhs_field_slot={rhs_field_slot} mul={mul} modulo={modulo} dst={dst}"
+            )
+        }
         Instr::StructGetSlot(slot) => format!("StructGetSlot {slot}"),
         Instr::StructSetPath(path) => format!("StructSetPath {}", path.join(".")),
         Instr::StructSetPathSlots(path) => format!(

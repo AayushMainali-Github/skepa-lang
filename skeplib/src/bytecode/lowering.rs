@@ -2370,6 +2370,7 @@ fn peephole_optimize_chunk(chunk: &mut FunctionChunk) {
     }
     rewrite_struct_local_field_add_to_local(chunk);
     rewrite_int_stack_const_op_to_local(chunk);
+    rewrite_struct_method_complex_to_local(chunk);
     let len = chunk.code.len();
     let mut remove = vec![false; len];
     for (i, instr) in chunk.code.iter().enumerate() {
@@ -2451,6 +2452,58 @@ fn rewrite_int_stack_const_op_to_local(chunk: &mut FunctionChunk) {
                     rhs: *rhs,
                 });
                 i += 2;
+                continue;
+            }
+            _ => {}
+        }
+        rewritten.push(chunk.code[i].clone());
+        i += 1;
+    }
+    chunk.code = rewritten;
+}
+
+fn rewrite_struct_method_complex_to_local(chunk: &mut FunctionChunk) {
+    let mut rewritten = Vec::with_capacity(chunk.code.len());
+    let mut i = 0;
+    while i < chunk.code.len() {
+        match chunk.code.get(i..i + 10) {
+            Some([
+                Instr::StructGetLocalSlot {
+                    slot: struct_slot_a,
+                    field_slot: lhs_field_slot,
+                },
+                Instr::IntLocalConstOp {
+                    slot: arg_slot,
+                    op: arg_op,
+                    rhs: arg_rhs,
+                },
+                Instr::Add,
+                Instr::LoadConst(Value::Int(mul)),
+                Instr::MulInt,
+                Instr::StructGetLocalSlot {
+                    slot: struct_slot_b,
+                    field_slot: rhs_field_slot,
+                },
+                Instr::Add,
+                Instr::LoadConst(Value::Int(modulo)),
+                Instr::ModInt,
+                Instr::IntStackOpToLocal {
+                    slot: dst,
+                    op: IntLocalConstOp::Add,
+                },
+            ]) if struct_slot_a == struct_slot_b => {
+                rewritten.push(Instr::StructFieldAddMulFieldModLocalToLocal {
+                    struct_slot: *struct_slot_a,
+                    arg_slot: *arg_slot,
+                    arg_op: *arg_op,
+                    arg_rhs: *arg_rhs,
+                    lhs_field_slot: *lhs_field_slot,
+                    rhs_field_slot: *rhs_field_slot,
+                    mul: *mul,
+                    modulo: *modulo,
+                    dst: *dst,
+                });
+                i += 10;
                 continue;
             }
             _ => {}
