@@ -11,7 +11,7 @@ mod state;
 mod strings;
 mod structs;
 
-use crate::bytecode::{BytecodeModule, FunctionChunk, Instr, IntLocalConstOp, Value};
+use crate::bytecode::{BytecodeModule, FunctionChunk, Instr, Value};
 
 use super::{BuiltinHost, BuiltinRegistry, VmConfig, VmError, VmErrorKind};
 
@@ -133,123 +133,9 @@ pub(super) fn run_chunk(
                 core::store_global(env.globals, &mut frame.stack, *slot, function_name, ip)?
             }
             Instr::Pop => core::pop(&mut frame.stack, function_name, ip)?,
-            Instr::NegInt => arith::neg(&mut frame.stack, function_name, ip)?,
-            Instr::NotBool => arith::not_bool(&mut frame.stack, function_name, ip)?,
             Instr::Add => unreachable!(),
-            Instr::IntLocalLocalOp { lhs, rhs, op } => {
-                let Some(left) = frame.locals.get(*lhs).cloned() else {
-                    return Err(invalid_local_slot(function_name, ip, *lhs));
-                };
-                let Some(right) = frame.locals.get(*rhs).cloned() else {
-                    return Err(invalid_local_slot(function_name, ip, *rhs));
-                };
-                match (left, right) {
-                    (Value::Int(lhs), Value::Int(rhs)) => {
-                        let result = match op {
-                            IntLocalConstOp::Add => Value::Int(lhs + rhs),
-                            IntLocalConstOp::Sub => Value::Int(lhs - rhs),
-                            IntLocalConstOp::Mul => Value::Int(lhs * rhs),
-                            IntLocalConstOp::Div => {
-                                if rhs == 0 {
-                                    return Err(err_at(
-                                        VmErrorKind::DivisionByZero,
-                                        "division by zero",
-                                        function_name,
-                                        ip,
-                                    ));
-                                }
-                                Value::Int(lhs / rhs)
-                            }
-                            IntLocalConstOp::Mod => {
-                                if rhs == 0 {
-                                    return Err(err_at(
-                                        VmErrorKind::DivisionByZero,
-                                        "modulo by zero",
-                                        function_name,
-                                        ip,
-                                    ));
-                                }
-                                Value::Int(lhs % rhs)
-                            }
-                        };
-                        frame.stack.push(result);
-                    }
-                    (left, right) => {
-                        frame.stack.push(left);
-                        frame.stack.push(right);
-                        match op {
-                            IntLocalConstOp::Add => {
-                                arith::add(&mut frame.stack, function_name, ip)?
-                            }
-                            IntLocalConstOp::Sub | IntLocalConstOp::Mul | IntLocalConstOp::Div => {
-                                let generic_instr = match op {
-                                    IntLocalConstOp::Sub => &Instr::SubInt,
-                                    IntLocalConstOp::Mul => &Instr::MulInt,
-                                    IntLocalConstOp::Div => &Instr::DivInt,
-                                    IntLocalConstOp::Add | IntLocalConstOp::Mod => unreachable!(),
-                                };
-                                arith::numeric_binop(
-                                    &mut frame.stack,
-                                    generic_instr,
-                                    function_name,
-                                    ip,
-                                )?
-                            }
-                            IntLocalConstOp::Mod => {
-                                arith::mod_int(&mut frame.stack, function_name, ip)?
-                            }
-                        }
-                    }
-                }
-            }
-            Instr::SubInt | Instr::MulInt | Instr::DivInt | Instr::GtInt | Instr::GteInt => {
-                arith::numeric_binop(&mut frame.stack, instr, function_name, ip)?
-            }
             Instr::LtInt => unreachable!(),
             Instr::LteInt => unreachable!(),
-            Instr::ModInt => {
-                let stack = &mut frame.stack;
-                let Some(r) = stack.pop() else {
-                    return Err(err_at(
-                        VmErrorKind::TypeMismatch,
-                        "ModInt expects rhs Int",
-                        function_name,
-                        ip,
-                    ));
-                };
-                let Some(l) = stack.pop() else {
-                    stack.push(r);
-                    return Err(err_at(
-                        VmErrorKind::TypeMismatch,
-                        "ModInt expects lhs Int",
-                        function_name,
-                        ip,
-                    ));
-                };
-                match (l, r) {
-                    (Value::Int(l), Value::Int(r)) => {
-                        if r == 0 {
-                            return Err(err_at(
-                                VmErrorKind::DivisionByZero,
-                                "modulo by zero",
-                                function_name,
-                                ip,
-                            ));
-                        }
-                        stack.push(Value::Int(l % r));
-                    }
-                    (l, r) => {
-                        stack.push(l);
-                        stack.push(r);
-                        arith::mod_int(stack, function_name, ip)?
-                    }
-                }
-            }
-            Instr::Eq => arith::eq(&mut frame.stack, function_name, ip)?,
-            Instr::Neq => arith::neq(&mut frame.stack, function_name, ip)?,
-            Instr::AndBool | Instr::OrBool => {
-                arith::logical(&mut frame.stack, instr, function_name, ip)?
-            }
             Instr::Jump(_) | Instr::JumpIfFalse(_) | Instr::JumpIfLocalLtConst { .. } => {
                 unreachable!()
             }
@@ -292,6 +178,21 @@ pub(super) fn run_chunk(
                     frames.push(new_frame);
                     continue;
                 }
+            }
+            Instr::NegInt
+            | Instr::NotBool
+            | Instr::IntLocalLocalOp { .. }
+            | Instr::SubInt
+            | Instr::MulInt
+            | Instr::DivInt
+            | Instr::GtInt
+            | Instr::GteInt
+            | Instr::ModInt
+            | Instr::Eq
+            | Instr::Neq
+            | Instr::AndBool
+            | Instr::OrBool => {
+                arith::handle_instr(frame, instr, function_name, ip)?;
             }
             Instr::StrLen
             | Instr::StrLenLocal(_)

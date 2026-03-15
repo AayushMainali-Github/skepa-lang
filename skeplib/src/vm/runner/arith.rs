@@ -1,5 +1,7 @@
-use crate::bytecode::{Instr, Value};
+use crate::bytecode::{Instr, IntLocalConstOp, Value};
 use crate::vm::{VmError, VmErrorKind};
+
+use super::{err_at, invalid_local_slot, state};
 
 pub(super) fn neg(stack: &mut Vec<Value>, function_name: &str, ip: usize) -> Result<(), VmError> {
     let Some(v) = stack.pop() else {
@@ -278,4 +280,136 @@ pub(super) fn logical(
         _ => unreachable!(),
     }
     Ok(())
+}
+
+pub(super) fn handle_instr(
+    frame: &mut state::CallFrame<'_>,
+    instr: &Instr,
+    function_name: &str,
+    ip: usize,
+) -> Result<bool, VmError> {
+    match instr {
+        Instr::NegInt => {
+            neg(&mut frame.stack, function_name, ip)?;
+            Ok(true)
+        }
+        Instr::NotBool => {
+            not_bool(&mut frame.stack, function_name, ip)?;
+            Ok(true)
+        }
+        Instr::IntLocalLocalOp { lhs, rhs, op } => {
+            let Some(left) = frame.locals.get(*lhs).cloned() else {
+                return Err(invalid_local_slot(function_name, ip, *lhs));
+            };
+            let Some(right) = frame.locals.get(*rhs).cloned() else {
+                return Err(invalid_local_slot(function_name, ip, *rhs));
+            };
+            match (left, right) {
+                (Value::Int(lhs), Value::Int(rhs)) => {
+                    let result = match op {
+                        IntLocalConstOp::Add => Value::Int(lhs + rhs),
+                        IntLocalConstOp::Sub => Value::Int(lhs - rhs),
+                        IntLocalConstOp::Mul => Value::Int(lhs * rhs),
+                        IntLocalConstOp::Div => {
+                            if rhs == 0 {
+                                return Err(err_at(
+                                    VmErrorKind::DivisionByZero,
+                                    "division by zero",
+                                    function_name,
+                                    ip,
+                                ));
+                            }
+                            Value::Int(lhs / rhs)
+                        }
+                        IntLocalConstOp::Mod => {
+                            if rhs == 0 {
+                                return Err(err_at(
+                                    VmErrorKind::DivisionByZero,
+                                    "modulo by zero",
+                                    function_name,
+                                    ip,
+                                ));
+                            }
+                            Value::Int(lhs % rhs)
+                        }
+                    };
+                    frame.stack.push(result);
+                }
+                (left, right) => {
+                    frame.stack.push(left);
+                    frame.stack.push(right);
+                    match op {
+                        IntLocalConstOp::Add => add(&mut frame.stack, function_name, ip)?,
+                        IntLocalConstOp::Sub | IntLocalConstOp::Mul | IntLocalConstOp::Div => {
+                            let generic_instr = match op {
+                                IntLocalConstOp::Sub => &Instr::SubInt,
+                                IntLocalConstOp::Mul => &Instr::MulInt,
+                                IntLocalConstOp::Div => &Instr::DivInt,
+                                IntLocalConstOp::Add | IntLocalConstOp::Mod => unreachable!(),
+                            };
+                            numeric_binop(&mut frame.stack, generic_instr, function_name, ip)?
+                        }
+                        IntLocalConstOp::Mod => mod_int(&mut frame.stack, function_name, ip)?,
+                    }
+                }
+            }
+            Ok(true)
+        }
+        Instr::SubInt | Instr::MulInt | Instr::DivInt | Instr::GtInt | Instr::GteInt => {
+            numeric_binop(&mut frame.stack, instr, function_name, ip)?;
+            Ok(true)
+        }
+        Instr::ModInt => {
+            let stack = &mut frame.stack;
+            let Some(r) = stack.pop() else {
+                return Err(err_at(
+                    VmErrorKind::TypeMismatch,
+                    "ModInt expects rhs Int",
+                    function_name,
+                    ip,
+                ));
+            };
+            let Some(l) = stack.pop() else {
+                stack.push(r);
+                return Err(err_at(
+                    VmErrorKind::TypeMismatch,
+                    "ModInt expects lhs Int",
+                    function_name,
+                    ip,
+                ));
+            };
+            match (l, r) {
+                (Value::Int(l), Value::Int(r)) => {
+                    if r == 0 {
+                        return Err(err_at(
+                            VmErrorKind::DivisionByZero,
+                            "modulo by zero",
+                            function_name,
+                            ip,
+                        ));
+                    }
+                    stack.push(Value::Int(l % r));
+                }
+                (l, r) => {
+                    stack.push(l);
+                    stack.push(r);
+                    mod_int(stack, function_name, ip)?
+                }
+            }
+            Ok(true)
+        }
+        Instr::Eq => {
+            eq(&mut frame.stack, function_name, ip)?;
+            Ok(true)
+        }
+        Instr::Neq => {
+            neq(&mut frame.stack, function_name, ip)?;
+            Ok(true)
+        }
+        Instr::AndBool | Instr::OrBool => {
+            logical(&mut frame.stack, instr, function_name, ip)?;
+            Ok(true)
+        }
+        _ => Ok(false),
+    }
 }
