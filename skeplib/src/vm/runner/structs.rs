@@ -267,20 +267,35 @@ pub(super) fn struct_get_local_slot_add_to_local(
     }
 }
 
+pub(super) struct StructFieldAddMulFieldModParams {
+    pub(super) struct_slot: usize,
+    pub(super) arg_slot: usize,
+    pub(super) arg_op: crate::bytecode::IntLocalConstOp,
+    pub(super) arg_rhs: i64,
+    pub(super) lhs_field_slot: usize,
+    pub(super) rhs_field_slot: usize,
+    pub(super) mul: i64,
+    pub(super) modulo: i64,
+    pub(super) dst: usize,
+}
+
 pub(super) fn struct_field_add_mul_field_mod_local_to_local(
     locals: &mut [Value],
-    struct_slot: usize,
-    arg_slot: usize,
-    arg_op: crate::bytecode::IntLocalConstOp,
-    arg_rhs: i64,
-    lhs_field_slot: usize,
-    rhs_field_slot: usize,
-    mul: i64,
-    modulo: i64,
-    dst: usize,
+    params: StructFieldAddMulFieldModParams,
     function_name: &str,
     ip: usize,
 ) -> Result<(), VmError> {
+    let StructFieldAddMulFieldModParams {
+        struct_slot,
+        arg_slot,
+        arg_op,
+        arg_rhs,
+        lhs_field_slot,
+        rhs_field_slot,
+        mul,
+        modulo,
+        dst,
+    } = params;
     let Some(base) = locals.get(struct_slot) else {
         return Err(super::err_at(
             VmErrorKind::InvalidLocal,

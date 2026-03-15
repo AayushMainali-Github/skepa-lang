@@ -248,21 +248,19 @@ fn rewrite_int_stack_const_op_to_local(chunk: &mut FunctionChunk) {
     let mut rewritten = Vec::with_capacity(chunk.code.len());
     let mut i = 0;
     while i < chunk.code.len() {
-        match (&chunk.code[i], chunk.code.get(i + 1)) {
-            (
-                Instr::IntStackConstOp { op: stack_op, rhs },
-                Some(Instr::IntStackOpToLocal { slot, op: local_op }),
-            ) => {
-                rewritten.push(Instr::IntStackConstOpToLocal {
-                    slot: *slot,
-                    stack_op: *stack_op,
-                    local_op: *local_op,
-                    rhs: *rhs,
-                });
-                i += 2;
-                continue;
-            }
-            _ => {}
+        if let (
+            Instr::IntStackConstOp { op: stack_op, rhs },
+            Some(Instr::IntStackOpToLocal { slot, op: local_op }),
+        ) = (&chunk.code[i], chunk.code.get(i + 1))
+        {
+            rewritten.push(Instr::IntStackConstOpToLocal {
+                slot: *slot,
+                stack_op: *stack_op,
+                local_op: *local_op,
+                rhs: *rhs,
+            });
+            i += 2;
+            continue;
         }
         rewritten.push(chunk.code[i].clone());
         i += 1;
