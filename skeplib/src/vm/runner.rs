@@ -4,6 +4,7 @@ mod arith;
 mod arrays;
 mod calls;
 mod control_flow;
+mod core;
 mod frame;
 mod hot;
 mod state;
@@ -126,40 +127,12 @@ pub(super) fn run_chunk(
             | Instr::IntStackConstOpToLocal { .. }
             | Instr::IntLocalLocalOpToLocal { .. } => unreachable!(),
             Instr::LoadGlobal(slot) => {
-                let Some(v) = env.globals.get(*slot).cloned() else {
-                    return Err(err_at(
-                        VmErrorKind::InvalidLocal,
-                        format!("Invalid global slot {slot}"),
-                        function_name,
-                        ip,
-                    ));
-                };
-                frame.stack.push(v);
+                core::load_global(env.globals, &mut frame.stack, *slot, function_name, ip)?
             }
             Instr::StoreGlobal(slot) => {
-                let Some(v) = frame.stack.pop() else {
-                    return Err(err_at(
-                        VmErrorKind::StackUnderflow,
-                        "Stack underflow on StoreGlobal",
-                        function_name,
-                        ip,
-                    ));
-                };
-                if *slot >= env.globals.len() {
-                    env.globals.resize(*slot + 1, Value::Unit);
-                }
-                env.globals[*slot] = v;
+                core::store_global(env.globals, &mut frame.stack, *slot, function_name, ip)?
             }
-            Instr::Pop => {
-                if frame.stack.pop().is_none() {
-                    return Err(err_at(
-                        VmErrorKind::StackUnderflow,
-                        "Stack underflow on Pop",
-                        function_name,
-                        ip,
-                    ));
-                }
-            }
+            Instr::Pop => core::pop(&mut frame.stack, function_name, ip)?,
             Instr::NegInt => arith::neg(&mut frame.stack, function_name, ip)?,
             Instr::NotBool => arith::not_bool(&mut frame.stack, function_name, ip)?,
             Instr::Add => unreachable!(),
@@ -406,16 +379,12 @@ pub(super) fn run_chunk(
                 structs::struct_set_path_slots(&mut frame.stack, path, function_name, ip)?
             }
             Instr::Return => {
-                let ret = frame.stack.pop().unwrap_or(Value::Unit);
-                if let Some(storage) = frames.pop().map(state::CallFrame::into_storage) {
-                    locals_pool.push(storage.locals);
-                    stack_pool.push(storage.stack);
+                if let Some(ret) =
+                    core::finish_return(&mut frames, &mut locals_pool, &mut stack_pool)?
+                {
+                    return Ok(ret);
                 }
-                if let Some(parent) = frames.last_mut() {
-                    parent.stack.push(ret);
-                    continue;
-                }
-                return Ok(ret);
+                continue;
             }
         }
         if let Some(frame) = frames.last_mut() {
