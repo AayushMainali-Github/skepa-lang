@@ -40,12 +40,8 @@ impl<'a> LlvmEmitter<'a> {
                         "0".into()
                     }
                 }
-                Some(_) => {
-                    return Err(CodegenError::Unsupported(
-                        "only constant Int/Bool globals are supported in initial LLVM lowering",
-                    ));
-                }
-                None => match global.ty {
+                Some(_) | None => match global.ty {
+                    // Non-constant initializers are materialized through __globals_init.
                     crate::ir::IrType::Int | crate::ir::IrType::Bool => "0".into(),
                     _ => {
                         return Err(CodegenError::Unsupported(
@@ -62,6 +58,25 @@ impl<'a> LlvmEmitter<'a> {
             ));
         }
         if !self.program.globals.is_empty() {
+            out.push(String::new());
+        }
+
+        if let Some(module_init) = &self.program.module_init {
+            let init = self
+                .program
+                .functions
+                .iter()
+                .find(|func| func.id == module_init.function)
+                .ok_or_else(|| {
+                    CodegenError::InvalidIr(format!(
+                        "module_init points at missing function {:?}",
+                        module_init.function
+                    ))
+                })?;
+            out.push(format!(
+                "@llvm.global_ctors = appending global [1 x {{ i32, ptr, ptr }}] [{{ i32, ptr, ptr }} {{ i32 65535, ptr {}, ptr null }}]",
+                llvm_symbol(&init.name)
+            ));
             out.push(String::new());
         }
 

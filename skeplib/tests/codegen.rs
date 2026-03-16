@@ -147,3 +147,52 @@ fn main() -> Int {
         String::from_utf8_lossy(&output.stderr)
     );
 }
+
+#[test]
+fn llvm_codegen_emits_module_init_via_global_ctors() {
+    let dir = temp_file("project_globals_codegen", "dir");
+    fs::create_dir_all(&dir).expect("temporary project dir should be created");
+    let entry = dir.join("main.sk");
+    fs::write(
+        &entry,
+        r#"
+let base: Int = 3;
+let answer: Int = 7;
+
+fn main() -> Int {
+  return answer;
+}
+"#,
+    )
+    .expect("project source should be written");
+
+    let program =
+        ir::lowering::compile_project_entry(&entry).expect("project IR lowering should succeed");
+    let llvm_ir =
+        codegen::compile_program_to_llvm_ir(&program).expect("LLVM lowering should succeed");
+
+    assert!(llvm_ir.contains("@llvm.global_ctors = appending global"));
+    assert!(llvm_ir.contains("@\"__globals_init\""));
+    assert!(llvm_ir.contains("store i64"));
+
+    let ll_path = temp_file("project_globals_codegen", "ll");
+    let bc_path = temp_file("project_globals_codegen", "bc");
+    fs::write(&ll_path, llvm_ir).expect("should write temporary llvm ir file");
+
+    let output = Command::new("llvm-as")
+        .arg(&ll_path)
+        .arg("-o")
+        .arg(&bc_path)
+        .output()
+        .expect("llvm-as should be available on PATH");
+
+    let _ = fs::remove_file(&ll_path);
+    let _ = fs::remove_file(&bc_path);
+    let _ = fs::remove_dir_all(&dir);
+
+    assert!(
+        output.status.success(),
+        "llvm-as rejected generated IR: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
