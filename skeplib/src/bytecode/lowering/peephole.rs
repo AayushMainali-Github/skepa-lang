@@ -331,8 +331,8 @@ fn rewrite_struct_method_complex_to_local(chunk: &mut FunctionChunk) {
                     },
                 ],
             ) if struct_slot_a == struct_slot_b => {
-                for skipped in i + 1..i + 10 {
-                    old_to_new[skipped] = rewritten.len();
+                for mapped in old_to_new.iter_mut().take(i + 10).skip(i + 1) {
+                    *mapped = rewritten.len();
                 }
                 rewritten.push(Instr::StructFieldAddMulFieldModLocalToLocal {
                     struct_slot: *struct_slot_a,
