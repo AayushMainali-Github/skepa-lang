@@ -518,6 +518,66 @@ fn main() -> Int {
     assert_eq!(run.status.code(), Some(7));
 }
 
+#[test]
+fn build_obj_reports_toolchain_failure_cleanly() {
+    let tmp = make_temp_dir("skepac_build_obj_no_toolchain");
+    let source = tmp.join("main.sk");
+    let out = tmp.join(format!("main.{}", obj_ext()));
+    fs::write(
+        &source,
+        r#"
+fn main() -> Int {
+  return 7;
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("build-obj")
+        .arg(&source)
+        .arg(&out)
+        .env("PATH", "")
+        .output()
+        .expect("run skepac build-obj");
+
+    assert_eq!(output.status.code(), Some(12), "{:?}", output);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("[E-CODEGEN][codegen]"));
+    assert!(stderr.contains("native toolchain failure"));
+    assert!(stderr.contains("llvm-as") || stderr.contains("llc"));
+}
+
+#[test]
+fn build_native_reports_toolchain_failure_cleanly() {
+    let tmp = make_temp_dir("skepac_build_native_no_toolchain");
+    let source = tmp.join("main.sk");
+    let out = tmp.join(format!("main.{}", exe_ext()));
+    fs::write(
+        &source,
+        r#"
+fn main() -> Int {
+  return 7;
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("build-native")
+        .arg(&source)
+        .arg(&out)
+        .env("PATH", "")
+        .output()
+        .expect("run skepac build-native");
+
+    assert_eq!(output.status.code(), Some(12), "{:?}", output);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("[E-CODEGEN][codegen]"));
+    assert!(stderr.contains("native toolchain failure"));
+    assert!(stderr.contains("llvm-as") || stderr.contains("llc") || stderr.contains("clang"));
+}
+
 fn skepac_bin() -> &'static str {
     env!("CARGO_BIN_EXE_skepac")
 }
