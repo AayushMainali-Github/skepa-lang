@@ -1,7 +1,22 @@
 use std::fs;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use skeplib::bytecode;
+use skeplib::bytecode::Value;
 use skeplib::ir::{self, PrettyIr};
+use skeplib::vm::Vm;
+
+fn assert_bytecode_and_ir_accept_same_source(source: &str, expected: i64) {
+    let module = bytecode::compile_source(source).expect("bytecode lowering should succeed");
+    let value = Vm::run_module_main(&module).expect("bytecode vm should run source");
+    assert_eq!(value, Value::Int(expected));
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    assert!(
+        !program.functions.is_empty(),
+        "IR lowering should emit at least one function"
+    );
+}
 
 #[test]
 fn lower_simple_function_to_ir() {
@@ -274,4 +289,61 @@ fn main() -> Int {
     assert!(printed.contains("fn main"));
 
     let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn bytecode_and_ir_accept_same_core_control_flow_source() {
+    let source = r#"
+fn main() -> Int {
+  let i = 0;
+  let acc = 0;
+  while (i < 6) {
+    acc = acc + i;
+    i = i + 1;
+  }
+  return acc;
+}
+"#;
+
+    assert_bytecode_and_ir_accept_same_source(source, 15);
+}
+
+#[test]
+fn bytecode_and_ir_accept_same_struct_and_method_source() {
+    let source = r#"
+struct Pair {
+  a: Int,
+  b: Int
+}
+
+impl Pair {
+  fn mix(self, x: Int) -> Int {
+    return self.a + self.b + x;
+  }
+}
+
+fn main() -> Int {
+  let p = Pair { a: 10, b: 5 };
+  p.a = 7;
+  return p.mix(4);
+}
+"#;
+
+    assert_bytecode_and_ir_accept_same_source(source, 16);
+}
+
+#[test]
+fn bytecode_and_ir_accept_same_array_and_vec_source() {
+    let source = r#"
+fn main() -> Int {
+  let arr: [Int; 3] = [1; 3];
+  arr[1] = 5;
+  let xs: Vec[Int] = vec.new();
+  vec.push(xs, arr[0]);
+  vec.push(xs, arr[1]);
+  return vec.get(xs, 0) + vec.get(xs, 1) + arr[2];
+}
+"#;
+
+    assert_bytecode_and_ir_accept_same_source(source, 7);
 }
