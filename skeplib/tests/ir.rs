@@ -296,6 +296,119 @@ fn main() -> Int {
 }
 
 #[test]
+fn interpret_project_entry_ir_for_cross_module_call_flow() {
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock should be monotonic enough for temp name")
+        .as_nanos();
+    let root = std::env::temp_dir().join(format!("skepa_ir_exec_project_{unique}"));
+    fs::create_dir_all(&root).expect("temp project dir should be created");
+
+    let entry = root.join("main.sk");
+    fs::write(
+        root.join("math.sk"),
+        r#"
+export { bump, seed_value };
+
+let seed: Int = 9;
+
+fn bump(x: Int) -> Int {
+  return x + 2;
+}
+
+fn seed_value() -> Int {
+  return seed;
+}
+"#,
+    )
+    .expect("math module should be written");
+    fs::write(
+        &entry,
+        r#"
+from math import bump, seed_value;
+
+fn main() -> Int {
+  return bump(seed_value()) + 1;
+}
+"#,
+    )
+    .expect("entry module should be written");
+
+    let bytecode = bytecode::compile_project_entry(&entry).expect("bytecode project compile");
+    let bytecode_value = Vm::run_module_main(&bytecode).expect("bytecode vm should run project");
+    assert_eq!(bytecode_value, Value::Int(12));
+
+    let program =
+        ir::lowering::compile_project_entry(&entry).expect("project IR lowering should succeed");
+    let ir_value = IrInterpreter::new(&program)
+        .run_main()
+        .expect("IR interpreter should run project");
+    assert_eq!(ir_value, IrValue::Int(12));
+
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn interpret_project_entry_ir_for_cross_module_struct_method_flow() {
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock should be monotonic enough for temp name")
+        .as_nanos();
+    let root = std::env::temp_dir().join(format!("skepa_ir_struct_project_{unique}"));
+    fs::create_dir_all(&root).expect("temp project dir should be created");
+
+    let entry = root.join("main.sk");
+    fs::write(
+        root.join("pair.sk"),
+        r#"
+export { Pair, make };
+
+struct Pair {
+  a: Int,
+  b: Int
+}
+
+impl Pair {
+  fn mix(self, x: Int) -> Int {
+    return self.a + self.b + x;
+  }
+}
+
+fn make() -> Pair {
+  return Pair { a: 4, b: 6 };
+}
+"#,
+    )
+    .expect("pair module should be written");
+    fs::write(
+        &entry,
+        r#"
+from pair import Pair, make;
+
+fn main() -> Int {
+  let p = make();
+  p.a = 7;
+  return p.mix(5);
+}
+"#,
+    )
+    .expect("entry module should be written");
+
+    let bytecode = bytecode::compile_project_entry(&entry).expect("bytecode project compile");
+    let bytecode_value = Vm::run_module_main(&bytecode).expect("bytecode vm should run project");
+    assert_eq!(bytecode_value, Value::Int(18));
+
+    let program =
+        ir::lowering::compile_project_entry(&entry).expect("project IR lowering should succeed");
+    let ir_value = IrInterpreter::new(&program)
+        .run_main()
+        .expect("IR interpreter should run project");
+    assert_eq!(ir_value, IrValue::Int(18));
+
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
 fn bytecode_and_ir_accept_same_core_control_flow_source() {
     let source = r#"
 fn main() -> Int {

@@ -26,6 +26,12 @@ impl IrLowerer {
                 .copied()
                 .map(Operand::Local)
                 .or_else(|| {
+                    self.imported_global_names
+                        .get(name)
+                        .and_then(|qualified| self.globals.get(qualified))
+                        .map(|(id, _)| Operand::Global(*id))
+                })
+                .or_else(|| {
                     self.globals
                         .get(name)
                         .or_else(|| self.globals.get(&self.qualify_name(name)))
@@ -38,6 +44,11 @@ impl IrLowerer {
                 }),
             Expr::Path(parts) => {
                 let name = parts.join(".");
+                if let Some(qualified) = self.imported_global_names.get(&name)
+                    && let Some((id, _)) = self.globals.get(qualified)
+                {
+                    return Some(Operand::Global(*id));
+                }
                 self.globals
                     .get(&name)
                     .or_else(|| self.globals.get(&self.qualify_name(&name)))

@@ -50,6 +50,7 @@ impl IrLowerer {
     ) {
         self.module_id = Some(module_id.to_string());
         self.direct_import_calls.clear();
+        self.imported_global_names.clear();
         self.imported_struct_runtime.clear();
         self.namespace_call_targets.clear();
 
@@ -85,10 +86,10 @@ impl IrLowerer {
                                     );
                                 }
                                 SymbolKind::GlobalLet => {
-                                    self.globals.entry(name.clone()).or_insert((
-                                        crate::ir::GlobalId(usize::MAX),
-                                        IrType::Unknown,
-                                    ));
+                                    self.imported_global_names.insert(
+                                        name.clone(),
+                                        format!("{}::{}", sym.module_id, sym.local_name),
+                                    );
                                 }
                                 SymbolKind::Namespace => {}
                             }
@@ -112,7 +113,13 @@ impl IrLowerer {
                                         format!("{}::{}", sym.module_id, sym.local_name),
                                     );
                                 }
-                                SymbolKind::GlobalLet | SymbolKind::Namespace => {}
+                                SymbolKind::GlobalLet => {
+                                    self.imported_global_names.insert(
+                                        local,
+                                        format!("{}::{}", sym.module_id, sym.local_name),
+                                    );
+                                }
+                                SymbolKind::Namespace => {}
                             }
                         }
                     }
@@ -152,6 +159,16 @@ impl IrLowerer {
                                         format!("{}::{}", sym.module_id, sym.local_name),
                                     );
                                     self.imported_struct_runtime.insert(
+                                        format!("{ns}.{ename}"),
+                                        format!("{}::{}", sym.module_id, sym.local_name),
+                                    );
+                                }
+                                if sym.kind == SymbolKind::GlobalLet {
+                                    self.imported_global_names.insert(
+                                        format!("{mid}.{ename}"),
+                                        format!("{}::{}", sym.module_id, sym.local_name),
+                                    );
+                                    self.imported_global_names.insert(
                                         format!("{ns}.{ename}"),
                                         format!("{}::{}", sym.module_id, sym.local_name),
                                     );
@@ -245,6 +262,12 @@ impl IrLowerer {
                 ty,
                 init: None,
             });
+        }
+
+        if !program.globals.is_empty() {
+            let init_name = self.qualify_name("__globals_init");
+            let id = crate::ir::FunctionId(self.functions.len());
+            self.functions.insert(init_name, (id, IrType::Void));
         }
 
         for func in &program.functions {
