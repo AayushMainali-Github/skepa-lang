@@ -756,7 +756,11 @@ impl IrLowerer {
             ("vec", "len") => Some(IrType::Int),
             ("vec", "push" | "set") => Some(IrType::Void),
             ("vec", "get" | "delete") => Some(IrType::Unknown),
-            ("io", "print" | "println" | "printf") => Some(IrType::Void),
+            (
+                "io",
+                "print" | "println" | "printf" | "printInt" | "printFloat" | "printBool"
+                | "printString",
+            ) => Some(IrType::Void),
             ("io", "format") => Some(IrType::String),
             ("io", "readLine") => Some(IrType::String),
             (

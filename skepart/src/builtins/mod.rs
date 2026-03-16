@@ -79,6 +79,10 @@ pub fn call_with_host(
             io::println(host, value)?;
             Ok(RtValue::Unit)
         }
+        ("io", "printInt" | "printFloat" | "printBool" | "printString", [value]) => {
+            io::print(host, value)?;
+            Ok(RtValue::Unit)
+        }
         ("io", "format", args) => io::format(args),
         ("io", "printf", args) => io::printf(host, args),
         ("io", "readLine", []) => io::read_line(host),

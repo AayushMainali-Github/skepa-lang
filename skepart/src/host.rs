@@ -1,4 +1,7 @@
-use crate::{RtError, RtResult, RtString};
+use std::io::Write;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use crate::{RtError, RtErrorKind, RtResult, RtString};
 
 pub trait RtHost {
     fn io_print(&mut self, text: &str) -> RtResult<()>;
@@ -105,7 +108,25 @@ pub trait RtHost {
 pub struct NoopHost;
 
 impl RtHost for NoopHost {
-    fn io_print(&mut self, _text: &str) -> RtResult<()> {
+    fn io_print(&mut self, text: &str) -> RtResult<()> {
+        print!("{text}");
+        std::io::stdout()
+            .flush()
+            .map_err(|err| RtError::new(RtErrorKind::InvalidArgument, err.to_string()))?;
         Ok(())
+    }
+
+    fn datetime_now_unix(&mut self) -> RtResult<i64> {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|err| RtError::new(RtErrorKind::InvalidArgument, err.to_string()))?;
+        Ok(now.as_secs() as i64)
+    }
+
+    fn datetime_now_millis(&mut self) -> RtResult<i64> {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|err| RtError::new(RtErrorKind::InvalidArgument, err.to_string()))?;
+        Ok(now.as_millis() as i64)
     }
 }
