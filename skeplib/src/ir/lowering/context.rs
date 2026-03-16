@@ -23,6 +23,12 @@ pub(super) struct FunctionLowering {
     pub(super) current_block: BlockId,
     pub(super) locals: HashMap<String, crate::ir::LocalId>,
     pub(super) scratch_counter: usize,
+    pub(super) loops: Vec<LoopLowering>,
+}
+
+pub(super) struct LoopLowering {
+    pub(super) continue_block: BlockId,
+    pub(super) break_block: BlockId,
 }
 
 impl IrLowerer {

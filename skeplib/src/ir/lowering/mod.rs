@@ -357,6 +357,7 @@ impl IrLowerer {
             current_block: out.entry,
             locals: HashMap::new(),
             scratch_counter: 0,
+            loops: Vec::new(),
         };
 
         for param in &func.params {
@@ -423,6 +424,7 @@ impl IrLowerer {
             current_block: out.entry,
             locals: HashMap::new(),
             scratch_counter: 0,
+            loops: Vec::new(),
         };
 
         for param in &method.params {
@@ -478,6 +480,7 @@ impl IrLowerer {
             current_block: func.entry,
             locals: HashMap::new(),
             scratch_counter: 0,
+            loops: Vec::new(),
         };
 
         for global in &program.globals {

@@ -1,7 +1,7 @@
 use crate::ast::{AssignTarget, Expr, Stmt};
 use crate::ir::{BlockId, BranchTerminator, Instr, IrType, Terminator};
 
-use super::context::{FunctionLowering, IrLowerer};
+use super::context::{FunctionLowering, IrLowerer, LoopLowering};
 
 impl IrLowerer {
     pub(super) fn compile_stmt(
@@ -139,6 +139,21 @@ impl IrLowerer {
                 else_body,
             } => self.compile_if(func, lowering, cond, then_body, else_body),
             Stmt::While { cond, body } => self.compile_while(func, lowering, cond, body),
+            Stmt::For {
+                init,
+                cond,
+                step,
+                body,
+            } => self.compile_for(
+                func,
+                lowering,
+                init.as_deref(),
+                cond.as_ref(),
+                step.as_deref(),
+                body,
+            ),
+            Stmt::Break => self.compile_break(func, lowering),
+            Stmt::Continue => self.compile_continue(func, lowering),
             _ => {
                 self.unsupported("statement form is not in the initial IR lowering subset");
                 false
@@ -220,15 +235,123 @@ impl IrLowerer {
             }),
         );
 
+        lowering.loops.push(LoopLowering {
+            continue_block: cond_block,
+            break_block: exit_block,
+        });
         lowering.current_block = body_block;
         for stmt in body {
             if !self.compile_stmt(func, lowering, stmt) {
+                lowering.loops.pop();
                 return false;
             }
         }
+        lowering.loops.pop();
         self.ensure_fallthrough_jump(func, lowering.current_block, cond_block);
 
         lowering.current_block = exit_block;
+        true
+    }
+
+    fn compile_for(
+        &mut self,
+        func: &mut crate::ir::IrFunction,
+        lowering: &mut FunctionLowering,
+        init: Option<&Stmt>,
+        cond: Option<&Expr>,
+        step: Option<&Stmt>,
+        body: &[Stmt],
+    ) -> bool {
+        if let Some(init) = init
+            && !self.compile_stmt(func, lowering, init)
+        {
+            return false;
+        }
+
+        let cond_block = self.builder.push_block(func, "for_cond");
+        let body_block = self.builder.push_block(func, "for_body");
+        let step_block = self.builder.push_block(func, "for_step");
+        let exit_block = self.builder.push_block(func, "for_exit");
+
+        self.builder
+            .set_terminator(func, lowering.current_block, Terminator::Jump(cond_block));
+
+        lowering.current_block = cond_block;
+        let cond_value = match cond {
+            Some(cond) => match self.compile_expr(func, lowering, cond) {
+                Some(value) => value,
+                None => return false,
+            },
+            None => crate::ir::Operand::Const(crate::ir::ConstValue::Bool(true)),
+        };
+        self.builder.set_terminator(
+            func,
+            cond_block,
+            Terminator::Branch(BranchTerminator {
+                cond: cond_value,
+                then_block: body_block,
+                else_block: exit_block,
+            }),
+        );
+
+        lowering.loops.push(LoopLowering {
+            continue_block: step_block,
+            break_block: exit_block,
+        });
+        lowering.current_block = body_block;
+        for stmt in body {
+            if !self.compile_stmt(func, lowering, stmt) {
+                lowering.loops.pop();
+                return false;
+            }
+        }
+        self.ensure_fallthrough_jump(func, lowering.current_block, step_block);
+
+        lowering.current_block = step_block;
+        if let Some(step) = step
+            && !self.compile_stmt(func, lowering, step)
+        {
+            lowering.loops.pop();
+            return false;
+        }
+        lowering.loops.pop();
+        self.ensure_fallthrough_jump(func, lowering.current_block, cond_block);
+
+        lowering.current_block = exit_block;
+        true
+    }
+
+    fn compile_break(
+        &mut self,
+        func: &mut crate::ir::IrFunction,
+        lowering: &mut FunctionLowering,
+    ) -> bool {
+        let Some(loop_ctx) = lowering.loops.last() else {
+            self.unsupported("`break` is not valid outside a loop in IR lowering");
+            return false;
+        };
+        self.builder.set_terminator(
+            func,
+            lowering.current_block,
+            Terminator::Jump(loop_ctx.break_block),
+        );
+        true
+    }
+
+    fn compile_continue(
+        &mut self,
+        func: &mut crate::ir::IrFunction,
+        lowering: &mut FunctionLowering,
+    ) -> bool {
+        let Some(loop_ctx) = lowering.loops.last() else {
+            self.unsupported("`continue` is not valid outside a loop in IR lowering");
+            return false;
+        };
+        self.builder.set_terminator(
+            func,
+            lowering.current_block,
+            Terminator::Jump(loop_ctx.continue_block),
+        );
         true
     }
 

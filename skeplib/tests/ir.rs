@@ -526,6 +526,27 @@ fn main() -> Int {
 }
 
 #[test]
+fn bytecode_and_ir_accept_same_for_loop_source() {
+    let source = r#"
+fn main() -> Int {
+  let acc = 0;
+  for (let i = 0; i < 8; i = i + 1) {
+    if (i == 2) {
+      continue;
+    }
+    if (i == 6) {
+      break;
+    }
+    acc = acc + i;
+  }
+  return acc;
+}
+"#;
+
+    assert_bytecode_and_ir_accept_same_source(source, ExpectedValue::Int(13));
+}
+
+#[test]
 fn bytecode_and_ir_accept_same_struct_and_method_source() {
     let source = r#"
 struct Pair {

@@ -789,6 +789,7 @@ impl IrLowerer {
             current_block: lifted.entry,
             locals: HashMap::new(),
             scratch_counter: 0,
+            loops: Vec::new(),
         };
         let mut param_types = Vec::with_capacity(params.len());
         for param in params {
