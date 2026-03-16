@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
 use std::rc::Rc;
@@ -7,22 +6,10 @@ use crate::ir::{
     BinaryOp, BranchTerminator, CmpOp, ConstValue, FunctionId, Instr, IrFunction, IrProgram,
     Operand, Terminator, UnaryOp,
 };
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum IrValue {
-    Int(i64),
-    Float(f64),
-    Bool(bool),
-    String(String),
-    Array(Vec<IrValue>),
-    Vec(Rc<RefCell<Vec<IrValue>>>),
-    Struct {
-        struct_id: crate::ir::StructId,
-        fields: Vec<IrValue>,
-    },
-    Closure(FunctionId),
-    Unit,
-}
+use skepart::{
+    NoopHost, RtArray, RtError, RtErrorKind, RtFunctionRef, RtString, RtStruct, RtStructLayout,
+    RtValue, RtVec, builtins,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IrInterpError {
@@ -55,20 +42,52 @@ impl fmt::Display for IrInterpError {
     }
 }
 
+impl IrInterpError {
+    fn from_runtime(err: RtError) -> Self {
+        match err.kind {
+            RtErrorKind::DivisionByZero => Self::DivisionByZero,
+            RtErrorKind::IndexOutOfBounds => Self::IndexOutOfBounds,
+            RtErrorKind::TypeMismatch => {
+                Self::TypeMismatch(Box::leak(err.message.into_boxed_str()))
+            }
+            RtErrorKind::MissingField => Self::InvalidField(err.message),
+            RtErrorKind::InvalidArgument => {
+                Self::InvalidOperand(Box::leak(err.message.into_boxed_str()))
+            }
+            RtErrorKind::UnsupportedBuiltin => Self::UnsupportedBuiltin(err.message),
+        }
+    }
+}
+
 pub struct IrInterpreter<'a> {
     program: &'a IrProgram,
-    globals: Vec<IrValue>,
+    globals: Vec<RtValue>,
+    struct_layouts: Vec<Rc<RtStructLayout>>,
 }
 
 impl<'a> IrInterpreter<'a> {
     pub fn new(program: &'a IrProgram) -> Self {
         Self {
             program,
-            globals: vec![IrValue::Unit; program.globals.len()],
+            globals: vec![RtValue::Unit; program.globals.len()],
+            struct_layouts: program
+                .structs
+                .iter()
+                .map(|strukt| {
+                    Rc::new(RtStructLayout {
+                        name: strukt.name.clone(),
+                        field_names: strukt
+                            .fields
+                            .iter()
+                            .map(|field| field.name.clone())
+                            .collect(),
+                    })
+                })
+                .collect(),
         }
     }
 
-    pub fn run_main(mut self) -> Result<IrValue, IrInterpError> {
+    pub fn run_main(mut self) -> Result<RtValue, IrInterpError> {
         if let Some(init) = &self.program.module_init {
             let _ = self.run_function(init.function, Vec::new())?;
         }
@@ -84,8 +103,8 @@ impl<'a> IrInterpreter<'a> {
     fn run_function(
         &mut self,
         function_id: FunctionId,
-        args: Vec<IrValue>,
-    ) -> Result<IrValue, IrInterpError> {
+        args: Vec<RtValue>,
+    ) -> Result<RtValue, IrInterpError> {
         let func = self
             .program
             .functions
@@ -108,13 +127,11 @@ impl<'a> IrInterpreter<'a> {
 
             match &block.terminator {
                 Terminator::Jump(next) => current_block = *next,
-                Terminator::Branch(branch) => {
-                    current_block = self.eval_branch(&frame, branch)?;
-                }
+                Terminator::Branch(branch) => current_block = self.eval_branch(&frame, branch)?,
                 Terminator::Return(value) => {
                     return Ok(match value {
                         Some(operand) => frame.read_operand(operand, &self.globals)?,
-                        None => IrValue::Unit,
+                        None => RtValue::Unit,
                     });
                 }
                 Terminator::Panic { message } => {
@@ -122,7 +139,7 @@ impl<'a> IrInterpreter<'a> {
                         message.clone().into_boxed_str(),
                     )));
                 }
-                Terminator::Unreachable => return Ok(IrValue::Unit),
+                Terminator::Unreachable => return Ok(RtValue::Unit),
             }
         }
     }
@@ -133,8 +150,8 @@ impl<'a> IrInterpreter<'a> {
         branch: &BranchTerminator,
     ) -> Result<crate::ir::BlockId, IrInterpError> {
         match frame.read_operand(&branch.cond, &self.globals)? {
-            IrValue::Bool(true) => Ok(branch.then_block),
-            IrValue::Bool(false) => Ok(branch.else_block),
+            RtValue::Bool(true) => Ok(branch.then_block),
+            RtValue::Bool(false) => Ok(branch.else_block),
             _ => Err(IrInterpError::TypeMismatch("branch condition must be bool")),
         }
     }
@@ -158,9 +175,9 @@ impl<'a> IrInterpreter<'a> {
             } => {
                 let value = frame.read_operand(operand, &self.globals)?;
                 let out = match (op, value) {
-                    (UnaryOp::Neg, IrValue::Int(v)) => IrValue::Int(-v),
-                    (UnaryOp::Neg, IrValue::Float(v)) => IrValue::Float(-v),
-                    (UnaryOp::Not, IrValue::Bool(v)) => IrValue::Bool(!v),
+                    (UnaryOp::Neg, RtValue::Int(v)) => RtValue::Int(-v),
+                    (UnaryOp::Neg, RtValue::Float(v)) => RtValue::Float(-v),
+                    (UnaryOp::Not, RtValue::Bool(v)) => RtValue::Bool(!v),
                     _ => return Err(IrInterpError::TypeMismatch("bad unary operand")),
                 };
                 frame.temps.insert(*dst, out);
@@ -187,7 +204,7 @@ impl<'a> IrInterpreter<'a> {
                 let right = frame.read_operand(right, &self.globals)?;
                 frame
                     .temps
-                    .insert(*dst, IrValue::Bool(self.eval_compare(*op, left, right)?));
+                    .insert(*dst, RtValue::Bool(self.eval_compare(*op, left, right)?));
             }
             Instr::Logic {
                 dst,
@@ -198,11 +215,11 @@ impl<'a> IrInterpreter<'a> {
                 let left = frame.read_operand(left, &self.globals)?;
                 let right = frame.read_operand(right, &self.globals)?;
                 let out = match (op, left, right) {
-                    (crate::ir::LogicOp::And, IrValue::Bool(a), IrValue::Bool(b)) => {
-                        IrValue::Bool(a && b)
+                    (crate::ir::LogicOp::And, RtValue::Bool(a), RtValue::Bool(b)) => {
+                        RtValue::Bool(a && b)
                     }
-                    (crate::ir::LogicOp::Or, IrValue::Bool(a), IrValue::Bool(b)) => {
-                        IrValue::Bool(a || b)
+                    (crate::ir::LogicOp::Or, RtValue::Bool(a), RtValue::Bool(b)) => {
+                        RtValue::Bool(a || b)
                     }
                     _ => return Err(IrInterpError::TypeMismatch("bad logical operands")),
                 };
@@ -241,13 +258,17 @@ impl<'a> IrInterpreter<'a> {
                     .iter()
                     .map(|item| frame.read_operand(item, &self.globals))
                     .collect::<Result<Vec<_>, _>>()?;
-                frame.temps.insert(*dst, IrValue::Array(values));
+                frame
+                    .temps
+                    .insert(*dst, RtValue::Array(RtArray::new(values)));
             }
             Instr::MakeArrayRepeat {
                 dst, value, size, ..
             } => {
                 let value = frame.read_operand(value, &self.globals)?;
-                frame.temps.insert(*dst, IrValue::Array(vec![value; *size]));
+                frame
+                    .temps
+                    .insert(*dst, RtValue::Array(RtArray::repeat(value, *size)));
             }
             Instr::ArrayGet {
                 dst, array, index, ..
@@ -255,10 +276,9 @@ impl<'a> IrInterpreter<'a> {
                 let array = frame.read_operand(array, &self.globals)?;
                 let index = self.read_index(frame, index)?;
                 let value = match array {
-                    IrValue::Array(items) => items
-                        .get(index)
-                        .cloned()
-                        .ok_or(IrInterpError::IndexOutOfBounds)?,
+                    RtValue::Array(items) => {
+                        items.get(index).map_err(IrInterpError::from_runtime)?
+                    }
                     _ => return Err(IrInterpError::TypeMismatch("array get on non-array")),
                 };
                 frame.temps.insert(*dst, value);
@@ -278,11 +298,10 @@ impl<'a> IrInterpreter<'a> {
                             .get_mut(&local.0)
                             .ok_or(IrInterpError::InvalidOperand("array local missing"))?;
                         match slot {
-                            IrValue::Array(items) => {
-                                let item = items
-                                    .get_mut(index)
-                                    .ok_or(IrInterpError::IndexOutOfBounds)?;
-                                *item = value;
+                            RtValue::Array(items) => {
+                                items
+                                    .set(index, value)
+                                    .map_err(IrInterpError::from_runtime)?;
                             }
                             _ => {
                                 return Err(IrInterpError::TypeMismatch("array set on non-array"));
@@ -295,11 +314,10 @@ impl<'a> IrInterpreter<'a> {
                             .get_mut(global.0)
                             .ok_or(IrInterpError::InvalidOperand("array global missing"))?;
                         match slot {
-                            IrValue::Array(items) => {
-                                let item = items
-                                    .get_mut(index)
-                                    .ok_or(IrInterpError::IndexOutOfBounds)?;
-                                *item = value;
+                            RtValue::Array(items) => {
+                                items
+                                    .set(index, value)
+                                    .map_err(IrInterpError::from_runtime)?;
                             }
                             _ => {
                                 return Err(IrInterpError::TypeMismatch("array set on non-array"));
@@ -310,23 +328,21 @@ impl<'a> IrInterpreter<'a> {
                 }
             }
             Instr::VecNew { dst, .. } => {
-                frame
-                    .temps
-                    .insert(*dst, IrValue::Vec(Rc::new(RefCell::new(Vec::new()))));
+                frame.temps.insert(*dst, RtValue::Vec(RtVec::new()));
             }
             Instr::VecLen { dst, vec } => {
                 let vec = frame.read_operand(vec, &self.globals)?;
                 let len = match vec {
-                    IrValue::Vec(items) => items.borrow().len() as i64,
+                    RtValue::Vec(items) => items.len() as i64,
                     _ => return Err(IrInterpError::TypeMismatch("vec.len on non-vec")),
                 };
-                frame.temps.insert(*dst, IrValue::Int(len));
+                frame.temps.insert(*dst, RtValue::Int(len));
             }
             Instr::VecPush { vec, value } => {
                 let vec = frame.read_operand(vec, &self.globals)?;
                 let value = frame.read_operand(value, &self.globals)?;
                 match vec {
-                    IrValue::Vec(items) => items.borrow_mut().push(value),
+                    RtValue::Vec(items) => items.push(value),
                     _ => return Err(IrInterpError::TypeMismatch("vec.push on non-vec")),
                 }
             }
@@ -336,11 +352,7 @@ impl<'a> IrInterpreter<'a> {
                 let vec = frame.read_operand(vec, &self.globals)?;
                 let index = self.read_index(frame, index)?;
                 let value = match vec {
-                    IrValue::Vec(items) => items
-                        .borrow()
-                        .get(index)
-                        .cloned()
-                        .ok_or(IrInterpError::IndexOutOfBounds)?,
+                    RtValue::Vec(items) => items.get(index).map_err(IrInterpError::from_runtime)?,
                     _ => return Err(IrInterpError::TypeMismatch("vec.get on non-vec")),
                 };
                 frame.temps.insert(*dst, value);
@@ -352,12 +364,10 @@ impl<'a> IrInterpreter<'a> {
                 let index = self.read_index(frame, index)?;
                 let value = frame.read_operand(value, &self.globals)?;
                 match vec {
-                    IrValue::Vec(items) => {
-                        let mut items = items.borrow_mut();
-                        let slot = items
-                            .get_mut(index)
-                            .ok_or(IrInterpError::IndexOutOfBounds)?;
-                        *slot = value;
+                    RtValue::Vec(items) => {
+                        items
+                            .set(index, value)
+                            .map_err(IrInterpError::from_runtime)?;
                     }
                     _ => return Err(IrInterpError::TypeMismatch("vec.set on non-vec")),
                 }
@@ -368,12 +378,8 @@ impl<'a> IrInterpreter<'a> {
                 let vec = frame.read_operand(vec, &self.globals)?;
                 let index = self.read_index(frame, index)?;
                 let value = match vec {
-                    IrValue::Vec(items) => {
-                        let mut items = items.borrow_mut();
-                        if index >= items.len() {
-                            return Err(IrInterpError::IndexOutOfBounds);
-                        }
-                        items.remove(index)
+                    RtValue::Vec(items) => {
+                        items.delete(index).map_err(IrInterpError::from_runtime)?
                     }
                     _ => return Err(IrInterpError::TypeMismatch("vec.delete on non-vec")),
                 };
@@ -388,23 +394,25 @@ impl<'a> IrInterpreter<'a> {
                     .iter()
                     .map(|field| frame.read_operand(field, &self.globals))
                     .collect::<Result<Vec<_>, _>>()?;
-                frame.temps.insert(
-                    *dst,
-                    IrValue::Struct {
-                        struct_id: *struct_id,
-                        fields,
-                    },
-                );
+                let layout = self
+                    .struct_layouts
+                    .get(struct_id.0)
+                    .cloned()
+                    .ok_or_else(|| {
+                        IrInterpError::InvalidField(format!("unknown struct {:?}", struct_id))
+                    })?;
+                frame
+                    .temps
+                    .insert(*dst, RtValue::Struct(RtStruct::new(layout, fields)));
             }
             Instr::StructGet {
                 dst, base, field, ..
             } => {
                 let base = frame.read_operand(base, &self.globals)?;
                 let value = match base {
-                    IrValue::Struct { fields, .. } => fields
-                        .get(field.index)
-                        .cloned()
-                        .ok_or_else(|| IrInterpError::InvalidField(field.name.clone()))?,
+                    RtValue::Struct(value) => value
+                        .get_field(field.index)
+                        .map_err(IrInterpError::from_runtime)?,
                     _ => return Err(IrInterpError::TypeMismatch("struct get on non-struct")),
                 };
                 frame.temps.insert(*dst, value);
@@ -420,11 +428,10 @@ impl<'a> IrInterpreter<'a> {
                             .get_mut(&local.0)
                             .ok_or(IrInterpError::InvalidOperand("struct local missing"))?;
                         match slot {
-                            IrValue::Struct { fields, .. } => {
-                                let target = fields.get_mut(field.index).ok_or_else(|| {
-                                    IrInterpError::InvalidField(field.name.clone())
-                                })?;
-                                *target = value;
+                            RtValue::Struct(strukt) => {
+                                strukt
+                                    .set_field(field.index, value)
+                                    .map_err(IrInterpError::from_runtime)?;
                             }
                             _ => {
                                 return Err(IrInterpError::TypeMismatch(
@@ -439,11 +446,10 @@ impl<'a> IrInterpreter<'a> {
                             .get_mut(global.0)
                             .ok_or(IrInterpError::InvalidOperand("struct global missing"))?;
                         match slot {
-                            IrValue::Struct { fields, .. } => {
-                                let target = fields.get_mut(field.index).ok_or_else(|| {
-                                    IrInterpError::InvalidField(field.name.clone())
-                                })?;
-                                *target = value;
+                            RtValue::Struct(strukt) => {
+                                strukt
+                                    .set_field(field.index, value)
+                                    .map_err(IrInterpError::from_runtime)?;
                             }
                             _ => {
                                 return Err(IrInterpError::TypeMismatch(
@@ -456,7 +462,9 @@ impl<'a> IrInterpreter<'a> {
                 }
             }
             Instr::MakeClosure { dst, function } => {
-                frame.temps.insert(*dst, IrValue::Closure(*function));
+                frame
+                    .temps
+                    .insert(*dst, RtValue::Function(RtFunctionRef(function.0 as u32)));
             }
             Instr::CallDirect {
                 dst,
@@ -477,8 +485,9 @@ impl<'a> IrInterpreter<'a> {
                 dst, callee, args, ..
             } => {
                 let callee = frame.read_operand(callee, &self.globals)?;
-                let IrValue::Closure(function) = callee else {
-                    return Err(IrInterpError::TypeMismatch("indirect call on non-closure"));
+                let function = match callee {
+                    RtValue::Function(function) => FunctionId(function.0 as usize),
+                    _ => return Err(IrInterpError::TypeMismatch("indirect call on non-closure")),
                 };
                 let args = args
                     .iter()
@@ -506,45 +515,16 @@ impl<'a> IrInterpreter<'a> {
     fn eval_builtin(
         &self,
         builtin: &crate::ir::BuiltinCall,
-        args: &[IrValue],
-    ) -> Result<IrValue, IrInterpError> {
-        match (builtin.package.as_str(), builtin.name.as_str(), args) {
-            ("str", "len", [IrValue::String(value)]) => {
-                Ok(IrValue::Int(value.chars().count() as i64))
-            }
-            ("str", "indexOf", [IrValue::String(haystack), IrValue::String(needle)]) => Ok(
-                IrValue::Int(haystack.find(needle).map(|idx| idx as i64).unwrap_or(-1)),
-            ),
-            ("str", "contains", [IrValue::String(haystack), IrValue::String(needle)]) => {
-                Ok(IrValue::Bool(haystack.contains(needle)))
-            }
-            (
-                "str",
-                "slice",
-                [
-                    IrValue::String(value),
-                    IrValue::Int(start),
-                    IrValue::Int(end),
-                ],
-            ) => {
-                let start = usize::try_from(*start).map_err(|_| IrInterpError::IndexOutOfBounds)?;
-                let end = usize::try_from(*end).map_err(|_| IrInterpError::IndexOutOfBounds)?;
-                let chars = value.chars().collect::<Vec<_>>();
-                if start > end || end > chars.len() {
-                    return Err(IrInterpError::IndexOutOfBounds);
-                }
-                Ok(IrValue::String(chars[start..end].iter().collect()))
-            }
-            _ => Err(IrInterpError::UnsupportedBuiltin(format!(
-                "{}.{}",
-                builtin.package, builtin.name
-            ))),
-        }
+        args: &[RtValue],
+    ) -> Result<RtValue, IrInterpError> {
+        let mut host = NoopHost;
+        builtins::call_with_host(&mut host, &builtin.package, &builtin.name, args)
+            .map_err(IrInterpError::from_runtime)
     }
 
     fn read_index(&self, frame: &Frame, operand: &Operand) -> Result<usize, IrInterpError> {
         match frame.read_operand(operand, &self.globals)? {
-            IrValue::Int(idx) => usize::try_from(idx).map_err(|_| IrInterpError::IndexOutOfBounds),
+            RtValue::Int(idx) => usize::try_from(idx).map_err(|_| IrInterpError::IndexOutOfBounds),
             _ => Err(IrInterpError::TypeMismatch("index must be int")),
         }
     }
@@ -552,24 +532,26 @@ impl<'a> IrInterpreter<'a> {
     fn eval_binary(
         &self,
         op: BinaryOp,
-        left: IrValue,
-        right: IrValue,
-    ) -> Result<IrValue, IrInterpError> {
+        left: RtValue,
+        right: RtValue,
+    ) -> Result<RtValue, IrInterpError> {
         match (op, left, right) {
-            (BinaryOp::Add, IrValue::Int(a), IrValue::Int(b)) => Ok(IrValue::Int(a + b)),
-            (BinaryOp::Sub, IrValue::Int(a), IrValue::Int(b)) => Ok(IrValue::Int(a - b)),
-            (BinaryOp::Mul, IrValue::Int(a), IrValue::Int(b)) => Ok(IrValue::Int(a * b)),
-            (BinaryOp::Div, IrValue::Int(_), IrValue::Int(0))
-            | (BinaryOp::Mod, IrValue::Int(_), IrValue::Int(0)) => {
+            (BinaryOp::Add, RtValue::Int(a), RtValue::Int(b)) => Ok(RtValue::Int(a + b)),
+            (BinaryOp::Sub, RtValue::Int(a), RtValue::Int(b)) => Ok(RtValue::Int(a - b)),
+            (BinaryOp::Mul, RtValue::Int(a), RtValue::Int(b)) => Ok(RtValue::Int(a * b)),
+            (BinaryOp::Div, RtValue::Int(_), RtValue::Int(0))
+            | (BinaryOp::Mod, RtValue::Int(_), RtValue::Int(0)) => {
                 Err(IrInterpError::DivisionByZero)
             }
-            (BinaryOp::Div, IrValue::Int(a), IrValue::Int(b)) => Ok(IrValue::Int(a / b)),
-            (BinaryOp::Mod, IrValue::Int(a), IrValue::Int(b)) => Ok(IrValue::Int(a % b)),
-            (BinaryOp::Add, IrValue::Float(a), IrValue::Float(b)) => Ok(IrValue::Float(a + b)),
-            (BinaryOp::Sub, IrValue::Float(a), IrValue::Float(b)) => Ok(IrValue::Float(a - b)),
-            (BinaryOp::Mul, IrValue::Float(a), IrValue::Float(b)) => Ok(IrValue::Float(a * b)),
-            (BinaryOp::Div, IrValue::Float(a), IrValue::Float(b)) => Ok(IrValue::Float(a / b)),
-            (BinaryOp::Add, IrValue::String(a), IrValue::String(b)) => Ok(IrValue::String(a + &b)),
+            (BinaryOp::Div, RtValue::Int(a), RtValue::Int(b)) => Ok(RtValue::Int(a / b)),
+            (BinaryOp::Mod, RtValue::Int(a), RtValue::Int(b)) => Ok(RtValue::Int(a % b)),
+            (BinaryOp::Add, RtValue::Float(a), RtValue::Float(b)) => Ok(RtValue::Float(a + b)),
+            (BinaryOp::Sub, RtValue::Float(a), RtValue::Float(b)) => Ok(RtValue::Float(a - b)),
+            (BinaryOp::Mul, RtValue::Float(a), RtValue::Float(b)) => Ok(RtValue::Float(a * b)),
+            (BinaryOp::Div, RtValue::Float(a), RtValue::Float(b)) => Ok(RtValue::Float(a / b)),
+            (BinaryOp::Add, RtValue::String(a), RtValue::String(b)) => Ok(RtValue::String(
+                RtString::from(format!("{}{}", a.as_str(), b.as_str())),
+            )),
             _ => Err(IrInterpError::TypeMismatch("bad binary operands")),
         }
     }
@@ -577,11 +559,11 @@ impl<'a> IrInterpreter<'a> {
     fn eval_compare(
         &self,
         op: CmpOp,
-        left: IrValue,
-        right: IrValue,
+        left: RtValue,
+        right: RtValue,
     ) -> Result<bool, IrInterpError> {
         match (left, right) {
-            (IrValue::Int(a), IrValue::Int(b)) => Ok(match op {
+            (RtValue::Int(a), RtValue::Int(b)) => Ok(match op {
                 CmpOp::Eq => a == b,
                 CmpOp::Ne => a != b,
                 CmpOp::Lt => a < b,
@@ -589,36 +571,36 @@ impl<'a> IrInterpreter<'a> {
                 CmpOp::Gt => a > b,
                 CmpOp::Ge => a >= b,
             }),
-            (IrValue::Bool(a), IrValue::Bool(b)) => Ok(match op {
+            (RtValue::Bool(a), RtValue::Bool(b)) => Ok(match op {
                 CmpOp::Eq => a == b,
                 CmpOp::Ne => a != b,
                 _ => return Err(IrInterpError::TypeMismatch("unsupported bool comparison")),
             }),
-            (IrValue::String(a), IrValue::String(b)) => Ok(match op {
-                CmpOp::Eq => a == b,
-                CmpOp::Ne => a != b,
+            (RtValue::String(a), RtValue::String(b)) => Ok(match op {
+                CmpOp::Eq => a.as_str() == b.as_str(),
+                CmpOp::Ne => a.as_str() != b.as_str(),
                 _ => return Err(IrInterpError::TypeMismatch("unsupported string comparison")),
             }),
             _ => Err(IrInterpError::TypeMismatch("bad compare operands")),
         }
     }
 
-    fn const_to_value(value: &ConstValue) -> IrValue {
+    fn const_to_value(value: &ConstValue) -> RtValue {
         match value {
-            ConstValue::Int(v) => IrValue::Int(*v),
-            ConstValue::Float(v) => IrValue::Float(*v),
-            ConstValue::Bool(v) => IrValue::Bool(*v),
-            ConstValue::String(v) => IrValue::String(v.clone()),
-            ConstValue::Unit => IrValue::Unit,
+            ConstValue::Int(v) => RtValue::Int(*v),
+            ConstValue::Float(v) => RtValue::Float(*v),
+            ConstValue::Bool(v) => RtValue::Bool(*v),
+            ConstValue::String(v) => RtValue::String(RtString::from(v.clone())),
+            ConstValue::Unit => RtValue::Unit,
         }
     }
 }
 
 fn builtin_args(
     frame: &Frame,
-    globals: &[IrValue],
+    globals: &[RtValue],
     instr: &Instr,
-) -> Result<Vec<IrValue>, IrInterpError> {
+) -> Result<Vec<RtValue>, IrInterpError> {
     match instr {
         Instr::CallBuiltin { args, .. } => args
             .iter()
@@ -631,13 +613,13 @@ fn builtin_args(
 }
 
 struct Frame {
-    params: HashMap<usize, IrValue>,
-    locals: HashMap<usize, IrValue>,
-    temps: HashMap<crate::ir::TempId, IrValue>,
+    params: HashMap<usize, RtValue>,
+    locals: HashMap<usize, RtValue>,
+    temps: HashMap<crate::ir::TempId, RtValue>,
 }
 
 impl Frame {
-    fn new(func: &IrFunction, args: Vec<IrValue>) -> Self {
+    fn new(func: &IrFunction, args: Vec<RtValue>) -> Self {
         let mut params = HashMap::new();
         let mut locals = HashMap::new();
         for (param, value) in func.params.iter().zip(args) {
@@ -656,8 +638,8 @@ impl Frame {
     fn read_operand(
         &self,
         operand: &Operand,
-        globals: &[IrValue],
-    ) -> Result<IrValue, IrInterpError> {
+        globals: &[RtValue],
+    ) -> Result<RtValue, IrInterpError> {
         match operand {
             Operand::Const(value) => Ok(IrInterpreter::const_to_value(value)),
             Operand::Temp(id) => self

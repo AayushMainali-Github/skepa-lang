@@ -1,6 +1,8 @@
 use skepart::{
-    builtins, NoopHost, RtArray, RtErrorKind, RtHost, RtString, RtStruct, RtValue, RtVec,
+    builtins, NoopHost, RtArray, RtErrorKind, RtHost, RtString, RtStruct, RtStructLayout, RtValue,
+    RtVec,
 };
+use std::rc::Rc;
 
 #[test]
 fn arrays_use_copy_on_write_value_storage() {
@@ -104,12 +106,16 @@ fn generic_builtin_dispatch_handles_core_runtime_helpers() {
 #[test]
 fn values_and_structs_expose_runtime_checked_accessors() {
     let value = RtValue::Struct(RtStruct {
-        name: "Pair".into(),
+        layout: Rc::new(RtStructLayout {
+            name: "Pair".into(),
+            field_names: vec!["a".into(), "b".into()],
+        }),
         fields: vec![RtValue::Int(1), RtValue::Int(2)],
     });
     let mut strukt = value.expect_struct().expect("struct should match");
 
     assert_eq!(strukt.get_field(1), Ok(RtValue::Int(2)));
+    assert_eq!(strukt.get_named_field("b"), Ok(RtValue::Int(2)));
     strukt
         .set_field(0, RtValue::Int(9))
         .expect("field write should work");
@@ -123,6 +129,34 @@ fn values_and_structs_expose_runtime_checked_accessors() {
 #[test]
 fn host_trait_is_callable_from_runtime_clients() {
     let mut host = NoopHost;
-    host.io_print("hello");
-    host.io_println("world");
+    host.io_print("hello").expect("print should succeed");
+    host.io_println("world").expect("println should succeed");
+}
+
+#[derive(Default)]
+struct RecordingHost {
+    output: String,
+}
+
+impl RtHost for RecordingHost {
+    fn io_print(&mut self, text: &str) -> skepart::RtResult<()> {
+        self.output.push_str(text);
+        Ok(())
+    }
+}
+
+#[test]
+fn io_builtins_dispatch_through_host() {
+    let mut host = RecordingHost::default();
+    builtins::call_with_host(&mut host, "io", "print", &[RtValue::Int(7)])
+        .expect("io.print should succeed");
+    builtins::call_with_host(
+        &mut host,
+        "io",
+        "println",
+        &[RtValue::String(RtString::from("done"))],
+    )
+    .expect("io.println should succeed");
+
+    assert_eq!(host.output, "7done\n");
 }

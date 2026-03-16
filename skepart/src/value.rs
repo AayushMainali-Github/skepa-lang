@@ -1,8 +1,19 @@
+use std::rc::Rc;
+
 use crate::{RtArray, RtError, RtResult, RtString, RtVec};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct RtFunctionRef(pub u32);
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RtStructLayout {
+    pub name: String,
+    pub field_names: Vec<String>,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct RtStruct {
-    pub name: String,
+    pub layout: Rc<RtStructLayout>,
     pub fields: Vec<RtValue>,
 }
 
@@ -14,6 +25,7 @@ pub enum RtValue {
     String(RtString),
     Array(RtArray),
     Vec(RtVec),
+    Function(RtFunctionRef),
     Struct(RtStruct),
     Unit,
 }
@@ -27,6 +39,7 @@ impl RtValue {
             Self::String(_) => "String",
             Self::Array(_) => "Array",
             Self::Vec(_) => "Vec",
+            Self::Function(_) => "Function",
             Self::Struct(_) => "Struct",
             Self::Unit => "Void",
         }
@@ -101,9 +114,40 @@ impl RtValue {
             ))),
         }
     }
+
+    pub fn expect_function(&self) -> RtResult<RtFunctionRef> {
+        match self {
+            Self::Function(value) => Ok(*value),
+            other => Err(RtError::type_mismatch(format!(
+                "expected Function, got {}",
+                other.type_name()
+            ))),
+        }
+    }
 }
 
 impl RtStruct {
+    pub fn new(layout: Rc<RtStructLayout>, fields: Vec<RtValue>) -> Self {
+        Self { layout, fields }
+    }
+
+    pub fn named(name: impl Into<String>, fields: Vec<RtValue>) -> Self {
+        Self::new(
+            Rc::new(RtStructLayout {
+                name: name.into(),
+                field_names: Vec::new(),
+            }),
+            fields,
+        )
+    }
+
+    pub fn field_index(&self, name: &str) -> Option<usize> {
+        self.layout
+            .field_names
+            .iter()
+            .position(|field| field == name)
+    }
+
     pub fn get_field(&self, index: usize) -> RtResult<RtValue> {
         self.fields
             .get(index)
@@ -118,5 +162,15 @@ impl RtStruct {
             .ok_or_else(|| RtError::new(crate::RtErrorKind::MissingField, "field out of range"))?;
         *slot = value;
         Ok(())
+    }
+
+    pub fn get_named_field(&self, name: &str) -> RtResult<RtValue> {
+        let index = self.field_index(name).ok_or_else(|| {
+            RtError::new(
+                crate::RtErrorKind::MissingField,
+                format!("unknown field `{name}` on `{}`", self.layout.name),
+            )
+        })?;
+        self.get_field(index)
     }
 }

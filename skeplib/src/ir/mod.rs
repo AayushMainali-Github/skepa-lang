@@ -15,11 +15,12 @@ pub use builder::IrBuilder;
 pub use instr::{
     BinaryOp, BranchTerminator, BuiltinCall, CmpOp, FieldRef, Instr, LogicOp, Terminator, UnaryOp,
 };
-pub use interp::{IrInterpError, IrInterpreter, IrValue};
+pub use interp::{IrInterpError, IrInterpreter};
 pub use pretty::PrettyIr;
 pub use program::{
     IrFunction, IrGlobal, IrLocal, IrModuleInit, IrParam, IrProgram, IrStruct, IrTemp, StructField,
 };
+pub use skepart::RtValue as IrValue;
 pub use types::IrType;
 pub use value::{ConstValue, Operand};
 pub use verify::{IrVerifier, IrVerifyError};

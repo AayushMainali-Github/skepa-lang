@@ -1,10 +1,21 @@
 pub mod arr;
+pub mod io;
 pub mod str;
 pub mod vec;
 
-use crate::{RtError, RtErrorKind, RtResult, RtValue};
+use crate::{NoopHost, RtError, RtErrorKind, RtHost, RtResult, RtValue};
 
 pub fn call(package: &str, name: &str, args: &[RtValue]) -> RtResult<RtValue> {
+    let mut host = NoopHost;
+    call_with_host(&mut host, package, name, args)
+}
+
+pub fn call_with_host(
+    host: &mut dyn RtHost,
+    package: &str,
+    name: &str,
+    args: &[RtValue],
+) -> RtResult<RtValue> {
     match (package, name, args) {
         ("str", "len", [value]) => Ok(RtValue::Int(str::len(&value.expect_string()?))),
         ("str", "contains", [haystack, needle]) => Ok(RtValue::Bool(str::contains(
@@ -56,6 +67,15 @@ pub fn call(package: &str, name: &str, args: &[RtValue]) -> RtResult<RtValue> {
             usize::try_from(index.expect_int()?)
                 .map_err(|_| RtError::new(RtErrorKind::IndexOutOfBounds, "negative vec index"))?,
         ),
+        ("io", "print", [value]) => {
+            io::print(host, value)?;
+            Ok(RtValue::Unit)
+        }
+        ("io", "println", [value]) => {
+            io::println(host, value)?;
+            Ok(RtValue::Unit)
+        }
+        ("io", "readLine", []) => io::read_line(host),
         _ => Err(RtError::new(
             RtErrorKind::UnsupportedBuiltin,
             format!("unsupported builtin `{package}.{name}`"),

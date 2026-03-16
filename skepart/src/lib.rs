@@ -11,5 +11,5 @@ pub use builtins::str as str_builtin;
 pub use error::{RtError, RtErrorKind, RtResult};
 pub use host::{NoopHost, RtHost};
 pub use string::RtString;
-pub use value::{RtStruct, RtValue};
+pub use value::{RtFunctionRef, RtStruct, RtStructLayout, RtValue};
 pub use vec::RtVec;
