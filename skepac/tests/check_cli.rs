@@ -82,7 +82,7 @@ fn check_without_arguments_shows_usage_and_fails() {
     let output = Command::new(skepac_bin()).output().expect("run skepac");
     assert_eq!(output.status.code(), Some(2));
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("Usage: skepac check <entry.sk> | skepac build <entry.sk> <out.skbc>"));
+    assert!(stderr.contains("Usage: skepac check <entry.sk> | skepac build <entry.sk> <out.skbc> | skepac build-native <entry.sk> <out.exe> | skepac build-obj <entry.sk> <out.obj>"));
 }
 
 #[test]
@@ -573,6 +573,63 @@ fn main() -> Int { return 0; }
     assert!(stderr.contains("[E-MOD-NOT-FOUND][resolve]"));
 }
 
+#[test]
+fn build_obj_writes_native_object_artifact() {
+    let tmp = make_temp_dir("skepac_build_obj");
+    let source = tmp.join("main.sk");
+    let out = tmp.join(format!("main.{}", obj_ext()));
+    fs::write(
+        &source,
+        r#"
+fn main() -> Int {
+  return 7;
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("build-obj")
+        .arg(&source)
+        .arg(&out)
+        .output()
+        .expect("run skepac build-obj");
+
+    assert!(output.status.success(), "{:?}", output);
+    assert!(out.exists());
+}
+
+#[test]
+fn build_native_writes_executable_and_runs() {
+    let tmp = make_temp_dir("skepac_build_native");
+    let source = tmp.join("main.sk");
+    let out = tmp.join(format!("main.{}", exe_ext()));
+    fs::write(
+        &source,
+        r#"
+fn main() -> Int {
+  return 7;
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("build-native")
+        .arg(&source)
+        .arg(&out)
+        .output()
+        .expect("run skepac build-native");
+
+    assert!(output.status.success(), "{:?}", output);
+    assert!(out.exists());
+
+    let run = Command::new(&out)
+        .output()
+        .expect("native executable should run");
+    assert_eq!(run.status.code(), Some(7));
+}
+
 fn skepac_bin() -> &'static str {
     env!("CARGO_BIN_EXE_skepac")
 }
@@ -585,4 +642,12 @@ fn make_temp_dir(prefix: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("{prefix}_{nanos}"));
     fs::create_dir_all(&dir).expect("create temp dir");
     dir
+}
+
+fn obj_ext() -> &'static str {
+    if cfg!(windows) { "obj" } else { "o" }
+}
+
+fn exe_ext() -> &'static str {
+    if cfg!(windows) { "exe" } else { "out" }
 }

@@ -510,3 +510,52 @@ fn main() -> Int {
         String::from_utf8_lossy(&output.stderr)
     );
 }
+
+#[test]
+fn codegen_emits_object_file_for_int_program() {
+    let source = r#"
+fn main() -> Int {
+  return 7;
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let obj_path = temp_file("object_only", object_ext());
+
+    codegen::compile_program_to_object_file(&program, &obj_path)
+        .expect("object emission should succeed");
+
+    assert!(obj_path.exists());
+    let _ = fs::remove_file(&obj_path);
+}
+
+#[test]
+fn codegen_builds_native_executable_for_int_program() {
+    let source = r#"
+fn main() -> Int {
+  return 7;
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let exe_path = temp_file("native_exec", exe_ext());
+
+    codegen::compile_program_to_executable(&program, &exe_path)
+        .expect("native executable build should succeed");
+
+    let output = Command::new(&exe_path)
+        .output()
+        .expect("built executable should run");
+
+    let _ = fs::remove_file(&exe_path);
+
+    assert_eq!(output.status.code(), Some(7));
+}
+
+fn object_ext() -> &'static str {
+    if cfg!(windows) { "obj" } else { "o" }
+}
+
+fn exe_ext() -> &'static str {
+    if cfg!(windows) { "exe" } else { "out" }
+}

@@ -4,7 +4,9 @@ use std::path::Path;
 use std::process::ExitCode;
 
 use skeplib::bytecode::{BytecodeModule, compile_project_entry};
+use skeplib::codegen;
 use skeplib::diagnostic::Diagnostic;
+use skeplib::ir;
 use skeplib::resolver::ResolveError;
 use skeplib::sema::analyze_project_entry_phased;
 
@@ -31,7 +33,7 @@ fn run() -> Result<ExitCode, String> {
     let mut args = env::args().skip(1);
     let Some(cmd) = args.next() else {
         return Err(
-            "Usage: skepac check <entry.sk> | skepac build <entry.sk> <out.skbc> | skepac disasm <entry.sk|file.skbc>"
+            "Usage: skepac check <entry.sk> | skepac build <entry.sk> <out.skbc> | skepac build-native <entry.sk> <out.exe> | skepac build-obj <entry.sk> <out.obj> | skepac disasm <entry.sk|file.skbc>"
                 .to_string(),
         );
     };
@@ -67,7 +69,33 @@ fn run() -> Result<ExitCode, String> {
             }
             disasm_file(&path)
         }
-        _ => Err("Unknown command. Supported: check, build, disasm".to_string()),
+        "build-native" => {
+            let Some(input) = args.next() else {
+                return Err("Usage: skepac build-native <in.sk> <out.exe>".to_string());
+            };
+            let Some(output) = args.next() else {
+                return Err("Usage: skepac build-native <in.sk> <out.exe>".to_string());
+            };
+            if args.next().is_some() {
+                return Err("Usage: skepac build-native <in.sk> <out.exe>".to_string());
+            }
+            build_native_file(&input, &output)
+        }
+        "build-obj" => {
+            let Some(input) = args.next() else {
+                return Err("Usage: skepac build-obj <in.sk> <out.obj>".to_string());
+            };
+            let Some(output) = args.next() else {
+                return Err("Usage: skepac build-obj <in.sk> <out.obj>".to_string());
+            };
+            if args.next().is_some() {
+                return Err("Usage: skepac build-obj <in.sk> <out.obj>".to_string());
+            }
+            build_object_file(&input, &output)
+        }
+        _ => Err(
+            "Unknown command. Supported: check, build, build-native, build-obj, disasm".to_string(),
+        ),
     }
 }
 
@@ -137,6 +165,68 @@ fn build_file(input: &str, output: &str) -> Result<ExitCode, String> {
     }
     println!("built: {output}");
     Ok(ExitCode::from(EXIT_OK))
+}
+
+fn build_object_file(input: &str, output: &str) -> Result<ExitCode, String> {
+    if let Some(code) = validate_frontend(input)? {
+        return Ok(code);
+    }
+    let program = match ir::lowering::compile_project_entry(Path::new(input)) {
+        Ok(program) => program,
+        Err(errs) => {
+            print_resolve_errors(&errs);
+            return Ok(ExitCode::from(EXIT_CODEGEN));
+        }
+    };
+    if let Err(err) = codegen::compile_program_to_object_file(&program, Path::new(output)) {
+        eprintln!("[E-CODEGEN][codegen] {err}");
+        return Ok(ExitCode::from(EXIT_CODEGEN));
+    }
+    println!("built object: {output}");
+    Ok(ExitCode::from(EXIT_OK))
+}
+
+fn build_native_file(input: &str, output: &str) -> Result<ExitCode, String> {
+    if let Some(code) = validate_frontend(input)? {
+        return Ok(code);
+    }
+    let program = match ir::lowering::compile_project_entry(Path::new(input)) {
+        Ok(program) => program,
+        Err(errs) => {
+            print_resolve_errors(&errs);
+            return Ok(ExitCode::from(EXIT_CODEGEN));
+        }
+    };
+    if let Err(err) = codegen::compile_program_to_executable(&program, Path::new(output)) {
+        eprintln!("[E-CODEGEN][codegen] {err}");
+        return Ok(ExitCode::from(EXIT_CODEGEN));
+    }
+    println!("built native: {output}");
+    Ok(ExitCode::from(EXIT_OK))
+}
+
+fn validate_frontend(input: &str) -> Result<Option<ExitCode>, String> {
+    match analyze_project_entry_phased(Path::new(input)) {
+        Ok((_sema, parse_diags, sema_diags)) => {
+            if !parse_diags.is_empty() {
+                for d in parse_diags.as_slice() {
+                    print_diag("parse", d);
+                }
+                return Ok(Some(ExitCode::from(EXIT_PARSE)));
+            }
+            if !sema_diags.is_empty() {
+                for d in sema_diags.as_slice() {
+                    print_diag("sema", d);
+                }
+                return Ok(Some(ExitCode::from(EXIT_SEMA)));
+            }
+            Ok(None)
+        }
+        Err(errs) => {
+            print_resolve_errors(&errs);
+            Ok(Some(ExitCode::from(EXIT_RESOLVE)))
+        }
+    }
 }
 
 fn disasm_file(path: &str) -> Result<ExitCode, String> {
