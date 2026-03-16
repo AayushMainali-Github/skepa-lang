@@ -42,4 +42,8 @@ impl RtArray {
     pub fn items(&self) -> &[RtValue] {
         &self.0
     }
+
+    pub fn iter(&self) -> impl Iterator<Item = &RtValue> {
+        self.0.iter()
+    }
 }
