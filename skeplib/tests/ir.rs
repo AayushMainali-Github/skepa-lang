@@ -211,6 +211,58 @@ fn main() -> Int {
 }
 
 #[test]
+fn compile_source_inlines_trivial_direct_calls() {
+    let source = r#"
+fn step(x: Int) -> Int {
+  return x + 1;
+}
+
+fn main() -> Int {
+  return step(41);
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let value = IrInterpreter::new(&program)
+        .run_main()
+        .expect("IR interpreter should run optimized source");
+    assert_eq!(value, IrValue::Int(42));
+
+    let printed = PrettyIr::new(&program).to_string();
+    assert!(!printed.contains("CallDirect"));
+}
+
+#[test]
+fn compile_source_inlines_trivial_struct_methods() {
+    let source = r#"
+struct Pair {
+  a: Int,
+  b: Int
+}
+
+impl Pair {
+  fn mix(self, x: Int) -> Int {
+    return self.a + x + self.b;
+  }
+}
+
+fn main() -> Int {
+  let p = Pair { a: 10, b: 5 };
+  return p.mix(7);
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let value = IrInterpreter::new(&program)
+        .run_main()
+        .expect("IR interpreter should run optimized source");
+    assert_eq!(value, IrValue::Int(22));
+
+    let printed = PrettyIr::new(&program).to_string();
+    assert!(!printed.contains("CallDirect"));
+}
+
+#[test]
 fn verifier_rejects_unknown_jump_target() {
     let func = IrFunction {
         id: FunctionId(0),
@@ -604,9 +656,12 @@ fn main() -> Int {
     assert_eq!(program.globals.len(), 1);
     assert!(program.module_init.is_some());
     assert!(program.functions.iter().any(|f| f.name == "__globals_init"));
+    let value = IrInterpreter::new(&program)
+        .run_main()
+        .expect("IR interpreter should run optimized source");
+    assert_eq!(value, IrValue::Int(45));
 
     let printed = PrettyIr::new(&program).to_string();
-    assert!(printed.contains("CallDirect"));
     assert!(printed.contains("CallBuiltin"));
     assert!(printed.contains("StoreGlobal"));
 }
@@ -762,6 +817,10 @@ fn main() -> Int {
             .iter()
             .any(|func| func.name == "Pair::mix")
     );
+    let value = IrInterpreter::new(&program)
+        .run_main()
+        .expect("IR interpreter should run optimized source");
+    assert_eq!(value, IrValue::Int(9));
     let printed = PrettyIr::new(&program).to_string();
     assert!(printed.contains("fn Pair::mix"));
     let main_fn = program
@@ -769,12 +828,6 @@ fn main() -> Int {
         .iter()
         .find(|func| func.name == "main")
         .expect("main should be lowered");
-    assert!(main_fn.blocks.iter().any(|block| {
-        block
-            .instrs
-            .iter()
-            .any(|instr| matches!(instr, ir::Instr::CallDirect { .. }))
-    }));
     assert!(!main_fn.blocks.iter().any(|block| {
         block
             .instrs
