@@ -1,9 +1,9 @@
 use crate::codegen::CodegenError;
 use crate::codegen::llvm::block::{branch_targets, ensure_terminator, label};
-use crate::codegen::llvm::calls;
+use crate::codegen::llvm::calls::{self, DirectCall};
 use crate::codegen::llvm::runtime;
 use crate::codegen::llvm::types::llvm_ty;
-use crate::codegen::llvm::value::{ValueNames, operand_load};
+use crate::codegen::llvm::value::{ValueNames, llvm_symbol, operand_load};
 use crate::ir::{
     BinaryOp, CmpOp, ConstValue, Instr, IrFunction, IrProgram, Operand, Terminator, UnaryOp,
 };
@@ -83,7 +83,10 @@ impl<'a> LlvmEmitter<'a> {
             .collect::<Result<Vec<_>, CodegenError>>()?
             .join(", ");
 
-        let mut lines = vec![format!("define {ret_ty} @{}({params}) {{", func.name)];
+        let mut lines = vec![format!(
+            "define {ret_ty} {}({params}) {{",
+            llvm_symbol(&func.name)
+        )];
 
         let mut counter = 0usize;
         for (idx, block) in func.blocks.iter().enumerate() {
@@ -252,6 +255,26 @@ impl<'a> LlvmEmitter<'a> {
                 return Err(CodegenError::Unsupported(
                     "Logic instructions should be lowered to control flow before LLVM emission",
                 ));
+            }
+            Instr::CallDirect {
+                dst,
+                ret_ty,
+                function,
+                args,
+            } => {
+                calls::emit_direct_call(
+                    self.program,
+                    func,
+                    names,
+                    DirectCall {
+                        dst: *dst,
+                        ret_ty,
+                        function: *function,
+                        args,
+                    },
+                    lines,
+                    counter,
+                )?;
             }
             _ => {
                 return Err(CodegenError::Unsupported(

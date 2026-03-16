@@ -26,6 +26,11 @@ impl ValueNames {
     }
 }
 
+pub fn llvm_symbol(name: &str) -> String {
+    let escaped = name.replace('\\', "\\5C").replace('"', "\\22");
+    format!("@\"{escaped}\"")
+}
+
 pub fn operand_value(
     names: &ValueNames,
     operand: &Operand,
