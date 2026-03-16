@@ -36,6 +36,13 @@ impl RtError {
             format!("index {index} out of bounds for length {len}"),
         )
     }
+
+    pub fn unsupported_builtin(name: impl Into<String>) -> Self {
+        Self::new(
+            RtErrorKind::UnsupportedBuiltin,
+            format!("unsupported builtin `{}`", name.into()),
+        )
+    }
 }
 
 impl fmt::Display for RtError {

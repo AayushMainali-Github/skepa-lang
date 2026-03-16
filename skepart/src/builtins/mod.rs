@@ -1,5 +1,9 @@
 pub mod arr;
+pub mod datetime;
+pub mod fs;
 pub mod io;
+pub mod os;
+pub mod random;
 pub mod str;
 pub mod vec;
 
@@ -75,7 +79,52 @@ pub fn call_with_host(
             io::println(host, value)?;
             Ok(RtValue::Unit)
         }
+        ("io", "format", args) => io::format(args),
+        ("io", "printf", args) => io::printf(host, args),
         ("io", "readLine", []) => io::read_line(host),
+        ("datetime", "nowUnix", []) => datetime::now_unix(host),
+        ("datetime", "nowMillis", []) => datetime::now_millis(host),
+        ("datetime", "fromUnix", [value]) => datetime::from_unix(host, value.expect_int()?),
+        ("datetime", "fromMillis", [value]) => datetime::from_millis(host, value.expect_int()?),
+        ("datetime", "parseUnix", [value]) => {
+            datetime::parse_unix(host, value.expect_string()?.as_str())
+        }
+        ("datetime", "year", [value]) => datetime::component(host, "year", value.expect_int()?),
+        ("datetime", "month", [value]) => datetime::component(host, "month", value.expect_int()?),
+        ("datetime", "day", [value]) => datetime::component(host, "day", value.expect_int()?),
+        ("datetime", "hour", [value]) => datetime::component(host, "hour", value.expect_int()?),
+        ("datetime", "minute", [value]) => datetime::component(host, "minute", value.expect_int()?),
+        ("datetime", "second", [value]) => datetime::component(host, "second", value.expect_int()?),
+        ("random", "seed", [value]) => random::seed(host, value.expect_int()?),
+        ("random", "int", [min, max]) => random::int(host, min.expect_int()?, max.expect_int()?),
+        ("random", "float", []) => random::float(host),
+        ("fs", "exists", [path]) => fs::exists(host, path.expect_string()?.as_str()),
+        ("fs", "readText", [path]) => fs::read_text(host, path.expect_string()?.as_str()),
+        ("fs", "writeText", [path, text]) => fs::write_text(
+            host,
+            path.expect_string()?.as_str(),
+            text.expect_string()?.as_str(),
+        ),
+        ("fs", "appendText", [path, text]) => fs::append_text(
+            host,
+            path.expect_string()?.as_str(),
+            text.expect_string()?.as_str(),
+        ),
+        ("fs", "mkdirAll", [path]) => fs::mkdir_all(host, path.expect_string()?.as_str()),
+        ("fs", "removeFile", [path]) => fs::remove_file(host, path.expect_string()?.as_str()),
+        ("fs", "removeDirAll", [path]) => fs::remove_dir_all(host, path.expect_string()?.as_str()),
+        ("fs", "join", [left, right]) => fs::join(
+            host,
+            left.expect_string()?.as_str(),
+            right.expect_string()?.as_str(),
+        ),
+        ("os", "cwd", []) => os::cwd(host),
+        ("os", "platform", []) => os::platform(host),
+        ("os", "sleep", [value]) => os::sleep(host, value.expect_int()?),
+        ("os", "execShell", [value]) => os::exec_shell(host, value.expect_string()?.as_str()),
+        ("os", "execShellOut", [value]) => {
+            os::exec_shell_out(host, value.expect_string()?.as_str())
+        }
         _ => Err(RtError::new(
             RtErrorKind::UnsupportedBuiltin,
             format!("unsupported builtin `{package}.{name}`"),

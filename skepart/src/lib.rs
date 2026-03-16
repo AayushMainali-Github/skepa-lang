@@ -1,6 +1,7 @@
 pub mod array;
 pub mod builtins;
 pub mod error;
+pub mod function;
 pub mod host;
 pub mod string;
 pub mod value;
@@ -9,6 +10,7 @@ pub mod vec;
 pub use array::RtArray;
 pub use builtins::str as str_builtin;
 pub use error::{RtError, RtErrorKind, RtResult};
+pub use function::{RtFunctionRegistry, RtNativeFn};
 pub use host::{NoopHost, RtHost};
 pub use string::RtString;
 pub use value::{RtFunctionRef, RtStruct, RtStructLayout, RtValue};

@@ -1,6 +1,6 @@
 use skepart::{
-    builtins, NoopHost, RtArray, RtErrorKind, RtHost, RtString, RtStruct, RtStructLayout, RtValue,
-    RtVec,
+    builtins, NoopHost, RtArray, RtErrorKind, RtFunctionRegistry, RtHost, RtString, RtStruct,
+    RtStructLayout, RtValue, RtVec,
 };
 use std::rc::Rc;
 
@@ -143,6 +143,22 @@ impl RtHost for RecordingHost {
         self.output.push_str(text);
         Ok(())
     }
+
+    fn datetime_now_unix(&mut self) -> skepart::RtResult<i64> {
+        Ok(100)
+    }
+
+    fn random_int(&mut self, min: i64, max: i64) -> skepart::RtResult<i64> {
+        Ok((min + max) / 2)
+    }
+
+    fn fs_join(&mut self, left: &str, right: &str) -> skepart::RtResult<RtString> {
+        Ok(RtString::from(format!("{left}/{right}")))
+    }
+
+    fn os_platform(&mut self) -> skepart::RtResult<RtString> {
+        Ok(RtString::from("test-os"))
+    }
 }
 
 #[test]
@@ -159,4 +175,88 @@ fn io_builtins_dispatch_through_host() {
     .expect("io.println should succeed");
 
     assert_eq!(host.output, "7done\n");
+}
+
+#[test]
+fn host_backed_builtins_dispatch_for_runtime_services() {
+    let mut host = RecordingHost::default();
+
+    assert_eq!(
+        builtins::call_with_host(&mut host, "datetime", "nowUnix", &[])
+            .expect("datetime.nowUnix should succeed"),
+        RtValue::Int(100)
+    );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "random",
+            "int",
+            &[RtValue::Int(2), RtValue::Int(8)]
+        )
+        .expect("random.int should succeed"),
+        RtValue::Int(5)
+    );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "fs",
+            "join",
+            &[
+                RtValue::String(RtString::from("tmp")),
+                RtValue::String(RtString::from("file.txt"))
+            ]
+        )
+        .expect("fs.join should succeed"),
+        RtValue::String(RtString::from("tmp/file.txt"))
+    );
+    assert_eq!(
+        builtins::call_with_host(&mut host, "os", "platform", &[])
+            .expect("os.platform should succeed"),
+        RtValue::String(RtString::from("test-os"))
+    );
+}
+
+#[test]
+fn io_format_and_printf_are_available_in_runtime() {
+    let mut host = RecordingHost::default();
+    assert_eq!(
+        builtins::call(
+            "io",
+            "format",
+            &[
+                RtValue::String(RtString::from("%d %s")),
+                RtValue::Int(3),
+                RtValue::String(RtString::from("cats"))
+            ]
+        )
+        .expect("io.format should succeed"),
+        RtValue::String(RtString::from("3 cats"))
+    );
+
+    builtins::call_with_host(
+        &mut host,
+        "io",
+        "printf",
+        &[RtValue::String(RtString::from("%b")), RtValue::Bool(true)],
+    )
+    .expect("io.printf should succeed");
+    assert_eq!(host.output, "true");
+}
+
+#[test]
+fn runtime_function_registry_provides_native_call_surface() {
+    fn add_one(_host: &mut dyn RtHost, args: &[RtValue]) -> skepart::RtResult<RtValue> {
+        Ok(RtValue::Int(args[0].expect_int()? + 1))
+    }
+
+    let mut registry = RtFunctionRegistry::new();
+    let func = registry.register(add_one);
+    let mut host = NoopHost;
+
+    assert_eq!(
+        registry
+            .call(&mut host, func, &[RtValue::Int(4)])
+            .expect("registry call should succeed"),
+        RtValue::Int(5)
+    );
 }
