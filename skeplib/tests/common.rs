@@ -2,10 +2,15 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Output;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use skeplib::ast::Program;
 use skeplib::bytecode::{BytecodeModule, compile_source};
+use skeplib::codegen;
 use skeplib::diagnostic::DiagnosticBag;
+use skeplib::ir;
+use skeplib::ir::{IrInterpError, IrInterpreter, IrProgram};
 use skeplib::parser::Parser;
 use skeplib::sema::{SemaResult, analyze_source};
 use skeplib::vm::{Vm, VmError};
@@ -85,4 +90,59 @@ pub fn sk_files_in(dir: &Path) -> Vec<PathBuf> {
     }
     out.sort();
     out
+}
+
+pub fn compile_ir_ok(src: &str) -> IrProgram {
+    ir::lowering::compile_source(src).expect("IR lowering should succeed")
+}
+
+pub fn compile_project_ir_ok(entry: &Path) -> IrProgram {
+    ir::lowering::compile_project_entry(entry).expect("project IR lowering should succeed")
+}
+
+pub fn ir_run_ok(src: &str) -> skepart::value::RtValue {
+    let program = compile_ir_ok(src);
+    IrInterpreter::new(&program)
+        .run_main()
+        .expect("IR interpreter should run source")
+}
+
+pub fn ir_run_err(src: &str) -> IrInterpError {
+    let program = compile_ir_ok(src);
+    IrInterpreter::new(&program)
+        .run_main()
+        .expect_err("IR interpreter should fail")
+}
+
+pub fn native_run_ok(src: &str) -> Output {
+    let program = compile_ir_ok(src);
+    native_run_program(&program)
+}
+
+pub fn native_run_project_ok(entry: &Path) -> Output {
+    let program = compile_project_ir_ok(entry);
+    native_run_program(&program)
+}
+
+fn native_run_program(program: &IrProgram) -> Output {
+    let exe_path = temp_artifact_path("native_test", exe_ext());
+    codegen::compile_program_to_executable(program, &exe_path)
+        .expect("native executable build should succeed");
+    let output = std::process::Command::new(&exe_path)
+        .output()
+        .expect("native executable should run");
+    let _ = fs::remove_file(&exe_path);
+    output
+}
+
+fn temp_artifact_path(label: &str, ext: &str) -> PathBuf {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock")
+        .as_nanos();
+    std::env::temp_dir().join(format!("skepa_{label}_{nanos}.{ext}"))
+}
+
+fn exe_ext() -> &'static str {
+    if cfg!(windows) { "exe" } else { "out" }
 }
