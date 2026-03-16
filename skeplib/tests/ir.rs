@@ -1,3 +1,6 @@
+use std::fs;
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use skeplib::ir::{self, PrettyIr};
 
 #[test]
@@ -221,4 +224,54 @@ fn main() -> Int {
             .iter()
             .any(|instr| matches!(instr, ir::Instr::CallBuiltin { .. }))
     }));
+}
+
+#[test]
+fn lower_project_entry_to_ir() {
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock should be monotonic enough for temp name")
+        .as_nanos();
+    let root = std::env::temp_dir().join(format!("skepa_ir_project_{unique}"));
+    fs::create_dir_all(&root).expect("temp project dir should be created");
+
+    let entry = root.join("main.sk");
+    fs::write(
+        root.join("util.sk"),
+        r#"
+export { inc };
+
+fn inc(x: Int) -> Int {
+  return x + 1;
+}
+"#,
+    )
+    .expect("util module should be written");
+    fs::write(
+        &entry,
+        r#"
+from util import inc;
+
+fn main() -> Int {
+  return inc(41);
+}
+"#,
+    )
+    .expect("entry module should be written");
+
+    let program =
+        ir::lowering::compile_project_entry(&entry).expect("project IR lowering should succeed");
+    assert!(
+        program
+            .functions
+            .iter()
+            .any(|func| func.name == "util::inc")
+    );
+    assert!(program.functions.iter().any(|func| func.name == "main"));
+
+    let printed = PrettyIr::new(&program).to_string();
+    assert!(printed.contains("fn util::inc"));
+    assert!(printed.contains("fn main"));
+
+    let _ = fs::remove_dir_all(&root);
 }

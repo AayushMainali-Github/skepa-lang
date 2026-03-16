@@ -3,11 +3,15 @@ use crate::ir::{IrFunction, IrProgram, Operand, Terminator};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IrVerifyError {
     MissingEntryBlock { function: String },
+    DuplicateBlockId { function: String },
     MissingTerminator { function: String, block: String },
     UnknownBlockTarget { function: String, block: String },
     UnknownTemp { function: String },
     UnknownLocal { function: String },
     UnknownGlobal,
+    UnknownFunctionTarget { function: String },
+    UnknownStruct { function: String },
+    UnknownField { function: String, field: String },
     UnknownModuleInitFunction,
 }
 
@@ -35,6 +39,14 @@ impl IrVerifier {
                 function: func.name.clone(),
             });
         }
+        let mut block_ids = std::collections::HashSet::new();
+        for block in &func.blocks {
+            if !block_ids.insert(block.id) {
+                return Err(IrVerifyError::DuplicateBlockId {
+                    function: func.name.clone(),
+                });
+            }
+        }
 
         for block in &func.blocks {
             if matches!(block.terminator, Terminator::Unreachable) && !block.instrs.is_empty() {
@@ -56,8 +68,22 @@ impl IrVerifier {
                         Self::verify_operand(program, func, left)?;
                         Self::verify_operand(program, func, right)?;
                     }
-                    crate::ir::Instr::StoreGlobal { value, .. }
-                    | crate::ir::Instr::StoreLocal { value, .. } => {
+                    crate::ir::Instr::StoreGlobal { global, value, .. } => {
+                        if !program
+                            .globals
+                            .iter()
+                            .any(|candidate| candidate.id == *global)
+                        {
+                            return Err(IrVerifyError::UnknownGlobal);
+                        }
+                        Self::verify_operand(program, func, value)?;
+                    }
+                    crate::ir::Instr::StoreLocal { local, value, .. } => {
+                        if !func.locals.iter().any(|candidate| candidate.id == *local) {
+                            return Err(IrVerifyError::UnknownLocal {
+                                function: func.name.clone(),
+                            });
+                        }
                         Self::verify_operand(program, func, value)?;
                     }
                     crate::ir::Instr::VecPush { vec, value } => {
@@ -104,20 +130,48 @@ impl IrVerifier {
                         Self::verify_operand(program, func, array)?;
                         Self::verify_operand(program, func, index)?;
                     }
-                    crate::ir::Instr::MakeStruct { fields, .. } => {
+                    crate::ir::Instr::MakeStruct {
+                        struct_id, fields, ..
+                    } => {
+                        if !program
+                            .structs
+                            .iter()
+                            .any(|candidate| candidate.id == *struct_id)
+                        {
+                            return Err(IrVerifyError::UnknownStruct {
+                                function: func.name.clone(),
+                            });
+                        }
                         for field in fields {
                             Self::verify_operand(program, func, field)?;
                         }
                     }
-                    crate::ir::Instr::StructGet { base, .. } => {
+                    crate::ir::Instr::StructGet { base, field, .. } => {
                         Self::verify_operand(program, func, base)?;
+                        Self::verify_field_ref(program, func, base, field)?;
                     }
-                    crate::ir::Instr::StructSet { base, value, .. } => {
+                    crate::ir::Instr::StructSet {
+                        base, field, value, ..
+                    } => {
                         Self::verify_operand(program, func, base)?;
+                        Self::verify_field_ref(program, func, base, field)?;
                         Self::verify_operand(program, func, value)?;
                     }
-                    crate::ir::Instr::CallDirect { args, .. }
-                    | crate::ir::Instr::CallBuiltin { args, .. } => {
+                    crate::ir::Instr::CallDirect { function, args, .. } => {
+                        if !program
+                            .functions
+                            .iter()
+                            .any(|candidate| candidate.id == *function)
+                        {
+                            return Err(IrVerifyError::UnknownFunctionTarget {
+                                function: func.name.clone(),
+                            });
+                        }
+                        for arg in args {
+                            Self::verify_operand(program, func, arg)?;
+                        }
+                    }
+                    crate::ir::Instr::CallBuiltin { args, .. } => {
                         for arg in args {
                             Self::verify_operand(program, func, arg)?;
                         }
@@ -128,11 +182,35 @@ impl IrVerifier {
                             Self::verify_operand(program, func, arg)?;
                         }
                     }
-                    crate::ir::Instr::Const { .. }
-                    | crate::ir::Instr::LoadGlobal { .. }
-                    | crate::ir::Instr::LoadLocal { .. }
-                    | crate::ir::Instr::VecNew { .. }
-                    | crate::ir::Instr::MakeClosure { .. } => {}
+                    crate::ir::Instr::Const { .. } => {}
+                    crate::ir::Instr::LoadGlobal { global, .. } => {
+                        if !program
+                            .globals
+                            .iter()
+                            .any(|candidate| candidate.id == *global)
+                        {
+                            return Err(IrVerifyError::UnknownGlobal);
+                        }
+                    }
+                    crate::ir::Instr::LoadLocal { local, .. } => {
+                        if !func.locals.iter().any(|candidate| candidate.id == *local) {
+                            return Err(IrVerifyError::UnknownLocal {
+                                function: func.name.clone(),
+                            });
+                        }
+                    }
+                    crate::ir::Instr::VecNew { .. } => {}
+                    crate::ir::Instr::MakeClosure { function, .. } => {
+                        if !program
+                            .functions
+                            .iter()
+                            .any(|candidate| candidate.id == *function)
+                        {
+                            return Err(IrVerifyError::UnknownFunctionTarget {
+                                function: func.name.clone(),
+                            });
+                        }
+                    }
                 }
             }
 
@@ -203,6 +281,49 @@ impl IrVerifier {
                 function: func.name.clone(),
                 block: block.to_string(),
             })
+        }
+    }
+
+    fn verify_field_ref(
+        program: &IrProgram,
+        func: &IrFunction,
+        base: &Operand,
+        field: &crate::ir::FieldRef,
+    ) -> Result<(), IrVerifyError> {
+        let Some(crate::ir::IrType::Named(struct_name)) = Self::operand_type(func, base) else {
+            return Ok(());
+        };
+        let Some(strukt) = program
+            .structs
+            .iter()
+            .find(|candidate| candidate.name == *struct_name)
+        else {
+            return Err(IrVerifyError::UnknownStruct {
+                function: func.name.clone(),
+            });
+        };
+        if field.index >= strukt.fields.len() || strukt.fields[field.index].name != field.name {
+            return Err(IrVerifyError::UnknownField {
+                function: func.name.clone(),
+                field: field.name.clone(),
+            });
+        }
+        Ok(())
+    }
+
+    fn operand_type(func: &IrFunction, operand: &Operand) -> Option<crate::ir::IrType> {
+        match operand {
+            Operand::Temp(id) => func
+                .temps
+                .iter()
+                .find(|temp| temp.id == *id)
+                .map(|temp| temp.ty.clone()),
+            Operand::Local(id) => func
+                .locals
+                .iter()
+                .find(|local| local.id == *id)
+                .map(|local| local.ty.clone()),
+            Operand::Const(_) | Operand::Global(_) => None,
         }
     }
 }

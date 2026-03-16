@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::Path;
 
 use crate::ast::{
     AssignTarget, BinaryOp as AstBinaryOp, Expr, FnDecl, MethodDecl, Program, Stmt, StructDecl,
@@ -10,6 +11,9 @@ use crate::ir::{
     IrVerifier, Operand, Terminator, UnaryOp,
 };
 use crate::parser::Parser;
+use crate::resolver::{
+    ModuleGraph, ResolveError, ResolveErrorKind, SymbolKind, build_export_maps, resolve_project,
+};
 use crate::types::TypeInfo;
 
 pub fn compile_source(source: &str) -> Result<IrProgram, DiagnosticBag> {
@@ -37,12 +41,152 @@ pub fn compile_source(source: &str) -> Result<IrProgram, DiagnosticBag> {
     }
 }
 
+pub fn compile_project_entry(entry: &Path) -> Result<IrProgram, Vec<ResolveError>> {
+    let graph = resolve_project(entry)?;
+    compile_project_graph(&graph, entry).map_err(|e| {
+        vec![ResolveError::new(
+            ResolveErrorKind::Codegen,
+            e,
+            Some(entry.to_path_buf()),
+        )]
+    })
+}
+
+pub fn compile_project_graph(graph: &ModuleGraph, entry: &Path) -> Result<IrProgram, String> {
+    let export_maps = build_export_maps(graph).map_err(|errs| errs[0].message.clone())?;
+    let entry_path = entry.canonicalize().unwrap_or_else(|_| entry.to_path_buf());
+    let Some((entry_id, _)) = graph.modules.iter().find(|(_, m)| {
+        m.path == entry
+            || m.path == entry_path
+            || m.path
+                .canonicalize()
+                .map(|p| p == entry_path)
+                .unwrap_or(false)
+    }) else {
+        return Err("Entry module missing from graph".to_string());
+    };
+
+    let mut lowerer = IrLowerer::new_project();
+    let mut out = lowerer.builder.begin_program();
+    let mut init_function_ids = Vec::new();
+    let mut modules = Vec::new();
+    let mut ids = graph.modules.keys().cloned().collect::<Vec<_>>();
+    ids.sort();
+    for id in ids {
+        let module = &graph.modules[&id];
+        let (program, diags) = Parser::parse_source(&module.source);
+        if !diags.is_empty() {
+            return Err(format!(
+                "Parse failed for {}: {:?}",
+                module.path.display(),
+                diags
+            ));
+        }
+        modules.push((id, program));
+    }
+
+    for (id, program) in &modules {
+        lowerer.configure_project_module(id, program, graph, &export_maps);
+        lowerer.register_program_items(program, &mut out);
+    }
+
+    for (id, program) in &modules {
+        lowerer.configure_project_module(id, program, graph, &export_maps);
+        let init_name = lowerer.qualify_name("__globals_init");
+        lowerer.lower_program_bodies(program, &mut out);
+        if let Some((function_id, _)) = lowerer.functions.get(&init_name).cloned()
+            && out.functions.iter().any(|func| func.id == function_id)
+            && !init_function_ids.contains(&function_id)
+        {
+            init_function_ids.push(function_id);
+        }
+    }
+
+    if !init_function_ids.is_empty() {
+        let wrapper_id = crate::ir::FunctionId(lowerer.functions.len());
+        lowerer
+            .functions
+            .insert("__globals_init".to_string(), (wrapper_id, IrType::Void));
+        let mut init = lowerer
+            .builder
+            .begin_function("__globals_init", IrType::Void);
+        init.id = wrapper_id;
+        let init_entry = init.entry;
+        for function in init_function_ids {
+            lowerer.builder.push_instr(
+                &mut init,
+                init_entry,
+                Instr::CallDirect {
+                    dst: None,
+                    ret_ty: IrType::Void,
+                    function,
+                    args: Vec::new(),
+                },
+            );
+        }
+        lowerer
+            .builder
+            .set_terminator(&mut init, init_entry, Terminator::Return(None));
+        out.module_init = Some(crate::ir::IrModuleInit { function: init.id });
+        out.functions.push(init);
+    }
+
+    let entry_main_name = format!("{entry_id}::main");
+    let Some((entry_main_id, entry_main_ty)) = out
+        .functions
+        .iter()
+        .find(|func| func.name == entry_main_name)
+        .map(|func| (func.id, func.ret_ty.clone()))
+    else {
+        return Err("Entry module does not define main".to_string());
+    };
+    let wrapper_main_id = crate::ir::FunctionId(lowerer.functions.len());
+    lowerer
+        .functions
+        .insert("main".to_string(), (wrapper_main_id, entry_main_ty.clone()));
+    let mut main = lowerer
+        .builder
+        .begin_function("main", entry_main_ty.clone());
+    main.id = wrapper_main_id;
+    let main_entry = main.entry;
+    let dst = if entry_main_ty.is_void() {
+        None
+    } else {
+        Some(lowerer.builder.push_temp(&mut main, entry_main_ty.clone()))
+    };
+    lowerer.builder.push_instr(
+        &mut main,
+        main_entry,
+        Instr::CallDirect {
+            dst,
+            ret_ty: entry_main_ty,
+            function: entry_main_id,
+            args: Vec::new(),
+        },
+    );
+    lowerer.builder.set_terminator(
+        &mut main,
+        main_entry,
+        Terminator::Return(dst.map(Operand::Temp)),
+    );
+    out.functions.push(main);
+    out.functions.append(&mut lowerer.lifted_functions);
+
+    IrVerifier::verify_program(&out).map_err(|err| format!("IR verification failed: {err:?}"))?;
+    Ok(out)
+}
+
 struct IrLowerer {
     builder: IrBuilder,
     diags: DiagnosticBag,
     functions: HashMap<String, (crate::ir::FunctionId, IrType)>,
     globals: HashMap<String, (crate::ir::GlobalId, IrType)>,
     structs: HashMap<String, (crate::ir::StructId, Vec<crate::ir::StructField>)>,
+    module_id: Option<String>,
+    direct_import_calls: HashMap<String, String>,
+    imported_struct_runtime: HashMap<String, String>,
+    namespace_call_targets: HashMap<String, String>,
+    project_mode: bool,
     lifted_functions: Vec<crate::ir::IrFunction>,
     fn_lit_counter: usize,
 }
@@ -61,74 +205,271 @@ impl IrLowerer {
             functions: HashMap::new(),
             globals: HashMap::new(),
             structs: HashMap::new(),
+            module_id: None,
+            direct_import_calls: HashMap::new(),
+            imported_struct_runtime: HashMap::new(),
+            namespace_call_targets: HashMap::new(),
+            project_mode: false,
             lifted_functions: Vec::new(),
             fn_lit_counter: 0,
         }
     }
 
+    fn new_project() -> Self {
+        let mut this = Self::new();
+        this.project_mode = true;
+        this
+    }
+
+    fn configure_project_module(
+        &mut self,
+        module_id: &str,
+        program: &Program,
+        graph: &ModuleGraph,
+        export_maps: &HashMap<String, HashMap<String, crate::resolver::SymbolRef>>,
+    ) {
+        self.module_id = Some(module_id.to_string());
+        self.direct_import_calls.clear();
+        self.imported_struct_runtime.clear();
+        self.namespace_call_targets.clear();
+
+        for strukt in &program.structs {
+            self.imported_struct_runtime
+                .insert(strukt.name.clone(), format!("{module_id}::{}", strukt.name));
+        }
+
+        for imp in &program.imports {
+            match imp {
+                crate::ast::ImportDecl::ImportFrom {
+                    path,
+                    wildcard,
+                    items,
+                } => {
+                    let target = path.join(".");
+                    let Some(exports) = export_maps.get(&target) else {
+                        continue;
+                    };
+                    if *wildcard {
+                        for (name, sym) in exports {
+                            match sym.kind {
+                                SymbolKind::Fn => {
+                                    self.direct_import_calls.insert(
+                                        name.clone(),
+                                        format!("{}::{}", sym.module_id, sym.local_name),
+                                    );
+                                }
+                                SymbolKind::Struct => {
+                                    self.imported_struct_runtime.insert(
+                                        name.clone(),
+                                        format!("{}::{}", sym.module_id, sym.local_name),
+                                    );
+                                }
+                                SymbolKind::GlobalLet => {
+                                    self.globals.entry(name.clone()).or_insert((
+                                        crate::ir::GlobalId(usize::MAX),
+                                        IrType::Unknown,
+                                    ));
+                                }
+                                SymbolKind::Namespace => {}
+                            }
+                        }
+                    } else {
+                        for item in items {
+                            let local = item.alias.clone().unwrap_or_else(|| item.name.clone());
+                            let Some(sym) = exports.get(&item.name) else {
+                                continue;
+                            };
+                            match sym.kind {
+                                SymbolKind::Fn => {
+                                    self.direct_import_calls.insert(
+                                        local,
+                                        format!("{}::{}", sym.module_id, sym.local_name),
+                                    );
+                                }
+                                SymbolKind::Struct => {
+                                    self.imported_struct_runtime.insert(
+                                        local,
+                                        format!("{}::{}", sym.module_id, sym.local_name),
+                                    );
+                                }
+                                SymbolKind::GlobalLet | SymbolKind::Namespace => {}
+                            }
+                        }
+                    }
+                }
+                crate::ast::ImportDecl::ImportModule { path, alias } => {
+                    let ns = alias
+                        .clone()
+                        .unwrap_or_else(|| path.first().cloned().unwrap_or_default());
+                    if ns.is_empty() {
+                        continue;
+                    }
+                    let target_prefix = path.join(".");
+                    let mut exporting = export_maps
+                        .keys()
+                        .filter(|m| {
+                            *m == &target_prefix || m.starts_with(&(target_prefix.clone() + "."))
+                        })
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    exporting.sort();
+                    for mid in exporting {
+                        if let Some(exports) = export_maps.get(&mid) {
+                            for (ename, sym) in exports {
+                                if sym.kind == SymbolKind::Fn {
+                                    self.namespace_call_targets.insert(
+                                        format!("{mid}.{ename}"),
+                                        format!("{}::{}", sym.module_id, sym.local_name),
+                                    );
+                                    self.namespace_call_targets.insert(
+                                        format!("{ns}.{ename}"),
+                                        format!("{}::{}", sym.module_id, sym.local_name),
+                                    );
+                                }
+                                if sym.kind == SymbolKind::Struct {
+                                    self.imported_struct_runtime.insert(
+                                        format!("{mid}.{ename}"),
+                                        format!("{}::{}", sym.module_id, sym.local_name),
+                                    );
+                                    self.imported_struct_runtime.insert(
+                                        format!("{ns}.{ename}"),
+                                        format!("{}::{}", sym.module_id, sym.local_name),
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        let _ = graph;
+    }
+
+    fn qualify_name(&self, name: &str) -> String {
+        match &self.module_id {
+            Some(module_id) => format!("{module_id}::{name}"),
+            None => name.to_string(),
+        }
+    }
+
+    fn resolve_struct_runtime_name(&self, name: &str) -> String {
+        self.imported_struct_runtime
+            .get(name)
+            .cloned()
+            .unwrap_or_else(|| self.qualify_name(name))
+    }
+
+    fn lower_type_name(&self, ty: &crate::ast::TypeName) -> IrType {
+        match ty {
+            crate::ast::TypeName::Int => IrType::Int,
+            crate::ast::TypeName::Float => IrType::Float,
+            crate::ast::TypeName::Bool => IrType::Bool,
+            crate::ast::TypeName::String => IrType::String,
+            crate::ast::TypeName::Void => IrType::Void,
+            crate::ast::TypeName::Named(name) => {
+                IrType::Named(self.resolve_struct_runtime_name(name))
+            }
+            crate::ast::TypeName::Array { elem, size } => IrType::Array {
+                elem: Box::new(self.lower_type_name(elem)),
+                size: *size,
+            },
+            crate::ast::TypeName::Vec { elem } => IrType::Vec {
+                elem: Box::new(self.lower_type_name(elem)),
+            },
+            crate::ast::TypeName::Fn { params, ret } => IrType::Fn {
+                params: params.iter().map(|p| self.lower_type_name(p)).collect(),
+                ret: Box::new(self.lower_type_name(ret)),
+            },
+        }
+    }
+
     fn compile_program(&mut self, program: &Program) -> IrProgram {
         let mut out = self.builder.begin_program();
+        self.compile_program_into(program, &mut out);
+        out.functions.append(&mut self.lifted_functions);
+        out
+    }
 
-        for (index, strukt) in program.structs.iter().enumerate() {
-            let id = crate::ir::StructId(index);
+    fn compile_program_into(&mut self, program: &Program, out: &mut IrProgram) {
+        self.register_program_items(program, out);
+        self.lower_program_bodies(program, out);
+    }
+
+    fn register_program_items(&mut self, program: &Program, out: &mut IrProgram) {
+        for strukt in &program.structs {
+            let id = crate::ir::StructId(self.structs.len());
             let fields = self.lower_struct_fields(strukt);
+            let runtime_name = self.resolve_struct_runtime_name(&strukt.name);
             self.structs
-                .insert(strukt.name.clone(), (id, fields.clone()));
+                .insert(runtime_name.clone(), (id, fields.clone()));
             out.structs.push(crate::ir::IrStruct {
                 id,
-                name: strukt.name.clone(),
+                name: runtime_name,
                 fields,
             });
         }
 
-        for (index, global) in program.globals.iter().enumerate() {
+        for global in &program.globals {
             let ty = global
                 .ty
                 .as_ref()
-                .map(TypeInfo::from_ast)
-                .map(|ty| IrType::from(&ty))
+                .map(|ty| self.lower_type_name(ty))
                 .unwrap_or(IrType::Unknown);
-            let id = crate::ir::GlobalId(index);
-            self.globals.insert(global.name.clone(), (id, ty.clone()));
+            let id = crate::ir::GlobalId(self.globals.len());
+            self.globals
+                .insert(self.qualify_name(&global.name), (id, ty.clone()));
             out.globals.push(crate::ir::IrGlobal {
                 id,
-                name: global.name.clone(),
+                name: self.qualify_name(&global.name),
                 ty,
                 init: None,
             });
         }
 
-        for (index, func) in program.functions.iter().enumerate() {
+        for func in &program.functions {
             let ret_ty = func
                 .return_type
                 .as_ref()
-                .map(TypeInfo::from_ast)
-                .map(|ty| IrType::from(&ty))
+                .map(|ty| self.lower_type_name(ty))
                 .unwrap_or(IrType::Void);
+            let id = crate::ir::FunctionId(self.functions.len());
             self.functions
-                .insert(func.name.clone(), (crate::ir::FunctionId(index), ret_ty));
+                .insert(self.qualify_name(&func.name), (id, ret_ty));
         }
 
-        let mut next_function_id = program.functions.len();
         for imp in &program.impls {
             for method in &imp.methods {
                 let ret_ty = method
                     .return_type
                     .as_ref()
-                    .map(TypeInfo::from_ast)
-                    .map(|ty| IrType::from(&ty))
+                    .map(|ty| self.lower_type_name(ty))
                     .unwrap_or(IrType::Void);
-                let method_name = Self::mangle_method_name(&imp.target, &method.name);
-                let id = crate::ir::FunctionId(next_function_id);
-                next_function_id += 1;
+                let method_name = Self::mangle_method_name(
+                    &self.resolve_struct_runtime_name(&imp.target),
+                    &method.name,
+                );
+                let id = crate::ir::FunctionId(self.functions.len());
                 self.functions.insert(method_name, (id, ret_ty));
             }
         }
+    }
 
+    fn lower_program_bodies(&mut self, program: &Program, out: &mut IrProgram) {
         if !program.globals.is_empty() {
-            let mut init = self.builder.begin_function("__globals_init", IrType::Void);
+            let mut init = self
+                .builder
+                .begin_function(self.qualify_name("__globals_init"), IrType::Void);
+            let (init_id, _) = self
+                .functions
+                .get(&init.name)
+                .cloned()
+                .unwrap_or((crate::ir::FunctionId(usize::MAX), IrType::Void));
+            init.id = init_id;
             if self.compile_globals_init(&mut init, program).is_some() {
-                out.module_init = Some(crate::ir::IrModuleInit { function: init.id });
+                if !self.project_mode {
+                    out.module_init = Some(crate::ir::IrModuleInit { function: init.id });
+                }
                 out.functions.push(init);
             }
         }
@@ -146,10 +487,6 @@ impl IrLowerer {
                 }
             }
         }
-
-        out.functions.append(&mut self.lifted_functions);
-
-        out
     }
 
     fn lower_struct_fields(&self, strukt: &StructDecl) -> Vec<crate::ir::StructField> {
@@ -158,7 +495,7 @@ impl IrLowerer {
             .iter()
             .map(|field| crate::ir::StructField {
                 name: field.name.clone(),
-                ty: IrType::from(&TypeInfo::from_ast(&field.ty)),
+                ty: self.lower_type_name(&field.ty),
             })
             .collect()
     }
@@ -166,12 +503,12 @@ impl IrLowerer {
     fn compile_function(&mut self, func: &FnDecl) -> Option<crate::ir::IrFunction> {
         let (function_id, ret_ty) = self
             .functions
-            .get(&func.name)
+            .get(&self.qualify_name(&func.name))
             .cloned()
             .unwrap_or((crate::ir::FunctionId(usize::MAX), IrType::Void));
         let mut out = self
             .builder
-            .begin_function(func.name.clone(), ret_ty.clone());
+            .begin_function(self.qualify_name(&func.name), ret_ty.clone());
         out.id = function_id;
         let mut lowering = FunctionLowering {
             current_block: out.entry,
@@ -180,12 +517,16 @@ impl IrLowerer {
         };
 
         for param in &func.params {
-            let ty_info = TypeInfo::from_ast(&param.ty);
-            self.builder
-                .push_param(&mut out, param.name.clone(), IrType::from(&ty_info));
-            let local =
-                self.builder
-                    .push_local(&mut out, param.name.clone(), IrType::from(&ty_info));
+            self.builder.push_param(
+                &mut out,
+                param.name.clone(),
+                self.lower_type_name(&param.ty),
+            );
+            let local = self.builder.push_local(
+                &mut out,
+                param.name.clone(),
+                self.lower_type_name(&param.ty),
+            );
             lowering.locals.insert(param.name.clone(), local);
         }
 
@@ -226,7 +567,8 @@ impl IrLowerer {
         target: &str,
         method: &MethodDecl,
     ) -> Option<crate::ir::IrFunction> {
-        let method_name = Self::mangle_method_name(target, &method.name);
+        let runtime_target = self.resolve_struct_runtime_name(target);
+        let method_name = Self::mangle_method_name(&runtime_target, &method.name);
         let (function_id, ret_ty) = self
             .functions
             .get(&method_name)
@@ -242,9 +584,9 @@ impl IrLowerer {
 
         for param in &method.params {
             let ir_ty = if param.name == "self" {
-                IrType::Named(target.to_string())
+                IrType::Named(runtime_target.clone())
             } else {
-                IrType::from(&TypeInfo::from_ast(&param.ty))
+                self.lower_type_name(&param.ty)
             };
             self.builder
                 .push_param(&mut out, param.name.clone(), ir_ty.clone());
@@ -297,7 +639,7 @@ impl IrLowerer {
 
         for global in &program.globals {
             let value = self.compile_expr(func, &mut lowering, &global.value)?;
-            let Some((id, ty)) = self.globals.get(&global.name).cloned() else {
+            let Some((id, ty)) = self.globals.get(&self.qualify_name(&global.name)).cloned() else {
                 self.unsupported(format!("global `{}` was not registered", global.name));
                 return None;
             };
@@ -334,8 +676,7 @@ impl IrLowerer {
                 };
                 let ir_ty = ty
                     .as_ref()
-                    .map(TypeInfo::from_ast)
-                    .map(|ty| IrType::from(&ty))
+                    .map(|ty| self.lower_type_name(ty))
                     .unwrap_or_else(|| self.infer_operand_type(func, &rhs));
                 let local = self.builder.push_local(func, name.clone(), ir_ty.clone());
                 lowering.locals.insert(name.clone(), local);
@@ -561,7 +902,12 @@ impl IrLowerer {
                 .get(name)
                 .copied()
                 .map(Operand::Local)
-                .or_else(|| self.globals.get(name).map(|(id, _)| Operand::Global(*id)))
+                .or_else(|| {
+                    self.globals
+                        .get(name)
+                        .or_else(|| self.globals.get(&self.qualify_name(name)))
+                        .map(|(id, _)| Operand::Global(*id))
+                })
                 .or_else(|| self.function_value(func, lowering.current_block, name))
                 .or_else(|| {
                     self.unsupported(format!("reference to unresolved identifier `{name}`"));
@@ -571,6 +917,7 @@ impl IrLowerer {
                 let name = parts.join(".");
                 self.globals
                     .get(&name)
+                    .or_else(|| self.globals.get(&self.qualify_name(&name)))
                     .map(|(id, _)| Operand::Global(*id))
                     .or_else(|| {
                         self.unsupported(format!(
@@ -642,7 +989,9 @@ impl IrLowerer {
                 Some(Operand::Temp(dst))
             }
             Expr::StructLit { name, fields } => {
-                let Some((struct_id, struct_fields)) = self.structs.get(name).cloned() else {
+                let runtime_name = self.resolve_struct_runtime_name(name);
+                let Some((struct_id, struct_fields)) = self.structs.get(&runtime_name).cloned()
+                else {
                     self.unsupported(format!("unknown struct `{name}` in IR lowering"));
                     return None;
                 };
@@ -660,7 +1009,9 @@ impl IrLowerer {
                     };
                     ordered.push(self.compile_expr(func, lowering, expr)?);
                 }
-                let dst = self.builder.push_temp(func, IrType::Named(name.clone()));
+                let dst = self
+                    .builder
+                    .push_temp(func, IrType::Named(runtime_name.clone()));
                 self.builder.push_instr(
                     func,
                     lowering.current_block,
@@ -906,7 +1257,12 @@ impl IrLowerer {
 
         match callee {
             Expr::Ident(name) => {
-                if let Some((function, ret_ty)) = self.functions.get(name).cloned() {
+                let direct_name = self
+                    .direct_import_calls
+                    .get(name)
+                    .cloned()
+                    .unwrap_or_else(|| self.qualify_name(name));
+                if let Some((function, ret_ty)) = self.functions.get(&direct_name).cloned() {
                     let dst = if ret_ty.is_void() {
                         None
                     } else {
@@ -943,6 +1299,7 @@ impl IrLowerer {
                 if let Expr::Ident(package) = base.as_ref() {
                     let is_value_receiver = lowering.locals.contains_key(package)
                         || self.globals.contains_key(package)
+                        || self.globals.contains_key(&self.qualify_name(package))
                         || self.functions.contains_key(package);
                     if package == "vec" {
                         return self.compile_vec_call(
@@ -951,6 +1308,29 @@ impl IrLowerer {
                             field,
                             lowered_args,
                         );
+                    }
+                    if !is_value_receiver
+                        && let Some(target_name) = self
+                            .namespace_call_targets
+                            .get(&format!("{package}.{field}"))
+                        && let Some((function, ret_ty)) = self.functions.get(target_name).cloned()
+                    {
+                        let dst = if ret_ty.is_void() {
+                            None
+                        } else {
+                            Some(self.builder.push_temp(func, ret_ty.clone()))
+                        };
+                        self.builder.push_instr(
+                            func,
+                            lowering.current_block,
+                            Instr::CallDirect {
+                                dst,
+                                ret_ty: ret_ty.clone(),
+                                function,
+                                args: lowered_args,
+                            },
+                        );
+                        return OkOperand::from_call_result(dst);
                     }
                     if !is_value_receiver {
                         let dst = self.builder.push_temp(func, IrType::Unknown);
