@@ -144,6 +144,26 @@ fn main() -> Int {
 }
 
 #[test]
+fn compile_source_applies_copy_propagation() {
+    let source = r#"
+fn main() -> Int {
+  let x = 1;
+  let y = x;
+  let z = y;
+  return z + 2;
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let value = IrInterpreter::new(&program)
+        .run_main()
+        .expect("IR interpreter should run optimized source");
+    assert_eq!(value, IrValue::Int(3));
+    let printed = PrettyIr::new(&program).to_string();
+    assert!(!printed.contains("Copy {"));
+}
+
+#[test]
 fn verifier_rejects_unknown_jump_target() {
     let func = IrFunction {
         id: FunctionId(0),
