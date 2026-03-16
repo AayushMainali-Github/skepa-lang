@@ -1,6 +1,7 @@
 mod block;
 mod builder;
 mod instr;
+mod interp;
 pub mod lowering;
 mod pretty;
 mod program;
@@ -13,6 +14,7 @@ pub use builder::IrBuilder;
 pub use instr::{
     BinaryOp, BranchTerminator, BuiltinCall, CmpOp, FieldRef, Instr, LogicOp, Terminator, UnaryOp,
 };
+pub use interp::{IrInterpError, IrInterpreter, IrValue};
 pub use pretty::PrettyIr;
 pub use program::{
     IrFunction, IrGlobal, IrLocal, IrModuleInit, IrParam, IrProgram, IrStruct, IrTemp, StructField,

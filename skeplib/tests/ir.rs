@@ -3,7 +3,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use skeplib::bytecode;
 use skeplib::bytecode::Value;
-use skeplib::ir::{self, PrettyIr};
+use skeplib::ir::{self, IrInterpreter, IrValue, PrettyIr};
 use skeplib::vm::Vm;
 
 fn assert_bytecode_and_ir_accept_same_source(source: &str, expected: i64) {
@@ -16,6 +16,10 @@ fn assert_bytecode_and_ir_accept_same_source(source: &str, expected: i64) {
         !program.functions.is_empty(),
         "IR lowering should emit at least one function"
     );
+    let value = IrInterpreter::new(&program)
+        .run_main()
+        .expect("IR interpreter should run source");
+    assert_eq!(value, IrValue::Int(expected));
 }
 
 #[test]
