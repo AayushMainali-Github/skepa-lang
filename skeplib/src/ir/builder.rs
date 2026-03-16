@@ -53,7 +53,7 @@ impl IrBuilder {
     ) -> ParamId {
         let id = ParamId(self.next_param);
         self.next_param += 1;
-        func.params.push(crate::ir::program::IrParam {
+        func.params.push(crate::ir::IrParam {
             id,
             name: name.into(),
             ty,
@@ -69,7 +69,7 @@ impl IrBuilder {
     ) -> LocalId {
         let id = LocalId(self.next_local);
         self.next_local += 1;
-        func.locals.push(crate::ir::program::IrLocal {
+        func.locals.push(crate::ir::IrLocal {
             id,
             name: name.into(),
             ty,
@@ -80,7 +80,7 @@ impl IrBuilder {
     pub fn push_temp(&mut self, func: &mut IrFunction, ty: IrType) -> TempId {
         let id = TempId(self.next_temp);
         self.next_temp += 1;
-        func.temps.push(crate::ir::program::IrTemp { id, ty });
+        func.temps.push(crate::ir::IrTemp { id, ty });
         id
     }
 
