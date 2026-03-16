@@ -3,6 +3,7 @@ pub mod llvm;
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::{fs, io};
 
 use crate::ir::IrProgram;
@@ -133,11 +134,14 @@ fn run_tool(tool: &str, args: &[&str]) -> Result<(), CodegenError> {
 }
 
 fn temp_codegen_path(name: &str, ext: &str) -> std::path::PathBuf {
+    static NEXT_ID: AtomicU64 = AtomicU64::new(0);
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .expect("time should be monotonic enough for temp path")
         .as_nanos();
-    std::env::temp_dir().join(format!("skepa_codegen_{name}_{nanos}.{ext}"))
+    let pid = std::process::id();
+    let seq = NEXT_ID.fetch_add(1, Ordering::Relaxed);
+    std::env::temp_dir().join(format!("skepa_codegen_{name}_{pid}_{nanos}_{seq}.{ext}"))
 }
 
 fn object_extension() -> &'static str {

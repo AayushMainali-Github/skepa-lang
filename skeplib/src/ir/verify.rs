@@ -4,6 +4,9 @@ use crate::ir::{IrFunction, IrProgram, Operand, Terminator};
 pub enum IrVerifyError {
     MissingEntryBlock { function: String },
     DuplicateBlockId { function: String },
+    DuplicateParamId { function: String },
+    DuplicateLocalId { function: String },
+    DuplicateTempId { function: String },
     MissingTerminator { function: String, block: String },
     UnknownBlockTarget { function: String, block: String },
     UnknownTemp { function: String },
@@ -12,6 +15,9 @@ pub enum IrVerifyError {
     UnknownFunctionTarget { function: String },
     UnknownStruct { function: String },
     UnknownField { function: String, field: String },
+    BadCallSignature { function: String },
+    ReturnTypeMismatch { function: String },
+    OperandTypeMismatch { function: String },
     UnknownModuleInitFunction,
 }
 
@@ -38,6 +44,30 @@ impl IrVerifier {
             return Err(IrVerifyError::MissingEntryBlock {
                 function: func.name.clone(),
             });
+        }
+        let mut param_ids = std::collections::HashSet::new();
+        for param in &func.params {
+            if !param_ids.insert(param.id) {
+                return Err(IrVerifyError::DuplicateParamId {
+                    function: func.name.clone(),
+                });
+            }
+        }
+        let mut local_ids = std::collections::HashSet::new();
+        for local in &func.locals {
+            if !local_ids.insert(local.id) {
+                return Err(IrVerifyError::DuplicateLocalId {
+                    function: func.name.clone(),
+                });
+            }
+        }
+        let mut temp_ids = std::collections::HashSet::new();
+        for temp in &func.temps {
+            if !temp_ids.insert(temp.id) {
+                return Err(IrVerifyError::DuplicateTempId {
+                    function: func.name.clone(),
+                });
+            }
         }
         let mut block_ids = std::collections::HashSet::new();
         for block in &func.blocks {
@@ -158,12 +188,17 @@ impl IrVerifier {
                         Self::verify_operand(program, func, value)?;
                     }
                     crate::ir::Instr::CallDirect { function, args, .. } => {
-                        if !program
+                        let Some(target) = program
                             .functions
                             .iter()
-                            .any(|candidate| candidate.id == *function)
-                        {
+                            .find(|candidate| candidate.id == *function)
+                        else {
                             return Err(IrVerifyError::UnknownFunctionTarget {
+                                function: func.name.clone(),
+                            });
+                        };
+                        if target.params.len() != args.len() {
+                            return Err(IrVerifyError::BadCallSignature {
                                 function: func.name.clone(),
                             });
                         }
@@ -221,12 +256,30 @@ impl IrVerifier {
                 Terminator::Panic { .. } | Terminator::Unreachable => {}
                 Terminator::Branch(branch) => {
                     Self::verify_operand(program, func, &branch.cond)?;
+                    if Self::operand_type(program, func, &branch.cond)
+                        != Some(crate::ir::IrType::Bool)
+                    {
+                        return Err(IrVerifyError::OperandTypeMismatch {
+                            function: func.name.clone(),
+                        });
+                    }
                     Self::verify_block_target(func, block.name.as_str(), branch.then_block)?;
                     Self::verify_block_target(func, block.name.as_str(), branch.else_block)?;
                 }
                 Terminator::Return(value) => {
                     if let Some(value) = value {
                         Self::verify_operand(program, func, value)?;
+                        if let Some(ty) = Self::operand_type(program, func, value)
+                            && ty != func.ret_ty
+                        {
+                            return Err(IrVerifyError::ReturnTypeMismatch {
+                                function: func.name.clone(),
+                            });
+                        }
+                    } else if !func.ret_ty.is_void() {
+                        return Err(IrVerifyError::ReturnTypeMismatch {
+                            function: func.name.clone(),
+                        });
                     }
                 }
             }
@@ -290,7 +343,8 @@ impl IrVerifier {
         base: &Operand,
         field: &crate::ir::FieldRef,
     ) -> Result<(), IrVerifyError> {
-        let Some(crate::ir::IrType::Named(struct_name)) = Self::operand_type(func, base) else {
+        let Some(crate::ir::IrType::Named(struct_name)) = Self::operand_type(program, func, base)
+        else {
             return Ok(());
         };
         let Some(strukt) = program
@@ -311,8 +365,19 @@ impl IrVerifier {
         Ok(())
     }
 
-    fn operand_type(func: &IrFunction, operand: &Operand) -> Option<crate::ir::IrType> {
+    fn operand_type(
+        program: &IrProgram,
+        func: &IrFunction,
+        operand: &Operand,
+    ) -> Option<crate::ir::IrType> {
         match operand {
+            Operand::Const(value) => Some(match value {
+                crate::ir::ConstValue::Int(_) => crate::ir::IrType::Int,
+                crate::ir::ConstValue::Float(_) => crate::ir::IrType::Float,
+                crate::ir::ConstValue::Bool(_) => crate::ir::IrType::Bool,
+                crate::ir::ConstValue::String(_) => crate::ir::IrType::String,
+                crate::ir::ConstValue::Unit => crate::ir::IrType::Void,
+            }),
             Operand::Temp(id) => func
                 .temps
                 .iter()
@@ -323,7 +388,11 @@ impl IrVerifier {
                 .iter()
                 .find(|local| local.id == *id)
                 .map(|local| local.ty.clone()),
-            Operand::Const(_) | Operand::Global(_) => None,
+            Operand::Global(id) => program
+                .globals
+                .iter()
+                .find(|global| global.id == *id)
+                .map(|global| global.ty.clone()),
         }
     }
 }

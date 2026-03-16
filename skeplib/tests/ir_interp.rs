@@ -1,3 +1,4 @@
+use skepart::{RtHost, RtResult, RtString};
 use skeplib::ir::{
     self, BasicBlock, BlockId, FunctionId, Instr, IrFunction, IrInterpError, IrInterpreter,
     IrProgram, IrType, IrValue, Terminator,
@@ -5,6 +6,90 @@ use skeplib::ir::{
 
 #[path = "common.rs"]
 mod common;
+
+#[derive(Default)]
+struct TestHost {
+    out: String,
+}
+
+impl RtHost for TestHost {
+    fn io_print(&mut self, text: &str) -> RtResult<()> {
+        self.out.push_str(text);
+        Ok(())
+    }
+
+    fn datetime_now_unix(&mut self) -> RtResult<i64> {
+        Ok(123)
+    }
+
+    fn datetime_now_millis(&mut self) -> RtResult<i64> {
+        Ok(456_789)
+    }
+
+    fn random_seed(&mut self, _seed: i64) -> RtResult<()> {
+        Ok(())
+    }
+
+    fn random_int(&mut self, min: i64, max: i64) -> RtResult<i64> {
+        Ok(min + max)
+    }
+
+    fn random_float(&mut self) -> RtResult<f64> {
+        Ok(0.25)
+    }
+
+    fn fs_exists(&mut self, path: &str) -> RtResult<bool> {
+        Ok(path == "exists.txt")
+    }
+
+    fn fs_read_text(&mut self, path: &str) -> RtResult<RtString> {
+        Ok(RtString::from(format!("read:{path}")))
+    }
+
+    fn fs_write_text(&mut self, _path: &str, _text: &str) -> RtResult<()> {
+        Ok(())
+    }
+
+    fn fs_append_text(&mut self, _path: &str, _text: &str) -> RtResult<()> {
+        Ok(())
+    }
+
+    fn fs_mkdir_all(&mut self, _path: &str) -> RtResult<()> {
+        Ok(())
+    }
+
+    fn fs_remove_file(&mut self, _path: &str) -> RtResult<()> {
+        Ok(())
+    }
+
+    fn fs_remove_dir_all(&mut self, _path: &str) -> RtResult<()> {
+        Ok(())
+    }
+
+    fn fs_join(&mut self, left: &str, right: &str) -> RtResult<RtString> {
+        Ok(RtString::from(format!("{left}/{right}")))
+    }
+
+    fn os_cwd(&mut self) -> RtResult<RtString> {
+        Ok(RtString::from("/tmp/skepa"))
+    }
+
+    fn os_platform(&mut self) -> RtResult<RtString> {
+        Ok(RtString::from("test-os"))
+    }
+
+    fn os_sleep(&mut self, _millis: i64) -> RtResult<()> {
+        Ok(())
+    }
+
+    fn os_exec_shell(&mut self, command: &str) -> RtResult<i64> {
+        Ok(command.len() as i64)
+    }
+
+    fn os_exec_shell_out(&mut self, command: &str) -> RtResult<RtString> {
+        Ok(RtString::from(format!("out:{command}")))
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ExpectedErrorKind {
@@ -202,6 +287,60 @@ fn main() -> Int {
 
     let value = common::ir_run_ok(source);
     assert_eq!(value, IrValue::Int(1));
+}
+
+#[test]
+fn interpreter_builtin_matrix_covers_arr_vec_io_datetime() {
+    let source = r#"
+import arr;
+import datetime;
+import io;
+
+fn main() -> Int {
+  let xs: [Int; 3] = [5; 3];
+  let total = arr.len(xs);
+  let empty = arr.isEmpty(xs);
+  io.println("ok");
+  if (empty) {
+    return 0;
+  }
+  return total + datetime.nowUnix();
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let value = IrInterpreter::with_host(&program, Box::new(TestHost::default()))
+        .run_main()
+        .expect("IR interpreter should run source");
+    assert_eq!(value, IrValue::Int(126));
+}
+
+#[test]
+fn interpreter_builtin_matrix_covers_random_fs_and_os_with_deterministic_host() {
+    let source = r#"
+import fs;
+import os;
+import random;
+import str;
+
+fn main() -> Int {
+  random.seed(9);
+  let total = random.int(2, 5);
+  let cwd = os.cwd();
+  let plat = os.platform();
+  let out = os.execShellOut("echo hi");
+  if (fs.exists("exists.txt")) {
+    return total + str.len(cwd) + str.len(plat) + str.len(out);
+  }
+  return 0;
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let value = IrInterpreter::with_host(&program, Box::new(TestHost::default()))
+        .run_main()
+        .expect("IR interpreter should run source");
+    assert_eq!(value, IrValue::Int(35));
 }
 
 #[test]

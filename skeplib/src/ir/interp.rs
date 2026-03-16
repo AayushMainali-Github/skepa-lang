@@ -7,8 +7,8 @@ use crate::ir::{
     Operand, Terminator, UnaryOp,
 };
 use skepart::{
-    NoopHost, RtArray, RtError, RtErrorKind, RtFunctionRef, RtString, RtStruct, RtStructLayout,
-    RtValue, RtVec, builtins,
+    NoopHost, RtArray, RtError, RtErrorKind, RtFunctionRef, RtHost, RtString, RtStruct,
+    RtStructLayout, RtValue, RtVec, builtins,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -63,10 +63,15 @@ pub struct IrInterpreter<'a> {
     program: &'a IrProgram,
     globals: Vec<RtValue>,
     struct_layouts: Vec<Rc<RtStructLayout>>,
+    host: Box<dyn RtHost>,
 }
 
 impl<'a> IrInterpreter<'a> {
     pub fn new(program: &'a IrProgram) -> Self {
+        Self::with_host(program, Box::new(NoopHost))
+    }
+
+    pub fn with_host(program: &'a IrProgram, host: Box<dyn RtHost>) -> Self {
         Self {
             program,
             globals: vec![RtValue::Unit; program.globals.len()],
@@ -84,6 +89,7 @@ impl<'a> IrInterpreter<'a> {
                     })
                 })
                 .collect(),
+            host,
         }
     }
 
@@ -513,12 +519,11 @@ impl<'a> IrInterpreter<'a> {
     }
 
     fn eval_builtin(
-        &self,
+        &mut self,
         builtin: &crate::ir::BuiltinCall,
         args: &[RtValue],
     ) -> Result<RtValue, IrInterpError> {
-        let mut host = NoopHost;
-        builtins::call_with_host(&mut host, &builtin.package, &builtin.name, args)
+        builtins::call_with_host(self.host.as_mut(), &builtin.package, &builtin.name, args)
             .map_err(IrInterpError::from_runtime)
     }
 

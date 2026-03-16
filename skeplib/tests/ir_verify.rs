@@ -233,3 +233,137 @@ fn verifier_rejects_unknown_temp_local_global_and_module_init() {
             | ir::IrVerifyError::UnknownModuleInitFunction
     ));
 }
+
+#[test]
+fn verifier_rejects_duplicate_param_local_and_temp_ids() {
+    let func = IrFunction {
+        id: FunctionId(0),
+        name: "main".into(),
+        params: vec![
+            skeplib::ir::IrParam {
+                id: skeplib::ir::ParamId(0),
+                name: "a".into(),
+                ty: IrType::Int,
+            },
+            skeplib::ir::IrParam {
+                id: skeplib::ir::ParamId(0),
+                name: "b".into(),
+                ty: IrType::Int,
+            },
+        ],
+        locals: vec![
+            IrLocal {
+                id: ir::LocalId(0),
+                name: "x".into(),
+                ty: IrType::Int,
+            },
+            IrLocal {
+                id: ir::LocalId(0),
+                name: "y".into(),
+                ty: IrType::Int,
+            },
+        ],
+        temps: vec![
+            IrTemp {
+                id: TempId(0),
+                ty: IrType::Int,
+            },
+            IrTemp {
+                id: TempId(0),
+                ty: IrType::Int,
+            },
+        ],
+        ret_ty: IrType::Int,
+        entry: BlockId(0),
+        blocks: vec![BasicBlock {
+            id: BlockId(0),
+            name: "entry".into(),
+            instrs: Vec::new(),
+            terminator: Terminator::Return(Some(ir::Operand::Const(ir::ConstValue::Int(0)))),
+        }],
+    };
+    let program = IrProgram {
+        functions: vec![func],
+        globals: Vec::new(),
+        structs: Vec::new(),
+        module_init: None,
+    };
+    let err = IrVerifier::verify_program(&program).expect_err("verifier should fail");
+    assert!(matches!(
+        err,
+        ir::IrVerifyError::DuplicateParamId { .. }
+            | ir::IrVerifyError::DuplicateLocalId { .. }
+            | ir::IrVerifyError::DuplicateTempId { .. }
+    ));
+}
+
+#[test]
+fn verifier_rejects_bad_call_signature_return_mismatch_and_bad_branch_operand_type() {
+    let callee = IrFunction {
+        id: FunctionId(1),
+        name: "callee".into(),
+        params: vec![skeplib::ir::IrParam {
+            id: skeplib::ir::ParamId(0),
+            name: "x".into(),
+            ty: IrType::Int,
+        }],
+        locals: Vec::new(),
+        temps: Vec::new(),
+        ret_ty: IrType::Int,
+        entry: BlockId(0),
+        blocks: vec![BasicBlock {
+            id: BlockId(0),
+            name: "entry".into(),
+            instrs: Vec::new(),
+            terminator: Terminator::Return(Some(ir::Operand::Const(ir::ConstValue::Int(1)))),
+        }],
+    };
+    let main = IrFunction {
+        id: FunctionId(0),
+        name: "main".into(),
+        params: Vec::new(),
+        locals: Vec::new(),
+        temps: vec![IrTemp {
+            id: TempId(0),
+            ty: IrType::Bool,
+        }],
+        ret_ty: IrType::Int,
+        entry: BlockId(0),
+        blocks: vec![
+            BasicBlock {
+                id: BlockId(0),
+                name: "entry".into(),
+                instrs: vec![Instr::CallDirect {
+                    dst: Some(TempId(0)),
+                    function: FunctionId(1),
+                    args: Vec::new(),
+                    ret_ty: IrType::Int,
+                }],
+                terminator: Terminator::Branch(ir::BranchTerminator {
+                    cond: ir::Operand::Const(ir::ConstValue::Int(1)),
+                    then_block: BlockId(1),
+                    else_block: BlockId(1),
+                }),
+            },
+            BasicBlock {
+                id: BlockId(1),
+                name: "exit".into(),
+                instrs: Vec::new(),
+                terminator: Terminator::Return(None),
+            },
+        ],
+    };
+    let program = IrProgram {
+        functions: vec![main, callee],
+        globals: Vec::new(),
+        structs: Vec::new(),
+        module_init: None,
+    };
+    let err = IrVerifier::verify_program(&program).expect_err("verifier should fail");
+    assert!(matches!(
+        err,
+        ir::IrVerifyError::BadCallSignature { .. }
+            | ir::IrVerifyError::ReturnTypeMismatch { .. }
+            | ir::IrVerifyError::OperandTypeMismatch { .. }
+    ));
+}
