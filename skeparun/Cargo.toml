@@ -1,7 +1,0 @@
-[package]
-name = "skeparun"
-version = "0.11.0"
-edition = "2024"
-
-[dependencies]
-skeplib = { version = "0.11.0", path = "../skeplib" }

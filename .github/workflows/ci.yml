@@ -20,6 +20,6 @@ jobs:
       - name: Run Workspace Tests
         run: cargo test --workspace
       - name: Build Release Bench Targets
-        run: cargo build --release -p skepac -p skeparun -p skepabench
+        run: cargo build --release -p skepac -p skepabench
       - name: Run Release Benchmark Compare
         run: cargo run --release -p skepabench -- --profile release --compare

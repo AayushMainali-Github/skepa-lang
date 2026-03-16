@@ -3,8 +3,7 @@
 Skepa is a statically typed compiled language implemented in Rust.
 
 Tools:
-- `skepac`: check/build/disassemble
-- `skeparun`: run source or bytecode
+- `skepac`: check, run, and build native artifacts
 
 ## Install
 
@@ -21,7 +20,6 @@ Extract and add binaries to `PATH`.
 
 ```bash
 cargo install --git https://github.com/AayushMainali-Github/skepa-lang skepac
-cargo install --git https://github.com/AayushMainali-Github/skepa-lang skeparun
 ```
 
 ### 3) Build/install locally
@@ -39,22 +37,17 @@ Linux/macOS (bash):
 Manual:
 ```bash
 cargo install --path skepac
-cargo install --path skeparun
 ```
 
 ## Run
 
 ```bash
 skepac check app.sk
-skepac build app.sk app.skbc
-skeparun run app.sk
-skeparun run-bc app.skbc
-skepac disasm app.sk
+skepac run app.sk
+skepac build-native app.sk app.exe
+skepac build-obj app.sk app.obj
+skepac build-llvm-ir app.sk app.ll
 ```
-
-Runtime options:
-- `skeparun run --trace app.sk` enables VM trace output.
-- `SKEPA_MAX_CALL_DEPTH` can be set to control call depth and must be an integer `>= 1`.
 
 ## Examples
 

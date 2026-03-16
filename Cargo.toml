@@ -4,6 +4,5 @@ members = [
   "skepart",
   "skepac",
   "skepabench",
-  "skeparun",
   "skeplib",
 ]

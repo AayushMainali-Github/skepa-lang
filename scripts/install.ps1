@@ -19,7 +19,4 @@ if ($Force) {
 Write-Host "Installing skepac..."
 & cargo @args --path (Join-Path $root "skepac")
 
-Write-Host "Installing skeparun..."
-& cargo @args --path (Join-Path $root "skeparun")
-
 Write-Host "Done. Ensure `%USERPROFILE%\.cargo\bin` is on PATH."

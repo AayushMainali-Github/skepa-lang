@@ -11,7 +11,4 @@ ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 echo "Installing skepac..."
 cargo install --path "$ROOT_DIR/skepac"
 
-echo "Installing skeparun..."
-cargo install --path "$ROOT_DIR/skeparun"
-
 echo "Done. Ensure ~/.cargo/bin is on PATH."

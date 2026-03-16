@@ -492,11 +492,7 @@ Resolver messages include module/path context and may include `did you mean ...`
 ## 10. CLI Quick Reference
 
 - `skepac check <entry.sk>`
-- `skepac build <entry.sk> <out.skbc>`
-- `skepac disasm <entry.sk | out.skbc>`
-- `skeparun run <entry.sk>`
-- `skeparun run-bc <out.skbc>`
-
-Runtime env config:
-- `SKEPA_MAX_CALL_DEPTH`: maximum VM call depth, required to be an integer `>= 1` when set.
-- `--trace` on `skeparun` enables instruction trace output.
+- `skepac run <entry.sk>`
+- `skepac build-native <entry.sk> <out.exe>`
+- `skepac build-obj <entry.sk> <out.obj>`
+- `skepac build-llvm-ir <entry.sk> <out.ll>`

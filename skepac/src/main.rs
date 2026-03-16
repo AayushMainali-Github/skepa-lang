@@ -3,7 +3,6 @@ use std::fs;
 use std::path::Path;
 use std::process::{Command, ExitCode};
 
-use skeplib::bytecode::{BytecodeModule, compile_project_entry};
 use skeplib::codegen;
 use skeplib::diagnostic::Diagnostic;
 use skeplib::ir;
@@ -16,7 +15,6 @@ const EXIT_IO: u8 = 3;
 const EXIT_PARSE: u8 = 10;
 const EXIT_SEMA: u8 = 11;
 const EXIT_CODEGEN: u8 = 12;
-const EXIT_DECODE: u8 = 13;
 const EXIT_RESOLVE: u8 = 15;
 
 fn main() -> ExitCode {
@@ -47,31 +45,6 @@ fn run() -> Result<ExitCode, String> {
                 return Err("Usage: skepac check <file.sk>".to_string());
             }
             check_file(&path)
-        }
-        "build" => {
-            eprintln!(
-                "warning: `skepac build` is deprecated; use `skepac build-native` or `skepac build-obj`"
-            );
-            let Some(input) = args.next() else {
-                return Err("Usage: skepac build <in.sk> <out.skbc>".to_string());
-            };
-            let Some(output) = args.next() else {
-                return Err("Usage: skepac build <in.sk> <out.skbc>".to_string());
-            };
-            if args.next().is_some() {
-                return Err("Usage: skepac build <in.sk> <out.skbc>".to_string());
-            }
-            build_file(&input, &output)
-        }
-        "disasm" => {
-            eprintln!("warning: `skepac disasm` is deprecated; use `skepac build-llvm-ir`");
-            let Some(path) = args.next() else {
-                return Err("Usage: skepac disasm <file.sk|file.skbc>".to_string());
-            };
-            if args.next().is_some() {
-                return Err("Usage: skepac disasm <file.sk|file.skbc>".to_string());
-            }
-            disasm_file(&path)
         }
         "run" => {
             let Some(input) = args.next() else {
@@ -152,45 +125,6 @@ fn check_file(path: &str) -> Result<ExitCode, String> {
             Ok(ExitCode::from(EXIT_RESOLVE))
         }
     }
-}
-
-fn build_file(input: &str, output: &str) -> Result<ExitCode, String> {
-    match analyze_project_entry_phased(Path::new(input)) {
-        Ok((_sema, parse_diags, sema_diags)) => {
-            if !parse_diags.is_empty() {
-                for d in parse_diags.as_slice() {
-                    print_diag("parse", d);
-                }
-                return Ok(ExitCode::from(EXIT_PARSE));
-            }
-            if !sema_diags.is_empty() {
-                for d in sema_diags.as_slice() {
-                    print_diag("sema", d);
-                }
-                return Ok(ExitCode::from(EXIT_SEMA));
-            }
-        }
-        Err(errs) => {
-            print_resolve_errors(&errs);
-            return Ok(ExitCode::from(EXIT_RESOLVE));
-        }
-    }
-
-    let module = match compile_project_entry(Path::new(input)) {
-        Ok(m) => m,
-        Err(errs) => {
-            print_resolve_errors(&errs);
-            return Ok(ExitCode::from(EXIT_CODEGEN));
-        }
-    };
-
-    let bytes = module.to_bytes();
-    if let Err(e) = fs::write(output, bytes) {
-        eprintln!("Failed to write `{output}`: {e}");
-        return Ok(ExitCode::from(EXIT_IO));
-    }
-    println!("built: {output}");
-    Ok(ExitCode::from(EXIT_OK))
 }
 
 fn build_object_file(input: &str, output: &str) -> Result<ExitCode, String> {
@@ -308,61 +242,6 @@ fn validate_frontend(input: &str) -> Result<Option<ExitCode>, String> {
             Ok(Some(ExitCode::from(EXIT_RESOLVE)))
         }
     }
-}
-
-fn disasm_file(path: &str) -> Result<ExitCode, String> {
-    if path.ends_with(".skbc") {
-        let bytes = match fs::read(path) {
-            Ok(b) => b,
-            Err(e) => {
-                eprintln!("Failed to read `{path}`: {e}");
-                return Ok(ExitCode::from(EXIT_IO));
-            }
-        };
-        let module = match BytecodeModule::from_bytes(&bytes) {
-            Ok(m) => m,
-            Err(e) => {
-                eprintln!("Failed to decode `{path}`: {e}");
-                return Ok(ExitCode::from(EXIT_DECODE));
-            }
-        };
-        print!("{}", module.disassemble());
-        return Ok(ExitCode::from(EXIT_OK));
-    }
-
-    if path.ends_with(".sk") {
-        match analyze_project_entry_phased(Path::new(path)) {
-            Ok((_sema, parse_diags, sema_diags)) => {
-                if !parse_diags.is_empty() {
-                    for d in parse_diags.as_slice() {
-                        print_diag("parse", d);
-                    }
-                    return Ok(ExitCode::from(EXIT_PARSE));
-                }
-                if !sema_diags.is_empty() {
-                    for d in sema_diags.as_slice() {
-                        print_diag("sema", d);
-                    }
-                    return Ok(ExitCode::from(EXIT_SEMA));
-                }
-            }
-            Err(errs) => {
-                print_resolve_errors(&errs);
-                return Ok(ExitCode::from(EXIT_RESOLVE));
-            }
-        }
-        let module = match compile_project_entry(Path::new(path)) {
-            Ok(m) => m,
-            Err(errs) => {
-                print_resolve_errors(&errs);
-                return Ok(ExitCode::from(EXIT_CODEGEN));
-            }
-        };
-        print!("{}", module.disassemble());
-        return Ok(ExitCode::from(EXIT_OK));
-    }
-
-    Err("disasm supports only .sk and .skbc files".to_string())
 }
 
 fn print_diag(phase: &str, d: &Diagnostic) {

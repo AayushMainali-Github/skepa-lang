@@ -374,23 +374,24 @@ fn benchmark_cases(
     ];
 
     let cli_tools = cli_tools(&opts.profile)?;
-    if let Some((skepac, skeparun)) = cli_tools {
+    if let Some(skepac) = cli_tools {
         let skepac_small = skepac.clone();
         cases.push(BenchCase {
             name: "cli_small_check",
             kind: CaseKind::Cli,
             runner: Box::new({
+                let skepac_small = skepac_small.clone();
                 let small_path = workspace.small_file.clone();
                 move || run_command(&skepac_small, &["check", path_str(&small_path)?])
             }),
         });
-        let skeparun_small = skeparun.clone();
         cases.push(BenchCase {
             name: "cli_small_run",
             kind: CaseKind::Cli,
             runner: Box::new({
+                let skepac_small = skepac_small.clone();
                 let small_path = workspace.small_file.clone();
-                move || run_command(&skeparun_small, &["run", path_str(&small_path)?])
+                move || run_command(&skepac_small, &["run", path_str(&small_path)?])
             }),
         });
         let skepac_medium = skepac.clone();
@@ -398,35 +399,36 @@ fn benchmark_cases(
             name: "cli_medium_check",
             kind: CaseKind::Cli,
             runner: Box::new({
+                let skepac_medium = skepac_medium.clone();
                 let medium_path = workspace.medium_entry.clone();
                 move || run_command(&skepac_medium, &["check", path_str(&medium_path)?])
             }),
         });
-        let skeparun_medium = skeparun.clone();
         cases.push(BenchCase {
             name: "cli_medium_run",
             kind: CaseKind::Cli,
             runner: Box::new({
+                let skepac_medium = skepac_medium.clone();
                 let medium_path = workspace.medium_entry.clone();
-                move || run_command(&skeparun_medium, &["run", path_str(&medium_path)?])
+                move || run_command(&skepac_medium, &["run", path_str(&medium_path)?])
             }),
         });
     } else {
         cases.push(skipped_case(
             "cli_small_check",
-            "missing skepac/skeparun binary in selected profile",
+            "missing skepac binary in selected profile",
         ));
         cases.push(skipped_case(
             "cli_small_run",
-            "missing skepac/skeparun binary in selected profile",
+            "missing skepac binary in selected profile",
         ));
         cases.push(skipped_case(
             "cli_medium_check",
-            "missing skepac/skeparun binary in selected profile",
+            "missing skepac binary in selected profile",
         ));
         cases.push(skipped_case(
             "cli_medium_run",
-            "missing skepac/skeparun binary in selected profile",
+            "missing skepac binary in selected profile",
         ));
     }
 
@@ -441,7 +443,7 @@ fn skipped_case(name: &'static str, reason: &'static str) -> BenchCase {
     }
 }
 
-fn cli_tools(profile: &str) -> Result<Option<(PathBuf, PathBuf)>, String> {
+fn cli_tools(profile: &str) -> Result<Option<PathBuf>, String> {
     let exe_dir = env::current_exe()
         .map_err(|err| err.to_string())?
         .parent()
@@ -458,9 +460,8 @@ fn cli_tools(profile: &str) -> Result<Option<(PathBuf, PathBuf)>, String> {
     }
 
     let skepac = exe_dir.join(exe_name("skepac"));
-    let skeparun = exe_dir.join(exe_name("skeparun"));
-    if skepac.exists() && skeparun.exists() {
-        Ok(Some((skepac, skeparun)))
+    if skepac.exists() {
+        Ok(Some(skepac))
     } else {
         Ok(None)
     }

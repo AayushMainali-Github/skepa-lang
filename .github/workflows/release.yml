@@ -23,7 +23,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Build Release Binaries
-        run: cargo build --release -p skepac -p skeparun
+        run: cargo build --release -p skepac
 
       - name: Package (Unix)
         if: runner.os != 'Windows'
@@ -36,7 +36,6 @@ jobs:
           PKG="skepa-${OS_LOWER}-x64"
           mkdir -p "$PKG"
           cp target/release/skepac "$PKG/"
-          cp target/release/skeparun "$PKG/"
           cp README.md "$PKG/"
           cp DOCS.md "$PKG/"
           tar -czf "$ARCHIVE_DIR/$PKG.tar.gz" "$PKG"
@@ -49,7 +48,6 @@ jobs:
           $pkg = "skepa-windows-x64"
           New-Item -ItemType Directory -Force $pkg | Out-Null
           Copy-Item target\release\skepac.exe "$pkg\"
-          Copy-Item target\release\skeparun.exe "$pkg\"
           Copy-Item README.md "$pkg\"
           Copy-Item DOCS.md "$pkg\"
           Compress-Archive -Path $pkg -DestinationPath "dist\$pkg.zip" -Force

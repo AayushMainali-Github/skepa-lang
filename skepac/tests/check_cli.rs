@@ -160,149 +160,6 @@ fn missing_file_fails() {
 }
 
 #[test]
-fn build_writes_bytecode_artifact() {
-    let tmp = make_temp_dir("skepac_build");
-    let source = tmp.join("main.sk");
-    let out = tmp.join("main.skbc");
-    fs::write(
-        &source,
-        r#"
-fn main() -> Int {
-  return 7;
-}
-"#,
-    )
-    .expect("write source");
-
-    let output = Command::new(skepac_bin())
-        .arg("build")
-        .arg(&source)
-        .arg(&out)
-        .output()
-        .expect("run skepac build");
-
-    assert!(output.status.success(), "{:?}", output);
-    assert!(out.exists());
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("deprecated"));
-}
-
-#[test]
-fn build_malformed_source_is_reported_as_parse_error() {
-    let tmp = make_temp_dir("skepac_build_parse_bad");
-    let source = tmp.join("bad.sk");
-    let out = tmp.join("bad.skbc");
-    fs::write(
-        &source,
-        r#"
-fn main( -> Int {
-  return 0;
-}
-"#,
-    )
-    .expect("write source");
-
-    let output = Command::new(skepac_bin())
-        .arg("build")
-        .arg(&source)
-        .arg(&out)
-        .output()
-        .expect("run skepac build");
-
-    assert_eq!(output.status.code(), Some(10));
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("[E-PARSE][parse]"));
-}
-
-#[test]
-fn disasm_source_prints_bytecode_text() {
-    let tmp = make_temp_dir("skepac_disasm_src");
-    let source = tmp.join("main.sk");
-    fs::write(
-        &source,
-        r#"
-fn main() -> Int {
-  return 1 + 2;
-}
-"#,
-    )
-    .expect("write source");
-
-    let output = Command::new(skepac_bin())
-        .arg("disasm")
-        .arg(&source)
-        .output()
-        .expect("run skepac disasm");
-
-    assert!(output.status.success(), "{:?}", output);
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stdout.contains("fn main"));
-    assert!(stdout.contains("Add"));
-    assert!(stderr.contains("deprecated"));
-}
-
-#[test]
-fn disasm_malformed_source_is_reported_as_parse_error() {
-    let tmp = make_temp_dir("skepac_disasm_parse_bad");
-    let source = tmp.join("bad.sk");
-    fs::write(
-        &source,
-        r#"
-fn main( -> Int {
-  return 0;
-}
-"#,
-    )
-    .expect("write source");
-
-    let output = Command::new(skepac_bin())
-        .arg("disasm")
-        .arg(&source)
-        .output()
-        .expect("run skepac disasm");
-
-    assert_eq!(output.status.code(), Some(10));
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("[E-PARSE][parse]"));
-}
-
-#[test]
-fn disasm_bytecode_file_prints_text() {
-    let tmp = make_temp_dir("skepac_disasm_bc");
-    let source = tmp.join("main.sk");
-    let bc = tmp.join("main.skbc");
-    fs::write(
-        &source,
-        r#"
-fn main() -> Int {
-  return 3;
-}
-"#,
-    )
-    .expect("write source");
-
-    let build_out = Command::new(skepac_bin())
-        .arg("build")
-        .arg(&source)
-        .arg(&bc)
-        .output()
-        .expect("run build");
-    assert!(build_out.status.success(), "{:?}", build_out);
-
-    let disasm_out = Command::new(skepac_bin())
-        .arg("disasm")
-        .arg(&bc)
-        .output()
-        .expect("run disasm");
-    assert!(disasm_out.status.success(), "{:?}", disasm_out);
-    let stdout = String::from_utf8_lossy(&disasm_out.stdout);
-    let stderr = String::from_utf8_lossy(&disasm_out.stderr);
-    assert!(stdout.contains("LoadConst Int(3)"));
-    assert!(stderr.contains("deprecated"));
-}
-
-#[test]
 fn check_accepts_new_language_features_program() {
     let tmp = make_temp_dir("skepac_check_new_features");
     let file = tmp.join("features.sk");
@@ -471,34 +328,6 @@ fn main() -> Int {
 }
 
 #[test]
-fn disasm_includes_mod_and_short_circuit_instructions() {
-    let tmp = make_temp_dir("skepac_disasm_new_ops");
-    let source = tmp.join("main.sk");
-    fs::write(
-        &source,
-        r#"
-fn main() -> Int {
-  if (true || false) {
-    return 8 % 3;
-  }
-  return 0;
-}
-"#,
-    )
-    .expect("write source");
-
-    let output = Command::new(skepac_bin())
-        .arg("disasm")
-        .arg(&source)
-        .output()
-        .expect("run disasm");
-    assert!(output.status.success(), "{:?}", output);
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("JumpIfTrue"));
-    assert!(stdout.contains("ModInt") || stdout.contains("IntStackConstOp op=Mod"));
-}
-
-#[test]
 fn check_accepts_for_loop_control_flow_program() {
     let tmp = make_temp_dir("skepac_check_for_features");
     let file = tmp.join("for_features.sk");
@@ -531,12 +360,13 @@ fn main() -> Int {
 }
 
 #[test]
-fn multi_file_project_check_build_disasm_work() {
+fn multi_file_project_check_build_native_and_ir_work() {
     let tmp = make_temp_dir("skepac_multi");
     fs::create_dir_all(tmp.join("utils")).expect("create utils");
     let main = tmp.join("main.sk");
     let util = tmp.join("utils").join("math.sk");
-    let out = tmp.join("main.skbc");
+    let out = tmp.join(format!("main.{}", exe_ext()));
+    let ir = tmp.join("main.ll");
 
     fs::write(
         &util,
@@ -563,7 +393,7 @@ fn main() -> Int { return add(20, 22); }
     assert_eq!(check.status.code(), Some(0));
 
     let build = Command::new(skepac_bin())
-        .arg("build")
+        .arg("build-native")
         .arg(&main)
         .arg(&out)
         .output()
@@ -571,14 +401,15 @@ fn main() -> Int { return add(20, 22); }
     assert_eq!(build.status.code(), Some(0));
     assert!(out.exists());
 
-    let disasm = Command::new(skepac_bin())
-        .arg("disasm")
+    let llvm_ir = Command::new(skepac_bin())
+        .arg("build-llvm-ir")
         .arg(&main)
+        .arg(&ir)
         .output()
-        .expect("run disasm");
-    assert_eq!(disasm.status.code(), Some(0));
-    let stdout = String::from_utf8_lossy(&disasm.stdout);
-    assert!(stdout.contains("fn utils.math::add"));
+        .expect("run build-llvm-ir");
+    assert_eq!(llvm_ir.status.code(), Some(0));
+    let text = fs::read_to_string(&ir).expect("read llvm ir");
+    assert!(text.contains("define i64 @\"utils.math::add\""));
 }
 
 #[test]
@@ -609,7 +440,7 @@ fn main() -> Int { return 0; }
 fn build_resolver_error_uses_resolver_code_not_io_code() {
     let tmp = make_temp_dir("skepac_build_resolve_err");
     let main = tmp.join("main.sk");
-    let out = tmp.join("main.skbc");
+    let out = tmp.join(format!("main.{}", exe_ext()));
     fs::write(
         &main,
         r#"
@@ -620,11 +451,11 @@ fn main() -> Int { return 0; }
     .expect("write main");
 
     let output = Command::new(skepac_bin())
-        .arg("build")
+        .arg("build-native")
         .arg(&main)
         .arg(&out)
         .output()
-        .expect("run build");
+        .expect("run build-native");
     assert_eq!(output.status.code(), Some(15));
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("[E-MOD-NOT-FOUND][resolve]"));
