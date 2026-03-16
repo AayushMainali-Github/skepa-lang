@@ -1,5 +1,0 @@
-from models.user import User;
-fn main() -> Int {
-  let u: User = User { id: 30 };
-  return u.bump(12);
-}

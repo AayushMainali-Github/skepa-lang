@@ -1,2 +1,0 @@
-from utils.math import add;
-fn main() -> Int { return add(19, 23); }
