@@ -39,6 +39,8 @@ pub fn compile_source(source: &str) -> Result<IrProgram, DiagnosticBag> {
 struct IrLowerer {
     builder: IrBuilder,
     diags: DiagnosticBag,
+    functions: HashMap<String, (crate::ir::FunctionId, IrType)>,
+    globals: HashMap<String, (crate::ir::GlobalId, IrType)>,
 }
 
 struct FunctionLowering {
@@ -51,11 +53,49 @@ impl IrLowerer {
         Self {
             builder: IrBuilder::new(),
             diags: DiagnosticBag::new(),
+            functions: HashMap::new(),
+            globals: HashMap::new(),
         }
     }
 
     fn compile_program(&mut self, program: &Program) -> IrProgram {
         let mut out = self.builder.begin_program();
+
+        for (index, global) in program.globals.iter().enumerate() {
+            let ty = global
+                .ty
+                .as_ref()
+                .map(TypeInfo::from_ast)
+                .map(|ty| IrType::from(&ty))
+                .unwrap_or(IrType::Unknown);
+            let id = crate::ir::GlobalId(index);
+            self.globals.insert(global.name.clone(), (id, ty.clone()));
+            out.globals.push(crate::ir::IrGlobal {
+                id,
+                name: global.name.clone(),
+                ty,
+                init: None,
+            });
+        }
+
+        for (index, func) in program.functions.iter().enumerate() {
+            let ret_ty = func
+                .return_type
+                .as_ref()
+                .map(TypeInfo::from_ast)
+                .map(|ty| IrType::from(&ty))
+                .unwrap_or(IrType::Void);
+            self.functions
+                .insert(func.name.clone(), (crate::ir::FunctionId(index), ret_ty));
+        }
+
+        if !program.globals.is_empty() {
+            let mut init = self.builder.begin_function("__globals_init", IrType::Void);
+            if self.compile_globals_init(&mut init, program).is_some() {
+                out.module_init = Some(crate::ir::IrModuleInit { function: init.id });
+                out.functions.push(init);
+            }
+        }
 
         for func in &program.functions {
             if let Some(lowered) = self.compile_function(func) {
@@ -67,15 +107,15 @@ impl IrLowerer {
     }
 
     fn compile_function(&mut self, func: &FnDecl) -> Option<crate::ir::IrFunction> {
-        let ret_ty = func
-            .return_type
-            .as_ref()
-            .map(TypeInfo::from_ast)
-            .map(|ty| IrType::from(&ty))
-            .unwrap_or(IrType::Void);
+        let (function_id, ret_ty) = self
+            .functions
+            .get(&func.name)
+            .cloned()
+            .unwrap_or((crate::ir::FunctionId(usize::MAX), IrType::Void));
         let mut out = self
             .builder
             .begin_function(func.name.clone(), ret_ty.clone());
+        out.id = function_id;
         let mut lowering = FunctionLowering {
             current_block: out.entry,
             locals: HashMap::new(),
@@ -121,6 +161,38 @@ impl IrLowerer {
         }
 
         Some(out)
+    }
+
+    fn compile_globals_init(
+        &mut self,
+        func: &mut crate::ir::IrFunction,
+        program: &Program,
+    ) -> Option<()> {
+        let mut lowering = FunctionLowering {
+            current_block: func.entry,
+            locals: HashMap::new(),
+        };
+
+        for global in &program.globals {
+            let value = self.compile_expr(func, &mut lowering, &global.value)?;
+            let Some((id, ty)) = self.globals.get(&global.name).cloned() else {
+                self.unsupported(format!("global `{}` was not registered", global.name));
+                return None;
+            };
+            self.builder.push_instr(
+                func,
+                lowering.current_block,
+                Instr::StoreGlobal {
+                    global: id,
+                    ty,
+                    value,
+                },
+            );
+        }
+
+        self.builder
+            .set_terminator(func, lowering.current_block, Terminator::Return(None));
+        Some(())
     }
 
     fn compile_stmt(
@@ -309,10 +381,23 @@ impl IrLowerer {
                 .get(name)
                 .copied()
                 .map(Operand::Local)
+                .or_else(|| self.globals.get(name).map(|(id, _)| Operand::Global(*id)))
                 .or_else(|| {
                     self.unsupported(format!("reference to unresolved identifier `{name}`"));
                     None
                 }),
+            Expr::Path(parts) => {
+                let name = parts.join(".");
+                self.globals
+                    .get(&name)
+                    .map(|(id, _)| Operand::Global(*id))
+                    .or_else(|| {
+                        self.unsupported(format!(
+                            "path `{name}` is not in the initial IR lowering subset"
+                        ));
+                        None
+                    })
+            }
             Expr::Group(inner) => self.compile_expr(func, lowering, inner),
             Expr::Unary { op, expr } => {
                 let operand = self.compile_expr(func, lowering, expr)?;
@@ -372,6 +457,7 @@ impl IrLowerer {
                 }
                 Some(Operand::Temp(dst))
             }
+            Expr::Call { callee, args } => self.compile_call(func, lowering, callee, args),
             _ => {
                 self.unsupported("expression form is not in the initial IR lowering subset");
                 None
@@ -399,6 +485,92 @@ impl IrLowerer {
                 .map(|local| local.ty.clone())
                 .unwrap_or(IrType::Unknown),
             Operand::Global(_) => IrType::Unknown,
+        }
+    }
+
+    fn compile_call(
+        &mut self,
+        func: &mut crate::ir::IrFunction,
+        lowering: &mut FunctionLowering,
+        callee: &Expr,
+        args: &[Expr],
+    ) -> Option<Operand> {
+        let mut lowered_args = Vec::with_capacity(args.len());
+        for arg in args {
+            lowered_args.push(self.compile_expr(func, lowering, arg)?);
+        }
+
+        match callee {
+            Expr::Ident(name) => {
+                if let Some((function, ret_ty)) = self.functions.get(name).cloned() {
+                    let dst = if ret_ty.is_void() {
+                        None
+                    } else {
+                        Some(self.builder.push_temp(func, ret_ty.clone()))
+                    };
+                    self.builder.push_instr(
+                        func,
+                        lowering.current_block,
+                        Instr::CallDirect {
+                            dst,
+                            ret_ty: ret_ty.clone(),
+                            function,
+                            args: lowered_args,
+                        },
+                    );
+                    OkOperand::from_call_result(dst)
+                } else {
+                    let callee = self.compile_expr(func, lowering, callee)?;
+                    let dst = self.builder.push_temp(func, IrType::Unknown);
+                    self.builder.push_instr(
+                        func,
+                        lowering.current_block,
+                        Instr::CallIndirect {
+                            dst: Some(dst),
+                            ret_ty: IrType::Unknown,
+                            callee,
+                            args: lowered_args,
+                        },
+                    );
+                    Some(Operand::Temp(dst))
+                }
+            }
+            Expr::Field { base, field } => {
+                let Expr::Ident(package) = base.as_ref() else {
+                    self.unsupported("field-style call is not in the initial IR lowering subset");
+                    return None;
+                };
+                let dst = self.builder.push_temp(func, IrType::Unknown);
+                self.builder.push_instr(
+                    func,
+                    lowering.current_block,
+                    Instr::CallBuiltin {
+                        dst: Some(dst),
+                        ret_ty: IrType::Unknown,
+                        builtin: crate::ir::BuiltinCall {
+                            package: package.clone(),
+                            name: field.clone(),
+                        },
+                        args: lowered_args,
+                    },
+                );
+                Some(Operand::Temp(dst))
+            }
+            _ => {
+                let callee = self.compile_expr(func, lowering, callee)?;
+                let dst = self.builder.push_temp(func, IrType::Unknown);
+                self.builder.push_instr(
+                    func,
+                    lowering.current_block,
+                    Instr::CallIndirect {
+                        dst: Some(dst),
+                        ret_ty: IrType::Unknown,
+                        callee,
+                        args: lowered_args,
+                    },
+                );
+                Some(Operand::Temp(dst))
+            }
         }
     }
 
@@ -466,5 +638,16 @@ impl IrLowerer {
 
     fn unsupported(&mut self, message: impl Into<String>) {
         self.diags.error(message, Span::default());
+    }
+}
+
+struct OkOperand;
+
+impl OkOperand {
+    fn from_call_result(dst: Option<crate::ir::TempId>) -> Option<Operand> {
+        Some(match dst {
+            Some(dst) => Operand::Temp(dst),
+            None => Operand::Const(ConstValue::Unit),
+        })
     }
 }

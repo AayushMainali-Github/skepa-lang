@@ -23,3 +23,30 @@ fn add_loop(n: Int) -> Int {
     assert!(printed.contains("fn add_loop"));
     assert!(printed.contains("while_cond") || printed.contains("Branch"));
 }
+
+#[test]
+fn lower_globals_and_direct_calls_to_ir() {
+    let source = r#"
+let seed: Int = 41;
+
+fn inc(x: Int) -> Int {
+  return x + 1;
+}
+
+fn main() -> Int {
+  let x = inc(seed);
+  let y = str.len("abc");
+  return x + y;
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    assert_eq!(program.globals.len(), 1);
+    assert!(program.module_init.is_some());
+    assert!(program.functions.iter().any(|f| f.name == "__globals_init"));
+
+    let printed = PrettyIr::new(&program).to_string();
+    assert!(printed.contains("CallDirect"));
+    assert!(printed.contains("CallBuiltin"));
+    assert!(printed.contains("StoreGlobal"));
+}
