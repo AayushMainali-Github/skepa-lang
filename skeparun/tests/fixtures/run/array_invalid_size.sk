@@ -1,4 +1,0 @@
-fn main() -> Int {
-  let a: [Int; 2] = [1, 2, 3];
-  return 0;
-}

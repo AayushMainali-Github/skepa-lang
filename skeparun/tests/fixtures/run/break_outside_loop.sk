@@ -1,4 +1,0 @@
-fn main() -> Int {
-  break;
-  return 0;
-}

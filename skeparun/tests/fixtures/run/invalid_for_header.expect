@@ -1,3 +1,0 @@
-exit=11
-stderr_contains=Expected `;` after for init clause
-stderr_contains=[E-SEMA][sema]

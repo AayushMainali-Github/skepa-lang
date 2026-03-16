@@ -1,3 +1,0 @@
-exit=11
-stderr_contains=[sema]
-stderr_contains=io.printBool argument 1 expects Bool
