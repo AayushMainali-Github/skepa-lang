@@ -2,25 +2,17 @@ use std::path::PathBuf;
 use std::process::Command;
 
 #[test]
-fn examples_run_successfully() {
-    run_example("master.sk", 0);
-}
-
-fn run_example(name: &str, expected_code: i32) {
-    let path = repo_root().join("examples").join(name);
+fn examples_report_deprecation_through_skeparun() {
+    let path = repo_root().join("examples").join("master.sk");
     let output = Command::new(skeparun_bin())
         .arg("run")
         .arg(&path)
         .output()
         .expect("run skeparun");
-    assert_eq!(
-        output.status.code(),
-        Some(expected_code),
-        "example {} failed\nstdout:\n{}\nstderr:\n{}",
-        name,
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
+
+    assert_eq!(output.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("skeparun has been removed; use `skepac run`"));
 }
 
 fn skeparun_bin() -> &'static str {

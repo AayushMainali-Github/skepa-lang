@@ -1,7 +1,7 @@
 use std::env;
 use std::fs;
 use std::path::Path;
-use std::process::ExitCode;
+use std::process::{Command, ExitCode};
 
 use skeplib::bytecode::{BytecodeModule, compile_project_entry};
 use skeplib::codegen;
@@ -33,7 +33,7 @@ fn run() -> Result<ExitCode, String> {
     let mut args = env::args().skip(1);
     let Some(cmd) = args.next() else {
         return Err(
-            "Usage: skepac check <entry.sk> | skepac build <entry.sk> <out.skbc> | skepac build-native <entry.sk> <out.exe> | skepac build-obj <entry.sk> <out.obj> | skepac disasm <entry.sk|file.skbc>"
+            "Usage: skepac check <entry.sk> | skepac run <entry.sk> | skepac build-native <entry.sk> <out.exe> | skepac build-obj <entry.sk> <out.obj> | skepac build-llvm-ir <entry.sk> <out.ll>"
                 .to_string(),
         );
     };
@@ -49,6 +49,9 @@ fn run() -> Result<ExitCode, String> {
             check_file(&path)
         }
         "build" => {
+            eprintln!(
+                "warning: `skepac build` is deprecated; use `skepac build-native` or `skepac build-obj`"
+            );
             let Some(input) = args.next() else {
                 return Err("Usage: skepac build <in.sk> <out.skbc>".to_string());
             };
@@ -61,6 +64,7 @@ fn run() -> Result<ExitCode, String> {
             build_file(&input, &output)
         }
         "disasm" => {
+            eprintln!("warning: `skepac disasm` is deprecated; use `skepac build-llvm-ir`");
             let Some(path) = args.next() else {
                 return Err("Usage: skepac disasm <file.sk|file.skbc>".to_string());
             };
@@ -68,6 +72,15 @@ fn run() -> Result<ExitCode, String> {
                 return Err("Usage: skepac disasm <file.sk|file.skbc>".to_string());
             }
             disasm_file(&path)
+        }
+        "run" => {
+            let Some(input) = args.next() else {
+                return Err("Usage: skepac run <in.sk>".to_string());
+            };
+            if args.next().is_some() {
+                return Err("Usage: skepac run <in.sk>".to_string());
+            }
+            run_native_file(&input)
         }
         "build-native" => {
             let Some(input) = args.next() else {
@@ -80,6 +93,18 @@ fn run() -> Result<ExitCode, String> {
                 return Err("Usage: skepac build-native <in.sk> <out.exe>".to_string());
             }
             build_native_file(&input, &output)
+        }
+        "build-llvm-ir" => {
+            let Some(input) = args.next() else {
+                return Err("Usage: skepac build-llvm-ir <in.sk> <out.ll>".to_string());
+            };
+            let Some(output) = args.next() else {
+                return Err("Usage: skepac build-llvm-ir <in.sk> <out.ll>".to_string());
+            };
+            if args.next().is_some() {
+                return Err("Usage: skepac build-llvm-ir <in.sk> <out.ll>".to_string());
+            }
+            build_llvm_ir_file(&input, &output)
         }
         "build-obj" => {
             let Some(input) = args.next() else {
@@ -94,7 +119,8 @@ fn run() -> Result<ExitCode, String> {
             build_object_file(&input, &output)
         }
         _ => Err(
-            "Unknown command. Supported: check, build, build-native, build-obj, disasm".to_string(),
+            "Unknown command. Supported: check, run, build-native, build-obj, build-llvm-ir"
+                .to_string(),
         ),
     }
 }
@@ -203,6 +229,61 @@ fn build_native_file(input: &str, output: &str) -> Result<ExitCode, String> {
     }
     println!("built native: {output}");
     Ok(ExitCode::from(EXIT_OK))
+}
+
+fn build_llvm_ir_file(input: &str, output: &str) -> Result<ExitCode, String> {
+    if let Some(code) = validate_frontend(input)? {
+        return Ok(code);
+    }
+    let program = match ir::lowering::compile_project_entry(Path::new(input)) {
+        Ok(program) => program,
+        Err(errs) => {
+            print_resolve_errors(&errs);
+            return Ok(ExitCode::from(EXIT_CODEGEN));
+        }
+    };
+    if let Err(err) = codegen::write_program_llvm_ir(&program, Path::new(output)) {
+        eprintln!("[E-CODEGEN][codegen] {err}");
+        return Ok(ExitCode::from(EXIT_CODEGEN));
+    }
+    println!("built llvm ir: {output}");
+    Ok(ExitCode::from(EXIT_OK))
+}
+
+fn run_native_file(input: &str) -> Result<ExitCode, String> {
+    if let Some(code) = validate_frontend(input)? {
+        return Ok(code);
+    }
+    let program = match ir::lowering::compile_project_entry(Path::new(input)) {
+        Ok(program) => program,
+        Err(errs) => {
+            print_resolve_errors(&errs);
+            return Ok(ExitCode::from(EXIT_CODEGEN));
+        }
+    };
+    let exe_path = temp_native_path();
+    if let Err(err) = codegen::compile_program_to_executable(&program, &exe_path) {
+        eprintln!("[E-CODEGEN][codegen] {err}");
+        return Ok(ExitCode::from(EXIT_CODEGEN));
+    }
+    let output = Command::new(&exe_path).output();
+    let _ = fs::remove_file(&exe_path);
+    let output = match output {
+        Ok(output) => output,
+        Err(err) => {
+            eprintln!("[E-CODEGEN][codegen] failed to run native executable: {err}");
+            return Ok(ExitCode::from(EXIT_CODEGEN));
+        }
+    };
+    if !output.stdout.is_empty() {
+        print!("{}", String::from_utf8_lossy(&output.stdout));
+    }
+    if !output.stderr.is_empty() {
+        eprint!("{}", String::from_utf8_lossy(&output.stderr));
+    }
+    Ok(ExitCode::from(
+        output.status.code().unwrap_or(EXIT_CODEGEN as i32) as u8,
+    ))
 }
 
 fn validate_frontend(input: &str) -> Result<Option<ExitCode>, String> {
@@ -314,4 +395,13 @@ fn phase_code(phase: &str) -> &'static str {
         "codegen" => "E-CODEGEN",
         _ => "E-UNKNOWN",
     }
+}
+
+fn temp_native_path() -> std::path::PathBuf {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("time should be monotonic enough for temp path")
+        .as_nanos();
+    let ext = if cfg!(windows) { "exe" } else { "out" };
+    std::env::temp_dir().join(format!("skepac_run_{nanos}.{ext}"))
 }

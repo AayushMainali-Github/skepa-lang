@@ -82,7 +82,7 @@ fn check_without_arguments_shows_usage_and_fails() {
     let output = Command::new(skepac_bin()).output().expect("run skepac");
     assert_eq!(output.status.code(), Some(2));
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("Usage: skepac check <entry.sk> | skepac build <entry.sk> <out.skbc> | skepac build-native <entry.sk> <out.exe> | skepac build-obj <entry.sk> <out.obj>"));
+    assert!(stderr.contains("Usage: skepac check <entry.sk> | skepac run <entry.sk> | skepac build-native <entry.sk> <out.exe> | skepac build-obj <entry.sk> <out.obj> | skepac build-llvm-ir <entry.sk> <out.ll>"));
 }
 
 #[test]
@@ -94,6 +94,57 @@ fn unknown_command_fails() {
     assert_eq!(output.status.code(), Some(2));
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("Unknown command"));
+}
+
+#[test]
+fn run_executes_native_temp_binary_and_returns_exit_code() {
+    let tmp = make_temp_dir("skepac_run_native");
+    let source = tmp.join("main.sk");
+    fs::write(
+        &source,
+        r#"
+fn main() -> Int {
+  return 7;
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("run")
+        .arg(&source)
+        .output()
+        .expect("run skepac run");
+
+    assert_eq!(output.status.code(), Some(7), "{:?}", output);
+}
+
+#[test]
+fn build_llvm_ir_writes_ir_artifact() {
+    let tmp = make_temp_dir("skepac_build_ll");
+    let source = tmp.join("main.sk");
+    let out = tmp.join("main.ll");
+    fs::write(
+        &source,
+        r#"
+fn main() -> Int {
+  return 7;
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("build-llvm-ir")
+        .arg(&source)
+        .arg(&out)
+        .output()
+        .expect("run skepac build-llvm-ir");
+
+    assert!(output.status.success(), "{:?}", output);
+    assert!(out.exists());
+    let ir = fs::read_to_string(&out).expect("read llvm ir");
+    assert!(ir.contains("define i64 @\"main\"()"));
 }
 
 #[test]
@@ -132,6 +183,8 @@ fn main() -> Int {
 
     assert!(output.status.success(), "{:?}", output);
     assert!(out.exists());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("deprecated"));
 }
 
 #[test]
@@ -183,8 +236,10 @@ fn main() -> Int {
 
     assert!(output.status.success(), "{:?}", output);
     let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stdout.contains("fn main"));
     assert!(stdout.contains("Add"));
+    assert!(stderr.contains("deprecated"));
 }
 
 #[test]
@@ -242,7 +297,9 @@ fn main() -> Int {
         .expect("run disasm");
     assert!(disasm_out.status.success(), "{:?}", disasm_out);
     let stdout = String::from_utf8_lossy(&disasm_out.stdout);
+    let stderr = String::from_utf8_lossy(&disasm_out.stderr);
     assert!(stdout.contains("LoadConst Int(3)"));
+    assert!(stderr.contains("deprecated"));
 }
 
 #[test]
