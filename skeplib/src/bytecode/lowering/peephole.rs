@@ -218,10 +218,33 @@ fn peephole_optimize_chunk(chunk: &mut FunctionChunk) {
     chunk.code = remapped;
 }
 
+fn remap_instr_targets(instr: &Instr, old_to_new: &[usize]) -> Instr {
+    match instr {
+        Instr::Jump(t) => Instr::Jump(old_to_new[*t]),
+        Instr::JumpIfFalse(t) => Instr::JumpIfFalse(old_to_new[*t]),
+        Instr::JumpIfTrue(t) => Instr::JumpIfTrue(old_to_new[*t]),
+        Instr::JumpIfLocalLtConst { slot, rhs, target } => Instr::JumpIfLocalLtConst {
+            slot: *slot,
+            rhs: *rhs,
+            target: old_to_new[*target],
+        },
+        _ => instr.clone(),
+    }
+}
+
+fn apply_rewrite_map(chunk: &mut FunctionChunk, rewritten: Vec<Instr>, old_to_new: Vec<usize>) {
+    chunk.code = rewritten
+        .into_iter()
+        .map(|instr| remap_instr_targets(&instr, &old_to_new))
+        .collect();
+}
+
 fn rewrite_struct_local_field_add_to_local(chunk: &mut FunctionChunk) {
     let mut rewritten = Vec::with_capacity(chunk.code.len());
+    let mut old_to_new = vec![0; chunk.code.len() + 1];
     let mut i = 0;
     while i < chunk.code.len() {
+        old_to_new[i] = rewritten.len();
         if let (
             Instr::StructGetLocalSlot { slot, field_slot },
             Instr::IntStackOpToLocal {
@@ -230,6 +253,7 @@ fn rewrite_struct_local_field_add_to_local(chunk: &mut FunctionChunk) {
             },
         ) = (&chunk.code[i], chunk.code.get(i + 1).unwrap_or(&Instr::Pop))
         {
+            old_to_new[i + 1] = rewritten.len();
             rewritten.push(Instr::StructGetLocalSlotAddToLocal {
                 struct_slot: *slot,
                 field_slot: *field_slot,
@@ -241,18 +265,22 @@ fn rewrite_struct_local_field_add_to_local(chunk: &mut FunctionChunk) {
         rewritten.push(chunk.code[i].clone());
         i += 1;
     }
-    chunk.code = rewritten;
+    old_to_new[chunk.code.len()] = rewritten.len();
+    apply_rewrite_map(chunk, rewritten, old_to_new);
 }
 
 fn rewrite_int_stack_const_op_to_local(chunk: &mut FunctionChunk) {
     let mut rewritten = Vec::with_capacity(chunk.code.len());
+    let mut old_to_new = vec![0; chunk.code.len() + 1];
     let mut i = 0;
     while i < chunk.code.len() {
+        old_to_new[i] = rewritten.len();
         if let (
             Instr::IntStackConstOp { op: stack_op, rhs },
             Some(Instr::IntStackOpToLocal { slot, op: local_op }),
         ) = (&chunk.code[i], chunk.code.get(i + 1))
         {
+            old_to_new[i + 1] = rewritten.len();
             rewritten.push(Instr::IntStackConstOpToLocal {
                 slot: *slot,
                 stack_op: *stack_op,
@@ -265,13 +293,16 @@ fn rewrite_int_stack_const_op_to_local(chunk: &mut FunctionChunk) {
         rewritten.push(chunk.code[i].clone());
         i += 1;
     }
-    chunk.code = rewritten;
+    old_to_new[chunk.code.len()] = rewritten.len();
+    apply_rewrite_map(chunk, rewritten, old_to_new);
 }
 
 fn rewrite_struct_method_complex_to_local(chunk: &mut FunctionChunk) {
     let mut rewritten = Vec::with_capacity(chunk.code.len());
+    let mut old_to_new = vec![0; chunk.code.len() + 1];
     let mut i = 0;
     while i < chunk.code.len() {
+        old_to_new[i] = rewritten.len();
         match chunk.code.get(i..i + 10) {
             Some(
                 [
@@ -300,6 +331,9 @@ fn rewrite_struct_method_complex_to_local(chunk: &mut FunctionChunk) {
                     },
                 ],
             ) if struct_slot_a == struct_slot_b => {
+                for skipped in i + 1..i + 10 {
+                    old_to_new[skipped] = rewritten.len();
+                }
                 rewritten.push(Instr::StructFieldAddMulFieldModLocalToLocal {
                     struct_slot: *struct_slot_a,
                     arg_slot: *arg_slot,
@@ -319,5 +353,6 @@ fn rewrite_struct_method_complex_to_local(chunk: &mut FunctionChunk) {
         rewritten.push(chunk.code[i].clone());
         i += 1;
     }
-    chunk.code = rewritten;
+    old_to_new[chunk.code.len()] = rewritten.len();
+    apply_rewrite_map(chunk, rewritten, old_to_new);
 }
