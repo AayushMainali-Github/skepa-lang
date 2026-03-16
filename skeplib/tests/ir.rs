@@ -174,3 +174,51 @@ fn main() -> Int {
     assert!(printed.contains("VecDelete"));
     assert!(printed.contains("VecLen"));
 }
+
+#[test]
+fn lower_struct_method_calls_to_ir() {
+    let source = r#"
+struct Pair {
+  a: Int,
+  b: Int
+}
+
+impl Pair {
+  fn mix(self, x: Int) -> Int {
+    return self.a + self.b + x;
+  }
+}
+
+fn main() -> Int {
+  let p = Pair { a: 2, b: 3 };
+  return p.mix(4);
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    assert!(
+        program
+            .functions
+            .iter()
+            .any(|func| func.name == "Pair::mix")
+    );
+    let printed = PrettyIr::new(&program).to_string();
+    assert!(printed.contains("fn Pair::mix"));
+    let main_fn = program
+        .functions
+        .iter()
+        .find(|func| func.name == "main")
+        .expect("main should be lowered");
+    assert!(main_fn.blocks.iter().any(|block| {
+        block
+            .instrs
+            .iter()
+            .any(|instr| matches!(instr, ir::Instr::CallDirect { .. }))
+    }));
+    assert!(!main_fn.blocks.iter().any(|block| {
+        block
+            .instrs
+            .iter()
+            .any(|instr| matches!(instr, ir::Instr::CallBuiltin { .. }))
+    }));
+}

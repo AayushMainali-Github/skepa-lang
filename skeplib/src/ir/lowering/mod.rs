@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::ast::{
-    AssignTarget, BinaryOp as AstBinaryOp, Expr, FnDecl, Program, Stmt, StructDecl,
+    AssignTarget, BinaryOp as AstBinaryOp, Expr, FnDecl, MethodDecl, Program, Stmt, StructDecl,
     UnaryOp as AstUnaryOp,
 };
 use crate::diagnostic::{DiagnosticBag, Span};
@@ -109,6 +109,22 @@ impl IrLowerer {
                 .insert(func.name.clone(), (crate::ir::FunctionId(index), ret_ty));
         }
 
+        let mut next_function_id = program.functions.len();
+        for imp in &program.impls {
+            for method in &imp.methods {
+                let ret_ty = method
+                    .return_type
+                    .as_ref()
+                    .map(TypeInfo::from_ast)
+                    .map(|ty| IrType::from(&ty))
+                    .unwrap_or(IrType::Void);
+                let method_name = Self::mangle_method_name(&imp.target, &method.name);
+                let id = crate::ir::FunctionId(next_function_id);
+                next_function_id += 1;
+                self.functions.insert(method_name, (id, ret_ty));
+            }
+        }
+
         if !program.globals.is_empty() {
             let mut init = self.builder.begin_function("__globals_init", IrType::Void);
             if self.compile_globals_init(&mut init, program).is_some() {
@@ -120,6 +136,14 @@ impl IrLowerer {
         for func in &program.functions {
             if let Some(lowered) = self.compile_function(func) {
                 out.functions.push(lowered);
+            }
+        }
+
+        for imp in &program.impls {
+            for method in &imp.methods {
+                if let Some(lowered) = self.compile_method(&imp.target, method) {
+                    out.functions.push(lowered);
+                }
             }
         }
 
@@ -185,6 +209,69 @@ impl IrLowerer {
                     format!(
                         "IR lowering currently requires explicit return in non-void function `{}`",
                         func.name
+                    ),
+                    Span::default(),
+                );
+                return None;
+            };
+            self.builder
+                .set_terminator(&mut out, lowering.current_block, terminator);
+        }
+
+        Some(out)
+    }
+
+    fn compile_method(
+        &mut self,
+        target: &str,
+        method: &MethodDecl,
+    ) -> Option<crate::ir::IrFunction> {
+        let method_name = Self::mangle_method_name(target, &method.name);
+        let (function_id, ret_ty) = self
+            .functions
+            .get(&method_name)
+            .cloned()
+            .unwrap_or((crate::ir::FunctionId(usize::MAX), IrType::Void));
+        let mut out = self.builder.begin_function(method_name, ret_ty.clone());
+        out.id = function_id;
+        let mut lowering = FunctionLowering {
+            current_block: out.entry,
+            locals: HashMap::new(),
+            scratch_counter: 0,
+        };
+
+        for param in &method.params {
+            let ir_ty = if param.name == "self" {
+                IrType::Named(target.to_string())
+            } else {
+                IrType::from(&TypeInfo::from_ast(&param.ty))
+            };
+            self.builder
+                .push_param(&mut out, param.name.clone(), ir_ty.clone());
+            let local = self.builder.push_local(&mut out, param.name.clone(), ir_ty);
+            lowering.locals.insert(param.name.clone(), local);
+        }
+
+        for stmt in &method.body {
+            if !self.compile_stmt(&mut out, &mut lowering, stmt) {
+                return None;
+            }
+        }
+
+        if matches!(
+            out.blocks
+                .iter()
+                .find(|block| block.id == lowering.current_block)
+                .map(|block| &block.terminator),
+            Some(Terminator::Unreachable)
+        ) {
+            let terminator = if ret_ty.is_void() {
+                Terminator::Return(None)
+            } else {
+                self.diags.error(
+                    format!(
+                        "IR lowering currently requires explicit return in non-void method `{}`",
+                        method.name
                     ),
                     Span::default(),
                 );
@@ -853,33 +940,37 @@ impl IrLowerer {
                 }
             }
             Expr::Field { base, field } => {
-                let Expr::Ident(package) = base.as_ref() else {
-                    self.unsupported("field-style call is not in the initial IR lowering subset");
-                    return None;
-                };
-                if package == "vec" {
-                    return self.compile_vec_call(
-                        func,
-                        lowering.current_block,
-                        field,
-                        lowered_args,
-                    );
+                if let Expr::Ident(package) = base.as_ref() {
+                    let is_value_receiver = lowering.locals.contains_key(package)
+                        || self.globals.contains_key(package)
+                        || self.functions.contains_key(package);
+                    if package == "vec" {
+                        return self.compile_vec_call(
+                            func,
+                            lowering.current_block,
+                            field,
+                            lowered_args,
+                        );
+                    }
+                    if !is_value_receiver {
+                        let dst = self.builder.push_temp(func, IrType::Unknown);
+                        self.builder.push_instr(
+                            func,
+                            lowering.current_block,
+                            Instr::CallBuiltin {
+                                dst: Some(dst),
+                                ret_ty: IrType::Unknown,
+                                builtin: crate::ir::BuiltinCall {
+                                    package: package.clone(),
+                                    name: field.clone(),
+                                },
+                                args: lowered_args,
+                            },
+                        );
+                        return Some(Operand::Temp(dst));
+                    }
                 }
-                let dst = self.builder.push_temp(func, IrType::Unknown);
-                self.builder.push_instr(
-                    func,
-                    lowering.current_block,
-                    Instr::CallBuiltin {
-                        dst: Some(dst),
-                        ret_ty: IrType::Unknown,
-                        builtin: crate::ir::BuiltinCall {
-                            package: package.clone(),
-                            name: field.clone(),
-                        },
-                        args: lowered_args,
-                    },
-                );
-                Some(Operand::Temp(dst))
+                self.compile_method_call(func, lowering, base, field, lowered_args)
             }
             _ => {
                 let callee = self.compile_expr(func, lowering, callee)?;
@@ -897,6 +988,49 @@ impl IrLowerer {
                 Some(Operand::Temp(dst))
             }
         }
+    }
+
+    fn compile_method_call(
+        &mut self,
+        func: &mut crate::ir::IrFunction,
+        lowering: &mut FunctionLowering,
+        base: &Expr,
+        field: &str,
+        mut args: Vec<Operand>,
+    ) -> Option<Operand> {
+        let receiver = self.compile_expr(func, lowering, base)?;
+        let IrType::Named(struct_name) = self.infer_operand_type(func, &receiver) else {
+            self.unsupported(
+                "method call on non-struct receiver is not in the initial IR lowering subset",
+            );
+            return None;
+        };
+        let method_name = Self::mangle_method_name(&struct_name, field);
+        let Some((function, ret_ty)) = self.functions.get(&method_name).cloned() else {
+            self.unsupported(format!(
+                "unknown method `{field}` for struct `{struct_name}` in IR lowering"
+            ));
+            return None;
+        };
+        let mut call_args = Vec::with_capacity(args.len() + 1);
+        call_args.push(receiver);
+        call_args.append(&mut args);
+        let dst = if ret_ty.is_void() {
+            None
+        } else {
+            Some(self.builder.push_temp(func, ret_ty.clone()))
+        };
+        self.builder.push_instr(
+            func,
+            lowering.current_block,
+            Instr::CallDirect {
+                dst,
+                ret_ty: ret_ty.clone(),
+                function,
+                args: call_args,
+            },
+        );
+        OkOperand::from_call_result(dst)
     }
 
     fn try_compile_vec_new_let(
@@ -1203,6 +1337,10 @@ impl IrLowerer {
             },
         );
         Some(Operand::Temp(dst))
+    }
+
+    fn mangle_method_name(target: &str, method: &str) -> String {
+        format!("{target}::{method}")
     }
 }
 
