@@ -251,6 +251,31 @@ fn benchmark_cases(
                 skepac.clone(),
                 write_temp_source(&call_src)?,
             ),
+            native_exec_case(
+                "runtime_array_heavy",
+                skepac.clone(),
+                write_temp_source(&array_src)?,
+            ),
+            native_exec_case(
+                "runtime_struct_heavy",
+                skepac.clone(),
+                write_temp_source(&struct_src)?,
+            ),
+            native_exec_case(
+                "runtime_struct_field_heavy",
+                skepac.clone(),
+                write_temp_source(&struct_field_src)?,
+            ),
+            native_exec_case(
+                "runtime_struct_method_complex",
+                skepac.clone(),
+                write_temp_source(&struct_complex_src)?,
+            ),
+            native_exec_case(
+                "runtime_string_heavy",
+                skepac.clone(),
+                write_temp_source(&string_src)?,
+            ),
         ]
     } else {
         vec![
@@ -276,6 +301,26 @@ fn benchmark_cases(
             ),
             skipped_case(
                 "runtime_call_heavy",
+                "missing skepac binary in selected profile",
+            ),
+            skipped_case(
+                "runtime_array_heavy",
+                "missing skepac binary in selected profile",
+            ),
+            skipped_case(
+                "runtime_struct_heavy",
+                "missing skepac binary in selected profile",
+            ),
+            skipped_case(
+                "runtime_struct_field_heavy",
+                "missing skepac binary in selected profile",
+            ),
+            skipped_case(
+                "runtime_struct_method_complex",
+                "missing skepac binary in selected profile",
+            ),
+            skipped_case(
+                "runtime_string_heavy",
                 "missing skepac binary in selected profile",
             ),
         ]
