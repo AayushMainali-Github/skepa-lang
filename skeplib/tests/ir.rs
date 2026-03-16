@@ -39,6 +39,31 @@ fn assert_bytecode_and_ir_accept_same_source(source: &str, expected: ExpectedVal
     }
 }
 
+fn assert_bytecode_and_ir_accept_same_project_entry(
+    entry: &std::path::Path,
+    expected: ExpectedValue<'_>,
+) {
+    let module = bytecode::compile_project_entry(entry).expect("bytecode project compile");
+    let value = Vm::run_module_main(&module).expect("bytecode vm should run project");
+    match &expected {
+        ExpectedValue::Int(expected) => assert_eq!(value, Value::Int(*expected)),
+        ExpectedValue::Bool(expected) => assert_eq!(value, Value::Bool(*expected)),
+        ExpectedValue::Float(expected) => assert_eq!(value, Value::Float(*expected)),
+        ExpectedValue::String(expected) => assert_eq!(value, Value::String((*expected).into())),
+    }
+
+    let program = ir::lowering::compile_project_entry(entry).expect("project IR lowering");
+    let value = IrInterpreter::new(&program)
+        .run_main()
+        .expect("IR interpreter should run project");
+    match expected {
+        ExpectedValue::Int(expected) => assert_eq!(value, IrValue::Int(expected)),
+        ExpectedValue::Bool(expected) => assert_eq!(value, IrValue::Bool(expected)),
+        ExpectedValue::Float(expected) => assert_eq!(value, IrValue::Float(expected)),
+        ExpectedValue::String(expected) => assert_eq!(value, IrValue::String(expected.into())),
+    }
+}
+
 #[test]
 fn lower_simple_function_to_ir() {
     let source = r#"
@@ -421,6 +446,64 @@ fn main() -> Int {
         .run_main()
         .expect("IR interpreter should run project");
     assert_eq!(ir_value, IrValue::Int(18));
+
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn bytecode_and_ir_accept_same_project_with_globals_and_string_builtins() {
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock should be monotonic enough for temp name")
+        .as_nanos();
+    let root = std::env::temp_dir().join(format!("skepa_ir_string_project_{unique}"));
+    fs::create_dir_all(&root).expect("temp project dir should be created");
+
+    let entry = root.join("main.sk");
+    fs::write(
+        root.join("words.sk"),
+        r#"
+export { get_base, get_needle, bonus };
+
+let base: String = "skepa-language-benchmark";
+let needle: String = "bench";
+let extra: Int = 1;
+
+fn get_base() -> String {
+  return base;
+}
+
+fn get_needle() -> String {
+  return needle;
+}
+
+fn bonus() -> Int {
+  return extra;
+}
+"#,
+    )
+    .expect("words module should be written");
+    fs::write(
+        &entry,
+        r#"
+import str;
+from words import get_base, get_needle, bonus;
+
+fn main() -> Int {
+  let base = get_base();
+  let needle = get_needle();
+  let total = str.len(base) + str.indexOf(base, needle);
+  let cut = str.slice(base, 6, 14);
+  if (str.contains(cut, "language")) {
+    return total + bonus();
+  }
+  return total;
+}
+"#,
+    )
+    .expect("entry module should be written");
+
+    assert_bytecode_and_ir_accept_same_project_entry(&entry, ExpectedValue::Int(40));
 
     let _ = fs::remove_dir_all(&root);
 }
