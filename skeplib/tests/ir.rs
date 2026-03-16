@@ -278,6 +278,95 @@ fn verifier_rejects_unknown_struct_field_ref() {
 }
 
 #[test]
+fn interpreter_rejects_non_bool_branch_condition() {
+    let func = IrFunction {
+        id: FunctionId(0),
+        name: "main".into(),
+        params: Vec::new(),
+        locals: Vec::new(),
+        temps: Vec::new(),
+        ret_ty: IrType::Int,
+        entry: BlockId(0),
+        blocks: vec![
+            BasicBlock {
+                id: BlockId(0),
+                name: "entry".into(),
+                instrs: Vec::new(),
+                terminator: ir::Terminator::Branch(ir::BranchTerminator {
+                    cond: ir::Operand::Const(ir::ConstValue::Int(1)),
+                    then_block: BlockId(1),
+                    else_block: BlockId(2),
+                }),
+            },
+            BasicBlock {
+                id: BlockId(1),
+                name: "then".into(),
+                instrs: Vec::new(),
+                terminator: Terminator::Return(Some(ir::Operand::Const(ir::ConstValue::Int(1)))),
+            },
+            BasicBlock {
+                id: BlockId(2),
+                name: "else".into(),
+                instrs: Vec::new(),
+                terminator: Terminator::Return(Some(ir::Operand::Const(ir::ConstValue::Int(0)))),
+            },
+        ],
+    };
+    let program = IrProgram {
+        functions: vec![func],
+        globals: Vec::new(),
+        structs: Vec::new(),
+        module_init: None,
+    };
+
+    let err = IrInterpreter::new(&program)
+        .run_main()
+        .expect_err("interpreter should reject non-bool branch conditions");
+    assert!(matches!(
+        err,
+        IrInterpError::TypeMismatch("branch condition must be bool")
+    ));
+}
+
+#[test]
+fn interpreter_rejects_indirect_call_on_non_closure() {
+    let func = IrFunction {
+        id: FunctionId(0),
+        name: "main".into(),
+        params: Vec::new(),
+        locals: Vec::new(),
+        temps: Vec::new(),
+        ret_ty: IrType::Int,
+        entry: BlockId(0),
+        blocks: vec![BasicBlock {
+            id: BlockId(0),
+            name: "entry".into(),
+            instrs: vec![Instr::CallIndirect {
+                dst: None,
+                ret_ty: IrType::Int,
+                callee: ir::Operand::Const(ir::ConstValue::Int(7)),
+                args: Vec::new(),
+            }],
+            terminator: Terminator::Return(Some(ir::Operand::Const(ir::ConstValue::Int(0)))),
+        }],
+    };
+    let program = IrProgram {
+        functions: vec![func],
+        globals: Vec::new(),
+        structs: Vec::new(),
+        module_init: None,
+    };
+
+    let err = IrInterpreter::new(&program)
+        .run_main()
+        .expect_err("interpreter should reject non-closure indirect calls");
+    assert!(matches!(
+        err,
+        IrInterpError::TypeMismatch("indirect call on non-closure")
+    ));
+}
+
+#[test]
 fn lower_globals_and_direct_calls_to_ir() {
     let source = r#"
 let seed: Int = 41;
