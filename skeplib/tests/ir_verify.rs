@@ -367,3 +367,185 @@ fn verifier_rejects_bad_call_signature_return_mismatch_and_bad_branch_operand_ty
             | ir::IrVerifyError::OperandTypeMismatch { .. }
     ));
 }
+
+#[test]
+fn verifier_rejects_bad_direct_builtin_and_indirect_call_types() {
+    let callee = IrFunction {
+        id: FunctionId(1),
+        name: "callee".into(),
+        params: vec![skeplib::ir::IrParam {
+            id: skeplib::ir::ParamId(0),
+            name: "x".into(),
+            ty: IrType::Int,
+        }],
+        locals: Vec::new(),
+        temps: vec![
+            IrTemp {
+                id: TempId(0),
+                ty: IrType::Bool,
+            },
+            IrTemp {
+                id: TempId(1),
+                ty: IrType::Fn {
+                    params: vec![IrType::Int],
+                    ret: Box::new(IrType::Int),
+                },
+            },
+        ],
+        ret_ty: IrType::Int,
+        entry: BlockId(0),
+        blocks: vec![BasicBlock {
+            id: BlockId(0),
+            name: "entry".into(),
+            instrs: vec![
+                Instr::Const {
+                    dst: TempId(0),
+                    ty: IrType::Bool,
+                    value: ir::ConstValue::Bool(true),
+                },
+                Instr::MakeClosure {
+                    dst: TempId(1),
+                    function: FunctionId(1),
+                },
+            ],
+            terminator: Terminator::Return(Some(ir::Operand::Const(ir::ConstValue::Int(1)))),
+        }],
+    };
+    let main = IrFunction {
+        id: FunctionId(0),
+        name: "main".into(),
+        params: Vec::new(),
+        locals: Vec::new(),
+        temps: vec![
+            IrTemp {
+                id: TempId(0),
+                ty: IrType::Bool,
+            },
+            IrTemp {
+                id: TempId(1),
+                ty: IrType::Fn {
+                    params: vec![IrType::Int],
+                    ret: Box::new(IrType::Int),
+                },
+            },
+        ],
+        ret_ty: IrType::Int,
+        entry: BlockId(0),
+        blocks: vec![BasicBlock {
+            id: BlockId(0),
+            name: "entry".into(),
+            instrs: vec![
+                Instr::Const {
+                    dst: TempId(0),
+                    ty: IrType::Bool,
+                    value: ir::ConstValue::Bool(true),
+                },
+                Instr::MakeClosure {
+                    dst: TempId(1),
+                    function: FunctionId(1),
+                },
+                Instr::CallDirect {
+                    dst: None,
+                    ret_ty: IrType::Int,
+                    function: FunctionId(1),
+                    args: vec![ir::Operand::Temp(TempId(0))],
+                },
+                Instr::CallBuiltin {
+                    dst: Some(TempId(0)),
+                    ret_ty: IrType::Bool,
+                    builtin: ir::BuiltinCall {
+                        package: "str".into(),
+                        name: "len".into(),
+                    },
+                    args: vec![ir::Operand::Const(ir::ConstValue::Bool(true))],
+                },
+                Instr::CallIndirect {
+                    dst: None,
+                    ret_ty: IrType::Bool,
+                    callee: ir::Operand::Temp(TempId(1)),
+                    args: vec![ir::Operand::Const(ir::ConstValue::Bool(true))],
+                },
+            ],
+            terminator: Terminator::Return(Some(ir::Operand::Const(ir::ConstValue::Int(0)))),
+        }],
+    };
+    let program = IrProgram {
+        functions: vec![main, callee],
+        globals: Vec::new(),
+        structs: Vec::new(),
+        module_init: None,
+    };
+    let err = IrVerifier::verify_program(&program).expect_err("verifier should fail");
+    assert!(matches!(
+        err,
+        ir::IrVerifyError::BadCallSignature { .. } | ir::IrVerifyError::OperandTypeMismatch { .. }
+    ));
+}
+
+#[test]
+fn verifier_rejects_non_int_indexes_for_array_and_vec_ops() {
+    let func = IrFunction {
+        id: FunctionId(0),
+        name: "main".into(),
+        params: Vec::new(),
+        locals: vec![
+            IrLocal {
+                id: ir::LocalId(0),
+                name: "arr".into(),
+                ty: IrType::Array {
+                    elem: Box::new(IrType::Int),
+                    size: 2,
+                },
+            },
+            IrLocal {
+                id: ir::LocalId(1),
+                name: "xs".into(),
+                ty: IrType::Vec {
+                    elem: Box::new(IrType::Int),
+                },
+            },
+        ],
+        temps: vec![
+            IrTemp {
+                id: TempId(0),
+                ty: IrType::Bool,
+            },
+            IrTemp {
+                id: TempId(1),
+                ty: IrType::Int,
+            },
+        ],
+        ret_ty: IrType::Int,
+        entry: BlockId(0),
+        blocks: vec![BasicBlock {
+            id: BlockId(0),
+            name: "entry".into(),
+            instrs: vec![
+                Instr::Const {
+                    dst: TempId(0),
+                    ty: IrType::Bool,
+                    value: ir::ConstValue::Bool(true),
+                },
+                Instr::ArrayGet {
+                    dst: TempId(1),
+                    elem_ty: IrType::Int,
+                    array: ir::Operand::Local(ir::LocalId(0)),
+                    index: ir::Operand::Temp(TempId(0)),
+                },
+                Instr::VecLen {
+                    dst: TempId(1),
+                    vec: ir::Operand::Local(ir::LocalId(0)),
+                },
+            ],
+            terminator: Terminator::Return(Some(ir::Operand::Const(ir::ConstValue::Int(0)))),
+        }],
+    };
+    let program = IrProgram {
+        functions: vec![func],
+        globals: Vec::new(),
+        structs: Vec::new(),
+        module_init: None,
+    };
+    let err = IrVerifier::verify_program(&program).expect_err("verifier should fail");
+    assert!(matches!(err, ir::IrVerifyError::OperandTypeMismatch { .. }));
+}

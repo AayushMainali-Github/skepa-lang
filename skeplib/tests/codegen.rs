@@ -476,7 +476,7 @@ fn step(x: Int) -> Int {
 }
 
 fn main() -> Int {
-  let f = step;
+  let f: Fn(Int) -> Int = step;
   return f(4);
 }
 "#;

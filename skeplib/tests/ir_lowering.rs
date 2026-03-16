@@ -106,7 +106,7 @@ fn main() -> Int {
   let arr: [Int; 4] = [0; 4];
   let xs: Vec[Int] = vec.new();
   let p = Pair { a: 2, b: 3 };
-  let f = inc;
+  let f: Fn(Int) -> Int = inc;
   arr[1] = 7;
   vec.push(xs, arr[1]);
   return f(p.mix(vec.get(xs, 0)));
@@ -141,6 +141,37 @@ fn main() -> Bool {
     assert!(printed.contains("sc_rhs"));
     assert!(printed.contains("sc_short"));
     assert!(printed.contains("Branch"));
+}
+
+#[test]
+fn lower_for_loop_blocks_and_builtin_families_to_ir() {
+    let source = r#"
+import arr;
+import datetime;
+import io;
+
+fn main() -> Int {
+  let xs: [Int; 2] = [1; 2];
+  let total = 0;
+  for (let i = 0; i < arr.len(xs); i = i + 1) {
+    if (i == 1) {
+      continue;
+    }
+    total = total + i;
+  }
+  io.printInt(total);
+  return total + datetime.nowUnix();
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let printed = PrettyIr::new(&program).to_string();
+    assert!(printed.contains("for_cond") || printed.contains("loop_cond"));
+    assert!(printed.contains("for_step") || printed.contains("loop_step"));
+    assert!(printed.contains("CallBuiltin"));
+    assert!(printed.contains("datetime"));
+    assert!(printed.contains("io"));
+    assert!(printed.contains("arr"));
 }
 
 #[test]

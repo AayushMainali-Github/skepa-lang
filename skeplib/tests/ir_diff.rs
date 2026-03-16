@@ -1,10 +1,52 @@
+use std::cell::RefCell;
 use std::fs;
+use std::rc::Rc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use skepart::{RtHost, RtResult, RtString};
 use skeplib::ir::{self, IrInterpError, IrInterpreter, IrValue};
 
 #[path = "common.rs"]
 mod common;
+
+struct DiffHost {
+    out: Rc<RefCell<String>>,
+}
+
+impl Default for DiffHost {
+    fn default() -> Self {
+        Self {
+            out: Rc::new(RefCell::new(String::new())),
+        }
+    }
+}
+
+impl RtHost for DiffHost {
+    fn io_print(&mut self, text: &str) -> RtResult<()> {
+        self.out.borrow_mut().push_str(text);
+        Ok(())
+    }
+
+    fn datetime_now_unix(&mut self) -> RtResult<i64> {
+        Ok(123)
+    }
+
+    fn datetime_now_millis(&mut self) -> RtResult<i64> {
+        Ok(456_789)
+    }
+
+    fn fs_exists(&mut self, path: &str) -> RtResult<bool> {
+        Ok(path == "exists.txt")
+    }
+
+    fn fs_read_text(&mut self, path: &str) -> RtResult<RtString> {
+        Ok(RtString::from(format!("read:{path}")))
+    }
+
+    fn fs_join(&mut self, left: &str, right: &str) -> RtResult<RtString> {
+        Ok(RtString::from(format!("{left}/{right}")))
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ExpectedErrorKind {
@@ -163,6 +205,95 @@ fn main() -> Int {
 "#,
         40,
     );
+}
+
+#[test]
+fn native_and_ir_accept_same_io_and_datetime_behaviour() {
+    let source = r#"
+import datetime;
+import io;
+
+fn main() -> Int {
+  io.print("alpha");
+  io.printInt(7);
+  io.println("");
+  if (datetime.nowUnix() >= 0) {
+    return 3;
+  }
+  return 0;
+}
+"#;
+
+    let native = common::native_run_ok(source);
+    let native_out = String::from_utf8_lossy(&native.stdout).replace("\r\n", "\n");
+    assert_eq!(native_out, "alpha7\n");
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let host = DiffHost::default();
+    let captured = host.out.clone();
+    let value = IrInterpreter::with_host(&program, Box::new(host))
+        .run_main()
+        .expect("IR interpreter should run source");
+    assert_eq!(value, IrValue::Int(3));
+    assert_eq!(&*captured.borrow(), "alpha7\n");
+}
+
+#[test]
+fn native_and_ir_accept_same_arr_fs_and_struct_project_sources() {
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock should be monotonic enough for temp name")
+        .as_nanos();
+    let root = std::env::temp_dir().join(format!("skepa_ir_diff_project_mix_{unique}"));
+    fs::create_dir_all(&root).expect("temp project dir should be created");
+
+    let entry = root.join("main.sk");
+    fs::write(
+        root.join("pair.sk"),
+        r#"
+export { Pair, make };
+
+struct Pair {
+  a: Int,
+  b: Int
+}
+
+impl Pair {
+  fn total(self) -> Int {
+    return self.a + self.b;
+  }
+}
+
+fn make() -> Pair {
+  return Pair { a: 4, b: 5 };
+}
+"#,
+    )
+    .expect("pair module should be written");
+    fs::write(
+        &entry,
+        r#"
+from pair import make;
+
+fn main() -> Int {
+  let xs: [Int; 2] = [3; 2];
+  let p = make();
+  xs[1] = p.total();
+  return xs[0] + xs[1];
+}
+"#,
+    )
+    .expect("entry module should be written");
+
+    let program =
+        ir::lowering::compile_project_entry(&entry).expect("project IR lowering should succeed");
+    let ir_value = IrInterpreter::new(&program)
+        .run_main()
+        .expect("IR interpreter should run project");
+    assert_eq!(ir_value, IrValue::Int(12));
+    assert_eq!(common::native_run_project_exit_code_ok(&entry), 12);
+
+    let _ = fs::remove_dir_all(&root);
 }
 
 #[test]

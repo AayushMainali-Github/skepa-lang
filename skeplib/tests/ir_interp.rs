@@ -221,7 +221,7 @@ fn main() -> Int {
   let arr: [Int; 2] = [1; 2];
   let xs: Vec[Int] = vec.new();
   let p = Pair { a: arr[0], b: 3 };
-  let f = add1;
+  let f: Fn(Int) -> Int = add1;
   vec.push(xs, p.mix(4));
   return f(vec.get(xs, 0));
 }
@@ -229,6 +229,27 @@ fn main() -> Int {
 
     let value = common::ir_run_ok(source);
     assert_eq!(value, IrValue::Int(9));
+}
+
+#[test]
+fn interpreter_handles_nested_runtime_managed_values() {
+    let source = r#"
+struct Boxed {
+  items: Vec[Int]
+}
+
+fn main() -> Int {
+  let outer: [Int; 2] = [4; 2];
+  let xs: Vec[Int] = vec.new();
+  vec.push(xs, outer[0]);
+  vec.push(xs, outer[1] + 3);
+  let boxed = Boxed { items: xs };
+  return vec.get(boxed.items, 0) + vec.get(boxed.items, 1);
+}
+"#;
+
+    let value = common::ir_run_ok(source);
+    assert_eq!(value, IrValue::Int(11));
 }
 
 #[test]
@@ -245,6 +266,24 @@ fn main() -> Int {
 
     let value = common::ir_run_ok(source);
     assert_eq!(value, IrValue::Int(9));
+}
+
+#[test]
+fn interpreter_supports_closure_calls_across_locals() {
+    let source = r#"
+fn add2(x: Int) -> Int {
+  return x + 2;
+}
+
+fn main() -> Int {
+  let f: Fn(Int) -> Int = add2;
+  let g: Fn(Int) -> Int = f;
+  return g(5);
+}
+"#;
+
+    let value = common::ir_run_ok(source);
+    assert_eq!(value, IrValue::Int(7));
 }
 
 #[test]
@@ -267,6 +306,21 @@ fn main() -> Int {
 
     let value = common::ir_run_ok(source);
     assert_eq!(value, IrValue::Int(40));
+}
+
+#[test]
+fn interpreter_respects_project_module_init_ordering() {
+    let source = r#"
+let seed: Int = 4;
+let answer: Int = seed + 3;
+
+fn main() -> Int {
+  return answer;
+}
+"#;
+
+    let value = common::ir_run_ok(source);
+    assert_eq!(value, IrValue::Int(7));
 }
 
 #[test]
@@ -344,6 +398,35 @@ fn main() -> Int {
 }
 
 #[test]
+fn interpreter_builtin_matrix_covers_more_edge_results() {
+    let source = r#"
+import arr;
+import fs;
+import io;
+import os;
+import random;
+import str;
+
+fn main() -> Int {
+  let parts: [String; 2] = ["ab"; 2];
+  let joined = arr.join(parts, "-");
+  let text = fs.readText("alpha.txt");
+  let path = fs.join("root", "leaf");
+  let out = io.format("v={} {}", 12, true);
+  let shell = os.execShell("echo hi");
+  let bonus = random.int(1, 2);
+  return str.len(joined) + str.len(text) + str.len(path) + str.len(out) + shell + bonus;
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let value = IrInterpreter::with_host(&program, Box::new(TestHost::default()))
+        .run_main()
+        .expect("IR interpreter should run source");
+    assert_eq!(value, IrValue::Int(45));
+}
+
+#[test]
 fn interpreter_reports_runtime_error_cases() {
     assert_ir_rejects_source(
         r#"
@@ -368,6 +451,28 @@ import str;
 
 fn main() -> String {
   return str.slice("abc", 0, 99);
+}
+"#,
+        ExpectedErrorKind::IndexOutOfBounds,
+    );
+    assert_ir_rejects_source(
+        r#"
+import arr;
+
+fn main() -> Int {
+  let xs: [Int; 0] = [];
+  return arr.first(xs);
+}
+"#,
+        ExpectedErrorKind::IndexOutOfBounds,
+    );
+    assert_ir_rejects_source(
+        r#"
+import vec;
+
+fn main() -> Int {
+  let xs: Vec[Int] = vec.new();
+  return vec.get(xs, 0);
 }
 "#,
         ExpectedErrorKind::IndexOutOfBounds,

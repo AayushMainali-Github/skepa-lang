@@ -90,7 +90,7 @@ fn inc(x: Int) -> Int {
 }
 
 fn main() -> Int {
-  let f = inc;
+  let f: Fn(Int) -> Int = inc;
   return f(4);
 }
 "#;
