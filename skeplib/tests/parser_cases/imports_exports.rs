@@ -465,3 +465,20 @@ fn main() -> Int { return 0; }
     let diags = parse_err(src);
     assert_has_diag(&diags, "Expected at least one export item");
 }
+
+#[test]
+fn malformed_import_export_combinations_recover_to_following_function() {
+    let src = r#"
+from a..b import x;
+export * from ;
+fn main() -> Int { return 0; }
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(
+        diags.len() >= 2,
+        "expected multiple diagnostics, got {:?}",
+        diags.as_slice()
+    );
+    assert_eq!(program.functions.len(), 1);
+    assert_eq!(program.functions[0].name, "main");
+}

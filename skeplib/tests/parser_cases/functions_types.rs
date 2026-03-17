@@ -322,3 +322,39 @@ fn main() -> Int {
             .any(|d| d.message.contains("Expected `;` after assignment"))
     );
 }
+
+#[test]
+fn parses_grouped_function_literal_vs_grouped_callee_ambiguity_shapes() {
+    let src = r#"
+fn makeId() -> Fn(Int) -> Int {
+  return fn(x: Int) -> Int { return x; };
+}
+
+fn main() -> Int {
+  let a = ((fn(x: Int) -> Int { return x + 1; }))(2);
+  let b = (makeId())(3);
+  return a + b;
+}
+"#;
+    let program = parse_ok(src);
+    match &program.functions[1].body[0] {
+        Stmt::Let {
+            value: Expr::Call { callee, args },
+            ..
+        } => {
+            assert_eq!(args.len(), 1);
+            assert!(matches!(callee.as_ref(), Expr::Group(_)));
+        }
+        other => panic!("expected grouped function literal call, got {other:?}"),
+    }
+    match &program.functions[1].body[1] {
+        Stmt::Let {
+            value: Expr::Call { callee, args },
+            ..
+        } => {
+            assert_eq!(args.len(), 1);
+            assert!(matches!(callee.as_ref(), Expr::Group(_)));
+        }
+        other => panic!("expected grouped callee call, got {other:?}"),
+    }
+}

@@ -118,3 +118,51 @@ fn main() -> Int {
     let diags = parse_err(src);
     assert_has_diag(&diags, "Expected vector element type");
 }
+
+#[test]
+fn malformed_struct_literal_recovers_to_following_statements() {
+    let src = r#"
+struct User {
+  id: Int,
+  name: String,
+}
+
+fn broken() -> Int {
+  let bad = User { id: , name: "sam" };
+  return 1;
+}
+
+fn main() -> Int {
+  return 0;
+}
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(!diags.is_empty(), "expected diagnostics");
+    assert_eq!(program.functions.len(), 2);
+    assert_eq!(program.functions[1].name, "main");
+}
+
+#[test]
+fn malformed_impl_blocks_recover_across_multiple_points() {
+    let src = r#"
+struct User { id: Int }
+
+impl {
+  fn nope(self) -> Int { return 1; }
+}
+
+impl User {
+  nope(self) -> Int { return 1; }
+}
+
+fn main() -> Int { return 0; }
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert!(
+        diags.len() >= 2,
+        "expected multiple diagnostics, got {:?}",
+        diags.as_slice()
+    );
+    assert_eq!(program.functions.len(), 1);
+    assert_eq!(program.functions[0].name, "main");
+}

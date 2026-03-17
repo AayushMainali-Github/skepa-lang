@@ -206,9 +206,12 @@ impl Checker {
                     inner_scopes[outer_scope_len].insert(p.name.clone(), TypeInfo::from_ast(&p.ty));
                 }
                 self.fn_lit_scope_floors.push(outer_scope_len);
+                let saved_loop_depth = self.loop_depth;
+                self.loop_depth = 0;
                 for stmt in body {
                     self.check_stmt(stmt, &mut inner_scopes, &expected_ret);
                 }
+                self.loop_depth = saved_loop_depth;
                 self.fn_lit_scope_floors.pop();
                 if expected_ret != TypeInfo::Void && !Self::block_must_return(body) {
                     self.error(format!(

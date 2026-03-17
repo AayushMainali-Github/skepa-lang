@@ -912,3 +912,192 @@ fn main() -> Int {
     let (result, diags) = analyze_source(src);
     assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
 }
+
+#[test]
+fn sema_accepts_returns_through_nested_match_inside_loop() {
+    let src = r#"
+fn main() -> Int {
+  for (let i = 0; i < 2; i = i + 1) {
+    match (i) {
+      0 => { }
+      1 => { return 7; }
+      _ => { return 0; }
+    }
+  }
+  return 3;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_accepts_loop_control_inside_nested_match_and_if_shapes() {
+    let src = r#"
+fn main() -> Int {
+  for (let i = 0; i < 3; i = i + 1) {
+    match (i) {
+      0 => { continue; }
+      1 => {
+        if (true) {
+          break;
+        }
+      }
+      _ => { }
+    }
+  }
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_rejects_loop_control_in_function_literal_inside_loop() {
+    let src = r#"
+fn main() -> Int {
+  for (let i = 0; i < 1; i = i + 1) {
+    let f: Fn() -> Int = fn() -> Int {
+      break;
+      return 0;
+    };
+    let g: Fn() -> Int = fn() -> Int {
+      continue;
+      return 0;
+    };
+  }
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert_has_diag(&diags, "`break` is only allowed inside a loop");
+    assert_has_diag(&diags, "`continue` is only allowed inside a loop");
+}
+
+#[test]
+fn sema_accepts_inner_loop_control_inside_function_literal_nested_in_loop() {
+    let src = r#"
+fn main() -> Int {
+  for (let i = 0; i < 1; i = i + 1) {
+    let f: Fn() -> Int = fn() -> Int {
+      let x = 0;
+      while (x < 3) {
+        if (x == 0) {
+          x = x + 1;
+          continue;
+        }
+        break;
+      }
+      return x;
+    };
+    return f();
+  }
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_rejects_inferred_empty_array_local() {
+    let src = r#"
+fn main() -> Int {
+  let xs = [];
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert_has_diag(&diags, "Cannot infer type of empty array literal");
+}
+
+#[test]
+fn sema_rejects_inferred_empty_array_global() {
+    let src = r#"
+let xs = [];
+fn main() -> Int { return 0; }
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert_has_diag(&diags, "Cannot infer type of empty array literal");
+}
+
+#[test]
+fn sema_rejects_vector_value_equality_as_unsupported() {
+    let src = r#"
+import vec;
+fn main() -> Int {
+  let xs: Vec[Int] = vec.new();
+  let ys: Vec[Int] = vec.new();
+  if (xs == ys) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert_has_diag(&diags, "Vector values cannot be compared with `==` or `!=`");
+}
+
+#[test]
+fn sema_accepts_higher_order_function_chain_through_multiple_layers() {
+    let src = r#"
+fn add1(x: Int) -> Int { return x + 1; }
+
+fn wrap(f: Fn(Int) -> Int) -> Fn(Int) -> Int {
+  return f;
+}
+
+fn makeWrapped() -> Fn(Int) -> Int {
+  return wrap(add1);
+}
+
+fn applyTwice(f: Fn(Int) -> Int, x: Int) -> Int {
+  return f(f(x));
+}
+
+fn main() -> Int {
+  return applyTwice(makeWrapped(), 40);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_rejects_function_value_conversion_to_incompatible_signature() {
+    let src = r#"
+fn add1(x: Int) -> Int { return x + 1; }
+
+fn main() -> Int {
+  let f: Fn(Int) -> Float = add1;
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert_has_diag(&diags, "Type mismatch in let `f`");
+}
+
+#[test]
+fn sema_rejects_passing_incompatible_function_value_to_higher_order_param() {
+    let src = r#"
+fn takesFloatFn(f: Fn(Float) -> Float) -> Float {
+  return f(1.0);
+}
+
+fn add1(x: Int) -> Int { return x + 1; }
+
+fn main() -> Int {
+  let x = takesFloatFn(add1);
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert_has_diag(&diags, "Argument 1 for `takesFloatFn`");
+}

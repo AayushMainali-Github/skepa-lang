@@ -1201,3 +1201,78 @@ fn main() -> Int {
             .contains("datetime.parseUnix expects 1 argument(s), got 0")
     }));
 }
+
+#[test]
+fn sema_rejects_io_println_arity_mismatch() {
+    let src = r#"
+import io;
+fn main() -> Int {
+  io.println();
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert_has_diag(&diags, "io.println expects 1 argument(s), got 0");
+}
+
+#[test]
+fn sema_rejects_str_startswith_wrong_arity_and_type() {
+    let src = r#"
+import str;
+fn main() -> Int {
+  let a = str.startsWith("abc");
+  let b = str.startsWith("abc", 1);
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert_has_diag(&diags, "str.startsWith expects 2 argument(s), got 1");
+    assert_has_diag(&diags, "str.startsWith argument 2 expects String");
+}
+
+#[test]
+fn sema_rejects_arr_first_on_non_array_value() {
+    let src = r#"
+import arr;
+fn main() -> Int {
+  return arr.first(1);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert_has_diag(&diags, "arr.first argument 1 expects Array");
+}
+
+#[test]
+fn sema_tracks_builtin_return_types_across_families() {
+    let src = r#"
+import io;
+import str;
+import arr;
+import vec;
+import datetime;
+import random;
+import fs;
+import os;
+
+fn main() -> Int {
+  let s: String = io.format("%d", 1);
+  let b: Bool = str.isEmpty("");
+  let a: [Int; 2] = [1, 2];
+  let first: Int = arr.first(a);
+  let xs: Vec[Int] = vec.new();
+  let now: String = datetime.fromUnix(0);
+  let r: Float = random.float();
+  let exists: Bool = fs.exists("a");
+  let code: Int = os.execShell("echo hi");
+  if (b || exists || code >= 0 || r >= 0.0 || str.len(now) >= 0 || first >= 0 || str.len(s) >= 0) {
+    return vec.len(xs);
+  }
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}

@@ -186,3 +186,25 @@ fn main() -> Int {
             .any(|m| m.contains("vec.delete expects 2 argument(s), got 1"))
     );
 }
+
+#[test]
+fn sema_accepts_function_values_stored_in_vecs() {
+    let src = r#"
+import vec;
+
+struct Op {
+  apply: Fn(Int) -> Int
+}
+
+fn inc(x: Int) -> Int { return x + 1; }
+
+fn main() -> Int {
+  let ops: Vec[Fn(Int) -> Int] = vec.new();
+  vec.push(ops, inc);
+  let op: Op = Op { apply: vec.get(ops, 0) };
+  return (op.apply)(41);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}

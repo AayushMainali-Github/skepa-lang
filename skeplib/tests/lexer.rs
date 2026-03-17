@@ -322,6 +322,22 @@ fn lexes_double_dot_as_two_dot_tokens() {
 }
 
 #[test]
+fn lexes_zero_dot_as_int_then_dot_tokens() {
+    let (tokens, diags) = lex("0.");
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    let got: Vec<TokenKind> = tokens.into_iter().map(|t| t.kind).collect();
+    assert_eq!(got, vec![TokenKind::IntLit, TokenKind::Dot, TokenKind::Eof]);
+}
+
+#[test]
+fn lexes_leading_dot_number_as_dot_then_int_tokens() {
+    let (tokens, diags) = lex(".5");
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    let got: Vec<TokenKind> = tokens.into_iter().map(|t| t.kind).collect();
+    assert_eq!(got, vec![TokenKind::Dot, TokenKind::IntLit, TokenKind::Eof]);
+}
+
+#[test]
 fn lexes_int_then_dot_then_int_when_not_float_form() {
     let (tokens, diags) = lex("12. x");
     assert!(diags.is_empty());
@@ -381,6 +397,16 @@ fn string_literal_keeps_raw_escape_lexeme() {
     assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
     assert_eq!(tokens[0].kind, TokenKind::StringLit);
     assert_eq!(tokens[0].lexeme, "\"a\\n\\\"b\\\\c\"");
+}
+
+#[test]
+fn lexes_long_escaped_string_with_unicode_contents() {
+    let src = "\"alpha\\n\\tbeta\\\"quote\\\"\\\\नमस्ते終\"";
+    let (tokens, diags) = lex(src);
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    assert_eq!(tokens[0].kind, TokenKind::StringLit);
+    assert_eq!(tokens[0].lexeme, src);
+    assert_eq!(tokens[1].kind, TokenKind::Eof);
 }
 
 #[test]
@@ -461,4 +487,33 @@ fn keywords_inside_identifiers_are_not_keywords() {
     assert_eq!(tokens[2].kind, TokenKind::Ident);
     assert_eq!(tokens[3].kind, TokenKind::Ident);
     assert_eq!(tokens[4].kind, TokenKind::Ident);
+}
+
+#[test]
+fn comments_split_tokens_cleanly_at_boundaries_and_eof() {
+    let (tokens, diags) = lex("foo/* gap */bar// trailing");
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    assert_eq!(tokens[0].kind, TokenKind::Ident);
+    assert_eq!(tokens[0].lexeme, "foo");
+    assert_eq!(tokens[1].kind, TokenKind::Ident);
+    assert_eq!(tokens[1].lexeme, "bar");
+    assert_eq!(tokens[2].kind, TokenKind::Eof);
+}
+
+#[test]
+fn pathological_recovery_reports_many_bad_chars_and_keeps_valid_tokens() {
+    let (tokens, diags) = lex("@#^ let ok = 1; $");
+    assert_eq!(diags.len(), 4, "diagnostics: {:?}", diags.as_slice());
+    let got: Vec<TokenKind> = tokens.into_iter().map(|t| t.kind).collect();
+    assert_eq!(
+        got,
+        vec![
+            TokenKind::KwLet,
+            TokenKind::Ident,
+            TokenKind::Assign,
+            TokenKind::IntLit,
+            TokenKind::Semi,
+            TokenKind::Eof,
+        ]
+    );
 }

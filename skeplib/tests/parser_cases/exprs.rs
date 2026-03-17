@@ -276,3 +276,24 @@ fn main() -> Int {
         _ => panic!("expected let"),
     }
 }
+
+#[test]
+fn parses_chained_index_field_and_call_in_complex_order() {
+    let src = r#"
+fn main() -> Int {
+  let x = makeUsers()[0].build(1).items[2];
+  return 0;
+}
+"#;
+    let program = parse_ok(src);
+    match &program.functions[0].body[0] {
+        Stmt::Let {
+            value: Expr::Index { base, index },
+            ..
+        } => {
+            assert!(matches!(**index, Expr::IntLit(2)));
+            assert!(matches!(**base, Expr::Field { .. }));
+        }
+        other => panic!("expected complex chained index expression, got {other:?}"),
+    }
+}

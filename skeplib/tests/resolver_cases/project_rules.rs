@@ -448,3 +448,179 @@ fn main() -> Int { return 0; }
     }));
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn resolve_project_supports_deep_re_export_chain() {
+    let root = make_temp_dir("deep_reexport_chain");
+    fs::write(
+        root.join("a.sk"),
+        r#"
+fn add(a: Int, b: Int) -> Int { return a + b; }
+export { add };
+"#,
+    )
+    .expect("write a");
+    fs::write(root.join("b.sk"), "export { add } from a;\n").expect("write b");
+    fs::write(root.join("c.sk"), "export { add } from b;\n").expect("write c");
+    fs::write(
+        root.join("main.sk"),
+        r#"
+from c import add;
+fn main() -> Int { return add(1, 2); }
+"#,
+    )
+    .expect("write main");
+
+    let graph = resolve_project(&root.join("main.sk")).expect("deep re-export should resolve");
+    assert!(graph.modules.contains_key("a"));
+    assert!(graph.modules.contains_key("b"));
+    assert!(graph.modules.contains_key("c"));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn resolve_project_allows_same_leaf_module_name_in_different_folders() {
+    let root = make_temp_dir("same_leaf_module_names");
+    fs::create_dir_all(root.join("a")).expect("create a");
+    fs::create_dir_all(root.join("b")).expect("create b");
+    fs::write(
+        root.join("a").join("common.sk"),
+        "fn left() -> Int { return 1; } export { left };",
+    )
+    .expect("write a/common");
+    fs::write(
+        root.join("b").join("common.sk"),
+        "fn right() -> Int { return 2; } export { right };",
+    )
+    .expect("write b/common");
+    fs::write(
+        root.join("main.sk"),
+        r#"
+from a.common import left;
+from b.common import right;
+fn main() -> Int { return left() + right(); }
+"#,
+    )
+    .expect("write main");
+
+    let graph = resolve_project(&root.join("main.sk")).expect("nested same-name modules");
+    assert!(graph.modules.contains_key("a.common"));
+    assert!(graph.modules.contains_key("b.common"));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn resolve_project_builds_larger_shared_dependency_graph() {
+    let root = make_temp_dir("large_project_graph");
+    fs::create_dir_all(root.join("pkg")).expect("create pkg");
+    fs::write(
+        root.join("main.sk"),
+        r#"
+import a;
+import d;
+fn main() -> Int { return 0; }
+"#,
+    )
+    .expect("write main");
+    fs::write(root.join("a.sk"), "import b;\nimport c;\n").expect("write a");
+    fs::write(root.join("b.sk"), "import pkg.shared;\n").expect("write b");
+    fs::write(root.join("c.sk"), "import pkg.shared;\n").expect("write c");
+    fs::write(root.join("d.sk"), "import e;\n").expect("write d");
+    fs::write(root.join("e.sk"), "import pkg.shared;\n").expect("write e");
+    fs::write(
+        root.join("pkg").join("shared.sk"),
+        "fn util() -> Int { return 1; }\n",
+    )
+    .expect("write shared");
+
+    let graph = resolve_project(&root.join("main.sk")).expect("large graph should resolve");
+    assert_eq!(graph.modules.len(), 7);
+    assert_eq!(graph.modules["main"].imports.len(), 2);
+    assert_eq!(graph.modules["pkg.shared"].imports.len(), 0);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn resolve_project_reports_shadowing_across_several_modules() {
+    let root = make_temp_dir("shadowing_across_modules");
+    fs::write(
+        root.join("a.sk"),
+        "fn one() -> Int { return 1; } export { one };",
+    )
+    .expect("write a");
+    fs::write(
+        root.join("b.sk"),
+        "fn two() -> Int { return 2; } export { two };",
+    )
+    .expect("write b");
+    fs::write(
+        root.join("c.sk"),
+        "fn three() -> Int { return 3; } export { three };",
+    )
+    .expect("write c");
+    fs::write(
+        root.join("main.sk"),
+        r#"
+from a import one as shared;
+from b import two as shared;
+from c import three as shared;
+fn main() -> Int { return 0; }
+"#,
+    )
+    .expect("write main");
+
+    let errs = resolve_project(&root.join("main.sk")).expect_err("shadowing conflict expected");
+    let dups = errs
+        .iter()
+        .filter(|e| {
+            e.code == "E-IMPORT-CONFLICT"
+                && e.message.contains("Duplicate imported binding `shared`")
+        })
+        .count();
+    assert!(dups >= 2, "errors: {errs:?}");
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn resolve_project_reports_bad_import_chain_with_intermediate_module_context() {
+    let root = make_temp_dir("bad_import_chain");
+    fs::write(
+        root.join("main.sk"),
+        "import a;\nfn main() -> Int { return 0; }\n",
+    )
+    .expect("write main");
+    fs::write(root.join("a.sk"), "import b;\n").expect("write a");
+    fs::write(root.join("b.sk"), "import missing.deep;\n").expect("write b");
+
+    let errs = resolve_project(&root.join("main.sk")).expect_err("missing deep import expected");
+    assert!(errs.iter().any(|e| {
+        e.code == "E-MOD-NOT-FOUND"
+            && e.message.contains("missing.deep")
+            && e.message.contains("module `b`")
+    }));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn resolve_project_respects_case_sensitivity_where_relevant() {
+    if cfg!(windows) {
+        return;
+    }
+    let root = make_temp_dir("case_sensitive_imports");
+    fs::write(root.join("util.sk"), "fn value() -> Int { return 1; }\n").expect("write util");
+    fs::write(
+        root.join("main.sk"),
+        r#"
+import Util;
+fn main() -> Int { return 0; }
+"#,
+    )
+    .expect("write main");
+
+    let errs = resolve_project(&root.join("main.sk")).expect_err("case mismatch should fail");
+    assert!(
+        errs.iter()
+            .any(|e| e.code == "E-MOD-NOT-FOUND" && e.message.contains("Util"))
+    );
+    let _ = fs::remove_dir_all(root);
+}

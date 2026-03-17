@@ -363,3 +363,170 @@ fn main() -> Int { return 0; }
     }));
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn sema_project_accepts_large_multi_module_flow_with_globals_structs_methods_and_builtins() {
+    let root = make_temp_dir("large_multi_module_happy_path");
+    fs::create_dir_all(root.join("models")).expect("create models");
+    fs::create_dir_all(root.join("utils")).expect("create utils");
+    fs::create_dir_all(root.join("services")).expect("create services");
+
+    fs::write(
+        root.join("models").join("user.sk"),
+        r#"
+struct User { id: Int, name: String }
+impl User {
+  fn bump(self, d: Int) -> Int { return self.id + d; }
+}
+export { User };
+"#,
+    )
+    .expect("write user");
+    fs::write(
+        root.join("utils").join("math.sk"),
+        r#"
+fn add(a: Int, b: Int) -> Int { return a + b; }
+export { add };
+"#,
+    )
+    .expect("write math");
+    fs::write(
+        root.join("services").join("pipeline.sk"),
+        r#"
+from models.user import User;
+from utils.math import add;
+import str;
+
+fn run(u: User, bonus: Int) -> Int {
+  let label = str.toUpper(u.name);
+  if (label == "SAM") {
+    return add(u.bump(bonus), 1);
+  }
+  return 0;
+}
+
+export { run };
+"#,
+    )
+    .expect("write pipeline");
+    fs::write(
+        root.join("main.sk"),
+        r#"
+from models.user import User;
+from services.pipeline import run;
+
+let base: Int = 2;
+
+fn main() -> Int {
+  let u: User = User { id: 5, name: "sam" };
+  return run(u, base);
+}
+"#,
+    )
+    .expect("write main");
+
+    let (res, diags) = analyze_project_entry(&root.join("main.sk")).expect("resolver/sema");
+    assert!(!res.has_errors, "diagnostics: {:?}", diags.as_slice());
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn sema_project_accepts_cross_module_method_style_call_on_imported_struct() {
+    let root = make_temp_dir("cross_module_method_style_call");
+    fs::create_dir_all(root.join("models")).expect("create models folder");
+    fs::write(
+        root.join("models").join("user.sk"),
+        r#"
+struct User { id: Int }
+impl User {
+  fn bump(self, d: Int) -> Int { return self.id + d; }
+}
+export { User };
+"#,
+    )
+    .expect("write module");
+    fs::write(
+        root.join("main.sk"),
+        r#"
+from models.user import User;
+fn main() -> Int {
+  let u: User = User { id: 4 };
+  return u.bump(5);
+}
+"#,
+    )
+    .expect("write main");
+
+    let (res, diags) = analyze_project_entry(&root.join("main.sk")).expect("resolver/sema");
+    assert!(!res.has_errors, "diagnostics: {:?}", diags.as_slice());
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn sema_project_accepts_imported_struct_alias_as_type_annotation() {
+    let root = make_temp_dir("imported_struct_alias_type");
+    fs::create_dir_all(root.join("models")).expect("create models folder");
+    fs::write(
+        root.join("models").join("user.sk"),
+        r#"
+struct User { id: Int }
+impl User {
+  fn bump(self, d: Int) -> Int { return self.id + d; }
+}
+export { User };
+"#,
+    )
+    .expect("write module");
+    fs::write(
+        root.join("main.sk"),
+        r#"
+from models.user import User as AccountUser;
+fn main() -> Int {
+  let u: AccountUser = AccountUser { id: 4 };
+  return u.bump(5);
+}
+"#,
+    )
+    .expect("write main");
+
+    let (res, diags) = analyze_project_entry(&root.join("main.sk")).expect("resolver/sema");
+    assert!(!res.has_errors, "diagnostics: {:?}", diags.as_slice());
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn sema_project_accepts_imported_struct_alias_in_struct_field_and_method_call() {
+    let root = make_temp_dir("imported_struct_alias_struct_field");
+    fs::create_dir_all(root.join("models")).expect("create models folder");
+    fs::write(
+        root.join("models").join("user.sk"),
+        r#"
+struct User { id: Int }
+impl User {
+  fn bump(self, d: Int) -> Int { return self.id + d; }
+}
+export { User };
+"#,
+    )
+    .expect("write module");
+    fs::write(
+        root.join("main.sk"),
+        r#"
+from models.user import User as AccountUser;
+
+struct Holder {
+  user: AccountUser
+}
+
+fn main() -> Int {
+  let h: Holder = Holder { user: AccountUser { id: 7 } };
+  return h.user.bump(2);
+}
+"#,
+    )
+    .expect("write main");
+
+    let (res, diags) = analyze_project_entry(&root.join("main.sk")).expect("resolver/sema");
+    assert!(!res.has_errors, "diagnostics: {:?}", diags.as_slice());
+    let _ = fs::remove_dir_all(root);
+}

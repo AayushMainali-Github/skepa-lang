@@ -489,3 +489,80 @@ fn main() -> Int {
             .any(|d| d.message.contains("Method call requires struct receiver"))
     );
 }
+
+#[test]
+fn sema_accepts_nested_structs_inside_arrays_and_vecs() {
+    let src = r#"
+import vec;
+
+struct Profile { score: Int }
+struct User { profile: Profile }
+
+fn main() -> Int {
+  let users: [User; 1] = [User { profile: Profile { score: 7 } }];
+  let cache: Vec[User] = vec.new();
+  vec.push(cache, users[0]);
+  return vec.get(cache, 0).profile.score;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_accepts_large_struct_and_nested_field_assignment() {
+    let src = r#"
+struct Profile { score: Int }
+struct User {
+  id: Int,
+  age: Int,
+  level: Int,
+  points: Int,
+  active: Bool,
+  name: String,
+  profile: Profile,
+}
+
+fn main() -> Int {
+  let u: User = User {
+    id: 1,
+    age: 20,
+    level: 3,
+    points: 9,
+    active: true,
+    name: "sam",
+    profile: Profile { score: 7 },
+  };
+  u.profile.score = 11;
+  return u.profile.score;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn sema_rejects_invalid_method_in_later_impl_while_allowing_other_methods() {
+    let src = r#"
+struct User { id: Int }
+
+impl User {
+  fn ok(self) -> Int { return self.id; }
+}
+
+impl User {
+  fn bad(x: Int) -> Int { return x; }
+}
+
+fn main() -> Int {
+  let u = User { id: 1 };
+  return u.ok();
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert_has_diag(
+        &diags,
+        "Method `User.bad` must declare `self: User` as first parameter",
+    );
+}

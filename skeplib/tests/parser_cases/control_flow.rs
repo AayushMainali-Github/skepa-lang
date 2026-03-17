@@ -739,3 +739,49 @@ fn main() -> Int {
         _ => panic!("expected let"),
     }
 }
+
+#[test]
+fn parses_deeply_nested_grouped_expression_stress() {
+    let mut expr = "1".to_string();
+    for _ in 0..96 {
+        expr = format!("({expr})");
+    }
+    let src = format!(
+        r#"
+fn main() -> Int {{
+  return {expr};
+}}
+"#
+    );
+    let (_program, diags) = Parser::parse_source(&src);
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+}
+
+#[test]
+fn parses_match_for_and_function_literal_combination() {
+    let src = r#"
+fn main() -> Int {
+  let bump: Fn(Int) -> Int = fn(x: Int) -> Int { return x + 1; };
+  match (1) {
+    1 => {
+      for (let i = 0; i < 2; i = i + 1) {
+        let y = bump(i);
+      }
+      return bump(4);
+    }
+    _ => {
+      return 0;
+    }
+  }
+}
+"#;
+    let program = parse_ok(src);
+    match &program.functions[0].body[1] {
+        Stmt::Match { arms, .. } => {
+            assert_eq!(arms.len(), 2);
+            assert!(matches!(arms[0].body[0], Stmt::For { .. }));
+            assert!(matches!(arms[0].body[1], Stmt::Return(_)));
+        }
+        _ => panic!("expected match statement"),
+    }
+}
