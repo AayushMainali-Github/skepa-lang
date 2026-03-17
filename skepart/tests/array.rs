@@ -40,3 +40,40 @@ fn arrays_store_mixed_runtime_values() {
     assert_eq!(array.get(1), Ok(RtValue::Bool(true)));
     assert_eq!(array.get(2), Ok(RtValue::String(RtString::from("hi"))));
 }
+
+#[test]
+fn arrays_repeat_backing_isolated_after_write() {
+    let mut first = RtArray::repeat(RtValue::Int(3), 4);
+    let second = first.clone();
+    first.set(3, RtValue::Int(8)).expect("set should work");
+    assert_eq!(first.get(3), Ok(RtValue::Int(8)));
+    assert_eq!(second.get(3), Ok(RtValue::Int(3)));
+}
+
+#[test]
+fn arrays_alias_without_write_and_detach_after_write() {
+    let mut first = RtArray::new(vec![RtValue::Int(1), RtValue::Int(2)]);
+    let second = first.clone();
+    assert_eq!(first.get(1), second.get(1));
+
+    first.set(0, RtValue::Int(9)).expect("detach write");
+    assert_eq!(first.get(0), Ok(RtValue::Int(9)));
+    assert_eq!(second.get(0), Ok(RtValue::Int(1)));
+}
+
+#[test]
+fn arrays_support_deeper_nested_mixed_values() {
+    let inner = RtArray::new(vec![
+        RtValue::String(RtString::from("x")),
+        RtValue::Bool(false),
+    ]);
+    let outer = RtArray::new(vec![RtValue::Array(inner.clone()), RtValue::Int(7)]);
+
+    match outer.get(0).expect("nested outer") {
+        RtValue::Array(value) => {
+            assert_eq!(value.get(0), Ok(RtValue::String(RtString::from("x"))));
+            assert_eq!(value.get(1), Ok(RtValue::Bool(false)));
+        }
+        other => panic!("expected nested array, got {other:?}"),
+    }
+}

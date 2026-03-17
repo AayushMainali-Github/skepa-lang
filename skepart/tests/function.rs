@@ -50,3 +50,29 @@ fn function_registry_preserves_argument_type_checks_inside_function() {
         RtErrorKind::TypeMismatch
     );
 }
+
+#[test]
+fn function_registry_assigns_stable_incrementing_ids() {
+    let mut registry = RtFunctionRegistry::new();
+    let first = registry.register(add_one);
+    let second = registry.register(sum_two);
+    assert_eq!(first, RtFunctionRef(0));
+    assert_eq!(second, RtFunctionRef(1));
+}
+
+#[test]
+fn function_registry_can_store_and_call_many_functions() {
+    let mut registry = RtFunctionRegistry::new();
+    let mut ids = Vec::new();
+    for _ in 0..16 {
+        ids.push(registry.register(add_one));
+    }
+
+    let mut host = RecordingHost::seeded();
+    assert_eq!(
+        registry
+            .call(&mut host, ids[15], &[RtValue::Int(41)])
+            .expect("high id call"),
+        RtValue::Int(42)
+    );
+}

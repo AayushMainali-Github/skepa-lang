@@ -81,3 +81,177 @@ fn builtins_map_host_backed_results_consistently() {
         RtValue::Float(0.25)
     );
 }
+
+#[test]
+fn builtins_cover_more_io_arr_and_vec_edge_shapes() {
+    let mut host = RecordingHost::seeded();
+    assert_eq!(
+        builtins::call(
+            "arr",
+            "join",
+            &[
+                RtValue::Array(skepart::RtArray::new(vec![
+                    RtValue::String(RtString::from("a")),
+                    RtValue::String(RtString::from("b")),
+                ])),
+                RtValue::String(RtString::from(",")),
+            ],
+        )
+        .expect("arr.join"),
+        RtValue::String(RtString::from("a,b"))
+    );
+    assert_eq!(
+        builtins::call("io", "format", &[RtValue::String(RtString::from("%%"))]).expect("percent"),
+        RtValue::String(RtString::from("%"))
+    );
+    assert_eq!(
+        builtins::call_with_host(&mut host, "io", "readLine", &[]).expect("read line"),
+        RtValue::String(RtString::from("typed line"))
+    );
+}
+
+#[test]
+fn builtins_cover_host_backed_fs_os_and_random_families_more_thoroughly() {
+    let mut host = RecordingHost::seeded();
+
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "fs",
+            "exists",
+            &[RtValue::String(RtString::from("exists.txt"))],
+        )
+        .expect("fs exists"),
+        RtValue::Bool(true)
+    );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "fs",
+            "readText",
+            &[RtValue::String(RtString::from("note.txt"))],
+        )
+        .expect("fs read"),
+        RtValue::String(RtString::from("read:note.txt"))
+    );
+    builtins::call_with_host(
+        &mut host,
+        "fs",
+        "writeText",
+        &[
+            RtValue::String(RtString::from("a.txt")),
+            RtValue::String(RtString::from("hello")),
+        ],
+    )
+    .expect("fs write");
+    builtins::call_with_host(
+        &mut host,
+        "fs",
+        "appendText",
+        &[
+            RtValue::String(RtString::from("a.txt")),
+            RtValue::String(RtString::from("!")),
+        ],
+    )
+    .expect("fs append");
+    builtins::call_with_host(
+        &mut host,
+        "fs",
+        "mkdirAll",
+        &[RtValue::String(RtString::from("tmp/dir"))],
+    )
+    .expect("mkdir");
+    builtins::call_with_host(
+        &mut host,
+        "fs",
+        "removeFile",
+        &[RtValue::String(RtString::from("a.txt"))],
+    )
+    .expect("rm file");
+    builtins::call_with_host(
+        &mut host,
+        "fs",
+        "removeDirAll",
+        &[RtValue::String(RtString::from("tmp/dir"))],
+    )
+    .expect("rm dir");
+
+    assert_eq!(
+        builtins::call_with_host(&mut host, "os", "cwd", &[]).expect("cwd"),
+        RtValue::String(RtString::from("tmp/work"))
+    );
+    builtins::call_with_host(&mut host, "os", "sleep", &[RtValue::Int(33)]).expect("sleep");
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "os",
+            "execShell",
+            &[RtValue::String(RtString::from("echo hi"))],
+        )
+        .expect("shell"),
+        RtValue::Int(9)
+    );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "os",
+            "execShellOut",
+            &[RtValue::String(RtString::from("echo hi"))],
+        )
+        .expect("shell out"),
+        RtValue::String(RtString::from("shell-out"))
+    );
+
+    builtins::call_with_host(&mut host, "random", "seed", &[RtValue::Int(123)]).expect("seed");
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "random",
+            "int",
+            &[RtValue::Int(1), RtValue::Int(10)],
+        )
+        .expect("rand int"),
+        RtValue::Int(5)
+    );
+
+    assert_eq!(
+        host.output,
+        "[write a.txt=hello][append a.txt+=!][mkdir tmp/dir][rmfile a.txt][rmdir tmp/dir][sleep 33][sh echo hi][shout echo hi]"
+    );
+}
+
+#[test]
+fn builtins_cover_datetime_component_and_parse_shapes() {
+    let mut host = RecordingHost::seeded();
+
+    assert_eq!(
+        builtins::call_with_host(&mut host, "datetime", "fromUnix", &[RtValue::Int(5)],)
+            .expect("from unix"),
+        RtValue::Int(15)
+    );
+    assert_eq!(
+        builtins::call_with_host(&mut host, "datetime", "fromMillis", &[RtValue::Int(5)],)
+            .expect("from millis"),
+        RtValue::Int(25)
+    );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "datetime",
+            "parseUnix",
+            &[RtValue::String(RtString::from("2025-03-17"))],
+        )
+        .expect("parse unix"),
+        RtValue::Int(10)
+    );
+    assert_eq!(
+        builtins::call_with_host(&mut host, "datetime", "year", &[RtValue::Int(100)])
+            .expect("year"),
+        RtValue::Int(104)
+    );
+    assert_eq!(
+        builtins::call_with_host(&mut host, "datetime", "second", &[RtValue::Int(100)])
+            .expect("second"),
+        RtValue::Int(106)
+    );
+}
