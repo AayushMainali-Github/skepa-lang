@@ -32,6 +32,21 @@ fn build_and_run_exit_code(source: &str) -> i32 {
         .expect("native executable should produce an exit code")
 }
 
+fn build_and_run_output(source: &str) -> std::process::Output {
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let exe_path = temp_file("native_codegen_output", exe_ext());
+
+    codegen::compile_program_to_executable(&program, &exe_path)
+        .expect("native executable build should succeed");
+
+    let output = Command::new(&exe_path)
+        .output()
+        .expect("built executable should run");
+
+    let _ = fs::remove_file(&exe_path);
+    output
+}
+
 #[test]
 fn llvm_codegen_emits_valid_int_only_module() {
     let source = r#"
@@ -531,6 +546,66 @@ fn main() -> Int {
 }
 
 #[test]
+fn llvm_codegen_emits_runtime_abi_boxing_and_unboxing_surface() {
+    let source = r#"
+fn pick(flag: Bool) -> Bool {
+  return flag;
+}
+
+fn main() -> Int {
+  let xs: Vec[Int] = vec.new();
+  vec.push(xs, 2);
+  let ok = pick(true);
+  if (ok) {
+    return vec.get(xs, 0);
+  }
+  return 0;
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let llvm_ir =
+        codegen::compile_program_to_llvm_ir(&program).expect("LLVM lowering should succeed");
+
+    assert!(llvm_ir.contains("declare ptr @skp_rt_value_from_int(i64)"));
+    assert!(llvm_ir.contains("declare ptr @skp_rt_value_from_bool(i1)"));
+    assert!(llvm_ir.contains("declare i64 @skp_rt_value_to_int(ptr)"));
+    assert!(llvm_ir.contains("declare i1 @skp_rt_value_to_bool(ptr)"));
+    assert!(llvm_ir.contains("declare ptr @skp_rt_value_from_vec(ptr)"));
+    assert!(llvm_ir.contains("declare ptr @skp_rt_value_to_vec(ptr)"));
+}
+
+#[test]
+fn llvm_codegen_emits_runtime_abi_for_struct_layout_and_builtin_dispatch() {
+    let source = r#"
+import fs;
+
+struct Pair {
+  a: Int,
+  b: Int
+}
+
+fn main() -> Int {
+  let p = Pair { a: 3, b: 4 };
+  if (fs.exists("missing.txt")) {
+    return p.a;
+  }
+  return p.b;
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let llvm_ir =
+        codegen::compile_program_to_llvm_ir(&program).expect("LLVM lowering should succeed");
+
+    assert!(llvm_ir.contains("declare ptr @skp_rt_struct_new(i64, i64)"));
+    assert!(llvm_ir.contains("declare ptr @skp_rt_struct_get(ptr, i64)"));
+    assert!(llvm_ir.contains("declare void @skp_rt_struct_set(ptr, i64, ptr)"));
+    assert!(llvm_ir.contains("declare ptr @skp_rt_call_builtin(ptr, ptr, i64, ptr)"));
+    assert!(llvm_ir.contains("call ptr @skp_rt_call_builtin("));
+}
+
+#[test]
 fn codegen_emits_object_file_for_int_program() {
     let source = r#"
 fn main() -> Int {
@@ -610,6 +685,30 @@ fn main() -> Int {
 "#;
 
     assert_eq!(build_and_run_exit_code(source), 7);
+}
+
+#[test]
+fn codegen_builds_native_executable_for_io_and_datetime_builtins() {
+    let source = r#"
+import io;
+import datetime;
+
+fn main() -> Int {
+  io.println("native-ok");
+  if (datetime.nowMillis() > 0) {
+    return 7;
+  }
+  return 0;
+}
+"#;
+
+    let output = build_and_run_output(source);
+    assert_eq!(output.status.code(), Some(7));
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("native-ok"),
+        "expected io builtin output, got: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
 }
 
 #[test]
