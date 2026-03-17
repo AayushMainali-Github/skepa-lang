@@ -1,5 +1,8 @@
 use skeplib::ir::{self, IrValue, PrettyIr};
 
+#[path = "common.rs"]
+mod common;
+
 #[test]
 fn inlining_removes_trivial_direct_calls_and_methods() {
     let source = r#"
@@ -59,4 +62,5 @@ fn main() -> Int {
         .run_main()
         .expect("IR interpreter should run optimized source");
     assert_eq!(value, IrValue::Int(21));
+    assert_eq!(common::native_run_exit_code_ok(source), 21);
 }

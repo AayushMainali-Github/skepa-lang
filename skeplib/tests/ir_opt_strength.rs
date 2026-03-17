@@ -1,5 +1,8 @@
 use skeplib::ir::{self, IrValue, PrettyIr};
 
+#[path = "common.rs"]
+mod common;
+
 #[test]
 fn strength_reduce_rewrites_arithmetic_identities() {
     let source = r#"
@@ -42,4 +45,30 @@ fn main() -> Int {
         .run_main()
         .expect("IR interpreter should run optimized source");
     assert_eq!(value, IrValue::Int(56));
+    assert_eq!(common::native_run_exit_code_ok(source), 56);
+}
+
+#[test]
+fn strength_reduce_preserves_string_heavy_program_correctness() {
+    let source = r#"
+import str;
+
+fn main() -> Int {
+  let i = 0;
+  let total = 0;
+  while (i < 6) {
+    let s = "skepa-language-benchmark";
+    total = total + str.len(s);
+    total = total + str.indexOf(s, "bench");
+    i = i + 1;
+  }
+  return total + (1 * 2);
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let value = ir::IrInterpreter::new(&program)
+        .run_main()
+        .expect("IR interpreter should run optimized source");
+    assert_eq!(value, IrValue::Int(236));
 }

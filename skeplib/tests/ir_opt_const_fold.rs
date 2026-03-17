@@ -63,3 +63,23 @@ fn main() -> String {
         ""
     );
 }
+
+#[test]
+fn const_fold_preserves_native_semantics_for_int_programs() {
+    let source = r#"
+fn main() -> Int {
+  let x = (3 + 4) * 2;
+  if (2 < 3) {
+    return x;
+  }
+  return 0;
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let ir_value = ir::IrInterpreter::new(&program)
+        .run_main()
+        .expect("IR interpreter should run optimized source");
+    assert_eq!(ir_value, IrValue::Int(14));
+    assert_eq!(common::native_run_exit_code_ok(source), 14);
+}
