@@ -556,6 +556,95 @@ fn main() -> Int {
 }
 
 #[test]
+fn llvm_codegen_emits_bool_compare_using_i1() {
+    let source = r#"
+fn main() -> Int {
+  let a = true;
+  let b = false;
+  if (a != b) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let llvm_ir =
+        codegen::compile_program_to_llvm_ir(&program).expect("LLVM lowering should succeed");
+
+    assert!(llvm_ir.contains("alloca i1"));
+    assert!(llvm_ir.contains("load i1"));
+    assert!(llvm_ir.contains("icmp ne i1"));
+    assert!(!llvm_ir.contains("icmp ne i64"));
+}
+
+#[test]
+fn llvm_codegen_emits_bool_equality_using_i1() {
+    let source = r#"
+fn main() -> Int {
+  let a = true;
+  let b = true;
+  if (a == b) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let llvm_ir =
+        codegen::compile_program_to_llvm_ir(&program).expect("LLVM lowering should succeed");
+
+    assert!(llvm_ir.contains("load i1"));
+    assert!(llvm_ir.contains("icmp eq i1"));
+    assert!(!llvm_ir.contains("icmp eq i64"));
+}
+
+#[test]
+fn llvm_codegen_emits_global_bool_compare_using_i1() {
+    let source = r#"
+let enabled: Bool = true;
+
+fn main() -> Int {
+  if (enabled == true) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let llvm_ir =
+        codegen::compile_program_to_llvm_ir(&program).expect("LLVM lowering should succeed");
+
+    assert!(llvm_ir.contains("@g0 = global i1 0"));
+    assert!(llvm_ir.contains("store i1 1, ptr @g0"));
+    assert!(llvm_ir.contains("load i1, ptr @g0"));
+    assert!(llvm_ir.contains("icmp eq i1"));
+}
+
+#[test]
+fn llvm_codegen_keeps_int_compare_using_i64() {
+    let source = r#"
+fn main() -> Int {
+  let a = 1;
+  let b = 2;
+  if (a < b) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let llvm_ir =
+        codegen::compile_program_to_llvm_ir(&program).expect("LLVM lowering should succeed");
+
+    assert!(llvm_ir.contains("load i64"));
+    assert!(llvm_ir.contains("icmp slt i64"));
+}
+
+#[test]
 fn llvm_codegen_emits_runtime_abi_for_struct_layout_and_builtin_dispatch() {
     let source = r#"
 import fs;

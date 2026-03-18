@@ -286,13 +286,14 @@ impl<'a> LlvmEmitter<'a> {
                 right,
             } => {
                 let dest = names.temp(*dst)?;
+                let compare_ty = infer_compare_operand_type(self.program, func, left, right);
                 let left = operand_load(
                     names,
                     left,
                     func,
                     lines,
                     counter,
-                    &crate::ir::IrType::Int,
+                    &compare_ty,
                     &self.string_literals,
                 )?;
                 let right = operand_load(
@@ -301,7 +302,7 @@ impl<'a> LlvmEmitter<'a> {
                     func,
                     lines,
                     counter,
-                    &crate::ir::IrType::Int,
+                    &compare_ty,
                     &self.string_literals,
                 )?;
                 let pred = match op {
@@ -312,7 +313,10 @@ impl<'a> LlvmEmitter<'a> {
                     CmpOp::Gt => "sgt",
                     CmpOp::Ge => "sge",
                 };
-                lines.push(format!("  {dest} = icmp {pred} i64 {left}, {right}"));
+                lines.push(format!(
+                    "  {dest} = icmp {pred} {} {left}, {right}",
+                    llvm_ty(&compare_ty)?
+                ));
             }
             Instr::LoadGlobal { dst, ty, global } => {
                 let dest = names.temp(*dst)?;
@@ -848,4 +852,44 @@ fn encode_c_string(value: &str) -> String {
     }
     out.push_str("\\00");
     out
+}
+
+fn infer_compare_operand_type(
+    program: &IrProgram,
+    func: &IrFunction,
+    left: &Operand,
+    right: &Operand,
+) -> crate::ir::IrType {
+    match infer_operand_type(program, func, left)
+        .or_else(|| infer_operand_type(program, func, right))
+    {
+        Some(crate::ir::IrType::Bool) => crate::ir::IrType::Bool,
+        _ => crate::ir::IrType::Int,
+    }
+}
+
+fn infer_operand_type(
+    program: &IrProgram,
+    func: &IrFunction,
+    operand: &Operand,
+) -> Option<crate::ir::IrType> {
+    match operand {
+        Operand::Const(ConstValue::Bool(_)) => Some(crate::ir::IrType::Bool),
+        Operand::Temp(id) => func
+            .temps
+            .iter()
+            .find(|temp| temp.id == *id)
+            .map(|temp| temp.ty.clone()),
+        Operand::Local(id) => func
+            .locals
+            .iter()
+            .find(|local| local.id == *id)
+            .map(|local| local.ty.clone()),
+        Operand::Global(id) => program
+            .globals
+            .iter()
+            .find(|global| global.id == *id)
+            .map(|global| global.ty.clone()),
+        _ => None,
+    }
 }
