@@ -1,21 +1,16 @@
+#[path = "common.rs"]
+mod common;
+
 use skeplib::sema::analyze_project_entry;
 use std::fs;
-use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
 
-fn make_temp_dir(label: &str) -> PathBuf {
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("clock")
-        .as_nanos();
-    let dir = std::env::temp_dir().join(format!("skepa_sema_project_{label}_{nanos}"));
-    fs::create_dir_all(&dir).expect("create temp dir");
-    dir
+fn make_temp_dir(label: &str) -> std::path::PathBuf {
+    common::make_temp_dir(label)
 }
 
 #[test]
 fn sema_project_accepts_cross_file_struct_construction_and_method_call() {
-    let root = make_temp_dir("struct_method");
+    let root = common::make_temp_dir("struct_method");
     fs::create_dir_all(root.join("models")).expect("create models folder");
     fs::write(
         root.join("models").join("user.sk"),
@@ -41,13 +36,13 @@ fn main() -> Int {
     .expect("write main");
 
     let (res, diags) = analyze_project_entry(&root.join("main.sk")).expect("resolver/sema");
-    assert!(!res.has_errors, "diagnostics: {:?}", diags.as_slice());
+    common::assert_sema_success(&res, &diags);
     let _ = fs::remove_dir_all(root);
 }
 
 #[test]
 fn sema_project_accepts_cross_file_function_value_param_and_return() {
-    let root = make_temp_dir("fn_values");
+    let root = common::make_temp_dir("fn_values");
     fs::create_dir_all(root.join("utils")).expect("create utils folder");
     fs::write(
         root.join("utils").join("math.sk"),
@@ -74,13 +69,13 @@ fn main() -> Int {
     .expect("write main");
 
     let (res, diags) = analyze_project_entry(&root.join("main.sk")).expect("resolver/sema");
-    assert!(!res.has_errors, "diagnostics: {:?}", diags.as_slice());
+    common::assert_sema_success(&res, &diags);
     let _ = fs::remove_dir_all(root);
 }
 
 #[test]
 fn sema_project_accepts_imported_function_in_array_and_struct_field() {
-    let root = make_temp_dir("fn_in_array_struct");
+    let root = common::make_temp_dir("fn_in_array_struct");
     fs::create_dir_all(root.join("utils")).expect("create utils folder");
     fs::write(
         root.join("utils").join("math.sk"),
@@ -109,13 +104,13 @@ fn main() -> Int {
     .expect("write main");
 
     let (res, diags) = analyze_project_entry(&root.join("main.sk")).expect("resolver/sema");
-    assert!(!res.has_errors, "diagnostics: {:?}", diags.as_slice());
+    common::assert_sema_success(&res, &diags);
     let _ = fs::remove_dir_all(root);
 }
 
 #[test]
 fn sema_project_accepts_module_qualified_named_type_annotation() {
-    let root = make_temp_dir("qualified_type_annotation");
+    let root = common::make_temp_dir("qualified_type_annotation");
     fs::create_dir_all(root.join("models")).expect("create models folder");
     fs::write(
         root.join("models").join("user.sk"),

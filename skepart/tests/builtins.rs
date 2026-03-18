@@ -1,11 +1,11 @@
 mod common;
 
-use common::{RecordingHost, RecordingHostBuilder};
+use common::RecordingHostBuilder;
 use skepart::{builtins, NoopHost, RtErrorKind, RtString, RtValue};
 
 #[test]
 fn builtins_dispatch_valid_core_families() {
-    let mut host = RecordingHost::seeded();
+    let mut host = RecordingHostBuilder::seeded().build();
     assert_eq!(
         builtins::call_with_host(&mut host, "datetime", "nowUnix", &[]).expect("datetime"),
         RtValue::Int(100)
@@ -53,7 +53,7 @@ fn builtins_report_unknown_family_arity_and_type_errors() {
 
 #[test]
 fn builtins_map_host_backed_results_consistently() {
-    let mut host = RecordingHost::seeded();
+    let mut host = RecordingHostBuilder::seeded().build();
     assert_eq!(
         builtins::call_with_host(
             &mut host,
@@ -79,7 +79,7 @@ fn builtins_map_host_backed_results_consistently() {
 
 #[test]
 fn builtins_cover_more_io_arr_and_vec_edge_shapes() {
-    let mut host = RecordingHost::seeded();
+    let mut host = RecordingHostBuilder::seeded().build();
     assert_eq!(
         builtins::call(
             "arr",

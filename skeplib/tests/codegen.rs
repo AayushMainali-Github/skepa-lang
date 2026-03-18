@@ -225,11 +225,9 @@ fn main() -> Int {
 
 #[test]
 fn llvm_codegen_emits_project_entry_wrapper_calls() {
-    let dir = temp_file("project_codegen", "dir");
-    fs::create_dir_all(&dir).expect("temporary project dir should be created");
-    let entry = dir.join("main.sk");
-    fs::write(
-        &entry,
+    let project = common::TempProject::new("project_codegen");
+    let entry = project.file(
+        "main.sk",
         r#"
 fn helper(x: Int) -> Int {
   return x + 7;
@@ -239,8 +237,7 @@ fn main() -> Int {
   return helper(5);
 }
 "#,
-    )
-    .expect("project source should be written");
+    );
 
     let program =
         ir::lowering::compile_project_entry(&entry).expect("project IR lowering should succeed");
@@ -250,35 +247,14 @@ fn main() -> Int {
     assert!(llvm_ir.contains("define i64 @\"main::helper\"(i64 %arg0)"));
     assert!(llvm_ir.contains("define i64 @\"main\"()"));
 
-    let ll_path = temp_file("project_codegen", "ll");
-    let bc_path = temp_file("project_codegen", "bc");
-    fs::write(&ll_path, llvm_ir).expect("should write temporary llvm ir file");
-
-    let output = Command::new("llvm-as")
-        .arg(&ll_path)
-        .arg("-o")
-        .arg(&bc_path)
-        .output()
-        .expect("llvm-as should be available on PATH");
-
-    let _ = fs::remove_file(&ll_path);
-    let _ = fs::remove_file(&bc_path);
-    let _ = fs::remove_dir_all(&dir);
-
-    assert!(
-        output.status.success(),
-        "llvm-as rejected generated IR: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assemble_llvm_ir(&llvm_ir, "project_codegen");
 }
 
 #[test]
 fn llvm_codegen_emits_module_init_via_global_ctors() {
-    let dir = temp_file("project_globals_codegen", "dir");
-    fs::create_dir_all(&dir).expect("temporary project dir should be created");
-    let entry = dir.join("main.sk");
-    fs::write(
-        &entry,
+    let project = common::TempProject::new("project_globals_codegen");
+    let entry = project.file(
+        "main.sk",
         r#"
 let base: Int = 3;
 let answer: Int = 7;
@@ -287,8 +263,7 @@ fn main() -> Int {
   return answer;
 }
 "#,
-    )
-    .expect("project source should be written");
+    );
 
     let program =
         ir::lowering::compile_project_entry(&entry).expect("project IR lowering should succeed");
@@ -299,26 +274,7 @@ fn main() -> Int {
     assert!(llvm_ir.contains("@\"__globals_init\""));
     assert!(llvm_ir.contains("store i64"));
 
-    let ll_path = temp_file("project_globals_codegen", "ll");
-    let bc_path = temp_file("project_globals_codegen", "bc");
-    fs::write(&ll_path, llvm_ir).expect("should write temporary llvm ir file");
-
-    let output = Command::new("llvm-as")
-        .arg(&ll_path)
-        .arg("-o")
-        .arg(&bc_path)
-        .output()
-        .expect("llvm-as should be available on PATH");
-
-    let _ = fs::remove_file(&ll_path);
-    let _ = fs::remove_file(&bc_path);
-    let _ = fs::remove_dir_all(&dir);
-
-    assert!(
-        output.status.success(),
-        "llvm-as rejected generated IR: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assemble_llvm_ir(&llvm_ir, "project_globals_codegen");
 }
 
 #[test]
@@ -845,13 +801,9 @@ fn main() -> Int {{
 
 #[test]
 fn codegen_builds_native_project_entry_wrapper_executable() {
-    let dir = temp_file("project_native_runtime", "dir");
-    fs::create_dir_all(&dir).expect("temporary project dir should be created");
-    let util_dir = dir.join("util");
-    fs::create_dir_all(&util_dir).expect("temporary util dir should be created");
-    let entry = dir.join("main.sk");
-    fs::write(
-        util_dir.join("math.sk"),
+    let project = common::TempProject::new("project_native_runtime");
+    project.file(
+        "util/math.sk",
         r#"
 fn add(a: Int, b: Int) -> Int {
   return a + b;
@@ -859,10 +811,9 @@ fn add(a: Int, b: Int) -> Int {
 
 export { add };
 "#,
-    )
-    .expect("util source should be written");
-    fs::write(
-        &entry,
+    );
+    let entry = project.file(
+        "main.sk",
         r#"
 from util.math import add;
 
@@ -870,8 +821,7 @@ fn main() -> Int {
   return add(3, 4);
 }
 "#,
-    )
-    .expect("entry source should be written");
+    );
 
     let program =
         ir::lowering::compile_project_entry(&entry).expect("project IR lowering should succeed");
@@ -885,7 +835,6 @@ fn main() -> Int {
         .expect("built executable should run");
 
     let _ = fs::remove_file(&exe_path);
-    let _ = fs::remove_dir_all(&dir);
 
     assert_eq!(output.status.code(), Some(7));
 }

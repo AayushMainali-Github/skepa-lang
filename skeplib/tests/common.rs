@@ -134,6 +134,15 @@ pub fn assert_diag_count_at_least(diags: &DiagnosticBag, min: usize) {
     );
 }
 
+pub fn assert_no_diags(diags: &DiagnosticBag) {
+    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+}
+
+pub fn assert_sema_success(result: &SemaResult, diags: &DiagnosticBag) {
+    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+    assert_no_diags(diags);
+}
+
 pub fn fixtures_dir(group: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("tests")
@@ -285,7 +294,7 @@ fn native_run_program(program: &IrProgram) -> NativeRunResult {
     NativeRunResult { output }
 }
 
-fn make_temp_dir(prefix: &str) -> PathBuf {
+pub fn make_temp_dir(prefix: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("{prefix}_{}", unique_suffix()));
     fs::create_dir_all(&dir).expect("create temp dir");
     dir

@@ -1,6 +1,6 @@
 mod common;
 
-use common::{RecordingHost, RecordingHostBuilder};
+use common::RecordingHostBuilder;
 use skepart::{NoopHost, RtHost, RtString};
 
 #[test]
@@ -14,7 +14,7 @@ fn noop_host_supports_print_and_time_defaults() {
 
 #[test]
 fn recording_host_captures_output_and_overrides_services() {
-    let mut host = RecordingHost::seeded();
+    let mut host = RecordingHostBuilder::seeded().build();
     host.io_print("a").expect("print");
     host.io_println("b").expect("println");
     assert_eq!(host.output, "ab\n");

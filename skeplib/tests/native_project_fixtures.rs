@@ -28,14 +28,14 @@ fn all_valid_native_project_fixtures_run_to_expected_exit_code() {
         let expected_raw =
             fs::read_to_string(case_dir.join("expected.txt")).expect("expected.txt exists");
         let expected = parse_expected_exit_code(&expected_raw);
-        let output = common::native_run_project_ok(&entry_file);
+        let output = common::native_run_project_structured(&entry_file);
         assert_eq!(
-            output.status.code(),
-            Some(expected),
+            output.exit_code(),
+            expected,
             "fixture {} expected exit code {:?}, got {:?}",
             case_dir.display(),
             expected,
-            output.status.code()
+            output.exit_code()
         );
     }
 }

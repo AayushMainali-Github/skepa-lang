@@ -1,6 +1,6 @@
 mod common;
 
-use common::RecordingHost;
+use common::RecordingHostBuilder;
 use skepart::{RtErrorKind, RtFunctionRef, RtFunctionRegistry, RtValue};
 
 fn add_one(_host: &mut dyn skepart::RtHost, args: &[RtValue]) -> skepart::RtResult<RtValue> {
@@ -15,7 +15,7 @@ fn sum_two(_host: &mut dyn skepart::RtHost, args: &[RtValue]) -> skepart::RtResu
 fn function_registry_calls_registered_functions() {
     let mut registry = RtFunctionRegistry::new();
     let f = registry.register(add_one);
-    let mut host = RecordingHost::seeded();
+    let mut host = RecordingHostBuilder::seeded().build();
     assert_eq!(
         registry
             .call(&mut host, f, &[RtValue::Int(4)])
@@ -27,7 +27,7 @@ fn function_registry_calls_registered_functions() {
 #[test]
 fn function_registry_reports_missing_function_id() {
     let registry = RtFunctionRegistry::new();
-    let mut host = RecordingHost::seeded();
+    let mut host = RecordingHostBuilder::seeded().build();
     assert_eq!(
         registry
             .call(&mut host, RtFunctionRef(99), &[RtValue::Int(1)])
@@ -41,7 +41,7 @@ fn function_registry_reports_missing_function_id() {
 fn function_registry_preserves_argument_type_checks_inside_function() {
     let mut registry = RtFunctionRegistry::new();
     let f = registry.register(sum_two);
-    let mut host = RecordingHost::seeded();
+    let mut host = RecordingHostBuilder::seeded().build();
     assert_eq!(
         registry
             .call(&mut host, f, &[RtValue::Int(1), RtValue::Bool(true)])
@@ -68,7 +68,7 @@ fn function_registry_can_store_and_call_many_functions() {
         ids.push(registry.register(add_one));
     }
 
-    let mut host = RecordingHost::seeded();
+    let mut host = RecordingHostBuilder::seeded().build();
     assert_eq!(
         registry
             .call(&mut host, ids[15], &[RtValue::Int(41)])

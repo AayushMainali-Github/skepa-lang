@@ -1,3 +1,6 @@
+#[path = "common.rs"]
+mod common;
+
 use skeplib::parser::Parser;
 use skeplib::resolver::{
     ImportTarget, ModuleGraph, ModuleUnit, ResolveErrorKind, SymbolKind,
@@ -8,16 +11,9 @@ use skeplib::resolver::{
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 fn make_temp_dir(label: &str) -> std::path::PathBuf {
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("clock")
-        .as_nanos();
-    let dir = std::env::temp_dir().join(format!("skepa_resolver_{label}_{nanos}"));
-    fs::create_dir_all(&dir).expect("create temp dir");
-    dir
+    common::make_temp_dir(&format!("skepa_resolver_{label}"))
 }
 
 mod resolver_cases {
