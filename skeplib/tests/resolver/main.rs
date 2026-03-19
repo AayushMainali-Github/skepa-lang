@@ -1,4 +1,4 @@
-#[path = "common.rs"]
+#[path = "../common.rs"]
 mod common;
 
 use skeplib::ast::Program;
@@ -17,10 +17,12 @@ fn make_temp_dir(label: &str) -> std::path::PathBuf {
     common::make_temp_dir(&format!("skepa_resolver_{label}"))
 }
 
-mod resolver_cases {
+mod cases {
     use super::*;
 
     mod basics;
     mod fs_graph;
     mod project_rules;
 }
+
+mod fixtures;

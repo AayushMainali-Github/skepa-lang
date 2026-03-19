@@ -1,8 +1,9 @@
-mod common;
-
-use skeplib::resolver::{ResolveErrorKind, resolve_project};
 use std::fs;
 use std::path::PathBuf;
+
+use skeplib::resolver::{ResolveErrorKind, resolve_project};
+
+use super::common;
 
 fn resolver_fixture_root() -> PathBuf {
     common::fixtures_dir("resolver")

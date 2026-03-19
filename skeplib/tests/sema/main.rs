@@ -1,5 +1,7 @@
+#[path = "../common.rs"]
 mod common;
-mod sema_cases {
+
+mod cases {
     use super::common::{assert_has_diag, assert_sema_success, sema_err, sema_ok};
     use skeplib::sema::analyze_source;
 
@@ -9,3 +11,5 @@ mod sema_cases {
     mod structs;
     mod vec;
 }
+
+mod fixtures;

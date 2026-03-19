@@ -8,6 +8,7 @@ use crate::resolver::{ModuleGraph, SymbolKind};
 
 mod context;
 mod expr;
+mod expr_calls;
 mod project;
 mod stmt;
 

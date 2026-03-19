@@ -1,8 +1,6 @@
-mod common;
-
 use std::fs;
 
-use common::{fixtures_dir, parse_err, parse_ok, sk_files_in};
+use super::common::{fixtures_dir, parse_err, parse_ok, sk_files_in};
 
 #[test]
 fn all_valid_parser_fixtures_have_no_diagnostics() {

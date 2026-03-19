@@ -1,8 +1,9 @@
-mod common;
-
-use skeplib::sema::analyze_project_entry;
 use std::fs;
 use std::path::PathBuf;
+
+use skeplib::sema::analyze_project_entry;
+
+use super::common;
 
 fn sema_project_fixture_root() -> PathBuf {
     common::fixtures_dir("sema_project")

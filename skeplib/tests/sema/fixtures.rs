@@ -1,8 +1,6 @@
-mod common;
-
 use std::fs;
 
-use common::{fixtures_dir, sema_err, sema_ok, sk_files_in};
+use super::common::{fixtures_dir, sema_err, sema_ok, sk_files_in};
 
 #[test]
 fn all_valid_sema_fixtures_have_no_diagnostics() {

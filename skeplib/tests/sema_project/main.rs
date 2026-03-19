@@ -1,4 +1,4 @@
-#[path = "common.rs"]
+#[path = "../common.rs"]
 mod common;
 
 use skeplib::sema::{analyze_project_entry, analyze_project_entry_phased};
