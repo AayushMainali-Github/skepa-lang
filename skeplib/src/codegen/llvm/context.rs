@@ -9,6 +9,8 @@ use crate::ir::{
 };
 use std::collections::HashMap;
 
+const RESERVED_LLVM_HELPER_PREFIXES: &[&str] = &["__skp_codegen_", "__skp_rt_", "__skp_init_"];
+
 pub struct LlvmEmitter<'a> {
     program: &'a IrProgram,
     string_literals: HashMap<String, String>,
@@ -23,6 +25,7 @@ impl<'a> LlvmEmitter<'a> {
     }
 
     pub fn emit_program(&self) -> Result<String, CodegenError> {
+        self.ensure_reserved_symbol_space()?;
         let mut out = vec![
             "; ModuleID = 'skepa'".to_string(),
             "source_filename = \"skepa\"".to_string(),
@@ -114,6 +117,21 @@ impl<'a> LlvmEmitter<'a> {
         }
 
         Ok(out.join("\n"))
+    }
+
+    fn ensure_reserved_symbol_space(&self) -> Result<(), CodegenError> {
+        for func in &self.program.functions {
+            if RESERVED_LLVM_HELPER_PREFIXES
+                .iter()
+                .any(|prefix| func.name.starts_with(prefix))
+            {
+                return Err(CodegenError::InvalidIr(format!(
+                    "function {} uses reserved LLVM helper prefix",
+                    func.name
+                )));
+            }
+        }
+        Ok(())
     }
 
     fn emit_function(&self, func: &IrFunction) -> Result<Vec<String>, CodegenError> {
@@ -761,11 +779,15 @@ impl<'a> LlvmEmitter<'a> {
             }
             Terminator::Return(None) => lines.push("  ret void".into()),
             Terminator::Panic { .. } => {
-                return Err(CodegenError::Unsupported(
-                    "panic terminators are not lowered yet",
+                return Err(CodegenError::InvalidIr(
+                    "LLVM backend does not lower panic terminators".into(),
                 ));
             }
-            Terminator::Unreachable => unreachable!(),
+            Terminator::Unreachable => {
+                return Err(CodegenError::InvalidIr(
+                    "LLVM backend does not lower unreachable terminators".into(),
+                ));
+            }
         }
         Ok(())
     }

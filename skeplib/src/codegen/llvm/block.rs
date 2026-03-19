@@ -14,8 +14,11 @@ pub fn branch_targets(
 
 pub fn ensure_terminator(term: &Terminator) -> Result<(), CodegenError> {
     match term {
+        Terminator::Panic { .. } => Err(CodegenError::InvalidIr(
+            "LLVM backend does not lower panic terminators".into(),
+        )),
         Terminator::Unreachable => Err(CodegenError::InvalidIr(
-            "LLVM backend does not support unreachable terminators yet".into(),
+            "LLVM backend does not lower unreachable terminators".into(),
         )),
         _ => Ok(()),
     }

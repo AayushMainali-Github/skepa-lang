@@ -406,6 +406,56 @@ fn codegen_rejects_missing_parameter_backed_locals_in_invalid_ir() {
 }
 
 #[test]
+fn codegen_rejects_reserved_internal_helper_function_names() {
+    let source = r#"
+fn __skp_rt_user_collision() -> Int {
+  return 1;
+}
+
+fn main() -> Int {
+  return __skp_rt_user_collision();
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let err = codegen::compile_program_to_llvm_ir(&program)
+        .expect_err("reserved helper prefix should fail");
+    let msg = err.to_string();
+    assert!(msg.contains("reserved LLVM helper prefix"));
+}
+
+#[test]
+fn codegen_rejects_panic_and_unreachable_terminators_in_invalid_ir() {
+    let mut builder = ir::IrBuilder::new();
+    let mut program = builder.begin_program();
+
+    let mut panic_func = builder.begin_function("panic_path", ir::IrType::Int);
+    let panic_entry = panic_func.entry;
+    builder.set_terminator(
+        &mut panic_func,
+        panic_entry,
+        ir::Terminator::Panic {
+            message: "boom".into(),
+        },
+    );
+    program.functions.push(panic_func);
+
+    let err =
+        codegen::compile_program_to_llvm_ir(&program).expect_err("panic terminator should fail");
+    let msg = err.to_string();
+    assert!(msg.contains("does not lower panic terminators"));
+
+    let mut builder = ir::IrBuilder::new();
+    let mut program = builder.begin_program();
+    let unreachable_func = builder.begin_function("unreachable_path", ir::IrType::Int);
+    program.functions.push(unreachable_func);
+    let err = codegen::compile_program_to_llvm_ir(&program)
+        .expect_err("unreachable terminator should fail");
+    let msg = err.to_string();
+    assert!(msg.contains("does not lower unreachable terminators"));
+}
+
+#[test]
 fn codegen_builds_native_executable_for_indirect_calls() {
     let source = r#"
 fn step(x: Int) -> Int {
