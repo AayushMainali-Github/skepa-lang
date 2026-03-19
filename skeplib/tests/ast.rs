@@ -1,3 +1,6 @@
+#[path = "common.rs"]
+mod common;
+
 use skeplib::ast::{Expr, FnDecl, ImportDecl, Param, Program, Stmt, TypeName};
 use skeplib::parser::Parser;
 
@@ -160,7 +163,7 @@ fn main() -> Int {
 }
 "#;
     let (program, diags) = Parser::parse_source(src);
-    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    common::assert_no_diags(&diags);
 
     let pretty = program.pretty();
     assert!(pretty.contains("import io"));

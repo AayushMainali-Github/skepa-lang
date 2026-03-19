@@ -1274,5 +1274,5 @@ fn main() -> Int {
 }
 "#;
     let (result, diags) = analyze_source(src);
-    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+    assert_sema_success(&result, &diags);
 }
