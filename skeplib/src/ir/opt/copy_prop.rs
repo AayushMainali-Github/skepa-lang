@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::ir::{Instr, IrProgram, Operand, Terminator};
+use crate::ir::{ConstValue, Instr, IrProgram, IrType, Operand, Terminator};
 
 pub fn run(program: &mut IrProgram) -> bool {
     let mut changed = false;
@@ -106,11 +106,19 @@ fn rewrite_instr(instr: &mut Instr, copies: &HashMap<crate::ir::TempId, Operand>
 
 fn update_copies(instr: &Instr, copies: &mut HashMap<crate::ir::TempId, Operand>) {
     match instr {
-        Instr::Copy { dst, src, .. } => {
-            copies.insert(*dst, src.clone());
+        Instr::Copy { dst, src, ty } => {
+            if is_copy_propagation_safe_type(ty) {
+                copies.insert(*dst, src.clone());
+            } else {
+                copies.remove(dst);
+            }
         }
         Instr::Const { dst, value, .. } => {
-            copies.insert(*dst, Operand::Const(value.clone()));
+            if is_copy_propagation_safe_const(value) {
+                copies.insert(*dst, Operand::Const(value.clone()));
+            } else {
+                copies.remove(dst);
+            }
         }
         Instr::Unary { dst, .. }
         | Instr::Binary { dst, .. }
@@ -138,11 +146,14 @@ fn update_copies(instr: &Instr, copies: &mut HashMap<crate::ir::TempId, Operand>
         | Instr::StructSet { .. }
         | Instr::CallDirect { dst: None, .. }
         | Instr::CallIndirect { dst: None, .. }
-        | Instr::CallBuiltin { dst: None, .. } => {}
+        | Instr::CallBuiltin { dst: None, .. } => {
+            copies.clear();
+        }
         Instr::CallDirect { dst: Some(dst), .. }
         | Instr::CallIndirect { dst: Some(dst), .. }
         | Instr::CallBuiltin { dst: Some(dst), .. } => {
             copies.remove(dst);
+            copies.clear();
         }
     }
 }
@@ -174,4 +185,15 @@ fn rewrite_operand(operand: &mut Operand, copies: &HashMap<crate::ir::TempId, Op
         changed = true;
     }
     changed
+}
+
+fn is_copy_propagation_safe_const(value: &ConstValue) -> bool {
+    matches!(
+        value,
+        ConstValue::Int(_) | ConstValue::Float(_) | ConstValue::Bool(_)
+    )
+}
+
+fn is_copy_propagation_safe_type(ty: &IrType) -> bool {
+    matches!(ty, IrType::Int | IrType::Float | IrType::Bool)
 }

@@ -258,10 +258,7 @@ fn eval_compare(op: CmpOp, left: &ConstValue, right: &ConstValue) -> Option<bool
         (ConstValue::String(a), ConstValue::String(b)) => Some(match op {
             CmpOp::Eq => a == b,
             CmpOp::Ne => a != b,
-            CmpOp::Lt => a < b,
-            CmpOp::Le => a <= b,
-            CmpOp::Gt => a > b,
-            CmpOp::Ge => a >= b,
+            _ => return None,
         }),
         _ => None,
     }

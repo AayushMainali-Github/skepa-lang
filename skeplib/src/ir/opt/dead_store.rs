@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use crate::ir::{Instr, IrProgram, Operand};
+use crate::ir::{Instr, IrProgram, IrType, Operand};
 
 pub fn run(program: &mut IrProgram) -> bool {
     let mut changed = false;
@@ -13,24 +13,32 @@ pub fn run(program: &mut IrProgram) -> bool {
 
             for instr in block.instrs.iter().rev() {
                 match instr {
-                    Instr::StoreLocal { local, .. } => {
-                        if shadowed_locals.contains(local) {
+                    Instr::StoreLocal { local, ty, .. } => {
+                        if is_dead_store_safe_type(ty) && shadowed_locals.contains(local) {
                             changed = true;
                             continue;
                         }
-                        shadowed_locals.insert(*local);
+                        if is_dead_store_safe_type(ty) {
+                            shadowed_locals.insert(*local);
+                        } else {
+                            shadowed_locals.remove(local);
+                        }
                     }
-                    Instr::StoreGlobal { global, .. } => {
-                        if shadowed_globals.contains(global) {
+                    Instr::StoreGlobal { global, ty, .. } => {
+                        if is_dead_store_safe_type(ty) && shadowed_globals.contains(global) {
                             changed = true;
                             continue;
                         }
-                        shadowed_globals.insert(*global);
+                        if is_dead_store_safe_type(ty) {
+                            shadowed_globals.insert(*global);
+                        } else {
+                            shadowed_globals.remove(global);
+                        }
                     }
                     _ => {}
                 }
 
-                collect_reads(instr, &mut shadowed_locals, &mut shadowed_globals);
+                collect_reads_and_effects(instr, &mut shadowed_locals, &mut shadowed_globals);
 
                 kept.push(instr.clone());
             }
@@ -43,7 +51,7 @@ pub fn run(program: &mut IrProgram) -> bool {
     changed
 }
 
-fn collect_reads(
+fn collect_reads_and_effects(
     instr: &Instr,
     shadowed_locals: &mut HashSet<crate::ir::LocalId>,
     shadowed_globals: &mut HashSet<crate::ir::GlobalId>,
@@ -128,6 +136,11 @@ fn collect_reads(
         }
         Instr::Const { .. } | Instr::VecNew { .. } | Instr::MakeClosure { .. } => {}
     }
+
+    if is_effect_barrier(instr) {
+        shadowed_locals.clear();
+        shadowed_globals.clear();
+    }
 }
 
 fn collect_operand_reads(
@@ -144,4 +157,22 @@ fn collect_operand_reads(
         }
         Operand::Const(_) | Operand::Temp(_) => {}
     }
+}
+
+fn is_dead_store_safe_type(ty: &IrType) -> bool {
+    matches!(ty, IrType::Int | IrType::Float | IrType::Bool)
+}
+
+fn is_effect_barrier(instr: &Instr) -> bool {
+    matches!(
+        instr,
+        Instr::ArraySet { .. }
+            | Instr::VecPush { .. }
+            | Instr::VecSet { .. }
+            | Instr::VecDelete { .. }
+            | Instr::StructSet { .. }
+            | Instr::CallDirect { .. }
+            | Instr::CallIndirect { .. }
+            | Instr::CallBuiltin { .. }
+    )
 }

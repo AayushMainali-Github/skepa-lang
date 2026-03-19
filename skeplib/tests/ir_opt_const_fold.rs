@@ -83,3 +83,22 @@ fn main() -> Int {
     assert_eq!(ir_value, IrValue::Int(14));
     assert_eq!(common::native_run_exit_code_ok(source), 14);
 }
+
+#[test]
+fn const_fold_does_not_invent_string_ordering_semantics() {
+    let source = r#"
+fn main() -> Bool {
+  return "a" < "b";
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let err = ir::IrInterpreter::new(&program)
+        .run_main()
+        .expect_err("optimized IR should still reject unsupported string ordering");
+    assert!(matches!(err, IrInterpError::TypeMismatch(_)));
+
+    let printed = PrettyIr::new(&program).to_string();
+    assert!(printed.contains("Compare"));
+    assert!(!printed.contains("Bool(true)"));
+}

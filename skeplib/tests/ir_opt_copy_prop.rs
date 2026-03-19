@@ -40,4 +40,8 @@ fn main() -> Int {
         .run_main()
         .expect("IR interpreter should run optimized source");
     assert_eq!(value, IrValue::Int(9));
+
+    let printed = PrettyIr::new(&program).to_string();
+    assert!(printed.contains("VecPush"));
+    assert!(printed.contains("VecSet"));
 }

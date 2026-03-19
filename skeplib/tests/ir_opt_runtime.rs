@@ -172,3 +172,25 @@ fn main() -> Int {
     let printed = PrettyIr::new(&program).to_string();
     assert!(!printed.contains("Copy {"));
 }
+
+#[test]
+fn optimizer_keeps_runtime_managed_store_order_observable_through_aliases() {
+    let source = r#"
+fn main() -> Int {
+  let xs: Vec[Int] = vec.new();
+  let alias = xs;
+  vec.push(alias, 1);
+  let first = xs;
+  vec.push(alias, 2);
+  let second = xs;
+  return vec.len(first) * 10 + vec.len(second);
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let value = ir::IrInterpreter::new(&program)
+        .run_main()
+        .expect("IR interpreter should preserve observable aliasing semantics");
+    assert_eq!(value, IrValue::Int(22));
+    assert_eq!(common::native_run_exit_code_ok(source), 22);
+}
