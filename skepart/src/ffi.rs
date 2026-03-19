@@ -1,3 +1,5 @@
+#![allow(clippy::missing_const_for_thread_local)]
+
 use std::cell::RefCell;
 use std::ffi::c_char;
 use std::panic::{catch_unwind, AssertUnwindSafe};
@@ -12,7 +14,7 @@ use crate::value::{RtFunctionRef, RtStruct, RtStructLayout, RtValue};
 use crate::vec::RtVec;
 
 thread_local! {
-    static LAST_ERROR: RefCell<Option<crate::RtError>> = const { RefCell::new(None) };
+    static LAST_ERROR: RefCell<Option<crate::RtError>> = RefCell::new(None);
 }
 
 fn invalid_argument(message: impl Into<String>) -> crate::RtError {
@@ -103,6 +105,8 @@ pub extern "C" fn skp_rt_last_error_kind() -> i32 {
         Some(crate::RtErrorKind::MissingField) => 4,
         Some(crate::RtErrorKind::InvalidArgument) => 5,
         Some(crate::RtErrorKind::UnsupportedBuiltin) => 6,
+        Some(crate::RtErrorKind::Io) => 7,
+        Some(crate::RtErrorKind::Process) => 8,
         None => 0,
     })
 }
@@ -630,6 +634,7 @@ pub extern "C" fn skp_rt_struct_new(struct_id: i64, field_count: i64) -> *mut Rt
             Rc::new(RtStructLayout {
                 name: format!("Struct{struct_id}"),
                 field_names: Vec::new(),
+                field_types: Vec::new(),
             }),
             vec![RtValue::Unit; field_count as usize],
         )?))

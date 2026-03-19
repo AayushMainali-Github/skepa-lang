@@ -7,6 +7,7 @@ fn structs_support_named_and_indexed_field_access() {
         Rc::new(RtStructLayout {
             name: "Pair".into(),
             field_names: vec!["a".into(), "b".into()],
+            field_types: vec![Some("Int"), Some("Function")],
         }),
         vec![RtValue::Int(1), RtValue::Function(RtFunctionRef(9))],
     )
@@ -28,6 +29,7 @@ fn structs_report_missing_field_and_layout_mismatches() {
         Rc::new(RtStructLayout {
             name: "Only".into(),
             field_names: vec!["x".into()],
+            field_types: vec![Some("Int")],
         }),
         vec![RtValue::Int(1)],
     )
@@ -48,6 +50,7 @@ fn structs_report_set_field_out_of_range_and_named_layout_mismatch() {
         Rc::new(RtStructLayout {
             name: "Mismatch".into(),
             field_names: vec!["left".into(), "right".into()],
+            field_types: vec![Some("Int"), Some("Int")],
         }),
         vec![RtValue::Int(1)],
     )
@@ -61,6 +64,7 @@ fn structs_reject_layout_and_field_count_mismatch_at_construction() {
         Rc::new(RtStructLayout {
             name: "Mismatch".into(),
             field_names: vec!["left".into(), "right".into()],
+            field_types: vec![Some("Int"), Some("Int")],
         }),
         vec![RtValue::Int(1)],
     )
@@ -92,4 +96,22 @@ fn structs_can_nest_other_struct_values() {
     let inner = RtStruct::named("Inner", vec![RtValue::Int(2)]).expect("inner");
     let outer = RtStruct::named("Outer", vec![RtValue::Struct(inner.clone())]).expect("outer");
     assert_eq!(outer.get_field(0), Ok(RtValue::Struct(inner)));
+}
+
+#[test]
+fn structs_reject_wrong_field_type_when_layout_declares_runtime_types() {
+    let mut strukt = RtStruct::new(
+        Rc::new(RtStructLayout {
+            name: "Typed".into(),
+            field_names: vec!["a".into(), "b".into()],
+            field_types: vec![Some("Int"), Some("Bool")],
+        }),
+        vec![RtValue::Int(1), RtValue::Bool(true)],
+    )
+    .expect("typed struct");
+
+    let err = strukt
+        .set_field(1, RtValue::Int(2))
+        .expect_err("wrong runtime field type");
+    assert_eq!(err.kind, RtErrorKind::TypeMismatch);
 }

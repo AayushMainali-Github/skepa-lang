@@ -7,6 +7,8 @@ pub enum RtErrorKind {
     TypeMismatch,
     MissingField,
     InvalidArgument,
+    Io,
+    Process,
     UnsupportedBuiltin,
 }
 
@@ -42,6 +44,14 @@ impl RtError {
             RtErrorKind::UnsupportedBuiltin,
             format!("unsupported builtin `{}`", name.into()),
         )
+    }
+
+    pub fn io(message: impl Into<String>) -> Self {
+        Self::new(RtErrorKind::Io, message)
+    }
+
+    pub fn process(message: impl Into<String>) -> Self {
+        Self::new(RtErrorKind::Process, message)
     }
 }
 

@@ -54,6 +54,9 @@ impl IrInterpError {
             RtErrorKind::InvalidArgument => {
                 Self::InvalidOperand(Box::leak(err.message.into_boxed_str()))
             }
+            RtErrorKind::Io | RtErrorKind::Process => {
+                Self::InvalidOperand(Box::leak(err.message.into_boxed_str()))
+            }
             RtErrorKind::UnsupportedBuiltin => Self::UnsupportedBuiltin(err.message),
         }
     }
@@ -85,6 +88,11 @@ impl<'a> IrInterpreter<'a> {
                             .fields
                             .iter()
                             .map(|field| field.name.clone())
+                            .collect(),
+                        field_types: strukt
+                            .fields
+                            .iter()
+                            .map(|field| Some(runtime_type_name(&field.ty)))
                             .collect(),
                     })
                 })
@@ -651,6 +659,21 @@ impl<'a> IrInterpreter<'a> {
             ConstValue::String(v) => RtValue::String(RtString::from(v.clone())),
             ConstValue::Unit => RtValue::Unit,
         }
+    }
+}
+
+fn runtime_type_name(ty: &IrType) -> &'static str {
+    match ty {
+        IrType::Int => "Int",
+        IrType::Float => "Float",
+        IrType::Bool => "Bool",
+        IrType::String => "String",
+        IrType::Array { .. } => "Array",
+        IrType::Vec { .. } => "Vec",
+        IrType::Fn { .. } => "Function",
+        IrType::Named(_) => "Struct",
+        IrType::Void => "Void",
+        IrType::Unknown => "Unknown",
     }
 }
 

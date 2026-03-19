@@ -9,6 +9,7 @@ pub struct RtFunctionRef(pub u32);
 pub struct RtStructLayout {
     pub name: String,
     pub field_names: Vec<String>,
+    pub field_types: Vec<Option<&'static str>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -139,6 +140,31 @@ impl RtStruct {
                 ),
             ));
         }
+        if !layout.field_types.is_empty() && layout.field_types.len() != fields.len() {
+            return Err(RtError::new(
+                crate::RtErrorKind::MissingField,
+                format!(
+                    "struct `{}` expected {} typed fields, got {}",
+                    layout.name,
+                    layout.field_types.len(),
+                    fields.len()
+                ),
+            ));
+        }
+        for (index, (field, expected)) in fields.iter().zip(&layout.field_types).enumerate() {
+            if let Some(expected) = expected {
+                if field.type_name() == *expected {
+                    continue;
+                }
+                return Err(RtError::type_mismatch(format!(
+                    "struct `{}` field {} expected {}, got {}",
+                    layout.name,
+                    index,
+                    expected,
+                    field.type_name()
+                )));
+            }
+        }
         Ok(Self { layout, fields })
     }
 
@@ -147,6 +173,7 @@ impl RtStruct {
             Rc::new(RtStructLayout {
                 name: name.into(),
                 field_names: Vec::new(),
+                field_types: Vec::new(),
             }),
             fields,
         )
@@ -167,6 +194,17 @@ impl RtStruct {
     }
 
     pub fn set_field(&mut self, index: usize, value: RtValue) -> RtResult<()> {
+        if let Some(Some(expected)) = self.layout.field_types.get(index) {
+            if value.type_name() != *expected {
+                return Err(RtError::type_mismatch(format!(
+                    "struct `{}` field {} expected {}, got {}",
+                    self.layout.name,
+                    index,
+                    expected,
+                    value.type_name()
+                )));
+            }
+        }
         let slot = self
             .fields
             .get_mut(index)

@@ -124,7 +124,7 @@ impl RtHost for NoopHost {
         print!("{text}");
         std::io::stdout()
             .flush()
-            .map_err(|err| RtError::new(RtErrorKind::InvalidArgument, err.to_string()))?;
+            .map_err(|err| RtError::io(err.to_string()))?;
         Ok(())
     }
 
@@ -203,14 +203,12 @@ impl RtHost for NoopHost {
     }
 
     fn fs_read_text(&mut self, path: &str) -> RtResult<RtString> {
-        let text = fs::read_to_string(path)
-            .map_err(|err| RtError::new(RtErrorKind::InvalidArgument, err.to_string()))?;
+        let text = fs::read_to_string(path).map_err(|err| RtError::io(err.to_string()))?;
         Ok(RtString::from(text))
     }
 
     fn fs_write_text(&mut self, path: &str, text: &str) -> RtResult<()> {
-        fs::write(path, text)
-            .map_err(|err| RtError::new(RtErrorKind::InvalidArgument, err.to_string()))
+        fs::write(path, text).map_err(|err| RtError::io(err.to_string()))
     }
 
     fn fs_append_text(&mut self, path: &str, text: &str) -> RtResult<()> {
@@ -219,24 +217,21 @@ impl RtHost for NoopHost {
             .create(true)
             .append(true)
             .open(path)
-            .map_err(|err| RtError::new(RtErrorKind::InvalidArgument, err.to_string()))?;
+            .map_err(|err| RtError::io(err.to_string()))?;
         file.write_all(text.as_bytes())
-            .map_err(|err| RtError::new(RtErrorKind::InvalidArgument, err.to_string()))
+            .map_err(|err| RtError::io(err.to_string()))
     }
 
     fn fs_mkdir_all(&mut self, path: &str) -> RtResult<()> {
-        fs::create_dir_all(path)
-            .map_err(|err| RtError::new(RtErrorKind::InvalidArgument, err.to_string()))
+        fs::create_dir_all(path).map_err(|err| RtError::io(err.to_string()))
     }
 
     fn fs_remove_file(&mut self, path: &str) -> RtResult<()> {
-        fs::remove_file(path)
-            .map_err(|err| RtError::new(RtErrorKind::InvalidArgument, err.to_string()))
+        fs::remove_file(path).map_err(|err| RtError::io(err.to_string()))
     }
 
     fn fs_remove_dir_all(&mut self, path: &str) -> RtResult<()> {
-        fs::remove_dir_all(path)
-            .map_err(|err| RtError::new(RtErrorKind::InvalidArgument, err.to_string()))
+        fs::remove_dir_all(path).map_err(|err| RtError::io(err.to_string()))
     }
 
     fn fs_join(&mut self, left: &str, right: &str) -> RtResult<RtString> {
@@ -251,7 +246,7 @@ impl RtHost for NoopHost {
     fn os_cwd(&mut self) -> RtResult<RtString> {
         std::env::current_dir()
             .map(|path| RtString::from(path.to_string_lossy().into_owned()))
-            .map_err(|err| RtError::new(RtErrorKind::InvalidArgument, err.to_string()))
+            .map_err(|err| RtError::io(err.to_string()))
     }
 
     fn os_platform(&mut self) -> RtResult<RtString> {
@@ -275,7 +270,7 @@ impl RtHost for NoopHost {
         } else {
             Command::new("sh").args(["-c", command]).output()
         }
-        .map_err(|err| RtError::new(RtErrorKind::InvalidArgument, err.to_string()))?;
+        .map_err(|err| RtError::process(err.to_string()))?;
         Ok(output.status.code().unwrap_or(-1) as i64)
     }
 
@@ -285,7 +280,7 @@ impl RtHost for NoopHost {
         } else {
             Command::new("sh").args(["-c", command]).output()
         }
-        .map_err(|err| RtError::new(RtErrorKind::InvalidArgument, err.to_string()))?;
+        .map_err(|err| RtError::process(err.to_string()))?;
         Ok(RtString::from(
             String::from_utf8_lossy(&output.stdout)
                 .trim_end()
