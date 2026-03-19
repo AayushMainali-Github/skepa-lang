@@ -2,6 +2,7 @@ mod block;
 mod calls;
 mod compare;
 mod context;
+mod function;
 mod module;
 mod runtime;
 mod runtime_boxing;

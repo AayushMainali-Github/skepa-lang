@@ -1,7 +1,8 @@
 use crate::codegen::CodegenError;
-use crate::codegen::llvm::block::{branch_targets, ensure_terminator, label};
+use crate::codegen::llvm::block::{branch_targets, label};
 use crate::codegen::llvm::calls::{self, DirectCall};
 use crate::codegen::llvm::compare::{emit_compare, infer_compare_operand_type};
+use crate::codegen::llvm::function;
 use crate::codegen::llvm::module;
 use crate::codegen::llvm::runtime;
 use crate::codegen::llvm::strings::collect_string_literals;
@@ -61,55 +62,13 @@ impl<'a> LlvmEmitter<'a> {
     }
 
     fn emit_function(&self, func: &IrFunction) -> Result<Vec<String>, CodegenError> {
-        let names = ValueNames::new(func);
-        let ret_ty = llvm_ty(&func.ret_ty)?;
-        if func.locals.len() < func.params.len() {
-            return Err(CodegenError::InvalidIr(format!(
-                "function {} is missing parameter-backed locals",
-                func.name
-            )));
-        }
-        for (param, local) in func.params.iter().zip(func.locals.iter()) {
-            if param.ty != local.ty {
-                return Err(CodegenError::InvalidIr(format!(
-                    "function {} has mismatched parameter/local types for param {}",
-                    func.name, param.name
-                )));
-            }
-        }
-        let params = func
-            .params
-            .iter()
-            .map(|param| Ok(format!("{} %arg{}", llvm_ty(&param.ty)?, param.id.0)))
-            .collect::<Result<Vec<_>, CodegenError>>()?
-            .join(", ");
-
-        let mut lines = vec![format!(
-            "define {ret_ty} {}({params}) {{",
-            llvm_symbol(&func.name)
-        )];
+        function::validate_function_layout(func)?;
+        let names = function::value_names(func);
+        let mut lines = function::emit_function_header(func)?;
 
         let mut counter = 0usize;
         for (idx, block) in func.blocks.iter().enumerate() {
-            ensure_terminator(&block.terminator)?;
-            lines.push(format!("{}:", label(block)));
-            if idx == 0 {
-                for local in &func.locals {
-                    lines.push(format!(
-                        "  %local{} = alloca {}, align 8",
-                        local.id.0,
-                        llvm_ty(&local.ty)?
-                    ));
-                }
-                for (param, local) in func.params.iter().zip(func.locals.iter()) {
-                    lines.push(format!(
-                        "  store {} %arg{}, ptr %local{}, align 8",
-                        llvm_ty(&param.ty)?,
-                        param.id.0,
-                        local.id.0
-                    ));
-                }
-            }
+            function::begin_block(func, block, idx, &mut lines)?;
             for instr in &block.instrs {
                 calls::ensure_supported(instr)?;
                 runtime::ensure_supported(instr)?;
@@ -118,7 +77,7 @@ impl<'a> LlvmEmitter<'a> {
             self.emit_terminator(func, &names, &block.terminator, &mut lines, &mut counter)?;
         }
 
-        lines.push("}".into());
+        function::finish_function(&mut lines);
         Ok(lines)
     }
 
