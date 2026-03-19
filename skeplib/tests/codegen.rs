@@ -106,8 +106,13 @@ fn main() -> String {
         codegen::compile_program_to_llvm_ir(&program).expect("LLVM lowering should succeed");
 
     assert!(llvm_ir.contains("declare ptr @skp_rt_string_from_utf8(ptr, i64)"));
+    assert!(llvm_ir.contains("define internal void @\"__skp_init_runtime_strings\"()"));
+    assert!(llvm_ir.contains("@.rtstr."));
     assert!(llvm_ir.contains("define ptr @\"greet\"()"));
-    assert!(llvm_ir.contains("call ptr @skp_rt_string_from_utf8"));
+    assert_eq!(
+        llvm_ir.matches("call ptr @skp_rt_string_from_utf8").count(),
+        1
+    );
     assert!(llvm_ir.contains("define ptr @\"main\"()"));
 
     assemble_llvm_ir(&llvm_ir, "string_call");
@@ -183,7 +188,8 @@ fn main() -> Int {
         codegen::compile_program_to_llvm_ir(&program).expect("LLVM lowering should succeed");
 
     assert!(llvm_ir.contains("@llvm.global_ctors = appending global"));
-    assert!(llvm_ir.contains("@\"__globals_init\""));
+    assert!(llvm_ir.contains("@\"__skp_codegen_init\""));
+    assert!(llvm_ir.contains("call void @\"__globals_init\"()"));
     assert!(llvm_ir.contains("store i64"));
 
     assemble_llvm_ir(&llvm_ir, "project_globals_codegen");
@@ -457,6 +463,32 @@ fn main() -> Int {
 }
 
 #[test]
+fn llvm_codegen_caches_reused_runtime_string_literals_once_per_module() {
+    let source = r#"
+fn main() -> Int {
+  let a = "alpha";
+  let b = "alpha";
+  if (a == b) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let llvm_ir =
+        codegen::compile_program_to_llvm_ir(&program).expect("LLVM lowering should succeed");
+
+    assert_eq!(
+        llvm_ir.matches("call ptr @skp_rt_string_from_utf8").count(),
+        1
+    );
+    assert!(llvm_ir.matches("load ptr, ptr @.rtstr.").count() >= 2);
+
+    assemble_llvm_ir(&llvm_ir, "cached_runtime_strings");
+}
+
+#[test]
 fn llvm_codegen_emits_bool_compare_using_i1() {
     let source = r#"
 fn main() -> Int {
@@ -609,6 +641,7 @@ fn main() -> Int {
 
     assert!(llvm_ir.contains("declare i1 @skp_rt_string_eq(ptr, ptr)"));
     assert!(llvm_ir.contains("call i1 @skp_rt_string_eq(ptr"));
+    assert!(llvm_ir.contains("load ptr, ptr @.rtstr."));
     assert!(!llvm_ir.contains("load i64, ptr %local0"));
     assert!(!llvm_ir.contains("load i64, ptr %local1"));
 }

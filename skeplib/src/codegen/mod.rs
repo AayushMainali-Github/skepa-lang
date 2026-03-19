@@ -153,10 +153,15 @@ fn run_tool(tool: &str, args: &[&str]) -> Result<(), CodegenError> {
     if output.status.success() {
         return Ok(());
     }
-    Err(CodegenError::Tool(format!(
-        "`{tool}` failed: {}",
-        String::from_utf8_lossy(&output.stderr).trim()
-    )))
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    let detail = match (stdout.is_empty(), stderr.is_empty()) {
+        (false, false) => format!("stdout: {stdout}; stderr: {stderr}"),
+        (false, true) => format!("stdout: {stdout}"),
+        (true, false) => format!("stderr: {stderr}"),
+        (true, true) => "tool produced no output".to_string(),
+    };
+    Err(CodegenError::Tool(format!("`{tool}` failed: {detail}",)))
 }
 
 fn temp_codegen_path(name: &str, ext: &str) -> std::path::PathBuf {
@@ -208,7 +213,7 @@ fn runtime_library_path() -> Result<PathBuf, CodegenError> {
 
 fn runtime_library_path_in_target_dir(target_dir: &Path) -> Result<PathBuf, CodegenError> {
     let deps_dir = target_dir.join("deps");
-    let candidates = if deps_dir.exists() {
+    let mut candidates = if deps_dir.exists() {
         fs::read_dir(&deps_dir)
             .map_err(|err| CodegenError::Io(err.to_string()))?
             .filter_map(|entry| entry.ok())
@@ -223,7 +228,8 @@ fn runtime_library_path_in_target_dir(target_dir: &Path) -> Result<PathBuf, Code
     } else {
         Vec::new()
     };
-    if let Some(path) = candidates.into_iter().next() {
+    candidates.sort();
+    if let Some(path) = candidates.into_iter().last() {
         Ok(path)
     } else {
         Err(CodegenError::Tool(format!(
@@ -252,7 +258,7 @@ mod tests {
     use super::{
         CodegenError, compile_program_to_bitcode_file_with_tool,
         compile_program_to_object_file_with_tools, link_args_for_executable,
-        link_object_file_to_executable_with_tool, runtime_library_path_in_target_dir,
+        link_object_file_to_executable_with_tool, run_tool, runtime_library_path_in_target_dir,
     };
     use crate::ir;
     use std::fs;
@@ -324,6 +330,30 @@ fn main() -> Int {
     }
 
     #[test]
+    fn runtime_library_selection_is_deterministic_when_multiple_archives_exist() {
+        let target_dir = std::env::temp_dir().join(format!(
+            "skepa_codegen_runtime_pick_{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        let deps_dir = target_dir.join("deps");
+        fs::create_dir_all(&deps_dir).expect("temp deps dir");
+        let older = deps_dir.join("libskepart-aaaa1111.a");
+        let newer = deps_dir.join("libskepart-zzzz9999.a");
+        fs::write(&older, []).expect("older archive");
+        fs::write(&newer, []).expect("newer archive");
+        let selected =
+            runtime_library_path_in_target_dir(&target_dir).expect("runtime archive should exist");
+        let _ = fs::remove_dir_all(&target_dir);
+        assert_eq!(
+            selected.file_name().and_then(|name| name.to_str()),
+            Some("libskepart-zzzz9999.a")
+        );
+    }
+
+    #[test]
     fn missing_llvm_as_reports_clean_tool_error() {
         let program = simple_program();
         let bc_path = temp_codegen_test_path("missing_llvm_as", "bc");
@@ -389,6 +419,23 @@ fn main() -> Int {
         match err {
             CodegenError::Tool(msg) => {
                 assert!(msg.contains("failed to run `definitely-missing-clang-test-tool`"));
+            }
+            other => panic!("unexpected error kind: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn tool_failure_reports_stdout_and_stderr_context() {
+        let err = if cfg!(windows) {
+            run_tool("cmd", &["/C", "(echo out) & (echo err 1>&2) & exit /B 1"])
+        } else {
+            run_tool("sh", &["-c", "printf out; printf err >&2; exit 1"])
+        }
+        .expect_err("tool should fail");
+        match err {
+            CodegenError::Tool(msg) => {
+                assert!(msg.contains("stdout: out"));
+                assert!(msg.contains("stderr: err"));
             }
             other => panic!("unexpected error kind: {other:?}"),
         }

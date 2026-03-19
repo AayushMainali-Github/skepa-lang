@@ -84,25 +84,23 @@ impl<'a> LlvmEmitter<'a> {
                     value.len() + 1,
                     bytes
                 ));
+                out.push(format!(
+                    "{} = internal global ptr null, align 8",
+                    runtime_string_symbol(name)
+                ));
             }
             out.push(String::new());
         }
 
-        if let Some(module_init) = &self.program.module_init {
-            let init = self
-                .program
-                .functions
-                .iter()
-                .find(|func| func.id == module_init.function)
-                .ok_or_else(|| {
-                    CodegenError::InvalidIr(format!(
-                        "module_init points at missing function {:?}",
-                        module_init.function
-                    ))
-                })?;
+        if !self.string_literals.is_empty() || self.program.module_init.is_some() {
+            if !self.string_literals.is_empty() {
+                out.extend(self.emit_runtime_string_init()?);
+                out.push(String::new());
+            }
+            let init_name = self.emit_module_initializer(&mut out)?;
             out.push(format!(
                 "@llvm.global_ctors = appending global [1 x {{ i32, ptr, ptr }}] [{{ i32, ptr, ptr }} {{ i32 65535, ptr {}, ptr null }}]",
-                llvm_symbol(&init.name)
+                llvm_symbol(&init_name)
             ));
             out.push(String::new());
         }
@@ -164,6 +162,66 @@ impl<'a> LlvmEmitter<'a> {
 
         lines.push("}".into());
         Ok(lines)
+    }
+
+    fn emit_runtime_string_init(&self) -> Result<Vec<String>, CodegenError> {
+        let mut lines = vec!["define internal void @\"__skp_init_runtime_strings\"() {".into()];
+        lines.push("entry:".into());
+        let mut counter = 0usize;
+        for (value, name) in &self.string_literals {
+            let gep = format!("%v{counter}");
+            counter += 1;
+            let bytes = value.len() + 1;
+            lines.push(format!(
+                "  {gep} = getelementptr inbounds [{bytes} x i8], ptr {name}, i64 0, i64 0"
+            ));
+            let string = format!("%v{counter}");
+            counter += 1;
+            lines.push(format!(
+                "  {string} = call ptr @skp_rt_string_from_utf8(ptr {gep}, i64 {})",
+                value.len()
+            ));
+            lines.push(format!(
+                "  store ptr {string}, ptr {}, align 8",
+                runtime_string_symbol(name)
+            ));
+            lines.push("  call void @skp_rt_abort_if_error()".into());
+        }
+        lines.push("  ret void".into());
+        lines.push("}".into());
+        Ok(lines)
+    }
+
+    fn emit_module_initializer(&self, out: &mut Vec<String>) -> Result<String, CodegenError> {
+        let init_name = "__skp_codegen_init".to_string();
+        out.push(format!(
+            "define internal void {}() {{",
+            llvm_symbol(&init_name)
+        ));
+        out.push("entry:".into());
+        if !self.string_literals.is_empty() {
+            out.push(format!(
+                "  call void {}()",
+                llvm_symbol("__skp_init_runtime_strings")
+            ));
+        }
+        if let Some(module_init) = &self.program.module_init {
+            let init = self
+                .program
+                .functions
+                .iter()
+                .find(|func| func.id == module_init.function)
+                .ok_or_else(|| {
+                    CodegenError::InvalidIr(format!(
+                        "module_init points at missing function {:?}",
+                        module_init.function
+                    ))
+                })?;
+            out.push(format!("  call void {}()", llvm_symbol(&init.name)));
+        }
+        out.push("  ret void".into());
+        out.push("}".into());
+        Ok(init_name)
     }
 
     fn emit_instr(
@@ -857,6 +915,10 @@ fn encode_c_string(value: &str) -> String {
     }
     out.push_str("\\00");
     out
+}
+
+fn runtime_string_symbol(raw_symbol: &str) -> String {
+    raw_symbol.replacen("@.str.", "@.rtstr.", 1)
 }
 
 #[allow(clippy::too_many_arguments)]

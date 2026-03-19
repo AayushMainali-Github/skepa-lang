@@ -63,17 +63,11 @@ pub fn operand_load(
             let name = string_literals.get(value).ok_or_else(|| {
                 CodegenError::InvalidIr("missing string literal declaration".into())
             })?;
-            let gep = format!("%v{counter}");
-            *counter += 1;
-            let bytes = value.len() + 1;
-            lines.push(format!(
-                "  {gep} = getelementptr inbounds [{bytes} x i8], ptr {name}, i64 0, i64 0"
-            ));
             let string = format!("%v{counter}");
             *counter += 1;
             lines.push(format!(
-                "  {string} = call ptr @skp_rt_string_from_utf8(ptr {gep}, i64 {})",
-                value.len()
+                "  {string} = load ptr, ptr {}, align 8",
+                name.replacen("@.str.", "@.rtstr.", 1)
             ));
             Ok(string)
         }
