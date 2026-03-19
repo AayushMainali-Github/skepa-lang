@@ -138,6 +138,29 @@ fn main() -> Int {
 }
 
 #[test]
+fn sema_reports_builtin_missing_import_and_argument_errors_together() {
+    let src = r#"
+fn main() -> Int {
+  return str.len(nope);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("`str.*` used without `import str;`"))
+    );
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Unknown variable `nope`"))
+    );
+}
+
+#[test]
 fn sema_accepts_str_case_conversion_builtins() {
     let src = r#"
 import str;

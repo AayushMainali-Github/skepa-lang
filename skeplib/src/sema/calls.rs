@@ -76,6 +76,11 @@ impl Checker {
             if let Some(sig) = self.functions.get(&target).cloned() {
                 return sig.ret;
             }
+            if self.has_external_context {
+                self.error(format!(
+                    "Imported function binding `{name}` resolved to missing target `{target}`"
+                ));
+            }
             return TypeInfo::Unknown;
         }
 
@@ -87,6 +92,12 @@ impl Checker {
                     }
                     if let Some(sig) = self.functions.get(&target).cloned() {
                         return sig.ret;
+                    }
+                    if self.has_external_context {
+                        self.error(format!(
+                            "Qualified function call `{}` resolved to missing target `{target}`",
+                            parts.join(".")
+                        ));
                     }
                     return TypeInfo::Unknown;
                 }
@@ -260,6 +271,9 @@ impl Checker {
         scopes: &mut [HashMap<String, TypeInfo>],
     ) -> TypeInfo {
         if !self.imported_modules.contains(package) {
+            for arg in args {
+                self.check_expr(arg, scopes);
+            }
             self.error(format!("`{package}.*` used without `import {package};`"));
             return TypeInfo::Unknown;
         }

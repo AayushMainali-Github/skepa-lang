@@ -48,6 +48,7 @@ struct Checker {
     globals: HashMap<String, TypeInfo>,
     loop_depth: usize,
     fn_lit_scope_floors: Vec<usize>,
+    has_external_context: bool,
 }
 
 impl Checker {
@@ -78,6 +79,7 @@ impl Checker {
     }
 
     fn apply_external_context(&mut self, ctx: ModuleExternalContext) {
+        self.has_external_context = true;
         for (name, sig) in ctx.imported_functions {
             self.functions.entry(name.clone()).or_insert(sig);
         }
@@ -174,6 +176,7 @@ impl Checker {
             globals: HashMap::new(),
             loop_depth: 0,
             fn_lit_scope_floors: Vec::new(),
+            has_external_context: false,
         }
     }
 
