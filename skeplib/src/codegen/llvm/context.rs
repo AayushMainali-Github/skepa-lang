@@ -2,16 +2,13 @@ use crate::codegen::CodegenError;
 use crate::codegen::llvm::block::{branch_targets, ensure_terminator, label};
 use crate::codegen::llvm::calls::{self, DirectCall};
 use crate::codegen::llvm::compare::{emit_compare, infer_compare_operand_type};
+use crate::codegen::llvm::module;
 use crate::codegen::llvm::runtime;
-use crate::codegen::llvm::strings::{
-    collect_string_literals, encode_c_string, runtime_string_symbol,
-};
+use crate::codegen::llvm::strings::collect_string_literals;
 use crate::codegen::llvm::types::llvm_ty;
 use crate::codegen::llvm::value::{ValueNames, llvm_float_literal, llvm_symbol, operand_load};
 use crate::ir::{BinaryOp, ConstValue, Instr, IrFunction, IrProgram, Operand, Terminator, UnaryOp};
 use std::collections::HashMap;
-
-const RESERVED_LLVM_HELPER_PREFIXES: &[&str] = &["__skp_codegen_", "__skp_rt_", "__skp_init_"];
 
 pub struct LlvmEmitter<'a> {
     program: &'a IrProgram,
@@ -27,82 +24,24 @@ impl<'a> LlvmEmitter<'a> {
     }
 
     pub fn emit_program(&self) -> Result<String, CodegenError> {
-        self.ensure_reserved_symbol_space()?;
+        module::ensure_reserved_symbol_space(self.program)?;
         let mut out = vec![
             "; ModuleID = 'skepa'".to_string(),
             "source_filename = \"skepa\"".to_string(),
             String::new(),
         ];
 
-        for global in &self.program.globals {
-            let init = match &global.init {
-                Some(Operand::Const(ConstValue::Int(v)))
-                    if matches!(global.ty, crate::ir::IrType::Int) =>
-                {
-                    v.to_string()
-                }
-                Some(Operand::Const(ConstValue::Bool(v)))
-                    if matches!(global.ty, crate::ir::IrType::Bool) =>
-                {
-                    if *v {
-                        "1".into()
-                    } else {
-                        "0".into()
-                    }
-                }
-                Some(Operand::Const(ConstValue::Float(v)))
-                    if matches!(global.ty, crate::ir::IrType::Float) =>
-                {
-                    llvm_float_literal(*v)
-                }
-                Some(_) | None => match global.ty {
-                    // Non-constant initializers are materialized through __globals_init.
-                    crate::ir::IrType::Int | crate::ir::IrType::Bool => "0".into(),
-                    crate::ir::IrType::Float => "0.0".into(),
-                    crate::ir::IrType::String
-                    | crate::ir::IrType::Named(_)
-                    | crate::ir::IrType::Array { .. }
-                    | crate::ir::IrType::Vec { .. } => "null".into(),
-                    _ => {
-                        return Err(CodegenError::Unsupported(
-                            "only scalar and runtime-backed pointer globals are supported in current LLVM lowering",
-                        ));
-                    }
-                },
-            };
-            out.push(format!(
-                "@g{} = global {} {}, align 8",
-                global.id.0,
-                llvm_ty(&global.ty)?,
-                init
-            ));
-        }
-        if !self.program.globals.is_empty() {
-            out.push(String::new());
-        }
+        module::emit_globals(self.program, &mut out)?;
 
-        if !self.string_literals.is_empty() {
-            for (value, name) in &self.string_literals {
-                let bytes = encode_c_string(value);
-                out.push(format!(
-                    "{name} = private unnamed_addr constant [{} x i8] c\"{}\", align 1",
-                    value.len() + 1,
-                    bytes
-                ));
-                out.push(format!(
-                    "{} = internal global ptr null, align 8",
-                    runtime_string_symbol(name)
-                ));
-            }
-            out.push(String::new());
-        }
+        module::emit_string_literal_storage(&self.string_literals, &mut out);
 
         if !self.string_literals.is_empty() || self.program.module_init.is_some() {
             if !self.string_literals.is_empty() {
-                out.extend(self.emit_runtime_string_init()?);
+                out.extend(module::emit_runtime_string_init(&self.string_literals)?);
                 out.push(String::new());
             }
-            let init_name = self.emit_module_initializer(&mut out)?;
+            let init_name =
+                module::emit_module_initializer(self.program, &self.string_literals, &mut out)?;
             out.push(format!(
                 "@llvm.global_ctors = appending global [1 x {{ i32, ptr, ptr }}] [{{ i32, ptr, ptr }} {{ i32 65535, ptr {}, ptr null }}]",
                 llvm_symbol(&init_name)
@@ -119,21 +58,6 @@ impl<'a> LlvmEmitter<'a> {
         }
 
         Ok(out.join("\n"))
-    }
-
-    fn ensure_reserved_symbol_space(&self) -> Result<(), CodegenError> {
-        for func in &self.program.functions {
-            if RESERVED_LLVM_HELPER_PREFIXES
-                .iter()
-                .any(|prefix| func.name.starts_with(prefix))
-            {
-                return Err(CodegenError::InvalidIr(format!(
-                    "function {} uses reserved LLVM helper prefix",
-                    func.name
-                )));
-            }
-        }
-        Ok(())
     }
 
     fn emit_function(&self, func: &IrFunction) -> Result<Vec<String>, CodegenError> {
@@ -196,66 +120,6 @@ impl<'a> LlvmEmitter<'a> {
 
         lines.push("}".into());
         Ok(lines)
-    }
-
-    fn emit_runtime_string_init(&self) -> Result<Vec<String>, CodegenError> {
-        let mut lines = vec!["define internal void @\"__skp_init_runtime_strings\"() {".into()];
-        lines.push("entry:".into());
-        let mut counter = 0usize;
-        for (value, name) in &self.string_literals {
-            let gep = format!("%v{counter}");
-            counter += 1;
-            let bytes = value.len() + 1;
-            lines.push(format!(
-                "  {gep} = getelementptr inbounds [{bytes} x i8], ptr {name}, i64 0, i64 0"
-            ));
-            let string = format!("%v{counter}");
-            counter += 1;
-            lines.push(format!(
-                "  {string} = call ptr @skp_rt_string_from_utf8(ptr {gep}, i64 {})",
-                value.len()
-            ));
-            lines.push(format!(
-                "  store ptr {string}, ptr {}, align 8",
-                runtime_string_symbol(name)
-            ));
-            lines.push("  call void @skp_rt_abort_if_error()".into());
-        }
-        lines.push("  ret void".into());
-        lines.push("}".into());
-        Ok(lines)
-    }
-
-    fn emit_module_initializer(&self, out: &mut Vec<String>) -> Result<String, CodegenError> {
-        let init_name = "__skp_codegen_init".to_string();
-        out.push(format!(
-            "define internal void {}() {{",
-            llvm_symbol(&init_name)
-        ));
-        out.push("entry:".into());
-        if !self.string_literals.is_empty() {
-            out.push(format!(
-                "  call void {}()",
-                llvm_symbol("__skp_init_runtime_strings")
-            ));
-        }
-        if let Some(module_init) = &self.program.module_init {
-            let init = self
-                .program
-                .functions
-                .iter()
-                .find(|func| func.id == module_init.function)
-                .ok_or_else(|| {
-                    CodegenError::InvalidIr(format!(
-                        "module_init points at missing function {:?}",
-                        module_init.function
-                    ))
-                })?;
-            out.push(format!("  call void {}()", llvm_symbol(&init.name)));
-        }
-        out.push("  ret void".into());
-        out.push("}".into());
-        Ok(init_name)
     }
 
     fn emit_instr(
