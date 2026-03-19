@@ -60,7 +60,7 @@ struct User { profile: Profile }
 fn main() -> Int { return 0; }
 "#;
     let (result, diags) = analyze_source(src);
-    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+    assert_sema_success(&result, &diags);
 }
 
 #[test]
@@ -193,7 +193,7 @@ fn main() -> Int {
 }
 "#;
     let (result, diags) = analyze_source(src);
-    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+    assert_sema_success(&result, &diags);
 }
 
 #[test]
@@ -274,7 +274,7 @@ fn main() -> Int {
 }
 "#;
     let (result, diags) = analyze_source(src);
-    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+    assert_sema_success(&result, &diags);
 }
 
 #[test]
@@ -435,7 +435,7 @@ fn main() -> Int {
 }
 "#;
     let (result, diags) = analyze_source(src);
-    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+    assert_sema_success(&result, &diags);
 }
 
 #[test]
@@ -453,7 +453,7 @@ fn main() -> Int {
 }
 "#;
     let (result, diags) = analyze_source(src);
-    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+    assert_sema_success(&result, &diags);
 }
 
 #[test]
@@ -469,7 +469,7 @@ fn main() -> Int {
 }
 "#;
     let (result, diags) = analyze_source(src);
-    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+    assert_sema_success(&result, &diags);
 }
 
 #[test]
@@ -506,7 +506,7 @@ fn main() -> Int {
 }
 "#;
     let (result, diags) = analyze_source(src);
-    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+    assert_sema_success(&result, &diags);
 }
 
 #[test]
@@ -538,7 +538,7 @@ fn main() -> Int {
 }
 "#;
     let (result, diags) = analyze_source(src);
-    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+    assert_sema_success(&result, &diags);
 }
 
 #[test]

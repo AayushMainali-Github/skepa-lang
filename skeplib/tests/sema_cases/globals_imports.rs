@@ -11,11 +11,11 @@ fn bump() -> Int {
 fn main() -> Int {
   let a = bump();
   let b = bump();
-  return a + b;
+    return a + b;
 }
 "#;
     let (result, diags) = analyze_source(src);
-    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+    assert_sema_success(&result, &diags);
 }
 
 #[test]
@@ -41,7 +41,7 @@ let b: Int = a + 3;
 fn main() -> Int { return b; }
 "#;
     let (result, diags) = analyze_source(src);
-    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+    assert_sema_success(&result, &diags);
 }
 
 #[test]
@@ -102,7 +102,7 @@ fn main() -> Int {
 }
 "#;
     let (result, diags) = analyze_source(src);
-    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+    assert_sema_success(&result, &diags);
 }
 
 #[test]
@@ -114,7 +114,7 @@ fn main() -> Int {
 }
 "#;
     let (result, diags) = analyze_source(src);
-    assert!(!result.has_errors, "diagnostics: {:?}", diags.as_slice());
+    assert_sema_success(&result, &diags);
 }
 
 #[test]
