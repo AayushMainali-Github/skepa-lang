@@ -8,9 +8,7 @@ use crate::codegen::llvm::strings::{
 };
 use crate::codegen::llvm::types::llvm_ty;
 use crate::codegen::llvm::value::{ValueNames, llvm_float_literal, llvm_symbol, operand_load};
-use crate::ir::{
-    BinaryOp, ConstValue, Instr, IrFunction, IrProgram, Operand, Terminator, UnaryOp,
-};
+use crate::ir::{BinaryOp, ConstValue, Instr, IrFunction, IrProgram, Operand, Terminator, UnaryOp};
 use std::collections::HashMap;
 
 const RESERVED_LLVM_HELPER_PREFIXES: &[&str] = &["__skp_codegen_", "__skp_rt_", "__skp_init_"];
