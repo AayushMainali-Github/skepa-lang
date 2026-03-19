@@ -1,14 +1,14 @@
 use crate::codegen::CodegenError;
-use crate::codegen::llvm::block::{branch_targets, label};
 use crate::codegen::llvm::calls::{self, DirectCall};
 use crate::codegen::llvm::compare::{emit_compare, infer_compare_operand_type};
 use crate::codegen::llvm::function;
 use crate::codegen::llvm::module;
 use crate::codegen::llvm::runtime;
 use crate::codegen::llvm::strings::collect_string_literals;
+use crate::codegen::llvm::terminator;
 use crate::codegen::llvm::types::llvm_ty;
 use crate::codegen::llvm::value::{ValueNames, llvm_float_literal, llvm_symbol, operand_load};
-use crate::ir::{BinaryOp, ConstValue, Instr, IrFunction, IrProgram, Operand, Terminator, UnaryOp};
+use crate::ir::{BinaryOp, ConstValue, Instr, IrFunction, IrProgram, Operand, UnaryOp};
 use std::collections::HashMap;
 
 pub struct LlvmEmitter<'a> {
@@ -74,7 +74,14 @@ impl<'a> LlvmEmitter<'a> {
                 runtime::ensure_supported(instr)?;
                 self.emit_instr(func, &names, instr, &mut lines, &mut counter)?;
             }
-            self.emit_terminator(func, &names, &block.terminator, &mut lines, &mut counter)?;
+            terminator::emit_terminator(
+                func,
+                &names,
+                &block.terminator,
+                &mut lines,
+                &mut counter,
+                &self.string_literals,
+            )?;
         }
 
         function::finish_function(&mut lines);
@@ -559,74 +566,5 @@ impl<'a> LlvmEmitter<'a> {
             }
         }
         Ok(())
-    }
-
-    fn emit_terminator(
-        &self,
-        func: &IrFunction,
-        names: &ValueNames,
-        term: &Terminator,
-        lines: &mut Vec<String>,
-        counter: &mut usize,
-    ) -> Result<(), CodegenError> {
-        match term {
-            Terminator::Jump(target) => {
-                let target = self.block_label(func, *target)?;
-                lines.push(format!("  br label %{target}"));
-            }
-            Terminator::Branch(branch) => {
-                let cond = operand_load(
-                    names,
-                    &branch.cond,
-                    func,
-                    lines,
-                    counter,
-                    &crate::ir::IrType::Bool,
-                    &self.string_literals,
-                )?;
-                let (then_label, else_label) =
-                    branch_targets(branch, |block| self.block_label(func, block))?;
-                lines.push(format!(
-                    "  br i1 {cond}, label %{then_label}, label %{else_label}"
-                ));
-            }
-            Terminator::Return(Some(value)) => {
-                let value = operand_load(
-                    names,
-                    value,
-                    func,
-                    lines,
-                    counter,
-                    &func.ret_ty,
-                    &self.string_literals,
-                )?;
-                lines.push(format!("  ret {} {value}", llvm_ty(&func.ret_ty)?));
-            }
-            Terminator::Return(None) => lines.push("  ret void".into()),
-            Terminator::Panic { .. } => {
-                return Err(CodegenError::InvalidIr(
-                    "LLVM backend does not lower panic terminators".into(),
-                ));
-            }
-            Terminator::Unreachable => {
-                return Err(CodegenError::InvalidIr(
-                    "LLVM backend does not lower unreachable terminators".into(),
-                ));
-            }
-        }
-        Ok(())
-    }
-
-    fn block_label(
-        &self,
-        func: &IrFunction,
-        id: crate::ir::BlockId,
-    ) -> Result<String, CodegenError> {
-        let block = func
-            .blocks
-            .iter()
-            .find(|block| block.id == id)
-            .ok_or_else(|| CodegenError::MissingBlock(format!("{:?}", id)))?;
-        Ok(label(block))
     }
 }
