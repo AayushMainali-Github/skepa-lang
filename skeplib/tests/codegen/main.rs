@@ -5,7 +5,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use skeplib::codegen;
 use skeplib::ir;
 
-#[path = "common.rs"]
+#[path = "../common.rs"]
 mod common;
 
 fn temp_file(name: &str, ext: &str) -> std::path::PathBuf {

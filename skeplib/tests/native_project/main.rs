@@ -1,4 +1,7 @@
+#[path = "../common.rs"]
 mod common;
+
+mod fixtures;
 
 use skeplib::codegen;
 use skeplib::ir;

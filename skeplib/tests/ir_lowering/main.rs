@@ -3,7 +3,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use skeplib::ir::{self, IrInterpreter, IrValue, PrettyIr};
 
-#[path = "common.rs"]
+#[path = "../common.rs"]
 mod common;
 
 #[test]

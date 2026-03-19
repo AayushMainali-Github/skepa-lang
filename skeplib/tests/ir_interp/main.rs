@@ -4,7 +4,7 @@ use skeplib::ir::{
     IrProgram, IrType, IrValue, Terminator,
 };
 
-#[path = "common.rs"]
+#[path = "../common.rs"]
 mod common;
 
 #[derive(Default)]
