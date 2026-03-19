@@ -64,3 +64,27 @@ fn main() -> Int {
     assert_eq!(value, IrValue::Int(21));
     assert_eq!(common::native_run_exit_code_ok(source), 21);
 }
+
+#[test]
+fn inlining_preserves_function_value_signature_binding_without_name_lookup_tricks() {
+    let source = r#"
+fn apply_twice(f: Fn(Int) -> Int, x: Int) -> Int {
+  return f(f(x));
+}
+
+fn inc(x: Int) -> Int {
+  return x + 1;
+}
+
+fn main() -> Int {
+  return apply_twice(inc, 5);
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let value = ir::IrInterpreter::new(&program)
+        .run_main()
+        .expect("IR interpreter should run optimized source");
+    assert_eq!(value, IrValue::Int(7));
+    assert_eq!(common::native_run_exit_code_ok(source), 7);
+}

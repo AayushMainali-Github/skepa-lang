@@ -47,7 +47,7 @@ pub fn run(program: &mut IrProgram) -> bool {
 
 #[derive(Clone)]
 struct InlineCandidate {
-    params: Vec<(String, IrType)>,
+    params: Vec<(LocalId, IrType)>,
     locals: Vec<IrLocal>,
     temps: Vec<IrTemp>,
     instrs: Vec<Instr>,
@@ -87,8 +87,11 @@ fn build_candidate(func: &IrFunction) -> Option<InlineCandidate> {
         params: func
             .params
             .iter()
-            .map(|param| (param.name.clone(), param.ty.clone()))
-            .collect(),
+            .map(|param| {
+                let local = func.locals.iter().find(|local| local.name == param.name)?;
+                Some((local.id, param.ty.clone()))
+            })
+            .collect::<Option<Vec<_>>>()?,
         locals: func.locals.clone(),
         temps: func.temps.clone(),
         instrs: block.instrs.clone(),
@@ -114,6 +117,9 @@ fn try_inline_call(
         return None;
     };
     let candidate = candidates.get(function)?;
+    if args.len() != candidate.params.len() || !inline_types_compatible(ret_ty, &candidate.ret_ty) {
+        return None;
+    }
 
     let mut local_map = HashMap::new();
     let mut temp_map = HashMap::new();
@@ -140,18 +146,12 @@ fn try_inline_call(
         temp_map.insert(temp.id, id);
     }
 
-    for ((param_name, param_ty), arg) in candidate.params.iter().zip(args.iter()) {
-        if let Some(local) = candidate
-            .locals
-            .iter()
-            .find(|local| local.name == *param_name)
-        {
-            expanded.push(Instr::StoreLocal {
-                local: *local_map.get(&local.id)?,
-                ty: param_ty.clone(),
-                value: arg.clone(),
-            });
-        }
+    for ((param_local, param_ty), arg) in candidate.params.iter().zip(args.iter()) {
+        expanded.push(Instr::StoreLocal {
+            local: *local_map.get(param_local)?,
+            ty: param_ty.clone(),
+            value: arg.clone(),
+        });
     }
 
     for inner in &candidate.instrs {
@@ -168,6 +168,40 @@ fn try_inline_call(
 
     let _ = &candidate.ret_ty;
     Some(expanded)
+}
+
+fn inline_types_compatible(actual: &IrType, expected: &IrType) -> bool {
+    if actual == expected
+        || matches!(actual, IrType::Unknown)
+        || matches!(expected, IrType::Unknown)
+    {
+        return true;
+    }
+
+    match (actual, expected) {
+        (IrType::Array { elem: a, size: asz }, IrType::Array { elem: b, size: bsz }) => {
+            asz == bsz && inline_types_compatible(a, b)
+        }
+        (IrType::Vec { elem: a }, IrType::Vec { elem: b }) => inline_types_compatible(a, b),
+        (
+            IrType::Fn {
+                params: a_params,
+                ret: a_ret,
+            },
+            IrType::Fn {
+                params: b_params,
+                ret: b_ret,
+            },
+        ) => {
+            a_params.len() == b_params.len()
+                && a_params
+                    .iter()
+                    .zip(b_params.iter())
+                    .all(|(a, b)| inline_types_compatible(a, b))
+                && inline_types_compatible(a_ret, b_ret)
+        }
+        _ => false,
+    }
 }
 
 fn remap_instr(

@@ -99,15 +99,20 @@ impl IrBuilder {
     }
 
     pub fn push_instr(&self, func: &mut IrFunction, block: BlockId, instr: Instr) {
-        if let Some(target) = self.block_mut(func, block) {
-            target.instrs.push(instr);
-        }
+        let target = self
+            .block_mut(func, block)
+            .unwrap_or_else(|| panic!("attempted to push IR instr to missing block {:?}", block));
+        target.instrs.push(instr);
     }
 
     pub fn set_terminator(&self, func: &mut IrFunction, block: BlockId, terminator: Terminator) {
-        if let Some(target) = self.block_mut(func, block) {
-            target.terminator = terminator;
-        }
+        let target = self.block_mut(func, block).unwrap_or_else(|| {
+            panic!(
+                "attempted to set IR terminator on missing block {:?}",
+                block
+            )
+        });
+        target.terminator = terminator;
     }
 
     fn alloc_block(&mut self) -> BlockId {
@@ -120,5 +125,35 @@ impl IrBuilder {
 impl Default for IrBuilder {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[should_panic(expected = "attempted to push IR instr to missing block")]
+    fn builder_panics_when_pushing_instr_to_missing_block() {
+        let mut builder = IrBuilder::new();
+        let mut func = builder.begin_function("main", IrType::Int);
+        let dst = builder.push_temp(&mut func, IrType::Int);
+        builder.push_instr(
+            &mut func,
+            BlockId(999),
+            Instr::Const {
+                dst,
+                ty: IrType::Int,
+                value: crate::ir::ConstValue::Int(1),
+            },
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "attempted to set IR terminator on missing block")]
+    fn builder_panics_when_setting_terminator_on_missing_block() {
+        let mut builder = IrBuilder::new();
+        let mut func = builder.begin_function("main", IrType::Int);
+        builder.set_terminator(&mut func, BlockId(999), Terminator::Return(None));
     }
 }
