@@ -1,7 +1,7 @@
 use std::env;
 use std::fs;
 use std::path::Path;
-use std::process::{Command, ExitCode};
+use std::process::Command;
 
 use skeplib::codegen;
 use skeplib::diagnostic::Diagnostic;
@@ -17,17 +17,17 @@ const EXIT_SEMA: u8 = 11;
 const EXIT_CODEGEN: u8 = 12;
 const EXIT_RESOLVE: u8 = 15;
 
-fn main() -> ExitCode {
+fn main() {
     match run() {
-        Ok(code) => code,
+        Ok(code) => std::process::exit(code),
         Err(message) => {
             eprintln!("{message}");
-            ExitCode::from(EXIT_USAGE)
+            std::process::exit(EXIT_USAGE as i32)
         }
     }
 }
 
-fn run() -> Result<ExitCode, String> {
+fn run() -> Result<i32, String> {
     let mut args = env::args().skip(1);
     let Some(cmd) = args.next() else {
         return Err(
@@ -98,115 +98,131 @@ fn run() -> Result<ExitCode, String> {
     }
 }
 
-fn check_file(path: &str) -> Result<ExitCode, String> {
-    if let Err(e) = fs::read_to_string(path) {
-        eprintln!("Failed to read `{path}`: {e}");
-        return Ok(ExitCode::from(EXIT_IO));
-    }
+fn check_file(path: &str) -> Result<i32, String> {
     match analyze_project_entry_phased(Path::new(path)) {
         Ok((_sema, parse_diags, sema_diags)) => {
             if parse_diags.is_empty() && sema_diags.is_empty() {
                 println!("ok: {path}");
-                return Ok(ExitCode::from(EXIT_OK));
+                return Ok(EXIT_OK as i32);
             }
             if !parse_diags.is_empty() {
                 for d in parse_diags.as_slice() {
                     print_diag("parse", d);
                 }
-                return Ok(ExitCode::from(EXIT_PARSE));
+                return Ok(EXIT_PARSE as i32);
             }
             for d in sema_diags.as_slice() {
                 print_diag("sema", d);
             }
-            Ok(ExitCode::from(EXIT_SEMA))
+            Ok(EXIT_SEMA as i32)
         }
         Err(errs) => {
+            if has_io_resolve_error(&errs) {
+                print_resolve_errors(&errs);
+                return Ok(EXIT_IO as i32);
+            }
             print_resolve_errors(&errs);
-            Ok(ExitCode::from(EXIT_RESOLVE))
+            Ok(EXIT_RESOLVE as i32)
         }
     }
 }
 
-fn build_object_file(input: &str, output: &str) -> Result<ExitCode, String> {
+fn build_object_file(input: &str, output: &str) -> Result<i32, String> {
     if let Some(code) = validate_frontend(input)? {
         return Ok(code);
     }
     let program = match ir::lowering::compile_project_entry(Path::new(input)) {
         Ok(program) => program,
         Err(errs) => {
+            if has_io_resolve_error(&errs) {
+                print_resolve_errors(&errs);
+                return Ok(EXIT_IO as i32);
+            }
             print_resolve_errors(&errs);
-            return Ok(ExitCode::from(EXIT_CODEGEN));
+            return Ok(EXIT_RESOLVE as i32);
         }
     };
     if let Err(err) = codegen::compile_program_to_object_file(&program, Path::new(output)) {
         eprintln!("[E-CODEGEN][codegen] {err}");
-        return Ok(ExitCode::from(EXIT_CODEGEN));
+        return Ok(EXIT_CODEGEN as i32);
     }
     println!("built object: {output}");
-    Ok(ExitCode::from(EXIT_OK))
+    Ok(EXIT_OK as i32)
 }
 
-fn build_native_file(input: &str, output: &str) -> Result<ExitCode, String> {
+fn build_native_file(input: &str, output: &str) -> Result<i32, String> {
     if let Some(code) = validate_frontend(input)? {
         return Ok(code);
     }
     let program = match ir::lowering::compile_project_entry(Path::new(input)) {
         Ok(program) => program,
         Err(errs) => {
+            if has_io_resolve_error(&errs) {
+                print_resolve_errors(&errs);
+                return Ok(EXIT_IO as i32);
+            }
             print_resolve_errors(&errs);
-            return Ok(ExitCode::from(EXIT_CODEGEN));
+            return Ok(EXIT_RESOLVE as i32);
         }
     };
     if let Err(err) = codegen::compile_program_to_executable(&program, Path::new(output)) {
         eprintln!("[E-CODEGEN][codegen] {err}");
-        return Ok(ExitCode::from(EXIT_CODEGEN));
+        return Ok(EXIT_CODEGEN as i32);
     }
     println!("built native: {output}");
-    Ok(ExitCode::from(EXIT_OK))
+    Ok(EXIT_OK as i32)
 }
 
-fn build_llvm_ir_file(input: &str, output: &str) -> Result<ExitCode, String> {
+fn build_llvm_ir_file(input: &str, output: &str) -> Result<i32, String> {
     if let Some(code) = validate_frontend(input)? {
         return Ok(code);
     }
     let program = match ir::lowering::compile_project_entry(Path::new(input)) {
         Ok(program) => program,
         Err(errs) => {
+            if has_io_resolve_error(&errs) {
+                print_resolve_errors(&errs);
+                return Ok(EXIT_IO as i32);
+            }
             print_resolve_errors(&errs);
-            return Ok(ExitCode::from(EXIT_CODEGEN));
+            return Ok(EXIT_RESOLVE as i32);
         }
     };
     if let Err(err) = codegen::write_program_llvm_ir(&program, Path::new(output)) {
         eprintln!("[E-CODEGEN][codegen] {err}");
-        return Ok(ExitCode::from(EXIT_CODEGEN));
+        return Ok(EXIT_CODEGEN as i32);
     }
     println!("built llvm ir: {output}");
-    Ok(ExitCode::from(EXIT_OK))
+    Ok(EXIT_OK as i32)
 }
 
-fn run_native_file(input: &str) -> Result<ExitCode, String> {
+fn run_native_file(input: &str) -> Result<i32, String> {
     if let Some(code) = validate_frontend(input)? {
         return Ok(code);
     }
     let program = match ir::lowering::compile_project_entry(Path::new(input)) {
         Ok(program) => program,
         Err(errs) => {
+            if has_io_resolve_error(&errs) {
+                print_resolve_errors(&errs);
+                return Ok(EXIT_IO as i32);
+            }
             print_resolve_errors(&errs);
-            return Ok(ExitCode::from(EXIT_CODEGEN));
+            return Ok(EXIT_RESOLVE as i32);
         }
     };
     let exe_path = temp_native_path();
+    let _cleanup = TempPathGuard::new(exe_path.clone());
     if let Err(err) = codegen::compile_program_to_executable(&program, &exe_path) {
         eprintln!("[E-CODEGEN][codegen] {err}");
-        return Ok(ExitCode::from(EXIT_CODEGEN));
+        return Ok(EXIT_CODEGEN as i32);
     }
     let output = Command::new(&exe_path).output();
-    let _ = fs::remove_file(&exe_path);
     let output = match output {
         Ok(output) => output,
         Err(err) => {
-            eprintln!("[E-CODEGEN][codegen] failed to run native executable: {err}");
-            return Ok(ExitCode::from(EXIT_CODEGEN));
+            eprintln!("[E-RUNTIME][runtime] failed to run native executable: {err}");
+            return Ok(1);
         }
     };
     if !output.stdout.is_empty() {
@@ -215,32 +231,57 @@ fn run_native_file(input: &str) -> Result<ExitCode, String> {
     if !output.stderr.is_empty() {
         eprint!("{}", String::from_utf8_lossy(&output.stderr));
     }
-    Ok(ExitCode::from(
-        output.status.code().unwrap_or(EXIT_CODEGEN as i32) as u8,
-    ))
+    let status = output.status;
+    let Some(code) = status.code() else {
+        eprintln!("[E-RUNTIME][runtime] native executable terminated without an exit code");
+        return Ok(1);
+    };
+    Ok(code)
 }
 
-fn validate_frontend(input: &str) -> Result<Option<ExitCode>, String> {
+fn validate_frontend(input: &str) -> Result<Option<i32>, String> {
     match analyze_project_entry_phased(Path::new(input)) {
         Ok((_sema, parse_diags, sema_diags)) => {
             if !parse_diags.is_empty() {
                 for d in parse_diags.as_slice() {
                     print_diag("parse", d);
                 }
-                return Ok(Some(ExitCode::from(EXIT_PARSE)));
+                return Ok(Some(EXIT_PARSE as i32));
             }
             if !sema_diags.is_empty() {
                 for d in sema_diags.as_slice() {
                     print_diag("sema", d);
                 }
-                return Ok(Some(ExitCode::from(EXIT_SEMA)));
+                return Ok(Some(EXIT_SEMA as i32));
             }
             Ok(None)
         }
         Err(errs) => {
+            if has_io_resolve_error(&errs) {
+                print_resolve_errors(&errs);
+                return Ok(Some(EXIT_IO as i32));
+            }
             print_resolve_errors(&errs);
-            Ok(Some(ExitCode::from(EXIT_RESOLVE)))
+            Ok(Some(EXIT_RESOLVE as i32))
         }
+    }
+}
+
+fn has_io_resolve_error(errs: &[ResolveError]) -> bool {
+    errs.iter().any(|err| err.code == "E-MOD-IO")
+}
+
+struct TempPathGuard(std::path::PathBuf);
+
+impl TempPathGuard {
+    fn new(path: std::path::PathBuf) -> Self {
+        Self(path)
+    }
+}
+
+impl Drop for TempPathGuard {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.0);
     }
 }
 

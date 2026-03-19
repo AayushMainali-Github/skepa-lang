@@ -58,7 +58,13 @@ pub fn assert_cli_failure_class(output: &Output, class: CliFailureClass) {
         }
         CliFailureClass::Io => {
             assert_eq!(output.status.code(), Some(3), "{output:?}");
-            assert!(stderr.contains("Failed to read"), "stderr was: {stderr}");
+            assert!(
+                stderr.contains("Failed to read")
+                    || stderr.contains("[E-MOD-IO][resolve]")
+                    || stderr.contains("i/o")
+                    || stderr.contains("The system cannot find"),
+                "stderr was: {stderr}"
+            );
         }
         CliFailureClass::Parse => {
             assert!(
@@ -85,6 +91,15 @@ pub fn assert_cli_failure_class(output: &Output, class: CliFailureClass) {
             assert!(
                 !output.status.success(),
                 "expected runtime failure but process succeeded"
+            );
+            assert!(
+                stderr.contains("[E-RUNTIME][runtime]")
+                    || stderr.is_empty()
+                    || stderr.contains("out of bounds")
+                    || stderr.contains("division by zero")
+                    || stderr.contains("index")
+                    || stderr.contains("panic"),
+                "stderr was: {stderr}"
             );
         }
     }

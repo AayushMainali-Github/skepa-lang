@@ -209,9 +209,13 @@ fn missing_file_fails() {
         .arg("does_not_exist.sk")
         .output()
         .expect("run skepac");
-    assert_cli_failure_class(&output, CliFailureClass::Io);
+    assert_eq!(output.status.code(), Some(15));
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert_diag_code_and_message(&stderr, "", "Failed to read");
+    assert_diag_code_and_message(
+        &stderr,
+        "[E-MOD-NOT-FOUND][resolve]",
+        "Entry module not found",
+    );
 }
 
 #[test]
