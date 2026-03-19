@@ -4,6 +4,9 @@ use std::io;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+#[cfg(test)]
+use skeplib::sema::analyze_project_entry;
+
 use crate::{
     ARITH_CHAIN_ITERATIONS, ARITH_ITERATIONS, ARITH_LOCAL_CONST_ITERATIONS,
     ARITH_LOCAL_LOCAL_ITERATIONS, ARRAY_ITERATIONS, CALL_ITERATIONS, CliOptions, LOOP_ITERATIONS,
@@ -89,7 +92,7 @@ fn main() -> Int {
 
 fn src_medium_main(medium_accumulate_limit: usize) -> String {
     format!(
-        "from utils.math import accumulate;\nfrom models.user import makeUser;\n\nfn main() -> Int {{\n  let total = accumulate({medium_accumulate_limit});\n  let u = makeUser(3, \"skepa\");\n  if (u.bump(4) == 7 && total > 0) {{ return 0; }}\n  return 1;\n}}"
+        "from utils.math import accumulate;\nfrom models.user import User, makeUser;\n\nfn main() -> Int {{\n  let total = accumulate({medium_accumulate_limit});\n  let u: User = makeUser(3, \"skepa\");\n  if (u.bump(4) == 7 && total > 0) {{ return 0; }}\n  return 1;\n}}"
     )
 }
 
@@ -178,5 +181,18 @@ mod tests {
         let medium = std::fs::read_to_string(&workspace.medium_entry).expect("medium");
         assert!(small.contains("fn main()"));
         assert!(medium.contains("makeUser"));
+    }
+
+    #[test]
+    fn bench_workspace_medium_project_is_sema_clean() {
+        let workspace = BenchWorkspace::create(32).expect("workspace");
+        let (result, diags) =
+            analyze_project_entry(&workspace.medium_entry).expect("resolver/sema");
+        assert!(
+            !result.has_errors,
+            "unexpected medium workspace sema errors: {:?}",
+            diags
+        );
+        assert!(diags.is_empty(), "unexpected diagnostics: {:?}", diags);
     }
 }
