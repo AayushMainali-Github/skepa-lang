@@ -624,7 +624,7 @@ fn main() -> Int {
   let joined = arr.join(parts, "-");
   let text = fs.readText("alpha.txt");
   let path = fs.join("root", "leaf");
-  let out = io.format("v={} {}", 12, true);
+  let out = io.format("v=%d %b", 12, true);
   let shell = os.execShell("echo hi");
   let bonus = random.int(1, 2);
   return str.len(joined) + str.len(text) + str.len(path) + str.len(out) + shell + bonus;
@@ -635,7 +635,7 @@ fn main() -> Int {
     let value = IrInterpreter::with_host(&program, Box::new(TestHost::default()))
         .run_main()
         .expect("IR interpreter should run source");
-    assert_eq!(value, IrValue::Int(45));
+    assert_eq!(value, IrValue::Int(47));
 }
 
 #[test]

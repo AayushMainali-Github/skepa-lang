@@ -26,11 +26,11 @@ pub trait RtHost {
         Err(RtError::unsupported_builtin("datetime.nowMillis"))
     }
 
-    fn datetime_from_unix(&mut self, _value: i64) -> RtResult<i64> {
+    fn datetime_from_unix(&mut self, _value: i64) -> RtResult<RtString> {
         Err(RtError::unsupported_builtin("datetime.fromUnix"))
     }
 
-    fn datetime_from_millis(&mut self, _value: i64) -> RtResult<i64> {
+    fn datetime_from_millis(&mut self, _value: i64) -> RtResult<RtString> {
         Err(RtError::unsupported_builtin("datetime.fromMillis"))
     }
 
@@ -140,6 +140,34 @@ impl RtHost for NoopHost {
             .duration_since(UNIX_EPOCH)
             .map_err(|err| RtError::new(RtErrorKind::InvalidArgument, err.to_string()))?;
         Ok(now.as_millis() as i64)
+    }
+
+    fn datetime_from_unix(&mut self, value: i64) -> RtResult<RtString> {
+        format_unix_timestamp(value, 0)
+    }
+
+    fn datetime_from_millis(&mut self, value: i64) -> RtResult<RtString> {
+        format_unix_timestamp(value.div_euclid(1000), value.rem_euclid(1000) as u32)
+    }
+
+    fn datetime_parse_unix(&mut self, value: &str) -> RtResult<i64> {
+        parse_iso8601_utc(value)
+    }
+
+    fn datetime_component(&mut self, name: &str, value: i64) -> RtResult<i64> {
+        let (year, month, day, hour, minute, second) = unix_seconds_to_components(value);
+        match name {
+            "year" => Ok(year as i64),
+            "month" => Ok(month as i64),
+            "day" => Ok(day as i64),
+            "hour" => Ok(hour as i64),
+            "minute" => Ok(minute as i64),
+            "second" => Ok(second as i64),
+            _ => Err(RtError::new(
+                RtErrorKind::InvalidArgument,
+                format!("unknown datetime component `{name}`"),
+            )),
+        }
     }
 
     fn random_seed(&mut self, seed: i64) -> RtResult<()> {
@@ -264,4 +292,133 @@ impl RtHost for NoopHost {
                 .to_string(),
         ))
     }
+}
+
+fn format_unix_timestamp(seconds: i64, millis: u32) -> RtResult<RtString> {
+    let (year, month, day, hour, minute, second) = unix_seconds_to_components(seconds);
+    let text = if millis == 0 {
+        format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}Z")
+    } else {
+        format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}.{millis:03}Z")
+    };
+    Ok(RtString::from(text))
+}
+
+fn parse_iso8601_utc(value: &str) -> RtResult<i64> {
+    let (date, time) = value.split_once('T').ok_or_else(|| {
+        RtError::new(
+            RtErrorKind::InvalidArgument,
+            "datetime.parseUnix expects ISO-8601 UTC like `1970-01-01T00:00:00Z`",
+        )
+    })?;
+    let time = time.strip_suffix('Z').ok_or_else(|| {
+        RtError::new(
+            RtErrorKind::InvalidArgument,
+            "datetime.parseUnix expects trailing `Z`",
+        )
+    })?;
+
+    let mut date_parts = date.split('-');
+    let year: i32 = parse_part(date_parts.next(), "year")?;
+    let month: u32 = parse_part(date_parts.next(), "month")?;
+    let day: u32 = parse_part(date_parts.next(), "day")?;
+    if date_parts.next().is_some() {
+        return Err(RtError::new(
+            RtErrorKind::InvalidArgument,
+            "datetime.parseUnix date has too many parts",
+        ));
+    }
+
+    let mut time_parts = time.split(':');
+    let hour: u32 = parse_part(time_parts.next(), "hour")?;
+    let minute: u32 = parse_part(time_parts.next(), "minute")?;
+    let second: u32 = parse_part(time_parts.next(), "second")?;
+    if time_parts.next().is_some() {
+        return Err(RtError::new(
+            RtErrorKind::InvalidArgument,
+            "datetime.parseUnix time has too many parts",
+        ));
+    }
+
+    if !(1..=12).contains(&month)
+        || day == 0
+        || day > days_in_month(year, month)
+        || hour > 23
+        || minute > 59
+        || second > 59
+    {
+        return Err(RtError::new(
+            RtErrorKind::InvalidArgument,
+            "datetime.parseUnix received out-of-range date/time component",
+        ));
+    }
+
+    let days = days_from_civil(year, month, day);
+    Ok(days * 86_400 + (hour as i64 * 3_600) + (minute as i64 * 60) + second as i64)
+}
+
+fn parse_part<T: std::str::FromStr>(value: Option<&str>, name: &str) -> RtResult<T> {
+    value
+        .ok_or_else(|| {
+            RtError::new(
+                RtErrorKind::InvalidArgument,
+                format!("datetime.parseUnix missing {name}"),
+            )
+        })?
+        .parse()
+        .map_err(|_| {
+            RtError::new(
+                RtErrorKind::InvalidArgument,
+                format!("datetime.parseUnix invalid {name}"),
+            )
+        })
+}
+
+fn unix_seconds_to_components(seconds: i64) -> (i32, u32, u32, u32, u32, u32) {
+    let days = seconds.div_euclid(86_400);
+    let secs_of_day = seconds.rem_euclid(86_400);
+    let (year, month, day) = civil_from_days(days);
+    let hour = (secs_of_day / 3_600) as u32;
+    let minute = ((secs_of_day % 3_600) / 60) as u32;
+    let second = (secs_of_day % 60) as u32;
+    (year, month, day, hour, minute, second)
+}
+
+fn civil_from_days(days: i64) -> (i32, u32, u32) {
+    let z = days + 719_468;
+    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = mp + if mp < 10 { 3 } else { -9 };
+    let year = y + if m <= 2 { 1 } else { 0 };
+    (year as i32, m as u32, d as u32)
+}
+
+fn days_from_civil(year: i32, month: u32, day: u32) -> i64 {
+    let year = year as i64 - if month <= 2 { 1 } else { 0 };
+    let era = if year >= 0 { year } else { year - 399 } / 400;
+    let yoe = year - era * 400;
+    let month = month as i64;
+    let day = day as i64;
+    let doy = (153 * (month + if month > 2 { -3 } else { 9 }) + 2) / 5 + day - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    era * 146_097 + doe - 719_468
+}
+
+fn days_in_month(year: i32, month: u32) -> u32 {
+    match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if is_leap_year(year) => 29,
+        2 => 28,
+        _ => 0,
+    }
+}
+
+fn is_leap_year(year: i32) -> bool {
+    (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
 }

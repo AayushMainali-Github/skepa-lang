@@ -1,7 +1,15 @@
 mod common;
 
 use common::RecordingHostBuilder;
-use skepart::{builtins, NoopHost, RtErrorKind, RtString, RtValue};
+use skepart::{builtins, RtErrorKind, RtHost, RtResult, RtString, RtValue};
+
+struct UnsupportedHost;
+
+impl RtHost for UnsupportedHost {
+    fn io_print(&mut self, _text: &str) -> RtResult<()> {
+        Ok(())
+    }
+}
 
 #[test]
 fn builtins_dispatch_valid_core_families() {
@@ -24,7 +32,7 @@ fn builtins_dispatch_valid_core_families() {
 
 #[test]
 fn builtins_report_unknown_family_arity_and_type_errors() {
-    let mut host = NoopHost::default();
+    let mut host = UnsupportedHost;
     assert_eq!(
         builtins::call("missing", "fn", &[])
             .expect_err("bad family")
@@ -227,12 +235,12 @@ fn builtins_cover_datetime_component_and_parse_shapes() {
     assert_eq!(
         builtins::call_with_host(&mut host, "datetime", "fromUnix", &[RtValue::Int(5)],)
             .expect("from unix"),
-        RtValue::Int(15)
+        RtValue::String(RtString::from("unix:5"))
     );
     assert_eq!(
         builtins::call_with_host(&mut host, "datetime", "fromMillis", &[RtValue::Int(5)],)
             .expect("from millis"),
-        RtValue::Int(25)
+        RtValue::String(RtString::from("millis:5"))
     );
     assert_eq!(
         builtins::call_with_host(
@@ -253,5 +261,30 @@ fn builtins_cover_datetime_component_and_parse_shapes() {
         builtins::call_with_host(&mut host, "datetime", "second", &[RtValue::Int(100)])
             .expect("second"),
         RtValue::Int(106)
+    );
+}
+
+#[test]
+fn builtins_reject_typed_io_print_mismatches_and_format_extra_args() {
+    let mut host = RecordingHostBuilder::seeded().build();
+    assert_eq!(
+        builtins::call_with_host(&mut host, "io", "printInt", &[RtValue::Bool(true)])
+            .expect_err("typed print mismatch")
+            .kind,
+        RtErrorKind::TypeMismatch
+    );
+    assert_eq!(
+        builtins::call(
+            "io",
+            "format",
+            &[
+                RtValue::String(RtString::from("%d")),
+                RtValue::Int(1),
+                RtValue::Int(2),
+            ],
+        )
+        .expect_err("extra args")
+        .kind,
+        RtErrorKind::InvalidArgument
     );
 }

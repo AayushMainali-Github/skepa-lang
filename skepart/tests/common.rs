@@ -135,12 +135,12 @@ impl RtHost for RecordingHost {
         Ok(self.millis_now)
     }
 
-    fn datetime_from_unix(&mut self, value: i64) -> RtResult<i64> {
-        Ok(value + 10)
+    fn datetime_from_unix(&mut self, value: i64) -> RtResult<RtString> {
+        Ok(RtString::from(format!("unix:{value}")))
     }
 
-    fn datetime_from_millis(&mut self, value: i64) -> RtResult<i64> {
-        Ok(value + 20)
+    fn datetime_from_millis(&mut self, value: i64) -> RtResult<RtString> {
+        Ok(RtString::from(format!("millis:{value}")))
     }
 
     fn datetime_parse_unix(&mut self, value: &str) -> RtResult<i64> {

@@ -79,8 +79,20 @@ pub fn call_with_host(
             io::println(host, value)?;
             Ok(RtValue::Unit)
         }
-        ("io", "printInt" | "printFloat" | "printBool" | "printString", [value]) => {
-            io::print(host, value)?;
+        ("io", "printInt", [value]) => {
+            io::print(host, &RtValue::Int(value.expect_int()?))?;
+            Ok(RtValue::Unit)
+        }
+        ("io", "printFloat", [value]) => {
+            io::print(host, &RtValue::Float(value.expect_float()?))?;
+            Ok(RtValue::Unit)
+        }
+        ("io", "printBool", [value]) => {
+            io::print(host, &RtValue::Bool(value.expect_bool()?))?;
+            Ok(RtValue::Unit)
+        }
+        ("io", "printString", [value]) => {
+            io::print(host, &RtValue::String(value.expect_string()?))?;
             Ok(RtValue::Unit)
         }
         ("io", "format", args) => io::format(args),

@@ -3,9 +3,9 @@ use skepart::{RtErrorKind, RtString};
 #[test]
 fn string_counts_chars_not_bytes_for_unicode() {
     let value = RtString::from("naive");
-    let unicode = RtString::from("a🙂ब");
+    let unicode = RtString::from("🙂ब");
     assert_eq!(value.len_chars(), 5);
-    assert_eq!(unicode.len_chars(), 3);
+    assert_eq!(unicode.len_chars(), 2);
 }
 
 #[test]
@@ -73,4 +73,11 @@ fn string_index_and_contains_work_on_unicode_boundaries() {
         value.slice_chars(1..4).expect("unicode middle slice"),
         RtString::from("🙂b🙂")
     );
+}
+
+#[test]
+fn string_index_of_returns_character_offset_not_byte_offset() {
+    let value = RtString::from("🙂a🙂b");
+    assert_eq!(value.index_of(&RtString::from("a")), 1);
+    assert_eq!(value.index_of(&RtString::from("b")), 3);
 }

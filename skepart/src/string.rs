@@ -26,7 +26,7 @@ impl RtString {
     pub fn index_of(&self, needle: &RtString) -> i64 {
         self.0
             .find(needle.as_str())
-            .map(|idx| idx as i64)
+            .map(|idx| self.0[..idx].chars().count() as i64)
             .unwrap_or(-1)
     }
 

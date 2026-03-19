@@ -9,11 +9,11 @@ pub fn now_millis(host: &mut dyn RtHost) -> RtResult<RtValue> {
 }
 
 pub fn from_unix(host: &mut dyn RtHost, value: i64) -> RtResult<RtValue> {
-    Ok(RtValue::Int(host.datetime_from_unix(value)?))
+    Ok(RtValue::String(host.datetime_from_unix(value)?))
 }
 
 pub fn from_millis(host: &mut dyn RtHost, value: i64) -> RtResult<RtValue> {
-    Ok(RtValue::Int(host.datetime_from_millis(value)?))
+    Ok(RtValue::String(host.datetime_from_millis(value)?))
 }
 
 pub fn parse_unix(host: &mut dyn RtHost, value: &str) -> RtResult<RtValue> {

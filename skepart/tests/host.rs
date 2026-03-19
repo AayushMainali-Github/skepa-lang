@@ -10,6 +10,20 @@ fn noop_host_supports_print_and_time_defaults() {
     host.io_println("world").expect("println");
     assert!(host.datetime_now_unix().expect("unix") > 0);
     assert!(host.datetime_now_millis().expect("millis") > 0);
+    assert_eq!(
+        host.datetime_from_unix(0).expect("from unix"),
+        RtString::from("1970-01-01T00:00:00Z")
+    );
+    assert_eq!(
+        host.datetime_from_millis(1234).expect("from millis"),
+        RtString::from("1970-01-01T00:00:01.234Z")
+    );
+    assert_eq!(
+        host.datetime_parse_unix("1970-01-01T00:00:00Z")
+            .expect("parse unix"),
+        0
+    );
+    assert_eq!(host.datetime_component("year", 0).expect("year"), 1970);
 }
 
 #[test]

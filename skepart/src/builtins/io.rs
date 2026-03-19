@@ -14,7 +14,10 @@ pub fn read_line(host: &mut dyn RtHost) -> RtResult<RtValue> {
 
 pub fn format(args: &[RtValue]) -> RtResult<RtValue> {
     if args.is_empty() {
-        return Err(crate::RtError::unsupported_builtin("io.format"));
+        return Err(crate::RtError::new(
+            crate::RtErrorKind::InvalidArgument,
+            "io.format expects at least 1 argument",
+        ));
     }
     let fmt = args[0].expect_string()?;
     Ok(RtValue::String(crate::RtString::from(apply_format(
@@ -56,14 +59,20 @@ fn apply_format(fmt: &str, args: &[RtValue]) -> RtResult<String> {
             continue;
         }
         let Some(spec) = chars.next() else {
-            return Err(crate::RtError::unsupported_builtin("io.format"));
+            return Err(crate::RtError::new(
+                crate::RtErrorKind::InvalidArgument,
+                "io.format format string ends with `%`",
+            ));
         };
         if spec == '%' {
             out.push('%');
             continue;
         }
         let Some(value) = args.get(idx) else {
-            return Err(crate::RtError::unsupported_builtin("io.format"));
+            return Err(crate::RtError::new(
+                crate::RtErrorKind::InvalidArgument,
+                "io.format received too few arguments for format string",
+            ));
         };
         idx += 1;
         match spec {
@@ -71,8 +80,20 @@ fn apply_format(fmt: &str, args: &[RtValue]) -> RtResult<String> {
             'f' => out.push_str(&value.expect_float()?.to_string()),
             'b' => out.push_str(&value.expect_bool()?.to_string()),
             's' => out.push_str(value.expect_string()?.as_str()),
-            _ => return Err(crate::RtError::unsupported_builtin("io.format")),
+            _ => {
+                return Err(crate::RtError::new(
+                    crate::RtErrorKind::InvalidArgument,
+                    format!("Unsupported format specifier `%{spec}`"),
+                ));
+            }
         }
+    }
+
+    if idx != args.len() {
+        return Err(crate::RtError::new(
+            crate::RtErrorKind::InvalidArgument,
+            "io.format received too many arguments for format string",
+        ));
     }
 
     Ok(out)
