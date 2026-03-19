@@ -145,8 +145,10 @@ impl IrVerifier {
                     }
                     crate::ir::Instr::VecLen { vec: array, .. } => {
                         Self::verify_operand(program, func, array)?;
-                        if !matches!(Self::operand_type(program, func, array), Some(IrType::Vec { .. }))
-                        {
+                        if !matches!(
+                            Self::operand_type(program, func, array),
+                            Some(IrType::Vec { .. })
+                        ) {
                             return Err(IrVerifyError::OperandTypeMismatch {
                                 function: func.name.clone(),
                             });

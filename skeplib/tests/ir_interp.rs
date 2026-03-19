@@ -200,6 +200,158 @@ fn interpreter_rejects_indirect_call_on_non_closure() {
 }
 
 #[test]
+fn interpreter_rejects_wrong_arity_direct_and_indirect_calls() {
+    let callee = IrFunction {
+        id: FunctionId(1),
+        name: "step".into(),
+        params: vec![skeplib::ir::IrParam {
+            id: skeplib::ir::ParamId(0),
+            name: "x".into(),
+            ty: IrType::Int,
+        }],
+        locals: vec![skeplib::ir::IrLocal {
+            id: skeplib::ir::LocalId(0),
+            name: "x".into(),
+            ty: IrType::Int,
+        }],
+        temps: Vec::new(),
+        ret_ty: IrType::Int,
+        entry: BlockId(0),
+        blocks: vec![BasicBlock {
+            id: BlockId(0),
+            name: "entry".into(),
+            instrs: Vec::new(),
+            terminator: Terminator::Return(Some(ir::Operand::Local(ir::LocalId(0)))),
+        }],
+    };
+    let direct = IrFunction {
+        id: FunctionId(0),
+        name: "main".into(),
+        params: Vec::new(),
+        locals: Vec::new(),
+        temps: vec![skeplib::ir::IrTemp {
+            id: ir::TempId(0),
+            ty: IrType::Fn {
+                params: vec![IrType::Int],
+                ret: Box::new(IrType::Int),
+            },
+        }],
+        ret_ty: IrType::Int,
+        entry: BlockId(0),
+        blocks: vec![BasicBlock {
+            id: BlockId(0),
+            name: "entry".into(),
+            instrs: vec![Instr::CallDirect {
+                dst: None,
+                ret_ty: IrType::Int,
+                function: FunctionId(1),
+                args: Vec::new(),
+            }],
+            terminator: Terminator::Return(Some(ir::Operand::Const(ir::ConstValue::Int(0)))),
+        }],
+    };
+    let direct_program = IrProgram {
+        functions: vec![direct, callee.clone()],
+        globals: Vec::new(),
+        structs: Vec::new(),
+        module_init: None,
+    };
+    let err = IrInterpreter::new(&direct_program)
+        .run_main()
+        .expect_err("interpreter should reject wrong-arity direct call");
+    assert!(matches!(
+        err,
+        IrInterpError::InvalidOperand("call arity mismatch")
+    ));
+
+    let indirect = IrFunction {
+        id: FunctionId(0),
+        name: "main".into(),
+        params: Vec::new(),
+        locals: Vec::new(),
+        temps: vec![skeplib::ir::IrTemp {
+            id: ir::TempId(0),
+            ty: IrType::Fn {
+                params: vec![IrType::Int],
+                ret: Box::new(IrType::Int),
+            },
+        }],
+        ret_ty: IrType::Int,
+        entry: BlockId(0),
+        blocks: vec![BasicBlock {
+            id: BlockId(0),
+            name: "entry".into(),
+            instrs: vec![
+                Instr::MakeClosure {
+                    dst: ir::TempId(0),
+                    function: FunctionId(1),
+                },
+                Instr::CallIndirect {
+                    dst: None,
+                    ret_ty: IrType::Int,
+                    callee: ir::Operand::Temp(ir::TempId(0)),
+                    args: Vec::new(),
+                },
+            ],
+            terminator: Terminator::Return(Some(ir::Operand::Const(ir::ConstValue::Int(0)))),
+        }],
+    };
+    let indirect_program = IrProgram {
+        functions: vec![indirect, callee],
+        globals: Vec::new(),
+        structs: Vec::new(),
+        module_init: None,
+    };
+    let err = IrInterpreter::new(&indirect_program)
+        .run_main()
+        .expect_err("interpreter should reject wrong-arity indirect call");
+    assert!(matches!(
+        err,
+        IrInterpError::InvalidOperand("call arity mismatch")
+    ));
+}
+
+#[test]
+fn interpreter_rejects_store_value_type_mismatch() {
+    let func = IrFunction {
+        id: FunctionId(0),
+        name: "main".into(),
+        params: Vec::new(),
+        locals: vec![skeplib::ir::IrLocal {
+            id: skeplib::ir::LocalId(0),
+            name: "x".into(),
+            ty: IrType::Int,
+        }],
+        temps: Vec::new(),
+        ret_ty: IrType::Int,
+        entry: BlockId(0),
+        blocks: vec![BasicBlock {
+            id: BlockId(0),
+            name: "entry".into(),
+            instrs: vec![Instr::StoreLocal {
+                local: skeplib::ir::LocalId(0),
+                ty: IrType::Int,
+                value: ir::Operand::Const(ir::ConstValue::Bool(true)),
+            }],
+            terminator: Terminator::Return(Some(ir::Operand::Const(ir::ConstValue::Int(0)))),
+        }],
+    };
+    let program = IrProgram {
+        functions: vec![func],
+        globals: Vec::new(),
+        structs: Vec::new(),
+        module_init: None,
+    };
+    let err = IrInterpreter::new(&program)
+        .run_main()
+        .expect_err("interpreter should reject typed store mismatch");
+    assert!(matches!(
+        err,
+        IrInterpError::TypeMismatch("stored value does not match declared type")
+    ));
+}
+
+#[test]
 fn interpreter_handles_runtime_managed_values_and_function_values() {
     let source = r#"
 struct Pair {

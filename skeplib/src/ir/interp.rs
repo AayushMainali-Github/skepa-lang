@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use crate::ir::{
     BinaryOp, BranchTerminator, CmpOp, ConstValue, FunctionId, Instr, IrFunction, IrProgram,
-    Operand, Terminator, UnaryOp,
+    IrType, Operand, Terminator, UnaryOp,
 };
 use skepart::{
     NoopHost, RtArray, RtError, RtErrorKind, RtFunctionRef, RtHost, RtString, RtStruct,
@@ -117,6 +117,9 @@ impl<'a> IrInterpreter<'a> {
             .iter()
             .find(|func| func.id == function_id)
             .ok_or(IrInterpError::MissingFunction(function_id))?;
+        if func.params.len() != args.len() {
+            return Err(IrInterpError::InvalidOperand("call arity mismatch"));
+        }
         let mut frame = Frame::new(func, args);
         let mut current_block = func.entry;
 
@@ -241,6 +244,13 @@ impl<'a> IrInterpreter<'a> {
             }
             Instr::StoreGlobal { global, value, .. } => {
                 let value = frame.read_operand(value, &self.globals)?;
+                let expected_ty = self
+                    .program
+                    .globals
+                    .get(global.0)
+                    .map(|global| global.ty.clone())
+                    .ok_or(IrInterpError::InvalidOperand("global store out of range"))?;
+                self.expect_runtime_type(&value, &expected_ty)?;
                 let slot = self
                     .globals
                     .get_mut(global.0)
@@ -257,6 +267,13 @@ impl<'a> IrInterpreter<'a> {
             }
             Instr::StoreLocal { local, value, .. } => {
                 let value = frame.read_operand(value, &self.globals)?;
+                let expected_ty = func
+                    .locals
+                    .iter()
+                    .find(|candidate| candidate.id == *local)
+                    .map(|local| local.ty.clone())
+                    .ok_or(IrInterpError::InvalidOperand("local store out of range"))?;
+                self.expect_runtime_type(&value, &expected_ty)?;
                 frame.locals.insert(local.0, value);
             }
             Instr::MakeArray { dst, items, .. } => {
@@ -531,6 +548,31 @@ impl<'a> IrInterpreter<'a> {
         match frame.read_operand(operand, &self.globals)? {
             RtValue::Int(idx) => usize::try_from(idx).map_err(|_| IrInterpError::IndexOutOfBounds),
             _ => Err(IrInterpError::TypeMismatch("index must be int")),
+        }
+    }
+
+    fn expect_runtime_type(&self, value: &RtValue, expected: &IrType) -> Result<(), IrInterpError> {
+        if Self::runtime_matches_ir_type(value, expected) {
+            Ok(())
+        } else {
+            Err(IrInterpError::TypeMismatch(
+                "stored value does not match declared type",
+            ))
+        }
+    }
+
+    fn runtime_matches_ir_type(value: &RtValue, expected: &IrType) -> bool {
+        match expected {
+            IrType::Unknown => true,
+            IrType::Int => matches!(value, RtValue::Int(_)),
+            IrType::Float => matches!(value, RtValue::Float(_)),
+            IrType::Bool => matches!(value, RtValue::Bool(_)),
+            IrType::String => matches!(value, RtValue::String(_)),
+            IrType::Void => matches!(value, RtValue::Unit),
+            IrType::Named(_) => matches!(value, RtValue::Struct(_)),
+            IrType::Array { .. } => matches!(value, RtValue::Array(_)),
+            IrType::Vec { .. } => matches!(value, RtValue::Vec(_)),
+            IrType::Fn { .. } => matches!(value, RtValue::Function(_)),
         }
     }
 
