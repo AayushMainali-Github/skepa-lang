@@ -127,11 +127,22 @@ impl RtValue {
 }
 
 impl RtStruct {
-    pub fn new(layout: Rc<RtStructLayout>, fields: Vec<RtValue>) -> Self {
-        Self { layout, fields }
+    pub fn new(layout: Rc<RtStructLayout>, fields: Vec<RtValue>) -> RtResult<Self> {
+        if !layout.field_names.is_empty() && layout.field_names.len() != fields.len() {
+            return Err(RtError::new(
+                crate::RtErrorKind::MissingField,
+                format!(
+                    "struct `{}` expected {} fields, got {}",
+                    layout.name,
+                    layout.field_names.len(),
+                    fields.len()
+                ),
+            ));
+        }
+        Ok(Self { layout, fields })
     }
 
-    pub fn named(name: impl Into<String>, fields: Vec<RtValue>) -> Self {
+    pub fn named(name: impl Into<String>, fields: Vec<RtValue>) -> RtResult<Self> {
         Self::new(
             Rc::new(RtStructLayout {
                 name: name.into(),

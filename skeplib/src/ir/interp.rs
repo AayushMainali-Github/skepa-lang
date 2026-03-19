@@ -424,9 +424,12 @@ impl<'a> IrInterpreter<'a> {
                     .ok_or_else(|| {
                         IrInterpError::InvalidField(format!("unknown struct {:?}", struct_id))
                     })?;
-                frame
-                    .temps
-                    .insert(*dst, RtValue::Struct(RtStruct::new(layout, fields)));
+                frame.temps.insert(
+                    *dst,
+                    RtValue::Struct(
+                        RtStruct::new(layout, fields).map_err(IrInterpError::from_runtime)?,
+                    ),
+                );
             }
             Instr::StructGet {
                 dst, base, field, ..

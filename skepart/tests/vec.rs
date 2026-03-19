@@ -29,10 +29,9 @@ fn vecs_report_empty_and_oob_errors() {
 #[test]
 fn vecs_hold_structs_functions_and_strings() {
     let vec = RtVec::new();
-    vec.push(RtValue::Struct(RtStruct::named(
-        "Pair",
-        vec![RtValue::Int(1)],
-    )));
+    vec.push(RtValue::Struct(
+        RtStruct::named("Pair", vec![RtValue::Int(1)]).expect("struct"),
+    ));
     vec.push(RtValue::Function(RtFunctionRef(7)));
     vec.push(RtValue::String(RtString::from("done")));
     assert!(matches!(vec.get(0), Ok(RtValue::Struct(_))));

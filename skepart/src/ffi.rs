@@ -155,6 +155,7 @@ pub extern "C" fn skp_rt_value_from_struct(value: *mut RtStruct) -> *mut RtValue
 
 #[no_mangle]
 pub extern "C" fn skp_rt_value_from_function(value: i32) -> *mut RtValue {
+    assert!(value >= 0, "function id must be non-negative");
     boxed_value(RtValue::Function(RtFunctionRef(value as u32)))
 }
 
@@ -301,13 +302,16 @@ pub extern "C" fn skp_rt_vec_delete(vec: *mut RtVec, index: i64) -> *mut RtValue
 #[no_mangle]
 pub extern "C" fn skp_rt_struct_new(struct_id: i64, field_count: i64) -> *mut RtStruct {
     assert!(field_count >= 0, "field count must be non-negative");
-    boxed_struct(RtStruct::new(
-        Rc::new(RtStructLayout {
-            name: format!("Struct{struct_id}"),
-            field_names: Vec::new(),
-        }),
-        vec![RtValue::Unit; field_count as usize],
-    ))
+    boxed_struct(
+        RtStruct::new(
+            Rc::new(RtStructLayout {
+                name: format!("Struct{struct_id}"),
+                field_names: Vec::new(),
+            }),
+            vec![RtValue::Unit; field_count as usize],
+        )
+        .expect("ffi-generated struct layout should be valid"),
+    )
 }
 
 #[no_mangle]

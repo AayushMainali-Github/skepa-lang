@@ -16,7 +16,7 @@ fn value_accessors_return_expected_values() {
     let vec = RtVec::new();
     vec.push(RtValue::Int(9));
     assert_eq!(RtValue::Vec(vec.clone()).expect_vec(), Ok(vec));
-    let strukt = RtStruct::named("Pair", vec![RtValue::Int(1)]);
+    let strukt = RtStruct::named("Pair", vec![RtValue::Int(1)]).expect("struct");
     assert_eq!(RtValue::Struct(strukt.clone()).expect_struct(), Ok(strukt));
     assert_eq!(
         RtValue::Function(RtFunctionRef(3)).expect_function(),

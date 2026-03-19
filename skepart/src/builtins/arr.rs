@@ -13,8 +13,13 @@ pub fn first(array: &RtArray) -> RtResult<RtValue> {
 }
 
 pub fn last(array: &RtArray) -> RtResult<RtValue> {
-    let len = array.len();
-    array.get(len.saturating_sub(1))
+    if array.is_empty() {
+        return Err(crate::RtError::new(
+            crate::RtErrorKind::InvalidArgument,
+            "arr.last requires a non-empty array",
+        ));
+    }
+    array.get(array.len() - 1)
 }
 
 pub fn join(array: &RtArray, sep: &RtString) -> RtResult<RtString> {

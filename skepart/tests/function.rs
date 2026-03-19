@@ -33,7 +33,7 @@ fn function_registry_reports_missing_function_id() {
             .call(&mut host, RtFunctionRef(99), &[RtValue::Int(1)])
             .expect_err("missing id")
             .kind,
-        RtErrorKind::UnsupportedBuiltin
+        RtErrorKind::InvalidArgument
     );
 }
 
@@ -74,5 +74,23 @@ fn function_registry_can_store_and_call_many_functions() {
             .call(&mut host, ids[15], &[RtValue::Int(41)])
             .expect("high id call"),
         RtValue::Int(42)
+    );
+}
+
+#[test]
+fn function_registry_reports_panic_inside_registered_function_as_invalid_argument() {
+    fn bad_arity(_host: &mut dyn skepart::RtHost, args: &[RtValue]) -> skepart::RtResult<RtValue> {
+        Ok(RtValue::Int(args[1].expect_int()?))
+    }
+
+    let mut registry = RtFunctionRegistry::new();
+    let f = registry.register(bad_arity);
+    let mut host = RecordingHostBuilder::seeded().build();
+    assert_eq!(
+        registry
+            .call(&mut host, f, &[RtValue::Int(1)])
+            .expect_err("panic should map to invalid argument")
+            .kind,
+        RtErrorKind::InvalidArgument
     );
 }
