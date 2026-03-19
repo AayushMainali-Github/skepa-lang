@@ -63,11 +63,6 @@ Use these native-first commands instead:
 
 ## Examples
 
-- `examples/master.sk`
-- `examples/master_modules.sk`
-- `examples/modules_basic/`
-- `examples/modules_folder/`
-- `examples/modules_fn_struct/`
 
 For full language/module reference, see `DOCS.md`.
 
