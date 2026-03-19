@@ -26,6 +26,12 @@ unsafe extern "C" {
         argc: i64,
         argv: *const *mut c_void,
     ) -> *mut c_void;
+    fn skp_rt_last_error_kind() -> i32;
+    fn skp_rt_value_free(ptr: *mut c_void);
+    fn skp_rt_string_free(ptr: *mut c_void);
+    fn skp_rt_array_free(ptr: *mut c_void);
+    fn skp_rt_vec_free(ptr: *mut c_void);
+    fn skp_rt_struct_free(ptr: *mut c_void);
 }
 
 #[test]
@@ -94,4 +100,42 @@ fn ffi_struct_helpers_and_builtin_dispatch_surface_work() {
         unsafe { (*(boxed as *mut RtValue)).expect_int().expect("int") },
         5
     );
+}
+
+#[test]
+fn ffi_records_runtime_error_after_failed_builtin() {
+    let pkg = c"str";
+    let name = c"len";
+    let bad_arg = unsafe { skp_rt_value_from_int(1) };
+    let argv = [bad_arg];
+    let _ = unsafe { skp_rt_call_builtin(pkg.as_ptr(), name.as_ptr(), 1, argv.as_ptr()) };
+    assert_eq!(unsafe { skp_rt_last_error_kind() }, 3);
+    unsafe { skp_rt_value_free(bad_arg) };
+}
+
+#[test]
+fn ffi_records_invalid_argument_for_null_and_negative_inputs() {
+    let _ = unsafe { skp_rt_builtin_str_len(std::ptr::null_mut()) };
+    assert_eq!(unsafe { skp_rt_last_error_kind() }, 5);
+
+    let bad_fn = unsafe { skp_rt_value_from_function(-1) };
+    assert!(bad_fn.is_null());
+    assert_eq!(unsafe { skp_rt_last_error_kind() }, 5);
+}
+
+#[test]
+fn ffi_exports_free_helpers_for_boxed_runtime_values() {
+    let string = unsafe { skp_rt_string_from_utf8("hello".as_ptr(), 5) };
+    let array = unsafe { skp_rt_array_repeat(skp_rt_value_from_int(3), 2) };
+    let vec = unsafe { skp_rt_vec_new() };
+    let strukt = unsafe { skp_rt_struct_new(1, 1) };
+    let value = unsafe { skp_rt_value_from_int(9) };
+
+    unsafe {
+        skp_rt_string_free(string);
+        skp_rt_array_free(array);
+        skp_rt_vec_free(vec);
+        skp_rt_struct_free(strukt);
+        skp_rt_value_free(value);
+    }
 }

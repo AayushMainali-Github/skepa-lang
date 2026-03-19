@@ -1,4 +1,4 @@
-use std::cell::{Ref, RefCell, RefMut};
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::{RtError, RtResult, RtValue};
@@ -17,14 +17,6 @@ impl RtVec {
 
     pub fn is_empty(&self) -> bool {
         self.0.borrow().is_empty()
-    }
-
-    pub fn borrow(&self) -> Ref<'_, Vec<RtValue>> {
-        self.0.borrow()
-    }
-
-    pub fn borrow_mut(&self) -> RefMut<'_, Vec<RtValue>> {
-        self.0.borrow_mut()
     }
 
     pub fn push(&self, value: RtValue) {

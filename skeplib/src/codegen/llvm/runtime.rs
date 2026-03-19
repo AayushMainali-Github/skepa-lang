@@ -18,6 +18,7 @@ pub fn emit_runtime_decls(program: &IrProgram, out: &mut Vec<String>) -> Result<
     out.push("declare i64 @skp_rt_builtin_str_index_of(ptr, ptr)".into());
     out.push("declare ptr @skp_rt_builtin_str_slice(ptr, i64, i64)".into());
     out.push("declare ptr @skp_rt_call_builtin(ptr, ptr, i64, ptr)".into());
+    out.push("declare void @skp_rt_abort_if_error()".into());
     out.push("declare ptr @skp_rt_value_from_int(i64)".into());
     out.push("declare ptr @skp_rt_value_from_bool(i1)".into());
     out.push("declare ptr @skp_rt_value_from_float(double)".into());
@@ -99,6 +100,7 @@ pub fn emit_builtin_call(
 
     if call.ret_ty.is_void() {
         lines.push(format!("  call {ret_llvm_ty} @{helper}({joined_args})"));
+        emit_abort_if_error(lines);
         return Ok(());
     }
 
@@ -111,6 +113,7 @@ pub fn emit_builtin_call(
     lines.push(format!(
         "  {dest} = call {ret_llvm_ty} @{helper}({joined_args})"
     ));
+    emit_abort_if_error(lines);
     Ok(())
 }
 
@@ -132,6 +135,7 @@ fn emit_builtin_call_generic(
         "  {raw} = call ptr @skp_rt_call_builtin(ptr {package_ptr}, ptr {name_ptr}, i64 {}, ptr {argv})",
         call.args.len()
     ));
+    emit_abort_if_error(lines);
     if call.ret_ty.is_void() {
         return Ok(());
     }
@@ -207,6 +211,7 @@ pub fn emit_make_array(
         lines.push(format!(
             "  call void @skp_rt_array_set(ptr {dest}, i64 {index}, ptr {boxed})"
         ));
+        emit_abort_if_error(lines);
     }
     Ok(())
 }
@@ -269,6 +274,7 @@ pub fn emit_array_get(
     lines.push(format!(
         "  {raw} = call ptr @skp_rt_array_get(ptr {array}, i64 {index})"
     ));
+    emit_abort_if_error(lines);
     emit_unbox_value(names, dst, elem_ty, &raw, lines)
 }
 
@@ -309,6 +315,7 @@ pub fn emit_array_set(
     lines.push(format!(
         "  call void @skp_rt_array_set(ptr {array}, i64 {index}, ptr {boxed})"
     ));
+    emit_abort_if_error(lines);
     Ok(())
 }
 
@@ -386,6 +393,7 @@ pub fn emit_vec_push(
     lines.push(format!(
         "  call void @skp_rt_vec_push(ptr {vec}, ptr {boxed})"
     ));
+    emit_abort_if_error(lines);
     Ok(())
 }
 
@@ -426,6 +434,7 @@ pub fn emit_vec_get(
     lines.push(format!(
         "  {raw} = call ptr @skp_rt_vec_get(ptr {vec}, i64 {index})"
     ));
+    emit_abort_if_error(lines);
     emit_unbox_value(names, dst, elem_ty, &raw, lines)
 }
 
@@ -465,6 +474,7 @@ pub fn emit_vec_set(
     lines.push(format!(
         "  call void @skp_rt_vec_set(ptr {vec}, i64 {index}, ptr {boxed})"
     ));
+    emit_abort_if_error(lines);
     Ok(())
 }
 
@@ -505,6 +515,7 @@ pub fn emit_vec_delete(
     lines.push(format!(
         "  {raw} = call ptr @skp_rt_vec_delete(ptr {vec}, i64 {index})"
     ));
+    emit_abort_if_error(lines);
     emit_unbox_value(names, dst, elem_ty, &raw, lines)
 }
 
@@ -544,6 +555,7 @@ pub fn emit_make_struct(
         lines.push(format!(
             "  call void @skp_rt_struct_set(ptr {dest}, i64 {index}, ptr {boxed})"
         ));
+        emit_abort_if_error(lines);
     }
     Ok(())
 }
@@ -575,6 +587,7 @@ pub fn emit_struct_get(
         "  {raw} = call ptr @skp_rt_struct_get(ptr {base}, i64 {})",
         field.index
     ));
+    emit_abort_if_error(lines);
     emit_unbox_value(names, dst, ty, &raw, lines)
 }
 
@@ -604,6 +617,7 @@ pub fn emit_struct_set(
         "  call void @skp_rt_struct_set(ptr {base}, i64 {}, ptr {boxed})",
         field.index
     ));
+    emit_abort_if_error(lines);
     Ok(())
 }
 
@@ -705,7 +719,12 @@ fn emit_unbox_value(
             ));
         }
     }
+    emit_abort_if_error(lines);
     Ok(())
+}
+
+fn emit_abort_if_error(lines: &mut Vec<String>) {
+    lines.push("  call void @skp_rt_abort_if_error()".into());
 }
 
 fn infer_operand_type(func: &IrFunction, operand: &crate::ir::Operand) -> IrType {
@@ -816,6 +835,7 @@ fn emit_indirect_wrapper(func: &IrFunction) -> Result<Vec<String>, CodegenError>
                 ));
             }
         }
+        lines.push("  call void @skp_rt_abort_if_error()".into());
     }
     let joined_args = func
         .params
