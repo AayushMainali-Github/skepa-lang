@@ -1,6 +1,6 @@
 mod common;
 mod sema_cases {
-    use super::common::{assert_has_diag, sema_err, sema_ok};
+    use super::common::{assert_has_diag, assert_sema_success, sema_err, sema_ok};
     use skeplib::sema::analyze_source;
 
     mod core;
