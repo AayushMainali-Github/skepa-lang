@@ -576,6 +576,14 @@ impl<'a> IrInterpreter<'a> {
                 CmpOp::Gt => a > b,
                 CmpOp::Ge => a >= b,
             }),
+            (RtValue::Float(a), RtValue::Float(b)) => Ok(match op {
+                CmpOp::Eq => a == b,
+                CmpOp::Ne => a != b,
+                CmpOp::Lt => a < b,
+                CmpOp::Le => a <= b,
+                CmpOp::Gt => a > b,
+                CmpOp::Ge => a >= b,
+            }),
             (RtValue::Bool(a), RtValue::Bool(b)) => Ok(match op {
                 CmpOp::Eq => a == b,
                 CmpOp::Ne => a != b,

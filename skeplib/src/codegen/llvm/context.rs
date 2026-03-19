@@ -3,7 +3,7 @@ use crate::codegen::llvm::block::{branch_targets, ensure_terminator, label};
 use crate::codegen::llvm::calls::{self, DirectCall};
 use crate::codegen::llvm::runtime;
 use crate::codegen::llvm::types::llvm_ty;
-use crate::codegen::llvm::value::{ValueNames, llvm_symbol, operand_load};
+use crate::codegen::llvm::value::{ValueNames, llvm_float_literal, llvm_symbol, operand_load};
 use crate::ir::{
     BinaryOp, CmpOp, ConstValue, Instr, IrFunction, IrProgram, Operand, Terminator, UnaryOp,
 };
@@ -45,9 +45,15 @@ impl<'a> LlvmEmitter<'a> {
                         "0".into()
                     }
                 }
+                Some(Operand::Const(ConstValue::Float(v)))
+                    if matches!(global.ty, crate::ir::IrType::Float) =>
+                {
+                    llvm_float_literal(*v)
+                }
                 Some(_) | None => match global.ty {
                     // Non-constant initializers are materialized through __globals_init.
                     crate::ir::IrType::Int | crate::ir::IrType::Bool => "0".into(),
+                    crate::ir::IrType::Float => "0.0".into(),
                     crate::ir::IrType::String
                     | crate::ir::IrType::Named(_)
                     | crate::ir::IrType::Array { .. }
@@ -177,6 +183,11 @@ impl<'a> LlvmEmitter<'a> {
                     ConstValue::Int(v) => {
                         lines.push(format!("  {dest} = add {} 0, {v}", llvm_ty(ty)?))
                     }
+                    ConstValue::Float(v) => lines.push(format!(
+                        "  {dest} = fadd {} 0.0, {}",
+                        llvm_ty(ty)?,
+                        llvm_float_literal(*v)
+                    )),
                     ConstValue::Bool(v) => {
                         let int = if *v { 1 } else { 0 };
                         lines.push(format!("  {dest} = add {} 0, {int}", llvm_ty(ty)?));
@@ -195,7 +206,7 @@ impl<'a> LlvmEmitter<'a> {
                     }
                     _ => {
                         return Err(CodegenError::Unsupported(
-                            "only Int/Bool/String constants are supported",
+                            "only Int/Float/Bool/String constants are supported",
                         ));
                     }
                 }
@@ -214,6 +225,8 @@ impl<'a> LlvmEmitter<'a> {
                     lines.push(format!("  {dest} = bitcast ptr {value} to ptr"));
                 } else if matches!(ty, crate::ir::IrType::Fn { .. }) {
                     lines.push(format!("  {dest} = add i32 0, {value}"));
+                } else if matches!(ty, crate::ir::IrType::Float) {
+                    lines.push(format!("  {dest} = fadd {} 0.0, {value}", llvm_ty(ty)?));
                 } else {
                     lines.push(format!("  {dest} = add {} 0, {value}", llvm_ty(ty)?));
                 }
@@ -237,6 +250,9 @@ impl<'a> LlvmEmitter<'a> {
                 match (op, ty) {
                     (UnaryOp::Neg, crate::ir::IrType::Int) => {
                         lines.push(format!("  {dest} = sub i64 0, {value}"));
+                    }
+                    (UnaryOp::Neg, crate::ir::IrType::Float) => {
+                        lines.push(format!("  {dest} = fneg double {value}"));
                     }
                     (UnaryOp::Not, crate::ir::IrType::Bool) => {
                         lines.push(format!("  {dest} = xor i1 {value}, true"));
@@ -267,12 +283,21 @@ impl<'a> LlvmEmitter<'a> {
                     ty,
                     &self.string_literals,
                 )?;
-                let opname = match op {
-                    BinaryOp::Add => "add",
-                    BinaryOp::Sub => "sub",
-                    BinaryOp::Mul => "mul",
-                    BinaryOp::Div => "sdiv",
-                    BinaryOp::Mod => "srem",
+                let opname = match (op, ty) {
+                    (BinaryOp::Add, crate::ir::IrType::Float) => "fadd",
+                    (BinaryOp::Sub, crate::ir::IrType::Float) => "fsub",
+                    (BinaryOp::Mul, crate::ir::IrType::Float) => "fmul",
+                    (BinaryOp::Div, crate::ir::IrType::Float) => "fdiv",
+                    (BinaryOp::Mod, crate::ir::IrType::Float) => {
+                        return Err(CodegenError::Unsupported(
+                            "float modulo is not implemented in LLVM lowering",
+                        ));
+                    }
+                    (BinaryOp::Add, _) => "add",
+                    (BinaryOp::Sub, _) => "sub",
+                    (BinaryOp::Mul, _) => "mul",
+                    (BinaryOp::Div, _) => "sdiv",
+                    (BinaryOp::Mod, _) => "srem",
                 };
                 lines.push(format!(
                     "  {dest} = {opname} {} {left}, {right}",
@@ -287,36 +312,18 @@ impl<'a> LlvmEmitter<'a> {
             } => {
                 let dest = names.temp(*dst)?;
                 let compare_ty = infer_compare_operand_type(self.program, func, left, right);
-                let left = operand_load(
+                emit_compare(
                     names,
+                    func,
+                    &self.string_literals,
+                    dest,
+                    *op,
                     left,
-                    func,
-                    lines,
-                    counter,
-                    &compare_ty,
-                    &self.string_literals,
-                )?;
-                let right = operand_load(
-                    names,
                     right,
-                    func,
+                    &compare_ty,
                     lines,
                     counter,
-                    &compare_ty,
-                    &self.string_literals,
                 )?;
-                let pred = match op {
-                    CmpOp::Eq => "eq",
-                    CmpOp::Ne => "ne",
-                    CmpOp::Lt => "slt",
-                    CmpOp::Le => "sle",
-                    CmpOp::Gt => "sgt",
-                    CmpOp::Ge => "sge",
-                };
-                lines.push(format!(
-                    "  {dest} = icmp {pred} {} {left}, {right}",
-                    llvm_ty(&compare_ty)?
-                ));
             }
             Instr::LoadGlobal { dst, ty, global } => {
                 let dest = names.temp(*dst)?;
@@ -854,6 +861,85 @@ fn encode_c_string(value: &str) -> String {
     out
 }
 
+#[allow(clippy::too_many_arguments)]
+fn emit_compare(
+    names: &ValueNames,
+    func: &IrFunction,
+    string_literals: &HashMap<String, String>,
+    dest: &str,
+    op: CmpOp,
+    left: &Operand,
+    right: &Operand,
+    compare_ty: &crate::ir::IrType,
+    lines: &mut Vec<String>,
+    counter: &mut usize,
+) -> Result<(), CodegenError> {
+    let left = operand_load(
+        names,
+        left,
+        func,
+        lines,
+        counter,
+        compare_ty,
+        string_literals,
+    )?;
+    let right = operand_load(
+        names,
+        right,
+        func,
+        lines,
+        counter,
+        compare_ty,
+        string_literals,
+    )?;
+
+    match compare_ty {
+        crate::ir::IrType::String => {
+            let eq = format!("%v{counter}");
+            *counter += 1;
+            lines.push(format!(
+                "  {eq} = call i1 @skp_rt_string_eq(ptr {left}, ptr {right})"
+            ));
+            match op {
+                CmpOp::Eq => lines.push(format!("  {dest} = xor i1 {eq}, false")),
+                CmpOp::Ne => lines.push(format!("  {dest} = xor i1 {eq}, true")),
+                _ => {
+                    return Err(CodegenError::Unsupported(
+                        "string ordering comparisons are not implemented in LLVM lowering",
+                    ));
+                }
+            }
+        }
+        crate::ir::IrType::Float => {
+            let pred = match op {
+                CmpOp::Eq => "oeq",
+                CmpOp::Ne => "one",
+                CmpOp::Lt => "olt",
+                CmpOp::Le => "ole",
+                CmpOp::Gt => "ogt",
+                CmpOp::Ge => "oge",
+            };
+            lines.push(format!("  {dest} = fcmp {pred} double {left}, {right}"));
+        }
+        _ => {
+            let pred = match op {
+                CmpOp::Eq => "eq",
+                CmpOp::Ne => "ne",
+                CmpOp::Lt => "slt",
+                CmpOp::Le => "sle",
+                CmpOp::Gt => "sgt",
+                CmpOp::Ge => "sge",
+            };
+            lines.push(format!(
+                "  {dest} = icmp {pred} {} {left}, {right}",
+                llvm_ty(compare_ty)?
+            ));
+        }
+    }
+
+    Ok(())
+}
+
 fn infer_compare_operand_type(
     program: &IrProgram,
     func: &IrFunction,
@@ -864,7 +950,11 @@ fn infer_compare_operand_type(
         .or_else(|| infer_operand_type(program, func, right))
     {
         Some(crate::ir::IrType::Bool) => crate::ir::IrType::Bool,
-        _ => crate::ir::IrType::Int,
+        Some(crate::ir::IrType::Float) => crate::ir::IrType::Float,
+        Some(crate::ir::IrType::String) => crate::ir::IrType::String,
+        Some(crate::ir::IrType::Int) => crate::ir::IrType::Int,
+        Some(other) => other,
+        None => crate::ir::IrType::Int,
     }
 }
 
@@ -874,7 +964,10 @@ fn infer_operand_type(
     operand: &Operand,
 ) -> Option<crate::ir::IrType> {
     match operand {
+        Operand::Const(ConstValue::Int(_)) => Some(crate::ir::IrType::Int),
+        Operand::Const(ConstValue::Float(_)) => Some(crate::ir::IrType::Float),
         Operand::Const(ConstValue::Bool(_)) => Some(crate::ir::IrType::Bool),
+        Operand::Const(ConstValue::String(_)) => Some(crate::ir::IrType::String),
         Operand::Temp(id) => func
             .temps
             .iter()

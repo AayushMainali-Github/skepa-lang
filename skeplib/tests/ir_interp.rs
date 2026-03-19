@@ -427,6 +427,63 @@ fn main() -> Int {
 }
 
 #[test]
+fn interpreter_supports_float_and_string_compare_shapes() {
+    let float_src = r#"
+fn main() -> Int {
+  let x = 1.5;
+  let y = 2.0;
+  if ((x + y) >= 3.5) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let string_src = r#"
+fn main() -> Int {
+  let a = "alpha";
+  let b = "alpha";
+  if (a == b) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+
+    assert_eq!(common::ir_run_ok(float_src), IrValue::Int(1));
+    assert_eq!(common::ir_run_ok(string_src), IrValue::Int(1));
+}
+
+#[test]
+fn interpreter_supports_global_float_and_string_compare_shapes() {
+    let float_src = r#"
+let threshold: Float = 3.5;
+
+fn main() -> Int {
+  let value = 1.5 + 2.0;
+  if (value >= threshold) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let string_src = r#"
+let expected: String = "alpha";
+
+fn main() -> Int {
+  let actual = "alpha";
+  let other = "beta";
+  if (actual == expected && actual != other) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+
+    assert_eq!(common::ir_run_ok(float_src), IrValue::Int(1));
+    assert_eq!(common::ir_run_ok(string_src), IrValue::Int(1));
+}
+
+#[test]
 fn interpreter_reports_runtime_error_cases() {
     assert_ir_rejects_source(
         r#"

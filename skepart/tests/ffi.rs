@@ -4,6 +4,7 @@ use skepart::{RtFunctionRef, RtValue};
 
 unsafe extern "C" {
     fn skp_rt_string_from_utf8(data: *const u8, len: i64) -> *mut c_void;
+    fn skp_rt_string_eq(left: *mut c_void, right: *mut c_void) -> bool;
     fn skp_rt_builtin_str_len(value: *mut c_void) -> i64;
     fn skp_rt_value_from_int(value: i64) -> *mut c_void;
     fn skp_rt_value_from_unit() -> *mut c_void;
@@ -32,6 +33,10 @@ fn ffi_string_and_value_roundtrip_surfaces_work() {
     let bytes = "🙂ok".as_bytes();
     let string_ptr = unsafe { skp_rt_string_from_utf8(bytes.as_ptr(), bytes.len() as i64) };
     assert_eq!(unsafe { skp_rt_builtin_str_len(string_ptr) }, 3);
+    let equal_ptr = unsafe { skp_rt_string_from_utf8(bytes.as_ptr(), bytes.len() as i64) };
+    let other_ptr = unsafe { skp_rt_string_from_utf8("nope".as_ptr(), 4) };
+    assert!(unsafe { skp_rt_string_eq(string_ptr, equal_ptr) });
+    assert!(!unsafe { skp_rt_string_eq(string_ptr, other_ptr) });
 
     let int_ptr = unsafe { skp_rt_value_from_int(42) };
     assert_eq!(unsafe { skp_rt_value_to_int(int_ptr) }, 42);

@@ -152,3 +152,65 @@ fn main() -> Float {
         skepart::value::RtValue::Float(7.0)
     );
 }
+
+#[test]
+fn native_exec_matches_ir_for_float_compare_codegen() {
+    let src = r#"
+fn main() -> Int {
+  let x = 1.5;
+  let y = 2.0;
+  if ((x + y) >= 3.5) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+
+    common::assert_native_matches_ir_value(src, skepart::value::RtValue::Int(1));
+}
+
+#[test]
+fn native_exec_matches_ir_for_string_equality_compare_codegen() {
+    let src = r#"
+fn main() -> Int {
+  let a = "alpha";
+  let b = "alpha";
+  if (a == b) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+
+    common::assert_native_matches_ir_value(src, skepart::value::RtValue::Int(1));
+}
+
+#[test]
+fn native_exec_matches_ir_for_global_float_and_string_compare_codegen() {
+    let float_src = r#"
+let threshold: Float = 3.5;
+
+fn main() -> Int {
+  let value = 1.5 + 2.0;
+  if (value >= threshold) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let string_src = r#"
+let expected: String = "alpha";
+
+fn main() -> Int {
+  let actual = "alpha";
+  let other = "beta";
+  if (actual == expected && actual != other) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+
+    common::assert_native_matches_ir_value(float_src, skepart::value::RtValue::Int(1));
+    common::assert_native_matches_ir_value(string_src, skepart::value::RtValue::Int(1));
+}

@@ -38,7 +38,7 @@ pub fn operand_value(
 ) -> Result<String, CodegenError> {
     match operand {
         Operand::Const(ConstValue::Int(v)) => Ok(v.to_string()),
-        Operand::Const(ConstValue::Float(v)) => Ok(v.to_string()),
+        Operand::Const(ConstValue::Float(v)) => Ok(llvm_float_literal(*v)),
         Operand::Const(ConstValue::Bool(v)) => Ok(if *v { "1".into() } else { "0".into() }),
         Operand::Temp(id) => Ok(names.temp(*id)?.to_string()),
         Operand::Local(id) => Ok(format!("%local{}", id.0)),
@@ -117,4 +117,13 @@ pub fn raw_string_ptr(
         "  {gep} = getelementptr inbounds [{bytes} x i8], ptr {name}, i64 0, i64 0"
     ));
     Ok(gep)
+}
+
+pub fn llvm_float_literal(value: f64) -> String {
+    let literal = value.to_string();
+    if literal.contains(['.', 'e', 'E']) {
+        literal
+    } else {
+        format!("{literal}.0")
+    }
 }

@@ -467,6 +467,102 @@ fn main() -> Int {
 }
 
 #[test]
+fn llvm_codegen_emits_float_compare_using_double_and_fcmp() {
+    let source = r#"
+fn main() -> Int {
+  let x = 1.5;
+  let y = 2.0;
+  if ((x + y) >= 3.5) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let llvm_ir =
+        codegen::compile_program_to_llvm_ir(&program).expect("LLVM lowering should succeed");
+
+    assert!(llvm_ir.contains("fadd double"));
+    assert!(llvm_ir.contains("fcmp oge double"));
+    assert!(!llvm_ir.contains("unsupported codegen shape"));
+}
+
+#[test]
+fn llvm_codegen_emits_global_float_compare_using_double_and_fcmp() {
+    let source = r#"
+let threshold: Float = 3.5;
+
+fn main() -> Int {
+  let value = 1.5 + 2.0;
+  if (value >= threshold) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let llvm_ir =
+        codegen::compile_program_to_llvm_ir(&program).expect("LLVM lowering should succeed");
+
+    assert!(llvm_ir.contains("@g0 = global double 0"));
+    assert!(llvm_ir.contains("store double 3.5, ptr @g0"));
+    assert!(llvm_ir.contains("load double, ptr @g0"));
+    assert!(llvm_ir.contains("fcmp oge double"));
+}
+
+#[test]
+fn llvm_codegen_lowers_string_equality_through_runtime_helper() {
+    let source = r#"
+fn main() -> Int {
+  let a = "alpha";
+  let b = "alpha";
+  if (a == b) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let llvm_ir =
+        codegen::compile_program_to_llvm_ir(&program).expect("LLVM lowering should succeed");
+
+    assert!(llvm_ir.contains("declare i1 @skp_rt_string_eq(ptr, ptr)"));
+    assert!(llvm_ir.contains("call i1 @skp_rt_string_eq(ptr"));
+    assert!(!llvm_ir.contains("load i64, ptr %local0"));
+    assert!(!llvm_ir.contains("load i64, ptr %local1"));
+    assert!(!llvm_ir.contains("icmp eq i64"));
+}
+
+#[test]
+fn llvm_codegen_lowers_string_inequality_and_global_string_compare_through_runtime_helper() {
+    let source = r#"
+let expected: String = "alpha";
+
+fn main() -> Int {
+  let a = "alpha";
+  let b = "beta";
+  if (a != b && a == expected) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let llvm_ir =
+        codegen::compile_program_to_llvm_ir(&program).expect("LLVM lowering should succeed");
+
+    assert!(llvm_ir.contains("declare i1 @skp_rt_string_eq(ptr, ptr)"));
+    assert!(llvm_ir.matches("call i1 @skp_rt_string_eq(ptr").count() >= 2);
+    assert!(llvm_ir.contains("xor i1"));
+    assert!(!llvm_ir.contains("icmp ne i64"));
+    assert!(!llvm_ir.contains("icmp eq i64"));
+}
+
+#[test]
 fn llvm_codegen_emits_runtime_abi_for_struct_layout_and_builtin_dispatch() {
     let source = r#"
 import fs;

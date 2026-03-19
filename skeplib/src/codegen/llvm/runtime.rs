@@ -12,6 +12,7 @@ pub fn ensure_supported(instr: &Instr) -> Result<(), CodegenError> {
 
 pub fn emit_runtime_decls(program: &IrProgram, out: &mut Vec<String>) -> Result<(), CodegenError> {
     out.push("declare ptr @skp_rt_string_from_utf8(ptr, i64)".into());
+    out.push("declare i1 @skp_rt_string_eq(ptr, ptr)".into());
     out.push("declare i64 @skp_rt_builtin_str_len(ptr)".into());
     out.push("declare i1 @skp_rt_builtin_str_contains(ptr, ptr)".into());
     out.push("declare i64 @skp_rt_builtin_str_index_of(ptr, ptr)".into());

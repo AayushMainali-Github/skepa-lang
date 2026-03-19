@@ -53,6 +53,16 @@ pub extern "C" fn skp_rt_builtin_str_len(value: *mut RtString) -> i64 {
 }
 
 #[no_mangle]
+pub extern "C" fn skp_rt_string_eq(left: *mut RtString, right: *mut RtString) -> bool {
+    assert!(
+        !left.is_null() && !right.is_null(),
+        "string pointers must not be null"
+    );
+    // SAFETY: caller passes valid runtime string pointers.
+    unsafe { (*left).as_str() == (*right).as_str() }
+}
+
+#[no_mangle]
 pub extern "C" fn skp_rt_builtin_str_contains(
     haystack: *mut RtString,
     needle: *mut RtString,
