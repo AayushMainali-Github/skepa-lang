@@ -5,7 +5,7 @@ mod workloads;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::{Command, ExitCode};
+use std::process::{Command, ExitCode, Output};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use skeplib::codegen;
@@ -158,9 +158,7 @@ fn run() -> Result<(), String> {
         }
     }
 
-    if opts.json {
-        println!("{}", render_json_report(&opts, &results));
-    } else {
+    if !opts.json {
         print_table_report(&opts, &results);
     }
 
@@ -183,10 +181,15 @@ fn run() -> Result<(), String> {
         let baseline = load_baseline(&baseline_path)?;
         let rows = compare_results(&baseline, &results);
         if opts.json {
-            println!("{}", render_compare_json(&baseline_path, &rows));
+            println!(
+                "{}",
+                render_full_json_report(&opts, &results, Some((&baseline_path, &rows)))
+            );
         } else {
             print_compare_report(&baseline_path, &rows);
         }
+    } else if opts.json {
+        println!("{}", render_full_json_report(&opts, &results, None));
     }
 
     Ok(())
@@ -224,58 +227,58 @@ fn benchmark_cases(
             native_exec_case(
                 "runtime_loop_heavy",
                 skepac.clone(),
-                write_temp_source(&loop_src)?,
-            ),
+                &loop_src,
+            )?,
             native_exec_case(
                 "runtime_arith_heavy",
                 skepac.clone(),
-                write_temp_source(&arith_src)?,
-            ),
+                &arith_src,
+            )?,
             native_exec_case(
                 "runtime_arith_local_const",
                 skepac.clone(),
-                write_temp_source(&arith_local_const_src)?,
-            ),
+                &arith_local_const_src,
+            )?,
             native_exec_case(
                 "runtime_arith_local_local",
                 skepac.clone(),
-                write_temp_source(&arith_local_local_src)?,
-            ),
+                &arith_local_local_src,
+            )?,
             native_exec_case(
                 "runtime_arith_chain",
                 skepac.clone(),
-                write_temp_source(&arith_chain_src)?,
-            ),
+                &arith_chain_src,
+            )?,
             native_exec_case(
                 "runtime_call_heavy",
                 skepac.clone(),
-                write_temp_source(&call_src)?,
-            ),
+                &call_src,
+            )?,
             native_exec_case(
                 "runtime_array_heavy",
                 skepac.clone(),
-                write_temp_source(&array_src)?,
-            ),
+                &array_src,
+            )?,
             native_exec_case(
                 "runtime_struct_heavy",
                 skepac.clone(),
-                write_temp_source(&struct_src)?,
-            ),
+                &struct_src,
+            )?,
             native_exec_case(
                 "runtime_struct_field_heavy",
                 skepac.clone(),
-                write_temp_source(&struct_field_src)?,
-            ),
+                &struct_field_src,
+            )?,
             native_exec_case(
                 "runtime_struct_method_complex",
                 skepac.clone(),
-                write_temp_source(&struct_complex_src)?,
-            ),
+                &struct_complex_src,
+            )?,
             native_exec_case(
                 "runtime_string_heavy",
                 skepac.clone(),
-                write_temp_source(&string_src)?,
-            ),
+                &string_src,
+            )?,
         ]
     } else {
         vec![
@@ -640,14 +643,13 @@ fn benchmark_cases(
     Ok(cases)
 }
 
-fn native_exec_case(name: &'static str, skepac: PathBuf, source_path: PathBuf) -> BenchCase {
-    BenchCase {
+fn native_exec_case(name: &'static str, skepac: PathBuf, source: &str) -> Result<BenchCase, String> {
+    let source_file = TempSourceFile::new(source)?;
+    Ok(BenchCase {
         name,
         kind: CaseKind::Library,
-        runner: Box::new(move || {
-            run_command_allow_any_exit(&skepac, &["run", path_str(&source_path)?])
-        }),
-    }
+        runner: Box::new(move || run_runtime_command(&skepac, &["run", path_str(source_file.path())?])),
+    })
 }
 
 fn skipped_case(name: &'static str, reason: &'static str) -> BenchCase {
@@ -750,18 +752,37 @@ fn run_command(exe: &Path, args: &[&str]) -> Result<(), String> {
     }
 }
 
-fn run_command_allow_any_exit(exe: &Path, args: &[&str]) -> Result<(), String> {
-    Command::new(exe)
-        .args(args)
-        .output()
-        .map(|_| ())
-        .map_err(|err| format!("failed to run {}: {err}", exe.display()))
+struct TempSourceFile {
+    dir: PathBuf,
+    path: PathBuf,
 }
 
-fn write_temp_source(source: &str) -> Result<PathBuf, String> {
-    let path = temp_artifact_path("bench_src", "sk");
-    fs::write(&path, source).map_err(|err| err.to_string())?;
-    Ok(path)
+impl TempSourceFile {
+    fn new(source: &str) -> Result<Self, String> {
+        let dir = temp_artifact_dir("bench_src");
+        fs::create_dir_all(&dir).map_err(|err| err.to_string())?;
+        let path = dir.join("main.sk");
+        fs::write(&path, source).map_err(|err| err.to_string())?;
+        Ok(Self { dir, path })
+    }
+
+    fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
+impl Drop for TempSourceFile {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.dir);
+    }
+}
+
+fn temp_artifact_dir(label: &str) -> PathBuf {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock")
+        .as_nanos();
+    env::temp_dir().join(format!("skepabench_{label}_{nanos}"))
 }
 
 fn temp_artifact_path(label: &str, ext: &str) -> PathBuf {
@@ -799,4 +820,130 @@ fn format_diags(diags: DiagnosticBag) -> String {
         .map(|diag| diag.message)
         .collect::<Vec<_>>()
         .join("; ")
+}
+
+fn render_full_json_report(
+    opts: &CliOptions,
+    results: &[BenchRecord],
+    compare: Option<(&Path, &[CompareRow])>,
+) -> String {
+    let mut out = render_json_report(opts, results);
+    if let Some((path, rows)) = compare {
+        let compare_json = render_compare_json(path, rows);
+        if out.ends_with("\n}") {
+            out.truncate(out.len() - 2);
+            out.push_str(",\n");
+        } else if out.ends_with('}') {
+            out.pop();
+            out.push_str(",\n");
+        } else {
+            out.push('\n');
+        }
+        out.push_str("  \"compare\": ");
+        out.push_str(compare_json.trim());
+        out.push_str("\n}");
+    }
+    out
+}
+
+fn run_runtime_command(exe: &Path, args: &[&str]) -> Result<(), String> {
+    let output = Command::new(exe)
+        .args(args)
+        .output()
+        .map_err(|err| format!("failed to run {}: {err}", exe.display()))?;
+    validate_runtime_output(exe, args, &output)
+}
+
+fn validate_runtime_output(exe: &Path, args: &[&str], output: &Output) -> Result<(), String> {
+    match output.status.code() {
+        Some(0) => Ok(()),
+        Some(code) => {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            Err(format!(
+                "{} {} exited with {}: {}{}{}",
+                exe.display(),
+                args.join(" "),
+                code,
+                stdout.trim(),
+                if !stdout.trim().is_empty() && !stderr.trim().is_empty() {
+                    " | "
+                } else {
+                    ""
+                },
+                stderr.trim()
+            ))
+        }
+        None => Err(format!(
+            "{} {} terminated without an exit code",
+            exe.display(),
+            args.join(" ")
+        )),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_opts() -> CliOptions {
+        CliOptions {
+            warmups: 1,
+            runs: 1,
+            profile: "debug".into(),
+            filter: None,
+            json: true,
+            save_baseline: false,
+            compare: false,
+            baseline_path: None,
+        }
+    }
+
+    fn sample_results() -> Vec<BenchRecord> {
+        vec![BenchRecord {
+            name: "runtime_x",
+            kind: "lib",
+            outcome: BenchOutcome::Measured(BenchStats {
+                min: Duration::from_millis(1),
+                median: Duration::from_millis(2),
+                max: Duration::from_millis(3),
+            }),
+        }]
+    }
+
+    #[test]
+    fn json_compare_renders_single_document() {
+        let opts = sample_opts();
+        let results = sample_results();
+        let rows = vec![CompareRow {
+            case: "runtime_x".into(),
+            current_ms: 2.0,
+            baseline_ms: 1.0,
+            delta_ms: 1.0,
+            delta_pct: 100.0,
+        }];
+        let rendered =
+            render_full_json_report(&opts, &results, Some((Path::new("base.tsv"), &rows)));
+        assert!(rendered.contains("\"results\": ["));
+        assert!(rendered.contains("\"compare\": {"));
+        assert_eq!(rendered.matches("\"baseline_path\"").count(), 1);
+    }
+
+    #[test]
+    fn runtime_command_validation_rejects_nonzero_exit() {
+        let output = if cfg!(windows) {
+            Command::new("cmd")
+                .args(["/C", "exit", "7"])
+                .output()
+                .expect("cmd output")
+        } else {
+            Command::new("sh")
+                .args(["-c", "exit 7"])
+                .output()
+                .expect("sh output")
+        };
+        let err = validate_runtime_output(Path::new("tool"), &["run", "x.sk"], &output)
+            .expect_err("nonzero exit should fail");
+        assert!(err.contains("exited with 7"), "{err}");
+    }
 }

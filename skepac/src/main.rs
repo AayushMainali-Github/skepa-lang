@@ -16,6 +16,12 @@ const EXIT_PARSE: u8 = 10;
 const EXIT_SEMA: u8 = 11;
 const EXIT_CODEGEN: u8 = 12;
 const EXIT_RESOLVE: u8 = 15;
+const USAGE_TOP: &str = "Usage: skepac check <entry.sk> | skepac run <entry.sk> | skepac build-native <entry.sk> <out.exe> | skepac build-obj <entry.sk> <out.obj> | skepac build-llvm-ir <entry.sk> <out.ll>";
+const USAGE_CHECK: &str = "Usage: skepac check <file.sk>";
+const USAGE_RUN: &str = "Usage: skepac run <in.sk>";
+const USAGE_BUILD_NATIVE: &str = "Usage: skepac build-native <in.sk> <out.exe>";
+const USAGE_BUILD_OBJ: &str = "Usage: skepac build-obj <in.sk> <out.obj>";
+const USAGE_BUILD_LLVM_IR: &str = "Usage: skepac build-llvm-ir <in.sk> <out.ll>";
 
 fn main() {
     match run() {
@@ -30,64 +36,61 @@ fn main() {
 fn run() -> Result<i32, String> {
     let mut args = env::args().skip(1);
     let Some(cmd) = args.next() else {
-        return Err(
-            "Usage: skepac check <entry.sk> | skepac run <entry.sk> | skepac build-native <entry.sk> <out.exe> | skepac build-obj <entry.sk> <out.obj> | skepac build-llvm-ir <entry.sk> <out.ll>"
-                .to_string(),
-        );
+        return Err(USAGE_TOP.to_string());
     };
 
     match cmd.as_str() {
         "check" => {
             let Some(path) = args.next() else {
-                return Err("Usage: skepac check <file.sk>".to_string());
+                return Err(USAGE_CHECK.to_string());
             };
             if args.next().is_some() {
-                return Err("Usage: skepac check <file.sk>".to_string());
+                return Err(USAGE_CHECK.to_string());
             }
             check_file(&path)
         }
         "run" => {
             let Some(input) = args.next() else {
-                return Err("Usage: skepac run <in.sk>".to_string());
+                return Err(USAGE_RUN.to_string());
             };
             if args.next().is_some() {
-                return Err("Usage: skepac run <in.sk>".to_string());
+                return Err(USAGE_RUN.to_string());
             }
             run_native_file(&input)
         }
         "build-native" => {
             let Some(input) = args.next() else {
-                return Err("Usage: skepac build-native <in.sk> <out.exe>".to_string());
+                return Err(USAGE_BUILD_NATIVE.to_string());
             };
             let Some(output) = args.next() else {
-                return Err("Usage: skepac build-native <in.sk> <out.exe>".to_string());
+                return Err(USAGE_BUILD_NATIVE.to_string());
             };
             if args.next().is_some() {
-                return Err("Usage: skepac build-native <in.sk> <out.exe>".to_string());
+                return Err(USAGE_BUILD_NATIVE.to_string());
             }
             build_native_file(&input, &output)
         }
         "build-llvm-ir" => {
             let Some(input) = args.next() else {
-                return Err("Usage: skepac build-llvm-ir <in.sk> <out.ll>".to_string());
+                return Err(USAGE_BUILD_LLVM_IR.to_string());
             };
             let Some(output) = args.next() else {
-                return Err("Usage: skepac build-llvm-ir <in.sk> <out.ll>".to_string());
+                return Err(USAGE_BUILD_LLVM_IR.to_string());
             };
             if args.next().is_some() {
-                return Err("Usage: skepac build-llvm-ir <in.sk> <out.ll>".to_string());
+                return Err(USAGE_BUILD_LLVM_IR.to_string());
             }
             build_llvm_ir_file(&input, &output)
         }
         "build-obj" => {
             let Some(input) = args.next() else {
-                return Err("Usage: skepac build-obj <in.sk> <out.obj>".to_string());
+                return Err(USAGE_BUILD_OBJ.to_string());
             };
             let Some(output) = args.next() else {
-                return Err("Usage: skepac build-obj <in.sk> <out.obj>".to_string());
+                return Err(USAGE_BUILD_OBJ.to_string());
             };
             if args.next().is_some() {
-                return Err("Usage: skepac build-obj <in.sk> <out.obj>".to_string());
+                return Err(USAGE_BUILD_OBJ.to_string());
             }
             build_object_file(&input, &output)
         }
@@ -131,16 +134,9 @@ fn build_object_file(input: &str, output: &str) -> Result<i32, String> {
     if let Some(code) = validate_frontend(input)? {
         return Ok(code);
     }
-    let program = match ir::lowering::compile_project_entry(Path::new(input)) {
+    let program = match compile_project_or_report(input) {
         Ok(program) => program,
-        Err(errs) => {
-            if has_io_resolve_error(&errs) {
-                print_resolve_errors(&errs);
-                return Ok(EXIT_IO as i32);
-            }
-            print_resolve_errors(&errs);
-            return Ok(EXIT_RESOLVE as i32);
-        }
+        Err(code) => return Ok(code),
     };
     if let Err(err) = codegen::compile_program_to_object_file(&program, Path::new(output)) {
         eprintln!("[E-CODEGEN][codegen] {err}");
@@ -154,16 +150,9 @@ fn build_native_file(input: &str, output: &str) -> Result<i32, String> {
     if let Some(code) = validate_frontend(input)? {
         return Ok(code);
     }
-    let program = match ir::lowering::compile_project_entry(Path::new(input)) {
+    let program = match compile_project_or_report(input) {
         Ok(program) => program,
-        Err(errs) => {
-            if has_io_resolve_error(&errs) {
-                print_resolve_errors(&errs);
-                return Ok(EXIT_IO as i32);
-            }
-            print_resolve_errors(&errs);
-            return Ok(EXIT_RESOLVE as i32);
-        }
+        Err(code) => return Ok(code),
     };
     if let Err(err) = codegen::compile_program_to_executable(&program, Path::new(output)) {
         eprintln!("[E-CODEGEN][codegen] {err}");
@@ -177,16 +166,9 @@ fn build_llvm_ir_file(input: &str, output: &str) -> Result<i32, String> {
     if let Some(code) = validate_frontend(input)? {
         return Ok(code);
     }
-    let program = match ir::lowering::compile_project_entry(Path::new(input)) {
+    let program = match compile_project_or_report(input) {
         Ok(program) => program,
-        Err(errs) => {
-            if has_io_resolve_error(&errs) {
-                print_resolve_errors(&errs);
-                return Ok(EXIT_IO as i32);
-            }
-            print_resolve_errors(&errs);
-            return Ok(EXIT_RESOLVE as i32);
-        }
+        Err(code) => return Ok(code),
     };
     if let Err(err) = codegen::write_program_llvm_ir(&program, Path::new(output)) {
         eprintln!("[E-CODEGEN][codegen] {err}");
@@ -200,16 +182,9 @@ fn run_native_file(input: &str) -> Result<i32, String> {
     if let Some(code) = validate_frontend(input)? {
         return Ok(code);
     }
-    let program = match ir::lowering::compile_project_entry(Path::new(input)) {
+    let program = match compile_project_or_report(input) {
         Ok(program) => program,
-        Err(errs) => {
-            if has_io_resolve_error(&errs) {
-                print_resolve_errors(&errs);
-                return Ok(EXIT_IO as i32);
-            }
-            print_resolve_errors(&errs);
-            return Ok(EXIT_RESOLVE as i32);
-        }
+        Err(code) => return Ok(code),
     };
     let exe_path = temp_native_path();
     let _cleanup = TempPathGuard::new(exe_path.clone());
@@ -269,6 +244,21 @@ fn validate_frontend(input: &str) -> Result<Option<i32>, String> {
 
 fn has_io_resolve_error(errs: &[ResolveError]) -> bool {
     errs.iter().any(|err| err.code == "E-MOD-IO")
+}
+
+fn compile_project_or_report(input: &str) -> Result<ir::IrProgram, i32> {
+    match ir::lowering::compile_project_entry(Path::new(input)) {
+        Ok(program) => Ok(program),
+        Err(errs) => {
+            if has_io_resolve_error(&errs) {
+                print_resolve_errors(&errs);
+                Err(EXIT_IO as i32)
+            } else {
+                print_resolve_errors(&errs);
+                Err(EXIT_RESOLVE as i32)
+            }
+        }
+    }
 }
 
 struct TempPathGuard(std::path::PathBuf);
