@@ -12,7 +12,7 @@ fn main() -> Int {
 }
 "#;
     let (program, diags) = Parser::parse_source(src);
-    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    assert_no_diags(&diags);
     match &program.functions[0].body[0] {
         Stmt::If {
             cond,
@@ -133,7 +133,7 @@ fn main() -> Int {
 }
 "#;
     let (program, diags) = Parser::parse_source(src);
-    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    assert_no_diags(&diags);
     match &program.functions[0].body[0] {
         Stmt::While { cond, body } => {
             assert_eq!(*cond, Expr::BoolLit(true));
@@ -155,7 +155,7 @@ fn main() -> Int {
 }
 "#;
     let (program, diags) = Parser::parse_source(src);
-    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    assert_no_diags(&diags);
     match &program.functions[0].body[0] {
         Stmt::While { body, .. } => {
             assert!(matches!(body[0], Stmt::Continue));
@@ -176,7 +176,7 @@ fn main() -> Int {
 }
 "#;
     let (program, diags) = Parser::parse_source(src);
-    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    assert_no_diags(&diags);
     match &program.functions[0].body[0] {
         Stmt::For {
             init,
@@ -204,7 +204,7 @@ fn main() -> Int {
 }
 "#;
     let (program, diags) = Parser::parse_source(src);
-    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    assert_no_diags(&diags);
     match &program.functions[0].body[0] {
         Stmt::For {
             init,
@@ -232,7 +232,7 @@ fn main() -> Int {
 }
 "#;
     let (program, diags) = Parser::parse_source(src);
-    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    assert_no_diags(&diags);
     match &program.functions[0].body[0] {
         Stmt::For {
             init,
@@ -261,7 +261,7 @@ fn main() -> Int {
 }
 "#;
     let (program, diags) = Parser::parse_source(src);
-    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    assert_no_diags(&diags);
     match &program.functions[0].body[1] {
         Stmt::For {
             init,
@@ -290,7 +290,7 @@ fn main() -> Int {
 }
 "#;
     let (program, diags) = Parser::parse_source(src);
-    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    assert_no_diags(&diags);
     match &program.functions[0].body[1] {
         Stmt::For {
             init,
@@ -321,7 +321,7 @@ fn main() -> Int {
 }
 "#;
     let (program, diags) = Parser::parse_source(src);
-    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    assert_no_diags(&diags);
     match &program.functions[0].body[0] {
         Stmt::If { then_body, .. } => match &then_body[0] {
             Stmt::While { body, .. } => {
@@ -531,7 +531,7 @@ fn main() -> Int {
 }
 "#;
     let (program, diags) = Parser::parse_source(src);
-    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    assert_no_diags(&diags);
     match &program.functions[0].body[0] {
         Stmt::If { else_body, .. } => {
             assert_eq!(else_body.len(), 1);
@@ -550,7 +550,7 @@ fn main() -> Int {
 }
 "#;
     let (program, diags) = Parser::parse_source(src);
-    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    assert_no_diags(&diags);
     match &program.functions[0].body[0] {
         Stmt::Expr(Expr::Call { args, .. }) => {
             assert_eq!(args.len(), 1);
@@ -594,7 +594,7 @@ fn main() -> Int {
 }
 "#;
     let (_program, diags) = Parser::parse_source(src);
-    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    assert_no_diags(&diags);
 }
 
 #[test]
@@ -605,7 +605,7 @@ fn add(a: Int, b: Int,) -> Int {
 }
 "#;
     let (program, diags) = Parser::parse_source(src);
-    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    assert_no_diags(&diags);
     assert_eq!(program.functions[0].params.len(), 2);
 }
 
@@ -616,7 +616,7 @@ let x = 1;
 fn main() -> Int { return 0; }
 "#;
     let (program, diags) = Parser::parse_source(src);
-    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    assert_no_diags(&diags);
     assert_eq!(program.globals.len(), 1);
     assert_eq!(program.globals[0].name, "x");
     assert_eq!(program.functions.len(), 1);
@@ -695,7 +695,7 @@ fn main() -> Int {
 }
 "#;
     let (program, diags) = Parser::parse_source(src);
-    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    assert_no_diags(&diags);
     match &program.functions[0].body[0] {
         Stmt::Expr(Expr::Call { callee, args }) => {
             assert_eq!(args.len(), 1);
@@ -714,7 +714,7 @@ fn main() -> Int {
 }
 "#;
     let (program, diags) = Parser::parse_source(src);
-    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    assert_no_diags(&diags);
     match &program.functions[0].body[0] {
         Stmt::Let { value, .. } => match value {
             Expr::Unary {
@@ -754,7 +754,7 @@ fn main() -> Int {{
 "#
     );
     let (_program, diags) = Parser::parse_source(&src);
-    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    assert_no_diags(&diags);
 }
 
 #[test]

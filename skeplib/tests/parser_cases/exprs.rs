@@ -10,7 +10,7 @@ fn main() -> Int {
 }
 "#;
     let (program, diags) = Parser::parse_source(src);
-    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    assert_no_diags(&diags);
     match &program.functions[0].body[0] {
         Stmt::Let { value, .. } => {
             assert!(matches!(value, Expr::ArrayLit(items) if items.len() == 3))
@@ -34,7 +34,7 @@ fn main() -> Int {
 }
 "#;
     let (program, diags) = Parser::parse_source(src);
-    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    assert_no_diags(&diags);
     match &program.functions[0].body[0] {
         Stmt::Assign { target, value } => {
             assert!(matches!(target, AssignTarget::Field { .. }));
@@ -55,7 +55,7 @@ fn main() -> Int {
 }
 "#;
     let (program, diags) = Parser::parse_source(src);
-    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    assert_no_diags(&diags);
     match &program.functions[0].body[1] {
         Stmt::Let { value, .. } => assert!(matches!(value, Expr::Index { .. })),
         _ => panic!("expected index let"),
@@ -75,7 +75,7 @@ fn main() -> Int {
 }
 "#;
     let (program, diags) = Parser::parse_source(src);
-    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    assert_no_diags(&diags);
     assert!(matches!(
         program.functions[0].body[0],
         Stmt::Expr(Expr::Ident(_))
@@ -92,7 +92,7 @@ fn main() -> Int {
 }
 "#;
     let (program, diags) = Parser::parse_source(src);
-    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    assert_no_diags(&diags);
     match &program.functions[0].body[0] {
         Stmt::Expr(Expr::Call { callee, args }) => {
             assert!(matches!(&**callee, Expr::Ident(name) if name == "hello"));
@@ -135,7 +135,7 @@ fn main() -> Int {
 }
 "#;
     let (program, diags) = Parser::parse_source(src);
-    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    assert_no_diags(&diags);
 
     let expr = match &program.functions[0].body[0] {
         Stmt::Let { value, .. } => value,
@@ -169,7 +169,7 @@ fn main() -> Float {
 }
 "#;
     let (program, diags) = Parser::parse_source(src);
-    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    assert_no_diags(&diags);
     match &program.functions[0].body[0] {
         Stmt::Return(Some(Expr::FloatLit(v))) => assert_eq!(v, "3.14"),
         other => panic!("expected float return, got {other:?}"),
@@ -185,7 +185,7 @@ fn main() -> Int {
 }
 "#;
     let (program, diags) = Parser::parse_source(src);
-    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    assert_no_diags(&diags);
     let expr = match &program.functions[0].body[0] {
         Stmt::Let { value, .. } => value,
         _ => panic!("expected let"),
@@ -221,7 +221,7 @@ fn main() -> Int {
 }
 "#;
     let (program, diags) = Parser::parse_source(src);
-    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    assert_no_diags(&diags);
     match &program.functions[0].body[0] {
         Stmt::Let {
             value: Expr::Binary {
@@ -244,7 +244,7 @@ fn main() -> Int {
 }
 "#;
     let (program, diags) = Parser::parse_source(src);
-    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    assert_no_diags(&diags);
     match &program.functions[0].body[0] {
         Stmt::Let { value, .. } => assert!(matches!(
             value,

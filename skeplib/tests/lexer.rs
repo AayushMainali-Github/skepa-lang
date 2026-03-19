@@ -1,16 +1,15 @@
 use std::fs;
 use std::path::PathBuf;
 
+#[path = "common.rs"]
+mod common;
+
 use skeplib::lexer::lex;
 use skeplib::token::TokenKind;
 
 fn kinds(src: &str) -> Vec<TokenKind> {
     let (tokens, diags) = lex(src);
-    assert!(
-        diags.is_empty(),
-        "expected no diagnostics, got: {:?}",
-        diags.as_slice()
-    );
+    common::assert_no_diags(&diags);
     tokens.into_iter().map(|t| t.kind).collect()
 }
 
@@ -97,7 +96,7 @@ fn lexes_operators_and_punctuation() {
 #[test]
 fn lexes_literals() {
     let (tokens, diags) = lex("123 3.14 \"hello\" true false");
-    assert!(diags.is_empty());
+    common::assert_no_diags(&diags);
     assert_eq!(tokens[0].kind, TokenKind::IntLit);
     assert_eq!(tokens[1].kind, TokenKind::FloatLit);
     assert_eq!(tokens[2].kind, TokenKind::StringLit);
@@ -109,7 +108,7 @@ fn lexes_literals() {
 #[test]
 fn ignores_single_and_block_comments() {
     let (tokens, diags) = lex("let x = 1; // comment\n/* multi */ let y = 2;");
-    assert!(diags.is_empty());
+    common::assert_no_diags(&diags);
     let got: Vec<TokenKind> = tokens.into_iter().map(|t| t.kind).collect();
     let want = vec![
         TokenKind::KwLet,
@@ -130,7 +129,7 @@ fn ignores_single_and_block_comments() {
 #[test]
 fn ignores_comments_at_end_of_file() {
     let (tokens, diags) = lex("let x = 1; // trailing comment");
-    assert!(diags.is_empty(), "diagnostics: {:?}", diags.as_slice());
+    common::assert_no_diags(&diags);
     let got: Vec<TokenKind> = tokens.into_iter().map(|t| t.kind).collect();
     assert_eq!(
         got,
