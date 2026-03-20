@@ -66,7 +66,7 @@ Preferred test flow for language or runtime changes:
 3. add IR or codegen coverage if lowering or codegen changed
 4. add a native or CLI test if user-visible runtime behavior changed
 
-See [`TESTING.md`](./TESTING.md) for the full testing guide and where different test types belong.
+See [`TESTING.md`](../TESTING.md) for the full testing guide and where different test types belong.
 
 Before opening a PR, run:
 

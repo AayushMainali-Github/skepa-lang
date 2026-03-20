@@ -87,28 +87,32 @@ Use this for CLI tests.
 
 Use `skeplib/tests` for compiler and backend behavior.
 
-- `lexer.rs`
+- `frontend/lexer/main.rs`
   - tokenization, spans, recovery
-- `parser.rs`, `parser_cases/*`, `parser_fixtures.rs`
+- `frontend/parser/`
   - syntax shape, parser recovery, fixture-driven parser coverage
-- `resolver.rs`, `resolver_cases/*`, `resolver_fixtures.rs`
+- `frontend/resolver/`
   - module graph resolution, import/export rules, project filesystem behavior
-- `sema.rs`, `sema_cases/*`, `sema_fixtures.rs`
+- `frontend/sema/`
   - typing, semantic rules, builtin signatures, invalid programs
-- `sema_project.rs`, `sema_project_fixtures.rs`
+- `frontend/sema_project/`
   - cross-module semantic behavior
-- `ir_lowering.rs`, `ir_verify.rs`, `ir_interp.rs`, `ir_diff.rs`
+- `frontend/ast/main.rs`, `frontend/diagnostic/main.rs`
+  - internal data structures and diagnostic helpers
+- `ir/lowering/main.rs`, `ir/verify/main.rs`, `ir/interp/main.rs`, `ir/diff/main.rs`
   - IR lowering, verification, interpretation, differential checks
-- `ir_opt_*.rs`, `ir_opt_pipeline.rs`, `ir_opt_runtime.rs`
+- `ir/opt/`
   - optimization pass behavior, cross-pass stability, semantic preservation
-- `codegen.rs`
+- `ir/pretty/main.rs`
+  - textual IR rendering coverage
+- `native/codegen/main.rs`
   - LLVM IR emission, object generation, native executable generation
-- `native_runtime.rs`
+- `native/runtime/main.rs`
   - native executable correctness for single-file programs
-- `native_project.rs`, `native_project_fixtures.rs`
+- `native/project/`
   - native executable correctness for multi-file projects
-- `diagnostic.rs`, `ast.rs`, `smoke.rs`
-  - internal data structures and broad smoke coverage
+- `misc/smoke/main.rs`
+  - broad smoke coverage
 
 ### `skepart/tests`
 
@@ -146,7 +150,7 @@ Benchmark code should have correctness and harness tests for:
 - compare output shape
 - required benchmark case presence
 
-The benchmark harness uses unit tests inside `skepabench/src/*` rather than integration tests.
+Benchmark coverage lives in integration tests under `skepabench/tests/`.
 
 ## Which Test Style To Use
 
