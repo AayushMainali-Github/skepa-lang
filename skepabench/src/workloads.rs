@@ -103,56 +103,56 @@ fn src_medium_user() -> String {
 
 pub fn src_loop_accumulate(iterations: usize) -> String {
     format!(
-        "fn main() -> Int {{ let i = 0; let acc = 0; while (i < {iterations}) {{ acc = acc + i; i = i + 1; }} return acc; }}"
+        "fn main() -> Int {{ let i = 0; let acc = 0; while (i < {iterations}) {{ acc = acc + i; i = i + 1; }} if (acc >= 0) {{ return 0; }} return 1; }}"
     )
 }
 pub fn src_function_call_chain(iterations: usize) -> String {
     format!(
-        "fn step(x: Int) -> Int {{ return x + 1; }}\nfn main() -> Int {{ let i = 0; while (i < {iterations}) {{ i = step(i); }} return i; }}"
+        "fn step(x: Int) -> Int {{ return x + 1; }}\nfn main() -> Int {{ let i = 0; while (i < {iterations}) {{ i = step(i); }} if (i == {iterations}) {{ return 0; }} return 1; }}"
     )
 }
 pub fn src_arith_workload(iterations: usize) -> String {
     format!(
-        "fn main() -> Int {{ let i = 1; let acc = 17; while (i < {iterations}) {{ acc = acc + ((i * 3) % 97); acc = acc - (i % 11); acc = acc + ((acc / 3) % 29); i = i + 1; }} return acc; }}"
+        "fn main() -> Int {{ let i = 1; let acc = 17; while (i < {iterations}) {{ acc = acc + ((i * 3) % 97); acc = acc - (i % 11); acc = acc + ((acc / 3) % 29); i = i + 1; }} if (acc > 0) {{ return 0; }} return 1; }}"
     )
 }
 pub fn src_arith_local_const_workload(iterations: usize) -> String {
     format!(
-        "fn main() -> Int {{ let i = 1; let acc = 17; while (i < {iterations}) {{ let a = acc - 11; let b = a * 3; let c = b / 2; acc = c % 97; i = i + 1; }} return acc; }}"
+        "fn main() -> Int {{ let i = 1; let acc = 17; while (i < {iterations}) {{ let a = acc - 11; let b = a * 3; let c = b / 2; acc = c % 97; i = i + 1; }} if (acc >= 0) {{ return 0; }} return 1; }}"
     )
 }
 pub fn src_arith_local_local_workload(iterations: usize) -> String {
     format!(
-        "fn main() -> Int {{ let i = 1; let a = 17; let b = 31; let acc = 0; while (i < {iterations}) {{ acc = acc + ((a * b) % 97); acc = acc - (a / b); a = a + 3; b = b + 5; i = i + 1; }} return acc; }}"
+        "fn main() -> Int {{ let i = 1; let a = 17; let b = 31; let acc = 0; while (i < {iterations}) {{ acc = acc + ((a * b) % 97); acc = acc - (a / b); a = a + 3; b = b + 5; i = i + 1; }} if (acc > 0) {{ return 0; }} return 1; }}"
     )
 }
 pub fn src_arith_chain_workload(iterations: usize) -> String {
     format!(
-        "fn main() -> Int {{ let i = 1; let x = 19; let y = 23; let z = 29; let acc = 0; while (i < {iterations}) {{ acc = acc + (((x * 3) + (y * 5) - (z % 7)) / 3); x = x + 1; y = y + 2; z = z + 3; i = i + 1; }} return acc; }}"
+        "fn main() -> Int {{ let i = 1; let x = 19; let y = 23; let z = 29; let acc = 0; while (i < {iterations}) {{ acc = acc + (((x * 3) + (y * 5) - (z % 7)) / 3); x = x + 1; y = y + 2; z = z + 3; i = i + 1; }} if (acc > 0) {{ return 0; }} return 1; }}"
     )
 }
 pub fn src_array_workload(iterations: usize) -> String {
     format!(
-        "fn main() -> Int {{ let arr: [Int; 8] = [0; 8]; let i = 0; while (i < {iterations}) {{ let idx = i % 8; arr[idx] = arr[idx] + 1; i = i + 1; }} return arr[0] + arr[1] + arr[2] + arr[3] + arr[4] + arr[5] + arr[6] + arr[7]; }}"
+        "fn main() -> Int {{ let arr: [Int; 8] = [0; 8]; let i = 0; while (i < {iterations}) {{ let idx = i % 8; arr[idx] = arr[idx] + 1; i = i + 1; }} let total = arr[0] + arr[1] + arr[2] + arr[3] + arr[4] + arr[5] + arr[6] + arr[7]; if (total == {iterations}) {{ return 0; }} return 1; }}"
     )
 }
 pub fn src_struct_method_workload(iterations: usize) -> String {
     format!(
-        "struct User {{ id: Int }}\nimpl User {{ fn bump(self, delta: Int) -> Int {{ return self.id + delta; }} }}\nfn main() -> Int {{ let u = User {{ id: 1 }}; let i = 0; let acc = 0; while (i < {iterations}) {{ acc = acc + u.bump(2); i = i + 1; }} return acc; }}"
+        "struct User {{ id: Int }}\nimpl User {{ fn bump(self, delta: Int) -> Int {{ return self.id + delta; }} }}\nfn main() -> Int {{ let u = User {{ id: 1 }}; let i = 0; let acc = 0; while (i < {iterations}) {{ acc = acc + u.bump(2); i = i + 1; }} if (acc == ({iterations} * 3)) {{ return 0; }} return 1; }}"
     )
 }
 pub fn src_struct_field_workload(iterations: usize) -> String {
     format!(
-        "struct Pair {{ a: Int, b: Int }}\nfn main() -> Int {{ let p = Pair {{ a: 11, b: 7 }}; let i = 0; let acc = 0; while (i < {iterations}) {{ acc = acc + p.a; acc = acc + p.b; i = i + 1; }} return acc; }}"
+        "struct Pair {{ a: Int, b: Int }}\nfn main() -> Int {{ let p = Pair {{ a: 11, b: 7 }}; let i = 0; let acc = 0; while (i < {iterations}) {{ acc = acc + p.a; acc = acc + p.b; i = i + 1; }} if (acc == ({iterations} * 18)) {{ return 0; }} return 1; }}"
     )
 }
 pub fn src_struct_complex_method_workload(iterations: usize) -> String {
     format!(
-        "struct Pair {{ a: Int, b: Int }}\nimpl Pair {{ fn mix(self, x: Int) -> Int {{ return ((self.a + x) * 3 + self.b) % 1000000007; }} }}\nfn main() -> Int {{ let p = Pair {{ a: 11, b: 7 }}; let i = 0; let total = 0; while (i < {iterations}) {{ total = total + p.mix(i % 13); i = i + 1; }} return total; }}"
+        "struct Pair {{ a: Int, b: Int }}\nimpl Pair {{ fn mix(self, x: Int) -> Int {{ return ((self.a + x) * 3 + self.b) % 1000000007; }} }}\nfn main() -> Int {{ let p = Pair {{ a: 11, b: 7 }}; let i = 0; let total = 0; while (i < {iterations}) {{ total = total + p.mix(i % 13); i = i + 1; }} if (total > 0) {{ return 0; }} return 1; }}"
     )
 }
 pub fn src_string_workload(iterations: usize) -> String {
     format!(
-        "import str;\nfn main() -> Int {{ let i = 0; let total = 0; while (i < {iterations}) {{ let s = \"skepa-language\"; total = total + str.len(s); total = total + str.indexOf(s, \"lang\"); let cut = str.slice(s, 0, 5); if (str.contains(cut, \"ske\")) {{ total = total + 1; }} i = i + 1; }} return total; }}"
+        "import str;\nfn main() -> Int {{ let i = 0; let total = 0; while (i < {iterations}) {{ let s = \"skepa-language\"; total = total + str.len(s); total = total + str.indexOf(s, \"lang\"); let cut = str.slice(s, 0, 5); if (str.contains(cut, \"ske\")) {{ total = total + 1; }} i = i + 1; }} if (total > 0) {{ return 0; }} return 1; }}"
     )
 }

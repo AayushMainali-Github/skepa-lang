@@ -1,5 +1,6 @@
 use skepabench::workloads::{
-    BenchWorkspace, src_array_workload, src_string_workload, src_struct_complex_method_workload,
+    BenchWorkspace, src_arith_workload, src_array_workload, src_function_call_chain,
+    src_loop_accumulate, src_string_workload, src_struct_complex_method_workload,
     src_struct_field_workload,
 };
 use skeplib::sema::analyze_project_entry;
@@ -10,6 +11,15 @@ fn workload_sources_cover_expected_runtime_heavy_categories() {
     assert!(src_string_workload(4).contains("str.len"));
     assert!(src_struct_field_workload(4).contains("p.a"));
     assert!(src_struct_complex_method_workload(4).contains("fn mix"));
+}
+
+#[test]
+fn runtime_workloads_return_zero_on_success() {
+    assert!(src_loop_accumulate(4).contains("return 0;"));
+    assert!(src_function_call_chain(4).contains("return 0;"));
+    assert!(src_arith_workload(4).contains("return 0;"));
+    assert!(src_array_workload(4).contains("return 0;"));
+    assert!(src_string_workload(4).contains("return 0;"));
 }
 
 #[test]

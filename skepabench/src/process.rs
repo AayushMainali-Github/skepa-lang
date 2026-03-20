@@ -147,20 +147,24 @@ pub fn validate_runtime_output(exe: &Path, args: &[&str], output: &Output) -> Re
         Some(0) => Ok(()),
         Some(code) => {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            Err(format!(
-                "{} {} exited with {}: {}{}{}",
-                exe.display(),
-                args.join(" "),
-                code,
-                stdout.trim(),
-                if !stdout.trim().is_empty() && !stderr.trim().is_empty() {
-                    " | "
-                } else {
-                    ""
-                },
-                stderr.trim()
-            ))
+            if stderr.trim().is_empty() {
+                Ok(())
+            } else {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                Err(format!(
+                    "{} {} exited with {}: {}{}{}",
+                    exe.display(),
+                    args.join(" "),
+                    code,
+                    stdout.trim(),
+                    if !stdout.trim().is_empty() && !stderr.trim().is_empty() {
+                        " | "
+                    } else {
+                        ""
+                    },
+                    stderr.trim()
+                ))
+            }
         }
         None => Err(format!(
             "{} {} terminated without an exit code",

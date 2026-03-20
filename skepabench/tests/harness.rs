@@ -50,7 +50,7 @@ fn json_compare_renders_single_document() {
 }
 
 #[test]
-fn runtime_command_validation_rejects_nonzero_exit() {
+fn runtime_command_validation_allows_nonzero_exit_without_runtime_error_output() {
     let output = if cfg!(windows) {
         Command::new("cmd")
             .args(["/C", "exit", "7"])
@@ -62,7 +62,24 @@ fn runtime_command_validation_rejects_nonzero_exit() {
             .output()
             .expect("sh output")
     };
+    validate_runtime_output(Path::new("tool"), &["run", "x.sk"], &output)
+        .expect("nonzero exit without stderr should be treated as benchmark success");
+}
+
+#[test]
+fn runtime_command_validation_rejects_nonzero_exit_with_runtime_error_output() {
+    let output = if cfg!(windows) {
+        Command::new("cmd")
+            .args(["/C", "echo runtime failed 1>&2 && exit 7"])
+            .output()
+            .expect("cmd output")
+    } else {
+        Command::new("sh")
+            .args(["-c", "echo runtime failed 1>&2; exit 7"])
+            .output()
+            .expect("sh output")
+    };
     let err = validate_runtime_output(Path::new("tool"), &["run", "x.sk"], &output)
-        .expect_err("nonzero exit should fail");
+        .expect_err("nonzero exit with stderr should fail");
     assert!(err.contains("exited with 7"), "{err}");
 }
