@@ -6,6 +6,7 @@ mod dead_store;
 mod inlining;
 mod licm;
 mod loop_simplify;
+mod resolve_calls;
 mod strength_reduce;
 
 use crate::ir::IrProgram;
@@ -22,6 +23,7 @@ pub fn optimize_program(program: &mut IrProgram) {
         changed |= loop_simplify::run(program);
         changed |= licm::run(program);
         changed |= strength_reduce::run(program);
+        changed |= resolve_calls::run(program);
         if !changed {
             break;
         }
