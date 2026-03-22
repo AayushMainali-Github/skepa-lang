@@ -4,6 +4,7 @@ mod instr;
 mod interp;
 pub mod lowering;
 mod native_aggregates;
+mod native_strings;
 mod nativeability;
 pub mod opt;
 mod pretty;
@@ -19,6 +20,7 @@ pub use instr::{
 };
 pub use interp::{IrInterpError, IrInterpreter};
 pub use native_aggregates::{NativeAggregatePlan, NativeArrayPlan, NativeStructPlan};
+pub use native_strings::{NativeStringPlan, collect_program_string_constants};
 pub use nativeability::{NativeLocalKind, NativeabilityAnalysis};
 pub use pretty::PrettyIr;
 pub use program::{

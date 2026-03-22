@@ -1,7 +1,7 @@
 use crate::codegen::CodegenError;
 use crate::codegen::llvm::runtime;
 use crate::codegen::llvm::value::ValueNames;
-use crate::ir::{Instr, IrFunction, IrProgram, NativeAggregatePlan};
+use crate::ir::{Instr, IrFunction, IrProgram, NativeAggregatePlan, NativeStringPlan};
 use std::collections::HashMap;
 
 #[allow(clippy::too_many_arguments)]
@@ -10,6 +10,7 @@ pub fn emit_runtime_instr(
     func: &IrFunction,
     names: &ValueNames,
     native: &NativeAggregatePlan,
+    strings: &NativeStringPlan,
     instr: &Instr,
     lines: &mut Vec<String>,
     counter: &mut usize,
@@ -33,6 +34,7 @@ pub fn emit_runtime_instr(
                 },
                 lines,
                 counter,
+                strings,
                 string_literals,
             )?;
             Ok(true)

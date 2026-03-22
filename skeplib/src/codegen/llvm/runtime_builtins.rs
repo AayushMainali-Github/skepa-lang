@@ -4,12 +4,10 @@ use crate::codegen::llvm::runtime_boxing::{
     emit_abort_if_error, emit_boxed_arg_array, emit_free_boxed_value, emit_free_boxed_values,
     emit_unbox_value,
 };
-use crate::codegen::llvm::strings::{
-    analyze_const_values, eval_const_builtin, runtime_string_symbol,
-};
+use crate::codegen::llvm::strings::runtime_string_symbol;
 use crate::codegen::llvm::types::llvm_ty;
 use crate::codegen::llvm::value::{ValueNames, operand_load, raw_string_ptr};
-use crate::ir::{BuiltinCall, ConstValue, IrFunction, IrType, TempId};
+use crate::ir::{BuiltinCall, ConstValue, IrFunction, IrType, NativeStringPlan, TempId};
 use std::collections::HashMap;
 
 pub struct BuiltinCallInstr<'a> {
@@ -25,6 +23,7 @@ pub fn emit_builtin_call(
     call: BuiltinCallInstr<'_>,
     lines: &mut Vec<String>,
     counter: &mut usize,
+    strings: &NativeStringPlan,
     string_literals: &HashMap<String, String>,
 ) -> Result<(), CodegenError> {
     let spec = find_builtin_spec(&call.builtin.package, &call.builtin.name).ok_or_else(|| {
@@ -34,9 +33,8 @@ pub fn emit_builtin_call(
         ))
     })?;
 
-    let consts = analyze_const_values(func);
     if spec.meta.can_const_fold
-        && let Some(const_value) = eval_const_builtin(call.builtin, call.args, &consts)
+        && let Some(const_value) = strings.eval_const_builtin(call.builtin, call.args)
     {
         return emit_const_builtin_result(names, call, &const_value, lines, string_literals);
     }
