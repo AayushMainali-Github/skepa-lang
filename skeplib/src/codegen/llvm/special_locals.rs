@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 #[derive(Clone)]
 pub enum SpecialLocalKind {
+    IntArray { size: usize, init: Operand },
     ScalarStruct { fields: Vec<Operand> },
     StructAlias { root: LocalId },
 }
@@ -15,13 +16,24 @@ pub struct SpecialLocals {
 impl SpecialLocals {
     pub fn analyze(func: &IrFunction) -> Self {
         let mut temp_structs = HashMap::new();
+        let mut temp_arrays = HashMap::new();
         for block in &func.blocks {
             for instr in &block.instrs {
-                let Instr::MakeStruct { dst, fields, .. } = instr else {
-                    continue;
-                };
-                if fields.iter().all(|field| operand_is_int(func, field)) {
-                    temp_structs.insert(*dst, fields.clone());
+                match instr {
+                    Instr::MakeStruct { dst, fields, .. } => {
+                        if fields.iter().all(|field| operand_is_int(func, field)) {
+                            temp_structs.insert(*dst, fields.clone());
+                        }
+                    }
+                    Instr::MakeArrayRepeat {
+                        dst,
+                        elem_ty: IrType::Int,
+                        value,
+                        size,
+                    } if operand_is_int(func, value) => {
+                        temp_arrays.insert(*dst, (value.clone(), *size));
+                    }
+                    _ => {}
                 }
             }
         }
@@ -45,17 +57,29 @@ impl SpecialLocals {
             if values.len() != 1 {
                 continue;
             }
-            let (IrType::Named(_), Operand::Temp(temp)) = (&local.ty, &values[0]) else {
-                continue;
-            };
-            let Some(fields) = temp_structs.get(temp).cloned() else {
-                continue;
-            };
-            if !struct_root_safe(func, local.id) {
-                continue;
+            match (&local.ty, &values[0]) {
+                (IrType::Named(_), Operand::Temp(temp)) => {
+                    let Some(fields) = temp_structs.get(temp).cloned() else {
+                        continue;
+                    };
+                    if !struct_root_safe(func, local.id) {
+                        continue;
+                    }
+                    locals.insert(local.id, SpecialLocalKind::ScalarStruct { fields });
+                    temp_roots.insert(*temp, local.id);
+                }
+                (IrType::Array { elem, size }, Operand::Temp(temp)) if **elem == IrType::Int => {
+                    let Some((init, init_size)) = temp_arrays.get(temp).cloned() else {
+                        continue;
+                    };
+                    if *size != init_size || !array_root_safe(func, local.id) {
+                        continue;
+                    }
+                    locals.insert(local.id, SpecialLocalKind::IntArray { size: *size, init });
+                    temp_roots.insert(*temp, local.id);
+                }
+                _ => {}
             }
-            locals.insert(local.id, SpecialLocalKind::ScalarStruct { fields });
-            temp_roots.insert(*temp, local.id);
         }
 
         let mut changed = true;
@@ -125,7 +149,7 @@ fn root_struct_local(
     match locals.get(&local) {
         Some(SpecialLocalKind::ScalarStruct { .. }) => Some(local),
         Some(SpecialLocalKind::StructAlias { root }) => Some(*root),
-        None => None,
+        Some(SpecialLocalKind::IntArray { .. }) | None => None,
     }
 }
 
@@ -141,6 +165,32 @@ fn struct_root_safe(func: &IrFunction, target: LocalId) -> bool {
                 Instr::StructGet {
                     base: Operand::Local(local),
                     ty: IrType::Int,
+                    ..
+                } if *local == target => {}
+                _ if instr_mentions_local(instr, target) => return false,
+                _ => {}
+            }
+        }
+        if terminator_mentions_local(&block.terminator, target) {
+            return false;
+        }
+    }
+    true
+}
+
+fn array_root_safe(func: &IrFunction, target: LocalId) -> bool {
+    for block in &func.blocks {
+        for instr in &block.instrs {
+            match instr {
+                Instr::StoreLocal { local, .. } if *local == target => {}
+                Instr::ArrayGet {
+                    array: Operand::Local(local),
+                    elem_ty: IrType::Int,
+                    ..
+                }
+                | Instr::ArraySet {
+                    array: Operand::Local(local),
+                    elem_ty: IrType::Int,
                     ..
                 } if *local == target => {}
                 _ if instr_mentions_local(instr, target) => return false,

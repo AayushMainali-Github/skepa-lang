@@ -2,7 +2,7 @@ use crate::codegen::CodegenError;
 use crate::codegen::llvm::runtime_boxing::{
     emit_abort_if_error, emit_boxed_operand, emit_unbox_value, infer_operand_type,
 };
-use crate::codegen::llvm::special_locals::SpecialLocals;
+use crate::codegen::llvm::special_locals::{SpecialLocalKind, SpecialLocals};
 use crate::codegen::llvm::value::{ValueNames, operand_load};
 use crate::ir::{IrFunction, IrProgram, IrType, TempId};
 use std::collections::HashMap;
@@ -59,7 +59,7 @@ pub fn emit_make_array_repeat(
 pub fn emit_array_get(
     func: &IrFunction,
     names: &ValueNames,
-    _special: &SpecialLocals,
+    special: &SpecialLocals,
     dst: TempId,
     elem_ty: &IrType,
     array: &crate::ir::Operand,
@@ -68,6 +68,93 @@ pub fn emit_array_get(
     counter: &mut usize,
     string_literals: &HashMap<String, String>,
 ) -> Result<(), CodegenError> {
+    if *elem_ty == IrType::Int
+        && let crate::ir::Operand::Local(local) = array
+        && let Some(SpecialLocalKind::IntArray { size, .. }) = special.local(*local)
+    {
+        let dest = names.temp(dst)?;
+        match index {
+            crate::ir::Operand::Const(crate::ir::ConstValue::Int(idx))
+                if *idx >= 0 && (*idx as usize) < *size =>
+            {
+                lines.push(format!(
+                    "  {dest} = load i64, ptr %local{}_elem{}, align 8",
+                    local.0, idx
+                ));
+                return Ok(());
+            }
+            _ => {
+                let idx = operand_load(
+                    names,
+                    index,
+                    func,
+                    lines,
+                    counter,
+                    &IrType::Int,
+                    string_literals,
+                )?;
+                let dispatch = format!("array_get_dispatch_{counter}");
+                *counter += 1;
+                let oob = format!("array_get_oob_{counter}");
+                *counter += 1;
+                let join = format!("array_get_join_{counter}");
+                *counter += 1;
+                let mut incoming = Vec::new();
+                lines.push(format!("  br label %{dispatch}"));
+                lines.push(format!("{dispatch}:"));
+                lines.push(format!("  switch i64 {idx}, label %{oob} ["));
+                for slot in 0..*size {
+                    lines.push(format!(
+                        "    i64 {slot}, label %array_get_case_{counter}_{slot}"
+                    ));
+                }
+                lines.push("  ]".into());
+                let case_tag = *counter;
+                *counter += 1;
+                for slot in 0..*size {
+                    let case_label = format!("array_get_case_{case_tag}_{slot}");
+                    let value = format!("%v{counter}");
+                    *counter += 1;
+                    lines.push(format!("{case_label}:"));
+                    lines.push(format!(
+                        "  {value} = load i64, ptr %local{}_elem{}, align 8",
+                        local.0, slot
+                    ));
+                    lines.push(format!("  br label %{join}"));
+                    incoming.push((value, case_label));
+                }
+                let array_ptr = format!("%v{counter}");
+                *counter += 1;
+                let raw = format!("%v{counter}");
+                *counter += 1;
+                let fallback = format!("%v{counter}");
+                *counter += 1;
+                lines.push(format!("{oob}:"));
+                lines.push(format!(
+                    "  {array_ptr} = load ptr, ptr %local{}, align 8",
+                    local.0
+                ));
+                lines.push(format!(
+                    "  {raw} = call ptr @skp_rt_array_get(ptr {array_ptr}, i64 {idx})"
+                ));
+                emit_abort_if_error(lines);
+                lines.push(format!(
+                    "  {fallback} = call i64 @skp_rt_value_to_int(ptr {raw})"
+                ));
+                emit_abort_if_error(lines);
+                lines.push(format!("  br label %{join}"));
+                lines.push(format!("{join}:"));
+                let phi = incoming
+                    .into_iter()
+                    .map(|(value, label)| format!("[ {value}, %{label} ]"))
+                    .chain(std::iter::once(format!("[ {fallback}, %{oob} ]")))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                lines.push(format!("  {dest} = phi i64 {phi}"));
+                return Ok(());
+            }
+        }
+    }
     let array = operand_load(
         names,
         array,
@@ -102,7 +189,7 @@ pub fn emit_array_get(
 pub fn emit_array_set(
     func: &IrFunction,
     names: &ValueNames,
-    _special: &SpecialLocals,
+    special: &SpecialLocals,
     elem_ty: &IrType,
     array: &crate::ir::Operand,
     index: &crate::ir::Operand,
@@ -111,6 +198,87 @@ pub fn emit_array_set(
     counter: &mut usize,
     string_literals: &HashMap<String, String>,
 ) -> Result<(), CodegenError> {
+    if *elem_ty == IrType::Int
+        && let crate::ir::Operand::Local(local) = array
+        && let Some(SpecialLocalKind::IntArray { size, .. }) = special.local(*local)
+    {
+        let stored = operand_load(
+            names,
+            value,
+            func,
+            lines,
+            counter,
+            &IrType::Int,
+            string_literals,
+        )?;
+        match index {
+            crate::ir::Operand::Const(crate::ir::ConstValue::Int(idx))
+                if *idx >= 0 && (*idx as usize) < *size =>
+            {
+                lines.push(format!(
+                    "  store i64 {stored}, ptr %local{}_elem{}, align 8",
+                    local.0, idx
+                ));
+                return Ok(());
+            }
+            _ => {
+                let idx = operand_load(
+                    names,
+                    index,
+                    func,
+                    lines,
+                    counter,
+                    &IrType::Int,
+                    string_literals,
+                )?;
+                let dispatch = format!("array_set_dispatch_{counter}");
+                *counter += 1;
+                let oob = format!("array_set_oob_{counter}");
+                *counter += 1;
+                let join = format!("array_set_join_{counter}");
+                *counter += 1;
+                lines.push(format!("  br label %{dispatch}"));
+                lines.push(format!("{dispatch}:"));
+                lines.push(format!("  switch i64 {idx}, label %{oob} ["));
+                for slot in 0..*size {
+                    lines.push(format!(
+                        "    i64 {slot}, label %array_set_case_{counter}_{slot}"
+                    ));
+                }
+                lines.push("  ]".into());
+                let case_tag = *counter;
+                *counter += 1;
+                for slot in 0..*size {
+                    let case_label = format!("array_set_case_{case_tag}_{slot}");
+                    lines.push(format!("{case_label}:"));
+                    lines.push(format!(
+                        "  store i64 {stored}, ptr %local{}_elem{}, align 8",
+                        local.0, slot
+                    ));
+                    lines.push(format!("  br label %{join}"));
+                }
+                let boxed = format!("%v{counter}");
+                *counter += 1;
+                let array_ptr = format!("%v{counter}");
+                *counter += 1;
+                lines.push(format!("{oob}:"));
+                lines.push(format!(
+                    "  {boxed} = call ptr @skp_rt_value_from_int(i64 {stored})"
+                ));
+                lines.push(format!(
+                    "  {array_ptr} = load ptr, ptr %local{}, align 8",
+                    local.0
+                ));
+                lines.push(format!(
+                    "  call void @skp_rt_array_set(ptr {array_ptr}, i64 {idx}, ptr {boxed})"
+                ));
+                emit_abort_if_error(lines);
+                lines.push(format!("  br label %{join}"));
+                lines.push(format!("{join}:"));
+                return Ok(());
+            }
+        }
+    }
     let array = operand_load(
         names,
         array,

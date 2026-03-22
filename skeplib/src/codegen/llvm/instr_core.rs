@@ -48,6 +48,26 @@ pub fn emit_core_instr(
         Instr::StoreLocal { local, ty, value } => {
             if let Some(kind) = special.local(*local) {
                 match kind {
+                    SpecialLocalKind::IntArray { size, init } => {
+                        if matches!(value, crate::ir::Operand::Temp(temp) if special.temp_root(*temp) == Some(*local))
+                        {
+                            let init = operand_load(
+                                names,
+                                init,
+                                func,
+                                lines,
+                                counter,
+                                &crate::ir::IrType::Int,
+                                string_literals,
+                            )?;
+                            for index in 0..*size {
+                                lines.push(format!(
+                                    "  store i64 {init}, ptr %local{}_elem{}, align 8",
+                                    local.0, index
+                                ));
+                            }
+                        }
+                    }
                     SpecialLocalKind::ScalarStruct { fields } => {
                         if matches!(value, crate::ir::Operand::Temp(temp) if special.temp_root(*temp) == Some(*local))
                         {
