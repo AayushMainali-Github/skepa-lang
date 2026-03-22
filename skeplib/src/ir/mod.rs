@@ -18,7 +18,7 @@ pub use instr::{
     BinaryOp, BranchTerminator, BuiltinCall, CmpOp, FieldRef, Instr, LogicOp, Terminator, UnaryOp,
 };
 pub use interp::{IrInterpError, IrInterpreter};
-pub use native_aggregates::NativeAggregatePlan;
+pub use native_aggregates::{NativeAggregatePlan, NativeArrayPlan, NativeStructPlan};
 pub use nativeability::{NativeLocalKind, NativeabilityAnalysis};
 pub use pretty::PrettyIr;
 pub use program::{

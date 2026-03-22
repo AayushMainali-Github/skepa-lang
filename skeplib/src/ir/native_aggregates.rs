@@ -1,4 +1,17 @@
-use crate::ir::{IrFunction, LocalId, NativeLocalKind, NativeabilityAnalysis, TempId};
+use crate::ir::{IrFunction, LocalId, NativeLocalKind, NativeabilityAnalysis, Operand, TempId};
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum NativeArrayPlan {
+    IntRepeat { size: usize, init: Operand },
+    FloatRepeat { size: usize, init: Operand },
+    StringItems { size: usize, items: Vec<Operand> },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum NativeStructPlan {
+    ScalarFields { fields: Vec<Operand> },
+    Alias { root: LocalId },
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct NativeAggregatePlan {
@@ -16,6 +29,36 @@ impl NativeAggregatePlan {
         self.nativeability.local(local)
     }
 
+    pub fn array_local(&self, local: LocalId) -> Option<NativeArrayPlan> {
+        match self.nativeability.local(local)? {
+            NativeLocalKind::IntArray { size, init } => Some(NativeArrayPlan::IntRepeat {
+                size: *size,
+                init: init.clone(),
+            }),
+            NativeLocalKind::FloatArray { size, init } => Some(NativeArrayPlan::FloatRepeat {
+                size: *size,
+                init: init.clone(),
+            }),
+            NativeLocalKind::StringArray { size, items } => Some(NativeArrayPlan::StringItems {
+                size: *size,
+                items: items.clone(),
+            }),
+            NativeLocalKind::ScalarStruct { .. } | NativeLocalKind::StructAlias { .. } => None,
+        }
+    }
+
+    pub fn struct_local(&self, local: LocalId) -> Option<NativeStructPlan> {
+        match self.nativeability.local(local)? {
+            NativeLocalKind::ScalarStruct { fields } => Some(NativeStructPlan::ScalarFields {
+                fields: fields.clone(),
+            }),
+            NativeLocalKind::StructAlias { root } => Some(NativeStructPlan::Alias { root: *root }),
+            NativeLocalKind::IntArray { .. }
+            | NativeLocalKind::FloatArray { .. }
+            | NativeLocalKind::StringArray { .. } => None,
+        }
+    }
+
     pub fn temp_root(&self, temp: TempId) -> Option<LocalId> {
         self.nativeability.temp_root(temp)
     }
@@ -27,8 +70,8 @@ impl NativeAggregatePlan {
 
 #[cfg(test)]
 mod tests {
-    use super::NativeAggregatePlan;
-    use crate::ir::{self, NativeLocalKind};
+    use super::{NativeAggregatePlan, NativeArrayPlan, NativeStructPlan};
+    use crate::ir;
 
     #[test]
     fn native_aggregate_plan_exposes_scalar_and_array_shapes() {
@@ -76,20 +119,20 @@ struct Pair {
             .unwrap();
 
         assert!(matches!(
-            plan.local(ints.id),
-            Some(NativeLocalKind::IntArray { size: 4, .. })
+            plan.array_local(ints.id),
+            Some(NativeArrayPlan::IntRepeat { size: 4, .. })
         ));
         assert!(matches!(
-            plan.local(floats.id),
-            Some(NativeLocalKind::FloatArray { size: 3, .. })
+            plan.array_local(floats.id),
+            Some(NativeArrayPlan::FloatRepeat { size: 3, .. })
         ));
         assert!(matches!(
-            plan.local(words.id),
-            Some(NativeLocalKind::StringArray { size: 2, .. })
+            plan.array_local(words.id),
+            Some(NativeArrayPlan::StringItems { size: 2, .. })
         ));
         assert!(matches!(
-            plan.local(pair.id),
-            Some(NativeLocalKind::ScalarStruct { .. })
+            plan.struct_local(pair.id),
+            Some(NativeStructPlan::ScalarFields { .. })
         ));
     }
 }
