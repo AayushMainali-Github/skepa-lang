@@ -90,7 +90,6 @@ fn ffi_struct_helpers_and_builtin_dispatch_surface_work() {
         unsafe { (*(field as *mut RtValue)).expect_int().expect("int") },
         22
     );
-
     let pkg = c"str";
     let name = c"len";
     let arg = unsafe { skp_rt_string_from_utf8("hello".as_ptr(), 5) };

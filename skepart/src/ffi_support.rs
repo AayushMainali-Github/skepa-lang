@@ -64,6 +64,13 @@ pub fn clone_value(ptr: *mut RtValue) -> Result<RtValue, crate::RtError> {
     Ok(unsafe { (*ptr).clone() })
 }
 
+pub fn take_value(ptr: *mut RtValue) -> Result<RtValue, crate::RtError> {
+    if ptr.is_null() {
+        return Err(invalid_argument("runtime value pointer must not be null"));
+    }
+    Ok(unsafe { *Box::from_raw(ptr) })
+}
+
 pub fn boxed_value(value: RtValue) -> *mut RtValue {
     Box::into_raw(Box::new(value))
 }

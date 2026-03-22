@@ -1,7 +1,6 @@
 use crate::codegen::CodegenError;
 use crate::codegen::llvm::runtime_boxing::{
-    emit_abort_if_error, emit_boxed_operand, emit_free_boxed_value, emit_unbox_value,
-    infer_operand_type,
+    emit_abort_if_error, emit_boxed_operand, emit_unbox_value, infer_operand_type,
 };
 use crate::codegen::llvm::value::{ValueNames, operand_load};
 use crate::ir::{IrFunction, IrProgram, IrType, TempId};
@@ -30,7 +29,6 @@ pub fn emit_make_array(
             "  call void @skp_rt_array_set(ptr {dest}, i64 {index}, ptr {boxed})"
         ));
         emit_abort_if_error(lines);
-        emit_free_boxed_value(&boxed, lines);
     }
     Ok(())
 }
@@ -53,7 +51,6 @@ pub fn emit_make_array_repeat(
         "  {dest} = call ptr @skp_rt_array_repeat(ptr {boxed}, i64 {size})"
     ));
     emit_abort_if_error(lines);
-    emit_free_boxed_value(&boxed, lines);
     Ok(())
 }
 
@@ -137,7 +134,6 @@ pub fn emit_array_set(
         "  call void @skp_rt_array_set(ptr {array}, i64 {index}, ptr {boxed})"
     ));
     emit_abort_if_error(lines);
-    emit_free_boxed_value(&boxed, lines);
     Ok(())
 }
 
@@ -216,7 +212,6 @@ pub fn emit_vec_push(
         "  call void @skp_rt_vec_push(ptr {vec}, ptr {boxed})"
     ));
     emit_abort_if_error(lines);
-    emit_free_boxed_value(&boxed, lines);
     Ok(())
 }
 
@@ -298,7 +293,6 @@ pub fn emit_vec_set(
         "  call void @skp_rt_vec_set(ptr {vec}, i64 {index}, ptr {boxed})"
     ));
     emit_abort_if_error(lines);
-    emit_free_boxed_value(&boxed, lines);
     Ok(())
 }
 
@@ -380,7 +374,6 @@ pub fn emit_make_struct(
             "  call void @skp_rt_struct_set(ptr {dest}, i64 {index}, ptr {boxed})"
         ));
         emit_abort_if_error(lines);
-        emit_free_boxed_value(&boxed, lines);
     }
     Ok(())
 }
@@ -443,6 +436,5 @@ pub fn emit_struct_set(
         field.index
     ));
     emit_abort_if_error(lines);
-    emit_free_boxed_value(&boxed, lines);
     Ok(())
 }
