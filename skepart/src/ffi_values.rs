@@ -2,8 +2,8 @@ use std::slice;
 
 use crate::array::RtArray;
 use crate::ffi_support::{
-    boxed_array, boxed_string, boxed_struct, boxed_value, boxed_vec, clone_value, ffi_try,
-    invalid_argument, set_last_error,
+    boxed_array, boxed_string, boxed_struct, boxed_value, boxed_vec, clear_last_error,
+    clone_value, ffi_try, invalid_argument, set_last_error,
 };
 use crate::string::RtString;
 use crate::value::{RtFunctionRef, RtStruct, RtValue};
@@ -43,34 +43,22 @@ pub extern "C" fn skp_rt_string_from_utf8(data: *const u8, len: i64) -> *mut RtS
 
 #[no_mangle]
 pub extern "C" fn skp_rt_builtin_str_len(value: *mut RtString) -> i64 {
-    match ffi_try(|| {
-        if value.is_null() {
-            return Err(invalid_argument("string pointer must not be null"));
-        }
-        Ok(unsafe { (*value).len_chars() as i64 })
-    }) {
-        Ok(value) => value,
-        Err(err) => {
-            set_last_error(err);
-            0
-        }
+    clear_last_error();
+    if value.is_null() {
+        set_last_error(invalid_argument("string pointer must not be null"));
+        return 0;
     }
+    unsafe { (*value).len_chars() as i64 }
 }
 
 #[no_mangle]
 pub extern "C" fn skp_rt_string_eq(left: *mut RtString, right: *mut RtString) -> bool {
-    match ffi_try(|| {
-        if left.is_null() || right.is_null() {
-            return Err(invalid_argument("string pointers must not be null"));
-        }
-        Ok(unsafe { (*left).as_str() == (*right).as_str() })
-    }) {
-        Ok(value) => value,
-        Err(err) => {
-            set_last_error(err);
-            false
-        }
+    clear_last_error();
+    if left.is_null() || right.is_null() {
+        set_last_error(invalid_argument("string pointers must not be null"));
+        return false;
     }
+    unsafe { (*left).as_str() == (*right).as_str() }
 }
 
 #[no_mangle]
@@ -78,18 +66,12 @@ pub extern "C" fn skp_rt_builtin_str_contains(
     haystack: *mut RtString,
     needle: *mut RtString,
 ) -> bool {
-    match ffi_try(|| {
-        if haystack.is_null() || needle.is_null() {
-            return Err(invalid_argument("string pointers must not be null"));
-        }
-        Ok(unsafe { (*haystack).contains(&*needle) })
-    }) {
-        Ok(value) => value,
-        Err(err) => {
-            set_last_error(err);
-            false
-        }
+    clear_last_error();
+    if haystack.is_null() || needle.is_null() {
+        set_last_error(invalid_argument("string pointers must not be null"));
+        return false;
     }
+    unsafe { (*haystack).contains(&*needle) }
 }
 
 #[no_mangle]
@@ -97,18 +79,12 @@ pub extern "C" fn skp_rt_builtin_str_index_of(
     haystack: *mut RtString,
     needle: *mut RtString,
 ) -> i64 {
-    match ffi_try(|| {
-        if haystack.is_null() || needle.is_null() {
-            return Err(invalid_argument("string pointers must not be null"));
-        }
-        Ok(unsafe { (*haystack).index_of(&*needle) })
-    }) {
-        Ok(value) => value,
-        Err(err) => {
-            set_last_error(err);
-            0
-        }
+    clear_last_error();
+    if haystack.is_null() || needle.is_null() {
+        set_last_error(invalid_argument("string pointers must not be null"));
+        return 0;
     }
+    unsafe { (*haystack).index_of(&*needle) }
 }
 
 #[no_mangle]
@@ -117,23 +93,23 @@ pub extern "C" fn skp_rt_builtin_str_slice(
     start: i64,
     end: i64,
 ) -> *mut RtString {
-    match ffi_try(|| {
-        if value.is_null() {
-            return Err(crate::RtError::new(
-                crate::RtErrorKind::InvalidArgument,
-                "string pointer must not be null",
-            ));
-        }
-        if start < 0 || end < 0 {
-            return Err(crate::RtError::new(
-                crate::RtErrorKind::InvalidArgument,
-                "string slice bounds must be non-negative",
-            ));
-        }
-        let sliced = unsafe { (*value).slice_chars(start as usize..end as usize) }?;
-        Ok(boxed_string(sliced))
-    }) {
-        Ok(value) => value,
+    clear_last_error();
+    if value.is_null() {
+        set_last_error(crate::RtError::new(
+            crate::RtErrorKind::InvalidArgument,
+            "string pointer must not be null",
+        ));
+        return std::ptr::null_mut();
+    }
+    if start < 0 || end < 0 {
+        set_last_error(crate::RtError::new(
+            crate::RtErrorKind::InvalidArgument,
+            "string slice bounds must be non-negative",
+        ));
+        return std::ptr::null_mut();
+    }
+    match unsafe { (*value).slice_chars(start as usize..end as usize) } {
+        Ok(sliced) => boxed_string(sliced),
         Err(err) => {
             set_last_error(err);
             std::ptr::null_mut()
