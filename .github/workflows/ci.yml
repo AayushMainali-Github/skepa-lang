@@ -32,7 +32,5 @@ jobs:
         run: cargo test -p skeplib codegen_builds_native_executable_for_int_program -- --exact
       - name: CLI Native Build Run Smoke Test
         run: cargo test -p skepac build_native_writes_executable_and_runs -- --exact
-      - name: Build Release Bench Targets
-        run: cargo build --release -p skepac -p skepabench
-      - name: Run Release Benchmark Compare
-        run: cargo run --release -p skepabench -- --profile release --compare
+      - name: Build Release CLI
+        run: cargo build --release -p skepac

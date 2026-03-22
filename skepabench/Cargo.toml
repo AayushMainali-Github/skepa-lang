@@ -1,7 +1,0 @@
-[package]
-name = "skepabench"
-version = "0.12.0"
-edition = "2024"
-
-[dependencies]
-skeplib = { path = "../skeplib" }

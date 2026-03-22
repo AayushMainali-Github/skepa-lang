@@ -10,8 +10,6 @@ This file defines the working rules for making changes in this repository.
   - native runtime library
 - `skepac`
   - user-facing CLI
-- `skepabench`
-  - benchmark harness
 
 The old bytecode/VM backend is removed. Do not reintroduce bytecode, VM, `.skbc`, or VM-oriented execution paths.
 

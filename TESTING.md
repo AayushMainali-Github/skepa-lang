@@ -142,16 +142,6 @@ Use `skepac/tests` for user-facing CLI behavior.
 - native run/build flows
 - install-layout/runtime-archive failures
 
-### `skepabench`
-
-Benchmark code should have correctness and harness tests for:
-- baseline parsing/writing
-- workload registration
-- compare output shape
-- required benchmark case presence
-
-Benchmark coverage lives in integration tests under `skepabench/tests/`.
-
 ## Which Test Style To Use
 
 ### Inline Source Tests
