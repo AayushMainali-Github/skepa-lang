@@ -3,7 +3,9 @@ use crate::codegen::llvm::runtime_boxing::{
     emit_abort_if_error, emit_boxed_operand, emit_unbox_value, infer_operand_type,
 };
 use crate::codegen::llvm::value::{ValueNames, operand_load};
-use crate::ir::{IrFunction, IrProgram, IrType, NativeAggregatePlan, NativeArrayPlan, TempId};
+use crate::ir::{
+    IrFunction, IrProgram, IrType, NativeAggregatePlan, NativeArrayPlan, NativeStructPlan, TempId,
+};
 use std::collections::HashMap;
 
 #[allow(clippy::too_many_arguments)]
@@ -809,7 +811,7 @@ pub fn emit_struct_get(
 ) -> Result<(), CodegenError> {
     if *ty == IrType::Int
         && let crate::ir::Operand::Local(local) = base
-        && let Some(root) = native.root_struct_local(*local)
+        && let Some((root, NativeStructPlan::ScalarFields { .. })) = native.root_struct_plan(*local)
     {
         let slot = format!("%v{counter}");
         *counter += 1;
@@ -844,7 +846,7 @@ pub fn emit_struct_get(
 pub fn emit_struct_set(
     func: &IrFunction,
     names: &ValueNames,
-    _native: &NativeAggregatePlan,
+    native: &NativeAggregatePlan,
     ty: &IrType,
     base: &crate::ir::Operand,
     field: &crate::ir::FieldRef,
@@ -853,6 +855,27 @@ pub fn emit_struct_set(
     counter: &mut usize,
     string_literals: &HashMap<String, String>,
 ) -> Result<(), CodegenError> {
+    if *ty == IrType::Int
+        && let crate::ir::Operand::Local(local) = base
+        && let Some((root, NativeStructPlan::ScalarFields { fields })) =
+            native.root_struct_plan(*local)
+        && field.index < fields.len()
+    {
+        let stored = operand_load(
+            names,
+            value,
+            func,
+            lines,
+            counter,
+            &IrType::Int,
+            string_literals,
+        )?;
+        lines.push(format!(
+            "  store i64 {stored}, ptr %local{}_field{}, align 8",
+            root.0, field.index
+        ));
+        return Ok(());
+    }
     let base = operand_load(
         names,
         base,

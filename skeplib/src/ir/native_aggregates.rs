@@ -66,6 +66,12 @@ impl NativeAggregatePlan {
     pub fn root_struct_local(&self, local: LocalId) -> Option<LocalId> {
         self.nativeability.root_struct_local(local)
     }
+
+    pub fn root_struct_plan(&self, local: LocalId) -> Option<(LocalId, NativeStructPlan)> {
+        let root = self.nativeability.root_struct_local(local)?;
+        let plan = self.struct_local(root)?;
+        Some((root, plan))
+    }
 }
 
 #[cfg(test)]
