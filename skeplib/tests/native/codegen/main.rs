@@ -126,6 +126,42 @@ fn main() -> Int {
 }
 
 #[test]
+fn llvm_codegen_lowers_qualified_function_calls_directly() {
+    let project = common::TempProject::new("qualified_direct_call");
+    project.file(
+        "math/util.sk",
+        r#"
+fn step(x: Int) -> Int {
+  return x + 1;
+}
+
+export { step };
+"#,
+    );
+    let entry = project.file(
+        "main.sk",
+        r#"
+from math.util import step;
+
+fn main() -> Int {
+  return math.util.step(4) + step(5);
+}
+"#,
+    );
+
+    let program =
+        ir::lowering::compile_project_entry(&entry).expect("project IR lowering should succeed");
+    let llvm_ir =
+        codegen::compile_program_to_llvm_ir(&program).expect("LLVM lowering should succeed");
+
+    let main_body = llvm_function_body(&llvm_ir, "main");
+    assert_eq!(main_body.matches("call i64 @\"math.util::step\"").count(), 2);
+    assert!(!main_body.contains("@__skp_rt_call_function_dispatch"));
+
+    assemble_llvm_ir(&llvm_ir, "qualified_direct_call");
+}
+
+#[test]
 fn llvm_codegen_emits_valid_string_calls_and_constants() {
     let source = r#"
 fn greet() -> String {

@@ -5,6 +5,29 @@ use crate::ir::{BlockId, ConstValue, Instr, IrType, Operand};
 use super::context::{FunctionLowering, IrLowerer};
 
 impl IrLowerer {
+    fn direct_callee_sig(&self, callee: &Expr) -> Option<super::context::FunctionSig> {
+        match callee {
+            Expr::Ident(name) => {
+                let direct_name = self
+                    .direct_import_calls
+                    .get(name)
+                    .cloned()
+                    .unwrap_or_else(|| self.qualify_name(name));
+                self.functions.get(&direct_name).cloned()
+            }
+            Expr::Path(parts) => {
+                let name = parts.join(".");
+                let target_name = self
+                    .namespace_call_targets
+                    .get(&name)
+                    .cloned()
+                    .unwrap_or_else(|| self.qualify_name(&name));
+                self.functions.get(&target_name).cloned()
+            }
+            _ => None,
+        }
+    }
+
     pub(super) fn compile_call(
         &mut self,
         func: &mut crate::ir::IrFunction,
@@ -17,50 +40,45 @@ impl IrLowerer {
             lowered_args.push(self.compile_expr(func, lowering, arg)?);
         }
 
+        if let Some(sig) = self.direct_callee_sig(callee) {
+            let dst = if sig.ret.is_void() {
+                None
+            } else {
+                Some(self.builder.push_temp(func, sig.ret.clone()))
+            };
+            self.builder.push_instr(
+                func,
+                lowering.current_block,
+                Instr::CallDirect {
+                    dst,
+                    ret_ty: sig.ret.clone(),
+                    function: sig.id,
+                    args: lowered_args,
+                },
+            );
+            return OkOperand::from_call_result(dst);
+        }
+
         match callee {
-            Expr::Ident(name) => {
-                let direct_name = self
-                    .direct_import_calls
-                    .get(name)
-                    .cloned()
-                    .unwrap_or_else(|| self.qualify_name(name));
-                if let Some(sig) = self.functions.get(&direct_name).cloned() {
-                    let dst = if sig.ret.is_void() {
-                        None
-                    } else {
-                        Some(self.builder.push_temp(func, sig.ret.clone()))
-                    };
-                    self.builder.push_instr(
-                        func,
-                        lowering.current_block,
-                        Instr::CallDirect {
-                            dst,
-                            ret_ty: sig.ret.clone(),
-                            function: sig.id,
-                            args: lowered_args,
-                        },
-                    );
-                    OkOperand::from_call_result(dst)
+            Expr::Ident(_) | Expr::Path(_) => {
+                let callee = self.compile_expr(func, lowering, callee)?;
+                let ret_ty = self.indirect_call_return_type(func, &callee);
+                let dst = if ret_ty.is_void() {
+                    None
                 } else {
-                    let callee = self.compile_expr(func, lowering, callee)?;
-                    let ret_ty = self.indirect_call_return_type(func, &callee);
-                    let dst = if ret_ty.is_void() {
-                        None
-                    } else {
-                        Some(self.builder.push_temp(func, ret_ty.clone()))
-                    };
-                    self.builder.push_instr(
-                        func,
-                        lowering.current_block,
-                        Instr::CallIndirect {
-                            dst,
-                            ret_ty: ret_ty.clone(),
-                            callee,
-                            args: lowered_args,
-                        },
-                    );
-                    OkOperand::from_call_result(dst)
-                }
+                    Some(self.builder.push_temp(func, ret_ty.clone()))
+                };
+                self.builder.push_instr(
+                    func,
+                    lowering.current_block,
+                    Instr::CallIndirect {
+                        dst,
+                        ret_ty: ret_ty.clone(),
+                        callee,
+                        args: lowered_args,
+                    },
+                );
+                OkOperand::from_call_result(dst)
             }
             Expr::Field { base, field } => {
                 if let Expr::Ident(package) = base.as_ref() {
