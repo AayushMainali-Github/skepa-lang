@@ -3,9 +3,12 @@ use crate::codegen::llvm::runtime_boxing::{
     emit_abort_if_error, emit_boxed_arg_array, emit_free_boxed_value, emit_free_boxed_values,
     emit_unbox_value,
 };
+use crate::codegen::llvm::strings::{
+    analyze_const_values, eval_const_builtin, runtime_string_symbol,
+};
 use crate::codegen::llvm::types::llvm_ty;
 use crate::codegen::llvm::value::{ValueNames, operand_load, raw_string_ptr};
-use crate::ir::{BuiltinCall, IrFunction, IrType, TempId};
+use crate::ir::{BuiltinCall, ConstValue, IrFunction, IrType, TempId};
 use std::collections::HashMap;
 
 pub struct BuiltinCallInstr<'a> {
@@ -23,6 +26,11 @@ pub fn emit_builtin_call(
     counter: &mut usize,
     string_literals: &HashMap<String, String>,
 ) -> Result<(), CodegenError> {
+    let consts = analyze_const_values(func);
+    if let Some(const_value) = eval_const_builtin(call.builtin, call.args, &consts) {
+        return emit_const_builtin_result(names, call, &const_value, lines, string_literals);
+    }
+
     let helper = match (call.builtin.package.as_str(), call.builtin.name.as_str()) {
         ("str", "len") => "skp_rt_builtin_str_len",
         ("str", "contains") => "skp_rt_builtin_str_contains",
@@ -69,6 +77,46 @@ pub fn emit_builtin_call(
         "  {dest} = call {ret_llvm_ty} @{helper}({joined_args})"
     ));
     emit_abort_if_error(lines);
+    Ok(())
+}
+
+fn emit_const_builtin_result(
+    names: &ValueNames,
+    call: BuiltinCallInstr<'_>,
+    value: &ConstValue,
+    lines: &mut Vec<String>,
+    string_literals: &HashMap<String, String>,
+) -> Result<(), CodegenError> {
+    if call.ret_ty.is_void() {
+        return Ok(());
+    }
+    let Some(dst) = call.dst else {
+        return Err(CodegenError::InvalidIr(
+            "non-void builtin call must write to a destination temp".into(),
+        ));
+    };
+    let dest = names.temp(dst)?;
+    match value {
+        ConstValue::Int(v) => lines.push(format!("  {dest} = add i64 0, {v}")),
+        ConstValue::Bool(v) => {
+            let raw = if *v { 1 } else { 0 };
+            lines.push(format!("  {dest} = add i1 0, {raw}"));
+        }
+        ConstValue::String(value) => {
+            let raw = string_literals.get(value).ok_or_else(|| {
+                CodegenError::InvalidIr("missing folded string literal declaration".into())
+            })?;
+            lines.push(format!(
+                "  {dest} = load ptr, ptr {}, align 8",
+                runtime_string_symbol(raw)
+            ));
+        }
+        _ => {
+            return Err(CodegenError::Unsupported(
+                "const builtin lowering only supports Int/Bool/String results",
+            ));
+        }
+    }
     Ok(())
 }
 

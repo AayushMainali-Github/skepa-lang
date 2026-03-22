@@ -153,6 +153,44 @@ fn main() -> Int {
 }
 
 #[test]
+fn llvm_codegen_folds_benchmark_shaped_constant_string_builtins() {
+    let source = r#"
+import str;
+
+fn main() -> Int {
+  let i = 0;
+  let total = 0;
+  while (i < 10) {
+    let s = "skepa-language";
+    total = total + str.len(s);
+    total = total + str.indexOf(s, "lang");
+    let cut = str.slice(s, 0, 5);
+    if (str.contains(cut, "ske")) {
+      total = total + 1;
+    }
+    i = i + 1;
+  }
+  if (total > 0) {
+    return 0;
+  }
+  return 1;
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let llvm_ir =
+        codegen::compile_program_to_llvm_ir(&program).expect("LLVM lowering should succeed");
+
+    let main_body = llvm_function_body(&llvm_ir, "main");
+    assert!(!main_body.contains("@skp_rt_builtin_str_len"));
+    assert!(!main_body.contains("@skp_rt_builtin_str_index_of"));
+    assert!(!main_body.contains("@skp_rt_builtin_str_slice"));
+    assert!(!main_body.contains("@skp_rt_builtin_str_contains"));
+
+    assemble_llvm_ir(&llvm_ir, "string_builtin_folded");
+}
+
+#[test]
 fn llvm_codegen_emits_project_entry_wrapper_calls() {
     let project = common::TempProject::new("project_codegen");
     let entry = project.file(
