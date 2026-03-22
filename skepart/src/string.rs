@@ -3,79 +3,92 @@ use std::rc::Rc;
 
 use crate::{RtError, RtErrorKind, RtResult};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RtString(Rc<str>);
+#[derive(Debug, Clone)]
+enum RtStringRepr {
+    Owned(Rc<str>),
+    AsciiSlice { base: Rc<str>, range: Range<usize> },
+}
+
+#[derive(Debug, Clone)]
+pub struct RtString(RtStringRepr);
 
 impl RtString {
     pub fn new(value: impl Into<String>) -> Self {
-        Self(Rc::<str>::from(value.into()))
+        Self(RtStringRepr::Owned(Rc::<str>::from(value.into())))
     }
 
     pub fn as_str(&self) -> &str {
-        &self.0
+        match &self.0 {
+            RtStringRepr::Owned(value) => value,
+            RtStringRepr::AsciiSlice { base, range } => &base[range.clone()],
+        }
     }
 
     pub fn len_chars(&self) -> usize {
-        if self.0.is_ascii() {
-            self.0.len()
+        let value = self.as_str();
+        if value.is_ascii() {
+            value.len()
         } else {
-            self.0.chars().count()
+            value.chars().count()
         }
     }
 
     pub fn contains(&self, needle: &RtString) -> bool {
-        self.0.contains(needle.as_str())
+        self.as_str().contains(needle.as_str())
     }
 
     pub fn index_of(&self, needle: &RtString) -> i64 {
-        if self.0.is_ascii() && needle.as_str().is_ascii() {
+        let value = self.as_str();
+        let needle = needle.as_str();
+        if value.is_ascii() && needle.is_ascii() {
             return self
-                .0
-                .find(needle.as_str())
+                .as_str()
+                .find(needle)
                 .map(|idx| idx as i64)
                 .unwrap_or(-1);
         }
-        self.0
-            .find(needle.as_str())
-            .map(|idx| self.0[..idx].chars().count() as i64)
+        value
+            .find(needle)
+            .map(|idx| value[..idx].chars().count() as i64)
             .unwrap_or(-1)
     }
 
     pub fn slice_chars(&self, range: Range<usize>) -> RtResult<Self> {
-        if self.0.is_ascii() {
-            if range.start > range.end || range.end > self.0.len() {
+        let value = self.as_str();
+        if value.is_ascii() {
+            if range.start > range.end || range.end > value.len() {
                 return Err(RtError::new(
                     RtErrorKind::IndexOutOfBounds,
                     format!(
                         "str.slice bounds out of range: start={}, end={}, len={}",
                         range.start,
                         range.end,
-                        self.0.len()
+                        value.len()
                     ),
                 ));
             }
-            return Ok(Self(Rc::from(&self.0[range])));
+            return Ok(Self(self.ascii_slice_repr(range)));
         }
 
-        let Some(start) = nth_char_boundary(self.0.as_ref(), range.start) else {
+        let Some(start) = nth_char_boundary(value, range.start) else {
             return Err(RtError::new(
                 RtErrorKind::IndexOutOfBounds,
                 format!(
                     "str.slice bounds out of range: start={}, end={}, len={}",
                     range.start,
                     range.end,
-                    self.0.chars().count()
+                    value.chars().count()
                 ),
             ));
         };
-        let Some(end) = nth_char_boundary(self.0.as_ref(), range.end) else {
+        let Some(end) = nth_char_boundary(value, range.end) else {
             return Err(RtError::new(
                 RtErrorKind::IndexOutOfBounds,
                 format!(
                     "str.slice bounds out of range: start={}, end={}, len={}",
                     range.start,
                     range.end,
-                    self.0.chars().count()
+                    value.chars().count()
                 ),
             ));
         };
@@ -86,11 +99,27 @@ impl RtString {
                     "str.slice bounds out of range: start={}, end={}, len={}",
                     range.start,
                     range.end,
-                    self.0.chars().count()
+                    value.chars().count()
                 ),
             ));
         }
-        Ok(Self(Rc::from(&self.0[start..end])))
+        Ok(Self(RtStringRepr::Owned(Rc::from(&value[start..end]))))
+    }
+
+    fn ascii_slice_repr(&self, range: Range<usize>) -> RtStringRepr {
+        match &self.0 {
+            RtStringRepr::Owned(base) => RtStringRepr::AsciiSlice {
+                base: base.clone(),
+                range,
+            },
+            RtStringRepr::AsciiSlice {
+                base,
+                range: outer,
+            } => RtStringRepr::AsciiSlice {
+                base: base.clone(),
+                range: (outer.start + range.start)..(outer.start + range.end),
+            },
+        }
     }
 }
 
@@ -119,3 +148,11 @@ impl From<String> for RtString {
         Self::new(value)
     }
 }
+
+impl PartialEq for RtString {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_str() == other.as_str()
+    }
+}
+
+impl Eq for RtString {}

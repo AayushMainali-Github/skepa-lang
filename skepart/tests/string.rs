@@ -47,6 +47,14 @@ fn string_handles_empty_and_full_range_slices() {
         value.slice_chars(0..3).expect("full slice"),
         RtString::from("abc")
     );
+    assert_eq!(
+        value
+            .slice_chars(0..3)
+            .expect("full slice")
+            .slice_chars(1..2)
+            .expect("nested ascii slice"),
+        RtString::from("b")
+    );
 }
 
 #[test]

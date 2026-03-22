@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use crate::ir::{
-    BinaryOp, BranchTerminator, CmpOp, ConstValue, Instr, IrProgram, LogicOp, Operand, Terminator,
-    UnaryOp,
+    BinaryOp, BranchTerminator, CmpOp, ConstValue, Instr, IrProgram, LogicOp, Operand,
+    Terminator, UnaryOp,
 };
 
 pub fn run(program: &mut IrProgram) -> bool {
@@ -155,8 +155,8 @@ fn fold_instr(instr: &mut Instr, consts: &mut HashMap<crate::ir::TempId, ConstVa
         | Instr::VecSet { .. }
         | Instr::StructSet { .. }
         | Instr::CallDirect { .. }
-        | Instr::CallIndirect { .. }
-        | Instr::CallBuiltin { .. } => false,
+        | Instr::CallIndirect { .. } => false,
+        Instr::CallBuiltin { .. } => false,
     }
 }
 
