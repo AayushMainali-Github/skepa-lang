@@ -6,7 +6,7 @@ use crate::codegen::llvm::runtime_boxing::{
 };
 use crate::codegen::llvm::strings::runtime_string_symbol;
 use crate::codegen::llvm::types::llvm_ty;
-use crate::codegen::llvm::value::{ValueNames, operand_load, raw_string_ptr};
+use crate::codegen::llvm::value::{ValueNames, operand_load, operand_load_string, raw_string_ptr};
 use crate::ir::{
     BuiltinCall, ConstValue, IrFunction, IrType, NativeStringBuiltinLowering, NativeStringPlan,
     TempId,
@@ -64,6 +64,7 @@ pub fn emit_builtin_call(
                 spec.sig.params,
                 lines,
                 counter,
+                strings,
                 string_literals,
             )
         }
@@ -82,6 +83,7 @@ fn emit_builtin_call_runtime_helper(
     expected: &[crate::types::TypeInfo],
     lines: &mut Vec<String>,
     counter: &mut usize,
+    strings: &NativeStringPlan,
     string_literals: &HashMap<String, String>,
 ) -> Result<(), CodegenError> {
     let expected_ir = expected.iter().map(IrType::from).collect::<Vec<_>>();
@@ -94,7 +96,11 @@ fn emit_builtin_call_runtime_helper(
 
     let mut lowered_args = Vec::with_capacity(call.args.len());
     for (arg, ty) in call.args.iter().zip(expected_ir.iter()) {
-        let value = operand_load(names, arg, func, lines, counter, ty, string_literals)?;
+        let value = if *ty == IrType::String {
+            operand_load_string(names, arg, func, lines, counter, strings, string_literals)?
+        } else {
+            operand_load(names, arg, func, lines, counter, ty, string_literals)?
+        };
         lowered_args.push(format!("{} {value}", llvm_ty(ty)?));
     }
     let joined_args = lowered_args.join(", ");

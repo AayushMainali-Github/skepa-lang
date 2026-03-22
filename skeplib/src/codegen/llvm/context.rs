@@ -9,7 +9,9 @@ use crate::codegen::llvm::runtime;
 use crate::codegen::llvm::strings::collect_string_literals;
 use crate::codegen::llvm::terminator;
 use crate::codegen::llvm::value::{ValueNames, llvm_function_symbol, llvm_symbol};
-use crate::ir::{Instr, IrFunction, IrProgram, NativeAggregatePlan, NativeStringPlan};
+use crate::ir::{
+    Instr, IrFunction, IrProgram, NativeAggregatePlan, NativeCallPlan, NativeStringPlan,
+};
 use std::collections::HashMap;
 
 pub struct LlvmEmitter<'a> {
@@ -83,6 +85,7 @@ impl<'a> LlvmEmitter<'a> {
         function::validate_function_layout(func)?;
         let names = function::value_names(func);
         let native = NativeAggregatePlan::analyze(func);
+        let calls = NativeCallPlan::analyze(func);
         let strings = NativeStringPlan::analyze(func);
         let mut lines = function::emit_function_header(func)?;
 
@@ -96,6 +99,7 @@ impl<'a> LlvmEmitter<'a> {
                     func,
                     &names,
                     &native,
+                    &calls,
                     &strings,
                     instr,
                     &mut lines,
@@ -122,6 +126,7 @@ impl<'a> LlvmEmitter<'a> {
         func: &IrFunction,
         names: &ValueNames,
         native: &NativeAggregatePlan,
+        calls: &NativeCallPlan,
         strings: &NativeStringPlan,
         instr: &Instr,
         lines: &mut Vec<String>,
@@ -155,6 +160,7 @@ impl<'a> LlvmEmitter<'a> {
             func,
             names,
             native,
+            calls,
             strings,
             instr,
             lines,

@@ -5,7 +5,9 @@ use crate::codegen::llvm::runtime_decls::runtime_declarations;
 use crate::codegen::llvm::runtime_indirect;
 use crate::codegen::llvm::value::ValueNames;
 use crate::ir::Instr;
-use crate::ir::{IrFunction, IrProgram, IrType, NativeAggregatePlan, NativeStringPlan, TempId};
+use crate::ir::{
+    IrFunction, IrProgram, IrType, NativeAggregatePlan, NativeCallPlan, NativeStringPlan, TempId,
+};
 use std::collections::HashMap;
 
 pub use crate::codegen::llvm::runtime_builtins::BuiltinCallInstr;
@@ -37,6 +39,7 @@ pub fn emit_builtin_call(
 
 #[allow(clippy::too_many_arguments)]
 pub fn emit_indirect_call(
+    program: &IrProgram,
     func: &IrFunction,
     names: &ValueNames,
     dst: Option<TempId>,
@@ -45,9 +48,11 @@ pub fn emit_indirect_call(
     args: &[crate::ir::Operand],
     lines: &mut Vec<String>,
     counter: &mut usize,
+    calls: &NativeCallPlan,
     string_literals: &HashMap<String, String>,
 ) -> Result<(), CodegenError> {
     runtime_indirect::emit_indirect_call(
+        program,
         func,
         names,
         dst,
@@ -56,6 +61,7 @@ pub fn emit_indirect_call(
         args,
         lines,
         counter,
+        calls,
         string_literals,
     )
 }

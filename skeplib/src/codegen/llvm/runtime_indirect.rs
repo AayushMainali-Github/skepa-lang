@@ -1,15 +1,17 @@
 use crate::codegen::CodegenError;
+use crate::codegen::llvm::calls::{self, DirectCall};
 use crate::codegen::llvm::runtime_boxing::{
     emit_abort_if_error, emit_boxed_arg_array, emit_free_boxed_value, emit_free_boxed_values,
     emit_unbox_value, infer_operand_type,
 };
 use crate::codegen::llvm::types::llvm_ty;
 use crate::codegen::llvm::value::{ValueNames, llvm_function_symbol, operand_load};
-use crate::ir::{IrFunction, IrProgram, IrType, TempId};
+use crate::ir::{IrFunction, IrProgram, IrType, NativeCallPlan, TempId};
 use std::collections::HashMap;
 
 #[allow(clippy::too_many_arguments)]
 pub fn emit_indirect_call(
+    program: &IrProgram,
     func: &IrFunction,
     names: &ValueNames,
     dst: Option<TempId>,
@@ -18,8 +20,25 @@ pub fn emit_indirect_call(
     args: &[crate::ir::Operand],
     lines: &mut Vec<String>,
     counter: &mut usize,
+    calls: &NativeCallPlan,
     string_literals: &HashMap<String, String>,
 ) -> Result<(), CodegenError> {
+    if let Some(function) = calls.known_function(callee) {
+        return calls::emit_direct_call(
+            program,
+            func,
+            names,
+            DirectCall {
+                dst,
+                ret_ty,
+                function,
+                args,
+            },
+            lines,
+            counter,
+            string_literals,
+        );
+    }
     let callee_ty = infer_operand_type(func, callee);
     let (callee_params, callee_ret) = match &callee_ty {
         IrType::Fn { params, ret } => (params.clone(), ret.as_ref().clone()),

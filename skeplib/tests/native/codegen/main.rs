@@ -102,6 +102,30 @@ fn main() -> Int {
 }
 
 #[test]
+fn llvm_codegen_rewrites_known_indirect_calls_to_direct_calls() {
+    let source = r#"
+fn step(x: Int) -> Int {
+  return x + 1;
+}
+
+fn main() -> Int {
+  let f: Fn(Int) -> Int = step;
+  return f(4);
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let llvm_ir =
+        codegen::compile_program_to_llvm_ir(&program).expect("LLVM lowering should succeed");
+
+    let main_body = llvm_function_body(&llvm_ir, "main");
+    assert!(main_body.contains("call i64 @\"step\"(i64 4)"));
+    assert!(!main_body.contains("@__skp_rt_call_function_dispatch"));
+
+    assemble_llvm_ir(&llvm_ir, "known_indirect_direct");
+}
+
+#[test]
 fn llvm_codegen_emits_valid_string_calls_and_constants() {
     let source = r#"
 fn greet() -> String {

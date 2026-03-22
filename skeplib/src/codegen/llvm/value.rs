@@ -1,8 +1,11 @@
 use std::collections::HashMap;
 
 use crate::codegen::CodegenError;
+use crate::codegen::llvm::strings::runtime_string_symbol;
 use crate::codegen::llvm::types::llvm_ty;
-use crate::ir::{ConstValue, IrFunction, IrType, Operand, TempId};
+use crate::ir::{
+    ConstValue, IrFunction, IrType, NativeStringPlan, NativeStringValue, Operand, TempId,
+};
 
 pub struct ValueNames {
     temp_names: HashMap<TempId, String>,
@@ -100,6 +103,38 @@ pub fn operand_load(
         }
         _ => operand_value(names, operand, func),
     }
+}
+
+pub fn operand_load_string(
+    names: &ValueNames,
+    operand: &Operand,
+    func: &IrFunction,
+    lines: &mut Vec<String>,
+    counter: &mut usize,
+    strings: &NativeStringPlan,
+    string_literals: &HashMap<String, String>,
+) -> Result<String, CodegenError> {
+    if let Some(NativeStringValue::Constant(value)) = strings.string_value(operand) {
+        let name = string_literals
+            .get(&value)
+            .ok_or_else(|| CodegenError::InvalidIr("missing string literal declaration".into()))?;
+        let string = format!("%v{counter}");
+        *counter += 1;
+        lines.push(format!(
+            "  {string} = load ptr, ptr {}, align 8",
+            runtime_string_symbol(name)
+        ));
+        return Ok(string);
+    }
+    operand_load(
+        names,
+        operand,
+        func,
+        lines,
+        counter,
+        &IrType::String,
+        string_literals,
+    )
 }
 
 pub fn raw_string_ptr(
