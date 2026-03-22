@@ -67,6 +67,12 @@ pub fn begin_block(
                         local.id.0, index
                     ));
                 }
+            } else if let Some(SpecialLocalKind::FloatArray { size, .. }) = special.local(local.id)
+            {
+                lines.push(format!(
+                    "  %local{}_data = alloca [{} x double], align 8",
+                    local.id.0, size
+                ));
             } else if let Some(SpecialLocalKind::StringArray { size, .. }) = special.local(local.id)
             {
                 for index in 0..*size {

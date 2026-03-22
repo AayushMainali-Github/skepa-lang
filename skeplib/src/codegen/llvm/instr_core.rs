@@ -68,6 +68,32 @@ pub fn emit_core_instr(
                             }
                         }
                     }
+                    SpecialLocalKind::FloatArray { size, init } => {
+                        if matches!(value, crate::ir::Operand::Temp(temp) if special.temp_root(*temp) == Some(*local))
+                        {
+                            let init = operand_load(
+                                names,
+                                init,
+                                func,
+                                lines,
+                                counter,
+                                &crate::ir::IrType::Float,
+                                string_literals,
+                            )?;
+                            for index in 0..*size {
+                                lines.push(format!(
+                                    "  %v{counter} = getelementptr inbounds [{} x double], ptr %local{}_data, i64 0, i64 {}",
+                                    size,
+                                    local.0,
+                                    index
+                                ));
+                                lines.push(format!(
+                                    "  store double {init}, ptr %v{counter}, align 8"
+                                ));
+                                *counter += 1;
+                            }
+                        }
+                    }
                     SpecialLocalKind::StringArray { size, items } => {
                         if matches!(value, crate::ir::Operand::Temp(temp) if special.temp_root(*temp) == Some(*local))
                         {

@@ -361,6 +361,33 @@ fn main() -> Int {
 }
 
 #[test]
+fn llvm_codegen_scalarizes_benchmark_shaped_local_float_arrays() {
+    let source = r#"
+fn main() -> Float {
+  let arr: [Float; 8] = [0.0; 8];
+  let i = 0;
+  while (i < 10) {
+    let idx = i % 8;
+    arr[idx] = arr[idx] + 1.5;
+    i = i + 1;
+  }
+  return arr[0] + arr[1];
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let llvm_ir =
+        codegen::compile_program_to_llvm_ir(&program).expect("LLVM lowering should succeed");
+
+    assert!(llvm_ir.contains("%local0_data = alloca [8 x double]"));
+    assert!(llvm_ir.contains("getelementptr inbounds [8 x double], ptr %local0_data"));
+    assert!(llvm_ir.contains("load double, ptr"));
+    assert!(llvm_ir.contains("store double"));
+
+    assemble_llvm_ir(&llvm_ir, "float_array_scalarized");
+}
+
+#[test]
 fn llvm_codegen_emits_struct_runtime_calls_and_methods() {
     let source = r#"
 struct Pair {

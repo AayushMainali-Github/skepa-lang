@@ -240,6 +240,87 @@ pub fn emit_array_get(
                 return Ok(());
             }
         }
+    } else if *elem_ty == IrType::Float
+        && let crate::ir::Operand::Local(local) = array
+        && let Some(SpecialLocalKind::FloatArray { size, .. }) = special.local(*local)
+    {
+        let dest = names.temp(dst)?;
+        match index {
+            crate::ir::Operand::Const(crate::ir::ConstValue::Int(idx))
+                if *idx >= 0 && (*idx as usize) < *size =>
+            {
+                let ptr = format!("%v{counter}");
+                *counter += 1;
+                lines.push(format!(
+                    "  {ptr} = getelementptr inbounds [{} x double], ptr %local{}_data, i64 0, i64 {}",
+                    size,
+                    local.0,
+                    idx
+                ));
+                lines.push(format!("  {dest} = load double, ptr {ptr}, align 8"));
+                return Ok(());
+            }
+            _ => {
+                let idx = operand_load(
+                    names,
+                    index,
+                    func,
+                    lines,
+                    counter,
+                    &IrType::Int,
+                    string_literals,
+                )?;
+                let in_range = format!("%v{counter}");
+                *counter += 1;
+                let fast = format!("array_get_fast_{counter}");
+                *counter += 1;
+                let slow = format!("array_get_oob_{counter}");
+                *counter += 1;
+                let join = format!("array_get_join_{counter}");
+                *counter += 1;
+                let fast_ptr = format!("%v{counter}");
+                *counter += 1;
+                let fast_val = format!("%v{counter}");
+                *counter += 1;
+                let array_ptr = format!("%v{counter}");
+                *counter += 1;
+                let raw = format!("%v{counter}");
+                *counter += 1;
+                let fallback = format!("%v{counter}");
+                *counter += 1;
+                lines.push(format!("  {in_range} = icmp ult i64 {idx}, {}", size));
+                lines.push(format!("  br i1 {in_range}, label %{fast}, label %{slow}"));
+                lines.push(format!("{fast}:"));
+                lines.push(format!(
+                    "  {fast_ptr} = getelementptr inbounds [{} x double], ptr %local{}_data, i64 0, i64 {idx}",
+                    size,
+                    local.0
+                ));
+                lines.push(format!(
+                    "  {fast_val} = load double, ptr {fast_ptr}, align 8"
+                ));
+                lines.push(format!("  br label %{join}"));
+                lines.push(format!("{slow}:"));
+                lines.push(format!(
+                    "  {array_ptr} = load ptr, ptr %local{}, align 8",
+                    local.0
+                ));
+                lines.push(format!(
+                    "  {raw} = call ptr @skp_rt_array_get(ptr {array_ptr}, i64 {idx})"
+                ));
+                emit_abort_if_error(lines);
+                lines.push(format!(
+                    "  {fallback} = call double @skp_rt_value_to_float(ptr {raw})"
+                ));
+                emit_abort_if_error(lines);
+                lines.push(format!("  br label %{join}"));
+                lines.push(format!("{join}:"));
+                lines.push(format!(
+                    "  {dest} = phi double [ {fast_val}, %{fast} ], [ {fallback}, %{slow} ]"
+                ));
+                return Ok(());
+            }
+        }
     }
     let array = operand_load(
         names,
@@ -350,6 +431,85 @@ pub fn emit_array_set(
                 lines.push(format!("{oob}:"));
                 lines.push(format!(
                     "  {boxed} = call ptr @skp_rt_value_from_int(i64 {stored})"
+                ));
+                lines.push(format!(
+                    "  {array_ptr} = load ptr, ptr %local{}, align 8",
+                    local.0
+                ));
+                lines.push(format!(
+                    "  call void @skp_rt_array_set(ptr {array_ptr}, i64 {idx}, ptr {boxed})"
+                ));
+                emit_abort_if_error(lines);
+                lines.push(format!("  br label %{join}"));
+                lines.push(format!("{join}:"));
+                return Ok(());
+            }
+        }
+    } else if *elem_ty == IrType::Float
+        && let crate::ir::Operand::Local(local) = array
+        && let Some(SpecialLocalKind::FloatArray { size, .. }) = special.local(*local)
+    {
+        let stored = operand_load(
+            names,
+            value,
+            func,
+            lines,
+            counter,
+            &IrType::Float,
+            string_literals,
+        )?;
+        match index {
+            crate::ir::Operand::Const(crate::ir::ConstValue::Int(idx))
+                if *idx >= 0 && (*idx as usize) < *size =>
+            {
+                let ptr = format!("%v{counter}");
+                *counter += 1;
+                lines.push(format!(
+                    "  {ptr} = getelementptr inbounds [{} x double], ptr %local{}_data, i64 0, i64 {}",
+                    size,
+                    local.0,
+                    idx
+                ));
+                lines.push(format!("  store double {stored}, ptr {ptr}, align 8"));
+                return Ok(());
+            }
+            _ => {
+                let idx = operand_load(
+                    names,
+                    index,
+                    func,
+                    lines,
+                    counter,
+                    &IrType::Int,
+                    string_literals,
+                )?;
+                let in_range = format!("%v{counter}");
+                *counter += 1;
+                let fast = format!("array_set_fast_{counter}");
+                *counter += 1;
+                let slow = format!("array_set_oob_{counter}");
+                *counter += 1;
+                let join = format!("array_set_join_{counter}");
+                *counter += 1;
+                let fast_ptr = format!("%v{counter}");
+                *counter += 1;
+                let boxed = format!("%v{counter}");
+                *counter += 1;
+                let array_ptr = format!("%v{counter}");
+                *counter += 1;
+                lines.push(format!("  {in_range} = icmp ult i64 {idx}, {}", size));
+                lines.push(format!("  br i1 {in_range}, label %{fast}, label %{slow}"));
+                lines.push(format!("{fast}:"));
+                lines.push(format!(
+                    "  {fast_ptr} = getelementptr inbounds [{} x double], ptr %local{}_data, i64 0, i64 {idx}",
+                    size,
+                    local.0
+                ));
+                lines.push(format!("  store double {stored}, ptr {fast_ptr}, align 8"));
+                lines.push(format!("  br label %{join}"));
+                lines.push(format!("{slow}:"));
+                lines.push(format!(
+                    "  {boxed} = call ptr @skp_rt_value_from_float(double {stored})"
                 ));
                 lines.push(format!(
                     "  {array_ptr} = load ptr, ptr %local{}, align 8",
