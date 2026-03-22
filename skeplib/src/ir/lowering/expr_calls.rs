@@ -1,4 +1,5 @@
 use crate::ast::Expr;
+use crate::builtins::find_builtin_spec;
 use crate::ir::{BlockId, ConstValue, Instr, IrType, Operand};
 
 use super::context::{FunctionLowering, IrLowerer};
@@ -334,44 +335,8 @@ impl IrLowerer {
     }
 
     fn builtin_return_type(&self, package: &str, name: &str) -> Option<IrType> {
-        match (package, name) {
-            ("str", "len") => Some(IrType::Int),
-            ("str", "contains") => Some(IrType::Bool),
-            ("str", "indexOf") => Some(IrType::Int),
-            ("str", "slice") => Some(IrType::String),
-            ("arr", "len") => Some(IrType::Int),
-            ("arr", "isEmpty") => Some(IrType::Bool),
-            ("arr", "first" | "last") => Some(IrType::Unknown),
-            ("arr", "join") => Some(IrType::String),
-            ("vec", "new") => Some(IrType::Unknown),
-            ("vec", "len") => Some(IrType::Int),
-            ("vec", "push" | "set") => Some(IrType::Void),
-            ("vec", "get" | "delete") => Some(IrType::Unknown),
-            (
-                "io",
-                "print" | "println" | "printf" | "printInt" | "printFloat" | "printBool"
-                | "printString",
-            ) => Some(IrType::Void),
-            ("io", "format") => Some(IrType::String),
-            ("io", "readLine") => Some(IrType::String),
-            (
-                "datetime",
-                "nowUnix" | "nowMillis" | "fromUnix" | "fromMillis" | "parseUnix" | "year"
-                | "month" | "day" | "hour" | "minute" | "second",
-            ) => Some(IrType::Int),
-            ("random", "seed") => Some(IrType::Void),
-            ("random", "int") => Some(IrType::Int),
-            ("random", "float") => Some(IrType::Float),
-            ("fs", "exists") => Some(IrType::Bool),
-            ("fs", "readText" | "join") => Some(IrType::String),
-            ("fs", "writeText" | "appendText" | "mkdirAll" | "removeFile" | "removeDirAll") => {
-                Some(IrType::Void)
-            }
-            ("os", "cwd" | "platform" | "execShellOut") => Some(IrType::String),
-            ("os", "sleep") => Some(IrType::Void),
-            ("os", "execShell") => Some(IrType::Int),
-            _ => None,
-        }
+        let spec = find_builtin_spec(package, name)?;
+        Some(IrType::from(&spec.sig.ret))
     }
 
     fn indirect_call_return_type(&self, func: &crate::ir::IrFunction, callee: &Operand) -> IrType {

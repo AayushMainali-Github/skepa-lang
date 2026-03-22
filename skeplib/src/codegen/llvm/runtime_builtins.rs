@@ -1,3 +1,4 @@
+use crate::builtins::{BuiltinLowering, find_builtin_spec};
 use crate::codegen::CodegenError;
 use crate::codegen::llvm::runtime_boxing::{
     emit_abort_if_error, emit_boxed_arg_array, emit_free_boxed_value, emit_free_boxed_values,
@@ -26,27 +27,55 @@ pub fn emit_builtin_call(
     counter: &mut usize,
     string_literals: &HashMap<String, String>,
 ) -> Result<(), CodegenError> {
+    let spec = find_builtin_spec(&call.builtin.package, &call.builtin.name).ok_or_else(|| {
+        CodegenError::InvalidIr(format!(
+            "unknown builtin {}.{}",
+            call.builtin.package, call.builtin.name
+        ))
+    })?;
+
     let consts = analyze_const_values(func);
-    if let Some(const_value) = eval_const_builtin(call.builtin, call.args, &consts) {
+    if spec.meta.can_const_fold
+        && let Some(const_value) = eval_const_builtin(call.builtin, call.args, &consts)
+    {
         return emit_const_builtin_result(names, call, &const_value, lines, string_literals);
     }
 
-    let helper = match (call.builtin.package.as_str(), call.builtin.name.as_str()) {
-        ("str", "len") => "skp_rt_builtin_str_len",
-        ("str", "contains") => "skp_rt_builtin_str_contains",
-        ("str", "indexOf") => "skp_rt_builtin_str_index_of",
-        ("str", "slice") => "skp_rt_builtin_str_slice",
-        _ => return emit_builtin_call_generic(func, names, call, lines, counter, string_literals),
-    };
+    match spec.meta.lowering {
+        BuiltinLowering::RuntimeCall => {
+            let helper = builtin_runtime_helper(spec.sig.package, spec.sig.name).ok_or(
+                CodegenError::Unsupported("runtime-call builtin is missing a helper mapping"),
+            )?;
+            emit_builtin_call_runtime_helper(
+                func,
+                names,
+                call,
+                helper,
+                spec.sig.params,
+                lines,
+                counter,
+                string_literals,
+            )
+        }
+        BuiltinLowering::GenericDispatch | BuiltinLowering::TypeDirected => {
+            emit_builtin_call_generic(func, names, call, lines, counter, string_literals)
+        }
+    }
+}
 
-    let expected = match call.builtin.name.as_str() {
-        "len" => vec![IrType::String],
-        "contains" => vec![IrType::String, IrType::String],
-        "indexOf" => vec![IrType::String, IrType::String],
-        "slice" => vec![IrType::String, IrType::Int, IrType::Int],
-        _ => unreachable!(),
-    };
-    if call.args.len() != expected.len() {
+#[allow(clippy::too_many_arguments)]
+fn emit_builtin_call_runtime_helper(
+    func: &IrFunction,
+    names: &ValueNames,
+    call: BuiltinCallInstr<'_>,
+    helper: &str,
+    expected: &[crate::types::TypeInfo],
+    lines: &mut Vec<String>,
+    counter: &mut usize,
+    string_literals: &HashMap<String, String>,
+) -> Result<(), CodegenError> {
+    let expected_ir = expected.iter().map(IrType::from).collect::<Vec<_>>();
+    if call.args.len() != expected_ir.len() {
         return Err(CodegenError::InvalidIr(format!(
             "builtin arity mismatch for {}.{}",
             call.builtin.package, call.builtin.name
@@ -54,7 +83,7 @@ pub fn emit_builtin_call(
     }
 
     let mut lowered_args = Vec::with_capacity(call.args.len());
-    for (arg, ty) in call.args.iter().zip(expected.iter()) {
+    for (arg, ty) in call.args.iter().zip(expected_ir.iter()) {
         let value = operand_load(names, arg, func, lines, counter, ty, string_literals)?;
         lowered_args.push(format!("{} {value}", llvm_ty(ty)?));
     }
@@ -153,4 +182,14 @@ fn emit_builtin_call_generic(
     emit_unbox_value(names, dst, call.ret_ty, &raw, lines)?;
     emit_free_boxed_value(&raw, lines);
     Ok(())
+}
+
+fn builtin_runtime_helper(package: &str, name: &str) -> Option<&'static str> {
+    match (package, name) {
+        ("str", "len") => Some("skp_rt_builtin_str_len"),
+        ("str", "contains") => Some("skp_rt_builtin_str_contains"),
+        ("str", "indexOf") => Some("skp_rt_builtin_str_index_of"),
+        ("str", "slice") => Some("skp_rt_builtin_str_slice"),
+        _ => None,
+    }
 }

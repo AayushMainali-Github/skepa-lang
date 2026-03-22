@@ -1,4 +1,4 @@
-use crate::builtins::{BuiltinKind, find_builtin_sig};
+use crate::builtins::{BuiltinKind, find_builtin_spec};
 use crate::ir::{Instr, IrFunction, IrProgram, IrType};
 
 use super::{IrVerifier, IrVerifyError};
@@ -300,23 +300,23 @@ impl IrVerifier {
                 for arg in args {
                     Self::verify_operand(program, func, arg)?;
                 }
-                if let Some(sig) = find_builtin_sig(&builtin.package, &builtin.name) {
+                if let Some(spec) = find_builtin_spec(&builtin.package, &builtin.name) {
                     if !matches!(ret_ty, IrType::Unknown | IrType::Void) {
-                        let expected_ret = IrType::from(&sig.ret);
+                        let expected_ret = IrType::from(&spec.sig.ret);
                         if !Self::types_compatible(ret_ty, &expected_ret) {
                             return Err(IrVerifyError::BadCallSignature {
                                 function: func.name.clone(),
                             });
                         }
                     }
-                    match sig.kind {
+                    match spec.sig.kind {
                         BuiltinKind::FixedArity => {
-                            if sig.params.len() != args.len() {
+                            if spec.sig.params.len() != args.len() {
                                 return Err(IrVerifyError::BadCallSignature {
                                     function: func.name.clone(),
                                 });
                             }
-                            for (arg, param_ty) in args.iter().zip(sig.params.iter()) {
+                            for (arg, param_ty) in args.iter().zip(spec.sig.params.iter()) {
                                 let expected = IrType::from(param_ty);
                                 Self::expect_operand_type(program, func, arg, &expected)?;
                             }

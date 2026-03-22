@@ -282,10 +282,11 @@ impl Checker {
             return vec::check_vec_builtin(self, method, args, scopes);
         }
 
-        let Some(sig) = crate::builtins::find_builtin_sig(package, method) else {
+        let Some(spec) = crate::builtins::find_builtin_spec(package, method) else {
             self.error(format!("Unknown builtin `{package}.{method}`"));
             return TypeInfo::Unknown;
         };
+        let sig = spec.sig;
 
         match package {
             "io" => return io::check_io_builtin(self, method, args, scopes, sig),
