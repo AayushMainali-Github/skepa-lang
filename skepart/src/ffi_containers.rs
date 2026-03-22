@@ -2,8 +2,8 @@ use std::rc::Rc;
 
 use crate::array::RtArray;
 use crate::ffi_support::{
-    boxed_array, boxed_struct, boxed_value, boxed_vec, clear_last_error, ffi_try,
-    invalid_argument, set_last_error,
+    boxed_array, boxed_struct, boxed_value, boxed_vec, clear_last_error, ffi_try, invalid_argument,
+    set_last_error,
 };
 use crate::value::{RtStruct, RtStructLayout, RtValue};
 use crate::vec::RtVec;
