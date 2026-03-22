@@ -89,3 +89,13 @@ fn string_index_of_returns_character_offset_not_byte_offset() {
     assert_eq!(value.index_of(&RtString::from("a")), 1);
     assert_eq!(value.index_of(&RtString::from("b")), 3);
 }
+
+#[test]
+fn string_nested_unicode_slices_preserve_value_semantics() {
+    let value = RtString::from("🙂alpha🙂beta");
+    let outer = value.slice_chars(1..10).expect("outer slice");
+    let inner = outer.slice_chars(2..6).expect("inner slice");
+    assert_eq!(inner, RtString::from("pha🙂"));
+    assert_eq!(inner.len_chars(), 4);
+    assert!(inner.contains(&RtString::from("🙂")));
+}
