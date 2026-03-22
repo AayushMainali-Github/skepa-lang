@@ -62,9 +62,7 @@ pub fn exe_name(base: &str) -> String {
 }
 
 pub fn run_command(exe: &Path, args: &[&str]) -> Result<(), String> {
-    let output = Command::new(exe)
-        .args(args)
-        .output()
+    let output = run_output(Command::new(exe).args(args))
         .map_err(|err| format!("failed to run {}: {err}", exe.display()))?;
     if output.status.success() {
         Ok(())
@@ -135,9 +133,7 @@ pub fn path_str(path: &Path) -> Result<&str, String> {
 }
 
 pub fn run_runtime_command(exe: &Path, args: &[&str]) -> Result<(), String> {
-    let output = Command::new(exe)
-        .args(args)
-        .output()
+    let output = run_output(Command::new(exe).args(args))
         .map_err(|err| format!("failed to run {}: {err}", exe.display()))?;
     validate_runtime_output(exe, args, &output)
 }
@@ -172,4 +168,31 @@ pub fn validate_runtime_output(exe: &Path, args: &[&str], output: &Output) -> Re
             args.join(" ")
         )),
     }
+}
+
+fn run_output(command: &mut Command) -> std::io::Result<Output> {
+    #[cfg(windows)]
+    {
+        let previous = set_error_mode(SEM_NOGPFAULTERRORBOX | SEM_FAILCRITICALERRORS);
+        let result = command.output();
+        let _ = set_error_mode(previous);
+        result
+    }
+    #[cfg(not(windows))]
+    {
+        command.output()
+    }
+}
+
+#[cfg(windows)]
+const SEM_FAILCRITICALERRORS: u32 = 0x0001;
+#[cfg(windows)]
+const SEM_NOGPFAULTERRORBOX: u32 = 0x0002;
+
+#[cfg(windows)]
+fn set_error_mode(mode: u32) -> u32 {
+    unsafe extern "system" {
+        fn SetErrorMode(u_mode: u32) -> u32;
+    }
+    unsafe { SetErrorMode(mode) }
 }

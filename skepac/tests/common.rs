@@ -44,10 +44,7 @@ pub fn exe_ext() -> &'static str {
 }
 
 pub fn run_skepac(args: &[&str]) -> Output {
-    Command::new(skepac_bin())
-        .args(args)
-        .output()
-        .expect("run skepac")
+    run_output(Command::new(skepac_bin()).args(args)).expect("run skepac")
 }
 
 pub fn assert_cli_failure_class(output: &Output, class: CliFailureClass) {
@@ -113,4 +110,31 @@ pub fn assert_diag_code_and_message(stderr: &str, code: &str, message_fragment: 
         stderr.contains(message_fragment),
         "stderr missing `{message_fragment}`: {stderr}"
     );
+}
+
+fn run_output(command: &mut Command) -> std::io::Result<Output> {
+    #[cfg(windows)]
+    {
+        let previous = set_error_mode(SEM_NOGPFAULTERRORBOX | SEM_FAILCRITICALERRORS);
+        let result = command.output();
+        let _ = set_error_mode(previous);
+        result
+    }
+    #[cfg(not(windows))]
+    {
+        command.output()
+    }
+}
+
+#[cfg(windows)]
+const SEM_FAILCRITICALERRORS: u32 = 0x0001;
+#[cfg(windows)]
+const SEM_NOGPFAULTERRORBOX: u32 = 0x0002;
+
+#[cfg(windows)]
+fn set_error_mode(mode: u32) -> u32 {
+    unsafe extern "system" {
+        fn SetErrorMode(u_mode: u32) -> u32;
+    }
+    unsafe { SetErrorMode(mode) }
 }

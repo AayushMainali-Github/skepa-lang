@@ -288,9 +288,7 @@ fn native_run_program(program: &IrProgram) -> NativeRunResult {
     let exe_path = temp_artifact_path("native_test", exe_ext());
     codegen::compile_program_to_executable(program, &exe_path)
         .expect("native executable build should succeed");
-    let output = Command::new(&exe_path)
-        .output()
-        .expect("native executable should run");
+    let output = run_output(&mut Command::new(&exe_path)).expect("native executable should run");
     let _ = fs::remove_file(&exe_path);
     NativeRunResult { output }
 }
@@ -318,4 +316,31 @@ fn unique_suffix() -> String {
 
 fn exe_ext() -> &'static str {
     if cfg!(windows) { "exe" } else { "out" }
+}
+
+fn run_output(command: &mut Command) -> std::io::Result<Output> {
+    #[cfg(windows)]
+    {
+        let previous = set_error_mode(SEM_NOGPFAULTERRORBOX | SEM_FAILCRITICALERRORS);
+        let result = command.output();
+        let _ = set_error_mode(previous);
+        result
+    }
+    #[cfg(not(windows))]
+    {
+        command.output()
+    }
+}
+
+#[cfg(windows)]
+const SEM_FAILCRITICALERRORS: u32 = 0x0001;
+#[cfg(windows)]
+const SEM_NOGPFAULTERRORBOX: u32 = 0x0002;
+
+#[cfg(windows)]
+fn set_error_mode(mode: u32) -> u32 {
+    unsafe extern "system" {
+        fn SetErrorMode(u_mode: u32) -> u32;
+    }
+    unsafe { SetErrorMode(mode) }
 }
