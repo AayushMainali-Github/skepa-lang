@@ -1,6 +1,12 @@
 use crate::ir::{FunctionId, Instr, IrFunction, LocalId, Operand, TempId};
 use std::collections::HashMap;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeCallLowering {
+    KnownFunction(FunctionId),
+    Dynamic,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct NativeCallPlan {
     temps: HashMap<TempId, FunctionId>,
@@ -59,6 +65,20 @@ impl NativeCallPlan {
     pub fn known_function(&self, operand: &Operand) -> Option<FunctionId> {
         resolve_operand_function(operand, &self.temps, &self.locals)
     }
+
+    pub fn operand_lowering(&self, operand: &Operand) -> NativeCallLowering {
+        match self.known_function(operand) {
+            Some(function) => NativeCallLowering::KnownFunction(function),
+            None => NativeCallLowering::Dynamic,
+        }
+    }
+
+    pub fn temp_lowering(&self, temp: TempId) -> NativeCallLowering {
+        match self.temps.get(&temp).copied() {
+            Some(function) => NativeCallLowering::KnownFunction(function),
+            None => NativeCallLowering::Dynamic,
+        }
+    }
 }
 
 fn resolve_operand_function(
@@ -75,7 +95,7 @@ fn resolve_operand_function(
 
 #[cfg(test)]
 mod tests {
-    use super::NativeCallPlan;
+    use super::{NativeCallLowering, NativeCallPlan};
     use crate::ir;
 
     #[test]
@@ -97,6 +117,9 @@ fn main() -> Int {
             .unwrap();
         let plan = NativeCallPlan::analyze(main);
         let local = main.locals.iter().find(|local| local.name == "f").unwrap();
-        assert!(plan.known_function(&ir::Operand::Local(local.id)).is_some());
+        assert_eq!(
+            plan.operand_lowering(&ir::Operand::Local(local.id)),
+            NativeCallLowering::KnownFunction(ir::FunctionId(0))
+        );
     }
 }

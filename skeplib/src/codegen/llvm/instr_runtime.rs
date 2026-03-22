@@ -2,7 +2,8 @@ use crate::codegen::CodegenError;
 use crate::codegen::llvm::runtime;
 use crate::codegen::llvm::value::ValueNames;
 use crate::ir::{
-    Instr, IrFunction, IrProgram, NativeAggregatePlan, NativeCallPlan, NativeStringPlan,
+    Instr, IrFunction, IrProgram, NativeAggregatePlan, NativeCallLowering, NativeCallPlan,
+    NativeStringPlan,
 };
 use std::collections::HashMap;
 
@@ -44,7 +45,15 @@ pub fn emit_runtime_instr(
         }
         Instr::MakeClosure { dst, function } => {
             let dest = names.temp(*dst)?;
-            lines.push(format!("  {dest} = add i32 0, {}", function.0));
+            match calls.temp_lowering(*dst) {
+                NativeCallLowering::KnownFunction(known) => {
+                    debug_assert_eq!(known, *function);
+                    lines.push(format!("  {dest} = add i32 0, {}", known.0));
+                }
+                NativeCallLowering::Dynamic => {
+                    lines.push(format!("  {dest} = add i32 0, {}", function.0));
+                }
+            }
             Ok(true)
         }
         Instr::CallIndirect {
