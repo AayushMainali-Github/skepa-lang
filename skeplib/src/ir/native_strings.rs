@@ -3,6 +3,18 @@ use crate::ir::{
 };
 use std::collections::{HashMap, HashSet};
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum NativeStringValue {
+    Constant(String),
+    Other(ConstValue),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum NativeStringBuiltinLowering {
+    Folded(ConstValue),
+    Runtime,
+}
+
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct NativeStringPlan {
     temps: HashMap<TempId, ConstValue>,
@@ -55,12 +67,22 @@ impl NativeStringPlan {
         resolve_operand_const(operand, self)
     }
 
-    pub fn eval_const_builtin(
+    pub fn string_value(&self, operand: &Operand) -> Option<NativeStringValue> {
+        match self.const_value(operand)? {
+            ConstValue::String(value) => Some(NativeStringValue::Constant(value)),
+            other => Some(NativeStringValue::Other(other)),
+        }
+    }
+
+    pub fn builtin_lowering(
         &self,
         builtin: &BuiltinCall,
         args: &[Operand],
-    ) -> Option<ConstValue> {
-        eval_const_builtin(builtin, args, self)
+    ) -> NativeStringBuiltinLowering {
+        match eval_const_builtin(builtin, args, self) {
+            Some(value) => NativeStringBuiltinLowering::Folded(value),
+            None => NativeStringBuiltinLowering::Runtime,
+        }
     }
 }
 
@@ -314,7 +336,10 @@ fn nth_char_boundary(value: &str, index: usize) -> Option<usize> {
 
 #[cfg(test)]
 mod tests {
-    use super::{NativeStringPlan, collect_program_string_constants};
+    use super::{
+        NativeStringBuiltinLowering, NativeStringPlan, NativeStringValue,
+        collect_program_string_constants,
+    };
     use crate::ir;
     use crate::ir::{BuiltinCall, ConstValue, Operand};
 
@@ -330,8 +355,12 @@ fn main() -> Int {
         let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
         let main = program.functions.iter().find(|f| f.name == "main").unwrap();
         let plan = NativeStringPlan::analyze(main);
-        let folded = plan
-            .eval_const_builtin(
+        assert_eq!(
+            plan.string_value(&Operand::Const(ConstValue::String("skepa".into()))),
+            Some(NativeStringValue::Constant("skepa".into()))
+        );
+        assert_eq!(
+            plan.builtin_lowering(
                 &BuiltinCall {
                     package: "str".into(),
                     name: "slice".into(),
@@ -341,9 +370,9 @@ fn main() -> Int {
                     Operand::Const(ConstValue::Int(1)),
                     Operand::Const(ConstValue::Int(4)),
                 ],
-            )
-            .expect("slice should fold");
-        assert_eq!(folded, ConstValue::String("kep".into()));
+            ),
+            NativeStringBuiltinLowering::Folded(ConstValue::String("kep".into()))
+        );
 
         let literals = collect_program_string_constants(&program);
         assert!(literals.contains(&"skepa".to_string()));

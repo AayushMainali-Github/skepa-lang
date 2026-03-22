@@ -7,7 +7,10 @@ use crate::codegen::llvm::runtime_boxing::{
 use crate::codegen::llvm::strings::runtime_string_symbol;
 use crate::codegen::llvm::types::llvm_ty;
 use crate::codegen::llvm::value::{ValueNames, operand_load, raw_string_ptr};
-use crate::ir::{BuiltinCall, ConstValue, IrFunction, IrType, NativeStringPlan, TempId};
+use crate::ir::{
+    BuiltinCall, ConstValue, IrFunction, IrType, NativeStringBuiltinLowering, NativeStringPlan,
+    TempId,
+};
 use std::collections::HashMap;
 
 pub struct BuiltinCallInstr<'a> {
@@ -33,10 +36,19 @@ pub fn emit_builtin_call(
         ))
     })?;
 
-    if spec.meta.can_const_fold
-        && let Some(const_value) = strings.eval_const_builtin(call.builtin, call.args)
-    {
-        return emit_const_builtin_result(names, call, &const_value, lines, string_literals);
+    if spec.meta.can_const_fold {
+        match strings.builtin_lowering(call.builtin, call.args) {
+            NativeStringBuiltinLowering::Folded(const_value) => {
+                return emit_const_builtin_result(
+                    names,
+                    call,
+                    &const_value,
+                    lines,
+                    string_literals,
+                );
+            }
+            NativeStringBuiltinLowering::Runtime => {}
+        }
     }
 
     match spec.meta.lowering {

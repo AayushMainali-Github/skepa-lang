@@ -20,7 +20,10 @@ pub use instr::{
 };
 pub use interp::{IrInterpError, IrInterpreter};
 pub use native_aggregates::{NativeAggregatePlan, NativeArrayPlan, NativeStructPlan};
-pub use native_strings::{NativeStringPlan, collect_program_string_constants};
+pub use native_strings::{
+    NativeStringBuiltinLowering, NativeStringPlan, NativeStringValue,
+    collect_program_string_constants,
+};
 pub use nativeability::{NativeLocalKind, NativeabilityAnalysis};
 pub use pretty::PrettyIr;
 pub use program::{
