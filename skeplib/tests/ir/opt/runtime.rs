@@ -49,10 +49,10 @@ fn main() -> Int {
   let i = 0;
   let total = 0;
   while (i < 5) {
-    let s = "skepa-language-benchmark";
+    let s = "skepa-language-runtime";
     let cut = str.slice(s, 6, 14);
     total = total + str.len(s);
-    total = total + str.indexOf(s, "bench");
+    total = total + str.indexOf(s, "time");
     if (str.contains(cut, "language")) {
       total = total + 1;
     }
@@ -71,7 +71,7 @@ fn main() -> Int {
 }
 
 #[test]
-fn optimizer_handles_benchmark_shaped_mixed_program_without_changing_result() {
+fn optimizer_handles_mixed_runtime_program_without_changing_result() {
     let source = r#"
 import io;
 import str;
@@ -126,9 +126,9 @@ fn string_work(n: Int) -> Int {
   let i = 0;
   let total = 0;
   while (i < n) {
-    let s = "skepa-language-benchmark";
+    let s = "skepa-language-runtime";
     total = total + str.len(s);
-    total = total + str.indexOf(s, "bench");
+    total = total + str.indexOf(s, "time");
     let cut = str.slice(s, 6, 18);
     if (str.contains(cut, "language")) {
       total = total + 1;

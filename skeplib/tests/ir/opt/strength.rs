@@ -56,9 +56,9 @@ fn main() -> Int {
   let i = 0;
   let total = 0;
   while (i < 6) {
-    let s = "skepa-language-benchmark";
+    let s = "skepa-language-runtime";
     total = total + str.len(s);
-    total = total + str.indexOf(s, "bench");
+    total = total + str.indexOf(s, "time");
     i = i + 1;
   }
   return total + (1 * 2);

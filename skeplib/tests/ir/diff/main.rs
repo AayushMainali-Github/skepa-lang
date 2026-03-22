@@ -169,10 +169,10 @@ import datetime;
 import str;
 
 fn main() -> Int {
-  let s = "skepa-language-benchmark";
+  let s = "skepa-language-runtime";
   let total = 0;
   total = total + str.len(s);
-  total = total + str.indexOf(s, "bench");
+  total = total + str.indexOf(s, "time");
   let cut = str.slice(s, 6, 14);
   if (str.contains(cut, "language")) {
     return total + 1;
@@ -288,7 +288,7 @@ fn native_and_ir_accept_same_project_sources() {
         r#"
 export { Pair, make, base };
 
-let base: String = "skepa-language-benchmark";
+let base: String = "skepa-language-runtime";
 
 struct Pair {
   a: Int,
@@ -315,7 +315,7 @@ from pair import make, base;
 
 fn main() -> Int {
   let p = make();
-  return p.mix(str.indexOf(base, "bench"));
+  return p.mix(str.indexOf(base, "time"));
 }
 "#,
     )

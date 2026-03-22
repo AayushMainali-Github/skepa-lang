@@ -504,10 +504,10 @@ fn interpreter_runs_globals_module_init_and_core_builtins() {
 import datetime;
 import str;
 
-let base: String = "skepa-language-benchmark";
+let base: String = "skepa-language-runtime";
 
 fn main() -> Int {
-  let total = str.len(base) + str.indexOf(base, "bench");
+  let total = str.len(base) + str.indexOf(base, "time");
   let cut = str.slice(base, 6, 14);
   if (str.contains(cut, "language")) {
     return total + 1;

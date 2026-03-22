@@ -153,7 +153,7 @@ fn main() -> Int {
 }
 
 #[test]
-fn llvm_codegen_folds_benchmark_shaped_constant_string_builtins() {
+fn llvm_codegen_folds_hot_path_constant_string_builtins() {
     let source = r#"
 import str;
 
@@ -332,7 +332,7 @@ fn main() -> Int {
 }
 
 #[test]
-fn llvm_codegen_scalarizes_benchmark_shaped_local_int_arrays() {
+fn llvm_codegen_scalarizes_hot_path_local_int_arrays() {
     let source = r#"
 fn main() -> Int {
   let arr: [Int; 8] = [0; 8];
@@ -361,7 +361,7 @@ fn main() -> Int {
 }
 
 #[test]
-fn llvm_codegen_scalarizes_benchmark_shaped_local_float_arrays() {
+fn llvm_codegen_scalarizes_hot_path_local_float_arrays() {
     let source = r#"
 fn main() -> Float {
   let arr: [Float; 8] = [0.0; 8];
@@ -424,7 +424,7 @@ fn main() -> Int {
 }
 
 #[test]
-fn llvm_codegen_scalarizes_benchmark_shaped_local_struct_field_reads() {
+fn llvm_codegen_scalarizes_hot_path_local_struct_field_reads() {
     let source = r#"
 struct Pair {
   a: Int,
