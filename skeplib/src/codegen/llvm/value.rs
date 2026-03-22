@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::codegen::CodegenError;
 use crate::codegen::llvm::types::llvm_ty;
-use crate::ir::{ConstValue, IrFunction, Operand, TempId};
+use crate::ir::{ConstValue, IrFunction, IrType, Operand, TempId};
 
 pub struct ValueNames {
     temp_names: HashMap<TempId, String>,
@@ -29,6 +29,13 @@ impl ValueNames {
 pub fn llvm_symbol(name: &str) -> String {
     let escaped = name.replace('\\', "\\5C").replace('"', "\\22");
     format!("@\"{escaped}\"")
+}
+
+pub fn llvm_function_symbol(name: &str, ret_ty: &IrType) -> String {
+    if name == "main" && ret_ty.is_void() {
+        return llvm_symbol("__skp_user_main");
+    }
+    llvm_symbol(name)
 }
 
 pub fn operand_value(

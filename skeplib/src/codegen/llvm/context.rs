@@ -9,7 +9,7 @@ use crate::codegen::llvm::runtime;
 use crate::codegen::llvm::special_locals::SpecialLocals;
 use crate::codegen::llvm::strings::collect_string_literals;
 use crate::codegen::llvm::terminator;
-use crate::codegen::llvm::value::{ValueNames, llvm_symbol};
+use crate::codegen::llvm::value::{ValueNames, llvm_function_symbol, llvm_symbol};
 use crate::ir::{Instr, IrFunction, IrProgram};
 use std::collections::HashMap;
 
@@ -57,6 +57,23 @@ impl<'a> LlvmEmitter<'a> {
 
         for func in &self.program.functions {
             out.extend(self.emit_function(func)?);
+            out.push(String::new());
+        }
+
+        if let Some(void_main) = self
+            .program
+            .functions
+            .iter()
+            .find(|func| func.name == "main" && func.ret_ty.is_void())
+        {
+            out.push("define i32 @\"main\"() {".into());
+            out.push("entry:".into());
+            out.push(format!(
+                "  call void {}()",
+                llvm_function_symbol(&void_main.name, &void_main.ret_ty)
+            ));
+            out.push("  ret i32 0".into());
+            out.push("}".into());
             out.push(String::new());
         }
 

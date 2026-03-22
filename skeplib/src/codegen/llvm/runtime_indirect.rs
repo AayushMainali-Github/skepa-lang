@@ -4,7 +4,7 @@ use crate::codegen::llvm::runtime_boxing::{
     emit_unbox_value, infer_operand_type,
 };
 use crate::codegen::llvm::types::llvm_ty;
-use crate::codegen::llvm::value::{ValueNames, llvm_symbol, operand_load};
+use crate::codegen::llvm::value::{ValueNames, llvm_function_symbol, operand_load};
 use crate::ir::{IrFunction, IrProgram, IrType, TempId};
 use std::collections::HashMap;
 
@@ -188,7 +188,7 @@ fn emit_indirect_wrapper(func: &IrFunction) -> Result<Vec<String>, CodegenError>
     if func.ret_ty.is_void() {
         lines.push(format!(
             "  call void {}({joined_args})",
-            llvm_symbol(&func.name)
+            llvm_function_symbol(&func.name, &func.ret_ty)
         ));
         lines.push("  %unit = call ptr @skp_rt_value_from_unit()".into());
         lines.push("  ret ptr %unit".into());
@@ -196,7 +196,7 @@ fn emit_indirect_wrapper(func: &IrFunction) -> Result<Vec<String>, CodegenError>
         lines.push(format!(
             "  %ret = call {} {}({joined_args})",
             llvm_ty(&func.ret_ty)?,
-            llvm_symbol(&func.name)
+            llvm_function_symbol(&func.name, &func.ret_ty)
         ));
         let boxer = match &func.ret_ty {
             IrType::Int => "skp_rt_value_from_int",

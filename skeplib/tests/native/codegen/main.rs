@@ -249,6 +249,37 @@ fn main() -> Int {
 }
 
 #[test]
+fn llvm_codegen_wraps_void_main_with_i32_process_entry() {
+    let source = r#"
+fn main() -> Void {
+  return;
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let llvm_ir =
+        codegen::compile_program_to_llvm_ir(&program).expect("LLVM lowering should succeed");
+
+    assert!(llvm_ir.contains("define void @\"__skp_user_main\"()"));
+    assert!(llvm_ir.contains("define i32 @\"main\"()"));
+    assert!(llvm_ir.contains("call void @\"__skp_user_main\"()"));
+    assert!(llvm_ir.contains("ret i32 0"));
+
+    assemble_llvm_ir(&llvm_ir, "void_main_wrapper");
+}
+
+#[test]
+fn native_void_main_exits_zero() {
+    let source = r#"
+fn main() -> Void {
+  return;
+}
+"#;
+
+    assert_eq!(common::native_run_exit_code_ok(source), 0);
+}
+
+#[test]
 fn llvm_codegen_emits_module_init_via_global_ctors() {
     let project = common::TempProject::new("project_globals_codegen");
     let entry = project.file(

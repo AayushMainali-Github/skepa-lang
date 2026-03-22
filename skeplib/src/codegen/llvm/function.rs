@@ -2,7 +2,7 @@ use crate::codegen::CodegenError;
 use crate::codegen::llvm::block::{ensure_terminator, label};
 use crate::codegen::llvm::special_locals::{SpecialLocalKind, SpecialLocals};
 use crate::codegen::llvm::types::llvm_ty;
-use crate::codegen::llvm::value::{ValueNames, llvm_symbol};
+use crate::codegen::llvm::value::{ValueNames, llvm_function_symbol};
 use crate::ir::{BasicBlock, IrFunction};
 
 pub fn validate_function_layout(func: &IrFunction) -> Result<(), CodegenError> {
@@ -33,7 +33,7 @@ pub fn emit_function_header(func: &IrFunction) -> Result<Vec<String>, CodegenErr
         .join(", ");
     Ok(vec![format!(
         "define {ret_ty} {}({params}) {{",
-        llvm_symbol(&func.name)
+        llvm_function_symbol(&func.name, &func.ret_ty)
     )])
 }
 

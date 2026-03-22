@@ -1,6 +1,6 @@
 use crate::codegen::CodegenError;
 use crate::codegen::llvm::types::llvm_ty;
-use crate::codegen::llvm::value::{ValueNames, llvm_symbol, operand_load};
+use crate::codegen::llvm::value::{ValueNames, llvm_function_symbol, operand_load};
 use crate::ir::{Instr, IrFunction, IrProgram, IrType, Operand, TempId};
 use std::collections::HashMap;
 
@@ -55,7 +55,7 @@ pub fn emit_direct_call(
     if callee.ret_ty.is_void() {
         lines.push(format!(
             "  call {ret_llvm_ty} {}({joined_args})",
-            llvm_symbol(&callee.name)
+            llvm_function_symbol(&callee.name, &callee.ret_ty)
         ));
         return Ok(());
     }
@@ -68,7 +68,7 @@ pub fn emit_direct_call(
     let dest = names.temp(dst)?;
     lines.push(format!(
         "  {dest} = call {ret_llvm_ty} {}({joined_args})",
-        llvm_symbol(&callee.name)
+        llvm_function_symbol(&callee.name, &callee.ret_ty)
     ));
     Ok(())
 }
