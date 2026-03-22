@@ -8,7 +8,7 @@ use crate::codegen::llvm::strings::runtime_string_symbol;
 use crate::codegen::llvm::types::llvm_ty;
 use crate::codegen::llvm::value::{ValueNames, operand_load, operand_load_string, raw_string_ptr};
 use crate::ir::{
-    BuiltinCall, ConstValue, IrFunction, IrType, NativeStringBuiltinLowering, NativeStringPlan,
+    BuiltinCall, ConstValue, IrFunction, IrType, LoweredIrFunction, NativeStringBuiltinLowering,
     TempId,
 };
 use std::collections::HashMap;
@@ -26,7 +26,7 @@ pub fn emit_builtin_call(
     call: BuiltinCallInstr<'_>,
     lines: &mut Vec<String>,
     counter: &mut usize,
-    strings: &NativeStringPlan,
+    lowered: &LoweredIrFunction,
     string_literals: &HashMap<String, String>,
 ) -> Result<(), CodegenError> {
     let spec = find_builtin_spec(&call.builtin.package, &call.builtin.name).ok_or_else(|| {
@@ -37,7 +37,7 @@ pub fn emit_builtin_call(
     })?;
 
     if spec.meta.can_const_fold {
-        match strings.builtin_lowering(call.builtin, call.args) {
+        match lowered.builtin_string_lowering(call.builtin, call.args) {
             NativeStringBuiltinLowering::Folded(const_value) => {
                 return emit_const_builtin_result(
                     names,
@@ -64,7 +64,7 @@ pub fn emit_builtin_call(
                 spec.sig.params,
                 lines,
                 counter,
-                strings,
+                lowered,
                 string_literals,
             )
         }
@@ -83,7 +83,7 @@ fn emit_builtin_call_runtime_helper(
     expected: &[crate::types::TypeInfo],
     lines: &mut Vec<String>,
     counter: &mut usize,
-    strings: &NativeStringPlan,
+    lowered: &LoweredIrFunction,
     string_literals: &HashMap<String, String>,
 ) -> Result<(), CodegenError> {
     let expected_ir = expected.iter().map(IrType::from).collect::<Vec<_>>();
@@ -97,7 +97,7 @@ fn emit_builtin_call_runtime_helper(
     let mut lowered_args = Vec::with_capacity(call.args.len());
     for (arg, ty) in call.args.iter().zip(expected_ir.iter()) {
         let value = if *ty == IrType::String {
-            operand_load_string(names, arg, func, lines, counter, strings, string_literals)?
+            operand_load_string(names, arg, func, lines, counter, lowered, string_literals)?
         } else {
             operand_load(names, arg, func, lines, counter, ty, string_literals)?
         };

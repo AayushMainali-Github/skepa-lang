@@ -4,7 +4,7 @@ use crate::codegen::CodegenError;
 use crate::codegen::llvm::strings::runtime_string_symbol;
 use crate::codegen::llvm::types::llvm_ty;
 use crate::ir::{
-    ConstValue, IrFunction, IrType, NativeStringPlan, NativeStringValue, Operand, TempId,
+    ConstValue, IrFunction, IrType, LoweredIrFunction, NativeStringValue, Operand, TempId,
 };
 
 pub struct ValueNames {
@@ -111,10 +111,10 @@ pub fn operand_load_string(
     func: &IrFunction,
     lines: &mut Vec<String>,
     counter: &mut usize,
-    strings: &NativeStringPlan,
+    lowered: &LoweredIrFunction,
     string_literals: &HashMap<String, String>,
 ) -> Result<String, CodegenError> {
-    if let Some(NativeStringValue::Constant(value)) = strings.string_value(operand) {
+    if let Some(NativeStringValue::Constant(value)) = lowered.string_value(operand) {
         let name = string_literals
             .get(&value)
             .ok_or_else(|| CodegenError::InvalidIr("missing string literal declaration".into()))?;

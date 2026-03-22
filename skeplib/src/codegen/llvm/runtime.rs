@@ -5,9 +5,7 @@ use crate::codegen::llvm::runtime_decls::runtime_declarations;
 use crate::codegen::llvm::runtime_indirect;
 use crate::codegen::llvm::value::ValueNames;
 use crate::ir::Instr;
-use crate::ir::{
-    IrFunction, IrProgram, IrType, NativeAggregatePlan, NativeCallPlan, NativeStringPlan, TempId,
-};
+use crate::ir::{IrFunction, IrProgram, IrType, LoweredIrFunction, TempId};
 use std::collections::HashMap;
 
 pub use crate::codegen::llvm::runtime_builtins::BuiltinCallInstr;
@@ -31,10 +29,10 @@ pub fn emit_builtin_call(
     call: BuiltinCallInstr<'_>,
     lines: &mut Vec<String>,
     counter: &mut usize,
-    strings: &NativeStringPlan,
+    lowered: &LoweredIrFunction,
     string_literals: &HashMap<String, String>,
 ) -> Result<(), CodegenError> {
-    runtime_builtins::emit_builtin_call(func, names, call, lines, counter, strings, string_literals)
+    runtime_builtins::emit_builtin_call(func, names, call, lines, counter, lowered, string_literals)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -48,7 +46,7 @@ pub fn emit_indirect_call(
     args: &[crate::ir::Operand],
     lines: &mut Vec<String>,
     counter: &mut usize,
-    calls: &NativeCallPlan,
+    lowered: &LoweredIrFunction,
     string_literals: &HashMap<String, String>,
 ) -> Result<(), CodegenError> {
     runtime_indirect::emit_indirect_call(
@@ -61,7 +59,7 @@ pub fn emit_indirect_call(
         args,
         lines,
         counter,
-        calls,
+        lowered,
         string_literals,
     )
 }
@@ -118,7 +116,7 @@ pub fn emit_make_array_repeat(
 pub fn emit_array_get(
     func: &IrFunction,
     names: &ValueNames,
-    native: &NativeAggregatePlan,
+    lowered: &LoweredIrFunction,
     dst: TempId,
     elem_ty: &IrType,
     array: &crate::ir::Operand,
@@ -130,7 +128,7 @@ pub fn emit_array_get(
     runtime_containers::emit_array_get(
         func,
         names,
-        native,
+        lowered,
         dst,
         elem_ty,
         array,
@@ -145,7 +143,7 @@ pub fn emit_array_get(
 pub fn emit_array_set(
     func: &IrFunction,
     names: &ValueNames,
-    native: &NativeAggregatePlan,
+    lowered: &LoweredIrFunction,
     elem_ty: &IrType,
     array: &crate::ir::Operand,
     index: &crate::ir::Operand,
@@ -157,7 +155,7 @@ pub fn emit_array_set(
     runtime_containers::emit_array_set(
         func,
         names,
-        native,
+        lowered,
         elem_ty,
         array,
         index,
@@ -315,7 +313,7 @@ pub fn emit_make_struct(
 pub fn emit_struct_get(
     func: &IrFunction,
     names: &ValueNames,
-    native: &NativeAggregatePlan,
+    lowered: &LoweredIrFunction,
     dst: TempId,
     ty: &IrType,
     base: &crate::ir::Operand,
@@ -327,7 +325,7 @@ pub fn emit_struct_get(
     runtime_containers::emit_struct_get(
         func,
         names,
-        native,
+        lowered,
         dst,
         ty,
         base,
@@ -342,7 +340,7 @@ pub fn emit_struct_get(
 pub fn emit_struct_set(
     func: &IrFunction,
     names: &ValueNames,
-    native: &NativeAggregatePlan,
+    lowered: &LoweredIrFunction,
     ty: &IrType,
     base: &crate::ir::Operand,
     field: &crate::ir::FieldRef,
@@ -354,7 +352,7 @@ pub fn emit_struct_set(
     runtime_containers::emit_struct_set(
         func,
         names,
-        native,
+        lowered,
         ty,
         base,
         field,

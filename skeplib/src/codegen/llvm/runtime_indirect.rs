@@ -6,7 +6,7 @@ use crate::codegen::llvm::runtime_boxing::{
 };
 use crate::codegen::llvm::types::llvm_ty;
 use crate::codegen::llvm::value::{ValueNames, llvm_function_symbol, operand_load};
-use crate::ir::{IrFunction, IrProgram, IrType, NativeCallLowering, NativeCallPlan, TempId};
+use crate::ir::{IrFunction, IrProgram, IrType, LoweredIrFunction, NativeCallLowering, TempId};
 use std::collections::HashMap;
 
 #[allow(clippy::too_many_arguments)]
@@ -20,10 +20,10 @@ pub fn emit_indirect_call(
     args: &[crate::ir::Operand],
     lines: &mut Vec<String>,
     counter: &mut usize,
-    calls: &NativeCallPlan,
+    lowered: &LoweredIrFunction,
     string_literals: &HashMap<String, String>,
 ) -> Result<(), CodegenError> {
-    match calls.operand_lowering(callee) {
+    match lowered.operand_call_lowering(callee) {
         NativeCallLowering::KnownFunction(function) => {
             return calls::emit_direct_call(
                 program,

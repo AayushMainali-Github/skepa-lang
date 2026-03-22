@@ -33,7 +33,7 @@ pub fn emit_runtime_instr(
                 },
                 lines,
                 counter,
-                &lowered.native_strings,
+                lowered,
                 string_literals,
             )?;
             Ok(true)
@@ -67,7 +67,7 @@ pub fn emit_runtime_instr(
                 args,
                 lines,
                 counter,
-                &lowered.native_calls,
+                lowered,
                 string_literals,
             )?;
             Ok(true)
@@ -117,7 +117,7 @@ pub fn emit_runtime_instr(
             runtime::emit_array_get(
                 func,
                 names,
-                &lowered.native_aggregates,
+                lowered,
                 *dst,
                 elem_ty,
                 array,
@@ -137,7 +137,7 @@ pub fn emit_runtime_instr(
             runtime::emit_array_set(
                 func,
                 names,
-                &lowered.native_aggregates,
+                lowered,
                 elem_ty,
                 array,
                 index,
@@ -253,7 +253,7 @@ pub fn emit_runtime_instr(
             runtime::emit_struct_get(
                 func,
                 names,
-                &lowered.native_aggregates,
+                lowered,
                 *dst,
                 ty,
                 base,
@@ -273,7 +273,7 @@ pub fn emit_runtime_instr(
             runtime::emit_struct_set(
                 func,
                 names,
-                &lowered.native_aggregates,
+                lowered,
                 ty,
                 base,
                 field,

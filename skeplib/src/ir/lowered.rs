@@ -1,6 +1,7 @@
 use crate::ir::{
-    FunctionId, IrFunction, LocalId, NativeAggregatePlan, NativeArrayPlan, NativeCallLowering,
-    NativeCallPlan, NativeStringPlan, NativeStringValue, NativeStructPlan, Operand, TempId,
+    BuiltinCall, FunctionId, IrFunction, LocalId, NativeAggregatePlan, NativeArrayPlan,
+    NativeCallLowering, NativeCallPlan, NativeStringBuiltinLowering, NativeStringPlan,
+    NativeStringValue, NativeStructPlan, Operand, TempId,
 };
 
 #[derive(Debug, Clone)]
@@ -53,6 +54,14 @@ impl LoweredIrFunction {
 
     pub fn string_value(&self, operand: &Operand) -> Option<NativeStringValue> {
         self.native_strings.string_value(operand)
+    }
+
+    pub fn builtin_string_lowering(
+        &self,
+        builtin: &BuiltinCall,
+        args: &[Operand],
+    ) -> NativeStringBuiltinLowering {
+        self.native_strings.builtin_lowering(builtin, args)
     }
 }
 

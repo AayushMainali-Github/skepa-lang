@@ -4,7 +4,7 @@ use crate::codegen::llvm::runtime_boxing::{
 };
 use crate::codegen::llvm::value::{ValueNames, operand_load};
 use crate::ir::{
-    IrFunction, IrProgram, IrType, NativeAggregatePlan, NativeArrayPlan, NativeStructPlan, TempId,
+    IrFunction, IrProgram, IrType, LoweredIrFunction, NativeArrayPlan, NativeStructPlan, TempId,
 };
 use std::collections::HashMap;
 
@@ -60,7 +60,7 @@ pub fn emit_make_array_repeat(
 pub fn emit_array_get(
     func: &IrFunction,
     names: &ValueNames,
-    native: &NativeAggregatePlan,
+    lowered: &LoweredIrFunction,
     dst: TempId,
     elem_ty: &IrType,
     array: &crate::ir::Operand,
@@ -71,7 +71,7 @@ pub fn emit_array_get(
 ) -> Result<(), CodegenError> {
     if *elem_ty == IrType::Int
         && let crate::ir::Operand::Local(local) = array
-        && let Some(NativeArrayPlan::IntRepeat { size, .. }) = native.array_local(*local)
+        && let Some(NativeArrayPlan::IntRepeat { size, .. }) = lowered.array_local(*local)
     {
         let dest = names.temp(dst)?;
         match index {
@@ -157,7 +157,7 @@ pub fn emit_array_get(
         }
     } else if *elem_ty == IrType::String
         && let crate::ir::Operand::Local(local) = array
-        && let Some(NativeArrayPlan::StringItems { size, .. }) = native.array_local(*local)
+        && let Some(NativeArrayPlan::StringItems { size, .. }) = lowered.array_local(*local)
     {
         let dest = names.temp(dst)?;
         match index {
@@ -243,7 +243,7 @@ pub fn emit_array_get(
         }
     } else if *elem_ty == IrType::Float
         && let crate::ir::Operand::Local(local) = array
-        && let Some(NativeArrayPlan::FloatRepeat { size, .. }) = native.array_local(*local)
+        && let Some(NativeArrayPlan::FloatRepeat { size, .. }) = lowered.array_local(*local)
     {
         let dest = names.temp(dst)?;
         match index {
@@ -357,7 +357,7 @@ pub fn emit_array_get(
 pub fn emit_array_set(
     func: &IrFunction,
     names: &ValueNames,
-    native: &NativeAggregatePlan,
+    lowered: &LoweredIrFunction,
     elem_ty: &IrType,
     array: &crate::ir::Operand,
     index: &crate::ir::Operand,
@@ -368,7 +368,7 @@ pub fn emit_array_set(
 ) -> Result<(), CodegenError> {
     if *elem_ty == IrType::Int
         && let crate::ir::Operand::Local(local) = array
-        && let Some(NativeArrayPlan::IntRepeat { size, .. }) = native.array_local(*local)
+        && let Some(NativeArrayPlan::IntRepeat { size, .. }) = lowered.array_local(*local)
     {
         let stored = operand_load(
             names,
@@ -448,7 +448,7 @@ pub fn emit_array_set(
         }
     } else if *elem_ty == IrType::Float
         && let crate::ir::Operand::Local(local) = array
-        && let Some(NativeArrayPlan::FloatRepeat { size, .. }) = native.array_local(*local)
+        && let Some(NativeArrayPlan::FloatRepeat { size, .. }) = lowered.array_local(*local)
     {
         let stored = operand_load(
             names,
@@ -800,7 +800,7 @@ pub fn emit_make_struct(
 pub fn emit_struct_get(
     func: &IrFunction,
     names: &ValueNames,
-    native: &NativeAggregatePlan,
+    lowered: &LoweredIrFunction,
     dst: TempId,
     ty: &IrType,
     base: &crate::ir::Operand,
@@ -811,7 +811,8 @@ pub fn emit_struct_get(
 ) -> Result<(), CodegenError> {
     if *ty == IrType::Int
         && let crate::ir::Operand::Local(local) = base
-        && let Some((root, NativeStructPlan::ScalarFields { .. })) = native.root_struct_plan(*local)
+        && let Some((root, NativeStructPlan::ScalarFields { .. })) =
+            lowered.root_struct_plan(*local)
     {
         let slot = format!("%v{counter}");
         *counter += 1;
@@ -846,7 +847,7 @@ pub fn emit_struct_get(
 pub fn emit_struct_set(
     func: &IrFunction,
     names: &ValueNames,
-    native: &NativeAggregatePlan,
+    lowered: &LoweredIrFunction,
     ty: &IrType,
     base: &crate::ir::Operand,
     field: &crate::ir::FieldRef,
@@ -858,7 +859,7 @@ pub fn emit_struct_set(
     if *ty == IrType::Int
         && let crate::ir::Operand::Local(local) = base
         && let Some((root, NativeStructPlan::ScalarFields { fields })) =
-            native.root_struct_plan(*local)
+            lowered.root_struct_plan(*local)
         && field.index < fields.len()
     {
         let stored = operand_load(
