@@ -3,7 +3,7 @@ use crate::codegen::llvm::runtime_boxing::{
     emit_abort_if_error, emit_boxed_operand, emit_unbox_value, infer_operand_type,
 };
 use crate::codegen::llvm::value::{ValueNames, operand_load};
-use crate::ir::{IrFunction, IrProgram, IrType, NativeLocalKind, NativeabilityAnalysis, TempId};
+use crate::ir::{IrFunction, IrProgram, IrType, NativeAggregatePlan, NativeLocalKind, TempId};
 use std::collections::HashMap;
 
 #[allow(clippy::too_many_arguments)]
@@ -58,7 +58,7 @@ pub fn emit_make_array_repeat(
 pub fn emit_array_get(
     func: &IrFunction,
     names: &ValueNames,
-    native: &NativeabilityAnalysis,
+    native: &NativeAggregatePlan,
     dst: TempId,
     elem_ty: &IrType,
     array: &crate::ir::Operand,
@@ -355,7 +355,7 @@ pub fn emit_array_get(
 pub fn emit_array_set(
     func: &IrFunction,
     names: &ValueNames,
-    native: &NativeabilityAnalysis,
+    native: &NativeAggregatePlan,
     elem_ty: &IrType,
     array: &crate::ir::Operand,
     index: &crate::ir::Operand,
@@ -798,7 +798,7 @@ pub fn emit_make_struct(
 pub fn emit_struct_get(
     func: &IrFunction,
     names: &ValueNames,
-    native: &NativeabilityAnalysis,
+    native: &NativeAggregatePlan,
     dst: TempId,
     ty: &IrType,
     base: &crate::ir::Operand,
@@ -844,7 +844,7 @@ pub fn emit_struct_get(
 pub fn emit_struct_set(
     func: &IrFunction,
     names: &ValueNames,
-    _native: &NativeabilityAnalysis,
+    _native: &NativeAggregatePlan,
     ty: &IrType,
     base: &crate::ir::Operand,
     field: &crate::ir::FieldRef,

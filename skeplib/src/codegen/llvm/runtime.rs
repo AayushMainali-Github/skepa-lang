@@ -5,7 +5,7 @@ use crate::codegen::llvm::runtime_decls::runtime_declarations;
 use crate::codegen::llvm::runtime_indirect;
 use crate::codegen::llvm::value::ValueNames;
 use crate::ir::Instr;
-use crate::ir::{IrFunction, IrProgram, IrType, NativeabilityAnalysis, TempId};
+use crate::ir::{IrFunction, IrProgram, IrType, NativeAggregatePlan, TempId};
 use std::collections::HashMap;
 
 pub use crate::codegen::llvm::runtime_builtins::BuiltinCallInstr;
@@ -111,7 +111,7 @@ pub fn emit_make_array_repeat(
 pub fn emit_array_get(
     func: &IrFunction,
     names: &ValueNames,
-    native: &NativeabilityAnalysis,
+    native: &NativeAggregatePlan,
     dst: TempId,
     elem_ty: &IrType,
     array: &crate::ir::Operand,
@@ -138,7 +138,7 @@ pub fn emit_array_get(
 pub fn emit_array_set(
     func: &IrFunction,
     names: &ValueNames,
-    native: &NativeabilityAnalysis,
+    native: &NativeAggregatePlan,
     elem_ty: &IrType,
     array: &crate::ir::Operand,
     index: &crate::ir::Operand,
@@ -308,7 +308,7 @@ pub fn emit_make_struct(
 pub fn emit_struct_get(
     func: &IrFunction,
     names: &ValueNames,
-    native: &NativeabilityAnalysis,
+    native: &NativeAggregatePlan,
     dst: TempId,
     ty: &IrType,
     base: &crate::ir::Operand,
@@ -335,7 +335,7 @@ pub fn emit_struct_get(
 pub fn emit_struct_set(
     func: &IrFunction,
     names: &ValueNames,
-    native: &NativeabilityAnalysis,
+    native: &NativeAggregatePlan,
     ty: &IrType,
     base: &crate::ir::Operand,
     field: &crate::ir::FieldRef,

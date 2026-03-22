@@ -3,6 +3,7 @@ mod builder;
 mod instr;
 mod interp;
 pub mod lowering;
+mod native_aggregates;
 mod nativeability;
 pub mod opt;
 mod pretty;
@@ -17,6 +18,7 @@ pub use instr::{
     BinaryOp, BranchTerminator, BuiltinCall, CmpOp, FieldRef, Instr, LogicOp, Terminator, UnaryOp,
 };
 pub use interp::{IrInterpError, IrInterpreter};
+pub use native_aggregates::NativeAggregatePlan;
 pub use nativeability::{NativeLocalKind, NativeabilityAnalysis};
 pub use pretty::PrettyIr;
 pub use program::{

@@ -2,7 +2,7 @@ use crate::codegen::CodegenError;
 use crate::codegen::llvm::calls::{self, DirectCall};
 use crate::codegen::llvm::types::llvm_ty;
 use crate::codegen::llvm::value::{ValueNames, operand_load};
-use crate::ir::{Instr, IrFunction, IrProgram, NativeLocalKind, NativeabilityAnalysis};
+use crate::ir::{Instr, IrFunction, IrProgram, NativeAggregatePlan, NativeLocalKind};
 use std::collections::HashMap;
 
 #[allow(clippy::too_many_arguments)]
@@ -10,7 +10,7 @@ pub fn emit_core_instr(
     program: &IrProgram,
     func: &IrFunction,
     names: &ValueNames,
-    native: &NativeabilityAnalysis,
+    native: &NativeAggregatePlan,
     instr: &Instr,
     lines: &mut Vec<String>,
     counter: &mut usize,

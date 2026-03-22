@@ -2,7 +2,7 @@ use crate::codegen::CodegenError;
 use crate::codegen::llvm::block::{ensure_terminator, label};
 use crate::codegen::llvm::types::llvm_ty;
 use crate::codegen::llvm::value::{ValueNames, llvm_function_symbol};
-use crate::ir::{BasicBlock, IrFunction, NativeLocalKind, NativeabilityAnalysis};
+use crate::ir::{BasicBlock, IrFunction, NativeAggregatePlan, NativeLocalKind};
 
 pub fn validate_function_layout(func: &IrFunction) -> Result<(), CodegenError> {
     if func.locals.len() < func.params.len() {
@@ -40,7 +40,7 @@ pub fn begin_block(
     func: &IrFunction,
     block: &BasicBlock,
     idx: usize,
-    native: &NativeabilityAnalysis,
+    native: &NativeAggregatePlan,
     lines: &mut Vec<String>,
 ) -> Result<(), CodegenError> {
     ensure_terminator(&block.terminator)?;
