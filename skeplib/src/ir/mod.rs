@@ -2,6 +2,7 @@ mod block;
 mod builder;
 mod instr;
 mod interp;
+mod lowered;
 pub mod lowering;
 mod native_aggregates;
 mod native_calls;
@@ -20,6 +21,7 @@ pub use instr::{
     BinaryOp, BranchTerminator, BuiltinCall, CmpOp, FieldRef, Instr, LogicOp, Terminator, UnaryOp,
 };
 pub use interp::{IrInterpError, IrInterpreter};
+pub use lowered::LoweredIrFunction;
 pub use native_aggregates::{NativeAggregatePlan, NativeArrayPlan, NativeStructPlan};
 pub use native_calls::{NativeCallLowering, NativeCallPlan};
 pub use native_strings::{

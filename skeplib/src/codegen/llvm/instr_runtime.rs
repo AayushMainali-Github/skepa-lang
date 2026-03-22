@@ -1,10 +1,7 @@
 use crate::codegen::CodegenError;
 use crate::codegen::llvm::runtime;
 use crate::codegen::llvm::value::ValueNames;
-use crate::ir::{
-    Instr, IrFunction, IrProgram, NativeAggregatePlan, NativeCallLowering, NativeCallPlan,
-    NativeStringPlan,
-};
+use crate::ir::{Instr, IrFunction, IrProgram, LoweredIrFunction, NativeCallLowering};
 use std::collections::HashMap;
 
 #[allow(clippy::too_many_arguments)]
@@ -12,9 +9,7 @@ pub fn emit_runtime_instr(
     program: &IrProgram,
     func: &IrFunction,
     names: &ValueNames,
-    native: &NativeAggregatePlan,
-    calls: &NativeCallPlan,
-    strings: &NativeStringPlan,
+    lowered: &LoweredIrFunction,
     instr: &Instr,
     lines: &mut Vec<String>,
     counter: &mut usize,
@@ -38,14 +33,14 @@ pub fn emit_runtime_instr(
                 },
                 lines,
                 counter,
-                strings,
+                &lowered.native_strings,
                 string_literals,
             )?;
             Ok(true)
         }
         Instr::MakeClosure { dst, function } => {
             let dest = names.temp(*dst)?;
-            match calls.temp_lowering(*dst) {
+            match lowered.native_calls.temp_lowering(*dst) {
                 NativeCallLowering::KnownFunction(known) => {
                     debug_assert_eq!(known, *function);
                     lines.push(format!("  {dest} = add i32 0, {}", known.0));
@@ -72,7 +67,7 @@ pub fn emit_runtime_instr(
                 args,
                 lines,
                 counter,
-                calls,
+                &lowered.native_calls,
                 string_literals,
             )?;
             Ok(true)
@@ -122,7 +117,7 @@ pub fn emit_runtime_instr(
             runtime::emit_array_get(
                 func,
                 names,
-                native,
+                &lowered.native_aggregates,
                 *dst,
                 elem_ty,
                 array,
@@ -142,7 +137,7 @@ pub fn emit_runtime_instr(
             runtime::emit_array_set(
                 func,
                 names,
-                native,
+                &lowered.native_aggregates,
                 elem_ty,
                 array,
                 index,
@@ -258,7 +253,7 @@ pub fn emit_runtime_instr(
             runtime::emit_struct_get(
                 func,
                 names,
-                native,
+                &lowered.native_aggregates,
                 *dst,
                 ty,
                 base,
@@ -278,7 +273,7 @@ pub fn emit_runtime_instr(
             runtime::emit_struct_set(
                 func,
                 names,
-                native,
+                &lowered.native_aggregates,
                 ty,
                 base,
                 field,
