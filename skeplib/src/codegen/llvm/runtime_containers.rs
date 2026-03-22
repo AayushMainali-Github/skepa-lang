@@ -3,7 +3,7 @@ use crate::codegen::llvm::runtime_boxing::{
     emit_abort_if_error, emit_boxed_operand, emit_unbox_value, infer_operand_type,
 };
 use crate::codegen::llvm::value::{ValueNames, operand_load};
-use crate::ir::{IrFunction, IrProgram, IrType, NativeAggregatePlan, NativeLocalKind, TempId};
+use crate::ir::{IrFunction, IrProgram, IrType, NativeAggregatePlan, NativeArrayPlan, TempId};
 use std::collections::HashMap;
 
 #[allow(clippy::too_many_arguments)]
@@ -69,12 +69,12 @@ pub fn emit_array_get(
 ) -> Result<(), CodegenError> {
     if *elem_ty == IrType::Int
         && let crate::ir::Operand::Local(local) = array
-        && let Some(NativeLocalKind::IntArray { size, .. }) = native.local(*local)
+        && let Some(NativeArrayPlan::IntRepeat { size, .. }) = native.array_local(*local)
     {
         let dest = names.temp(dst)?;
         match index {
             crate::ir::Operand::Const(crate::ir::ConstValue::Int(idx))
-                if *idx >= 0 && (*idx as usize) < *size =>
+                if *idx >= 0 && (*idx as usize) < size =>
             {
                 lines.push(format!(
                     "  {dest} = load i64, ptr %local{}_elem{}, align 8",
@@ -102,7 +102,7 @@ pub fn emit_array_get(
                 lines.push(format!("  br label %{dispatch}"));
                 lines.push(format!("{dispatch}:"));
                 lines.push(format!("  switch i64 {idx}, label %{oob} ["));
-                for slot in 0..*size {
+                for slot in 0..size {
                     lines.push(format!(
                         "    i64 {slot}, label %array_get_case_{counter}_{slot}"
                     ));
@@ -110,7 +110,7 @@ pub fn emit_array_get(
                 lines.push("  ]".into());
                 let case_tag = *counter;
                 *counter += 1;
-                for slot in 0..*size {
+                for slot in 0..size {
                     let case_label = format!("array_get_case_{case_tag}_{slot}");
                     let value = format!("%v{counter}");
                     *counter += 1;
@@ -155,12 +155,12 @@ pub fn emit_array_get(
         }
     } else if *elem_ty == IrType::String
         && let crate::ir::Operand::Local(local) = array
-        && let Some(NativeLocalKind::StringArray { size, .. }) = native.local(*local)
+        && let Some(NativeArrayPlan::StringItems { size, .. }) = native.array_local(*local)
     {
         let dest = names.temp(dst)?;
         match index {
             crate::ir::Operand::Const(crate::ir::ConstValue::Int(idx))
-                if *idx >= 0 && (*idx as usize) < *size =>
+                if *idx >= 0 && (*idx as usize) < size =>
             {
                 lines.push(format!(
                     "  {dest} = load ptr, ptr %local{}_elem{}, align 8",
@@ -188,7 +188,7 @@ pub fn emit_array_get(
                 lines.push(format!("  br label %{dispatch}"));
                 lines.push(format!("{dispatch}:"));
                 lines.push(format!("  switch i64 {idx}, label %{oob} ["));
-                for slot in 0..*size {
+                for slot in 0..size {
                     lines.push(format!(
                         "    i64 {slot}, label %array_get_case_{counter}_{slot}"
                     ));
@@ -196,7 +196,7 @@ pub fn emit_array_get(
                 lines.push("  ]".into());
                 let case_tag = *counter;
                 *counter += 1;
-                for slot in 0..*size {
+                for slot in 0..size {
                     let case_label = format!("array_get_case_{case_tag}_{slot}");
                     let value = format!("%v{counter}");
                     *counter += 1;
@@ -241,12 +241,12 @@ pub fn emit_array_get(
         }
     } else if *elem_ty == IrType::Float
         && let crate::ir::Operand::Local(local) = array
-        && let Some(NativeLocalKind::FloatArray { size, .. }) = native.local(*local)
+        && let Some(NativeArrayPlan::FloatRepeat { size, .. }) = native.array_local(*local)
     {
         let dest = names.temp(dst)?;
         match index {
             crate::ir::Operand::Const(crate::ir::ConstValue::Int(idx))
-                if *idx >= 0 && (*idx as usize) < *size =>
+                if *idx >= 0 && (*idx as usize) < size =>
             {
                 let ptr = format!("%v{counter}");
                 *counter += 1;
@@ -366,7 +366,7 @@ pub fn emit_array_set(
 ) -> Result<(), CodegenError> {
     if *elem_ty == IrType::Int
         && let crate::ir::Operand::Local(local) = array
-        && let Some(NativeLocalKind::IntArray { size, .. }) = native.local(*local)
+        && let Some(NativeArrayPlan::IntRepeat { size, .. }) = native.array_local(*local)
     {
         let stored = operand_load(
             names,
@@ -379,7 +379,7 @@ pub fn emit_array_set(
         )?;
         match index {
             crate::ir::Operand::Const(crate::ir::ConstValue::Int(idx))
-                if *idx >= 0 && (*idx as usize) < *size =>
+                if *idx >= 0 && (*idx as usize) < size =>
             {
                 lines.push(format!(
                     "  store i64 {stored}, ptr %local{}_elem{}, align 8",
@@ -406,7 +406,7 @@ pub fn emit_array_set(
                 lines.push(format!("  br label %{dispatch}"));
                 lines.push(format!("{dispatch}:"));
                 lines.push(format!("  switch i64 {idx}, label %{oob} ["));
-                for slot in 0..*size {
+                for slot in 0..size {
                     lines.push(format!(
                         "    i64 {slot}, label %array_set_case_{counter}_{slot}"
                     ));
@@ -414,7 +414,7 @@ pub fn emit_array_set(
                 lines.push("  ]".into());
                 let case_tag = *counter;
                 *counter += 1;
-                for slot in 0..*size {
+                for slot in 0..size {
                     let case_label = format!("array_set_case_{case_tag}_{slot}");
                     lines.push(format!("{case_label}:"));
                     lines.push(format!(
@@ -446,7 +446,7 @@ pub fn emit_array_set(
         }
     } else if *elem_ty == IrType::Float
         && let crate::ir::Operand::Local(local) = array
-        && let Some(NativeLocalKind::FloatArray { size, .. }) = native.local(*local)
+        && let Some(NativeArrayPlan::FloatRepeat { size, .. }) = native.array_local(*local)
     {
         let stored = operand_load(
             names,
@@ -459,7 +459,7 @@ pub fn emit_array_set(
         )?;
         match index {
             crate::ir::Operand::Const(crate::ir::ConstValue::Int(idx))
-                if *idx >= 0 && (*idx as usize) < *size =>
+                if *idx >= 0 && (*idx as usize) < size =>
             {
                 let ptr = format!("%v{counter}");
                 *counter += 1;
