@@ -1,5 +1,6 @@
 use crate::codegen::CodegenError;
 use crate::codegen::llvm::block::{ensure_terminator, label};
+use crate::codegen::llvm::special_locals::{SpecialLocalKind, SpecialLocals};
 use crate::codegen::llvm::types::llvm_ty;
 use crate::codegen::llvm::value::{ValueNames, llvm_symbol};
 use crate::ir::{BasicBlock, IrFunction};
@@ -40,6 +41,7 @@ pub fn begin_block(
     func: &IrFunction,
     block: &BasicBlock,
     idx: usize,
+    special: &SpecialLocals,
     lines: &mut Vec<String>,
 ) -> Result<(), CodegenError> {
     ensure_terminator(&block.terminator)?;
@@ -51,6 +53,14 @@ pub fn begin_block(
                 local.id.0,
                 llvm_ty(&local.ty)?
             ));
+            if let Some(SpecialLocalKind::ScalarStruct { fields }) = special.local(local.id) {
+                for (index, _) in fields.iter().enumerate() {
+                    lines.push(format!(
+                        "  %local{}_field{} = alloca i64, align 8",
+                        local.id.0, index
+                    ));
+                }
+            }
         }
         for (param, local) in func.params.iter().zip(func.locals.iter()) {
             lines.push(format!(

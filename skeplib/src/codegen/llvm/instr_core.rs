@@ -1,5 +1,6 @@
 use crate::codegen::CodegenError;
 use crate::codegen::llvm::calls::{self, DirectCall};
+use crate::codegen::llvm::special_locals::{SpecialLocalKind, SpecialLocals};
 use crate::codegen::llvm::types::llvm_ty;
 use crate::codegen::llvm::value::{ValueNames, operand_load};
 use crate::ir::{Instr, IrFunction, IrProgram};
@@ -10,6 +11,7 @@ pub fn emit_core_instr(
     program: &IrProgram,
     func: &IrFunction,
     names: &ValueNames,
+    special: &SpecialLocals,
     instr: &Instr,
     lines: &mut Vec<String>,
     counter: &mut usize,
@@ -44,6 +46,37 @@ pub fn emit_core_instr(
             Ok(true)
         }
         Instr::StoreLocal { local, ty, value } => {
+            if let Some(kind) = special.local(*local) {
+                match kind {
+                    SpecialLocalKind::ScalarStruct { fields } => {
+                        if matches!(value, crate::ir::Operand::Temp(temp) if special.temp_root(*temp) == Some(*local))
+                        {
+                            for (index, field) in fields.iter().enumerate() {
+                                let loaded = operand_load(
+                                    names,
+                                    field,
+                                    func,
+                                    lines,
+                                    counter,
+                                    &crate::ir::IrType::Int,
+                                    string_literals,
+                                )?;
+                                lines.push(format!(
+                                    "  store i64 {loaded}, ptr %local{}_field{}, align 8",
+                                    local.0, index
+                                ));
+                            }
+                            return Ok(true);
+                        }
+                    }
+                    SpecialLocalKind::StructAlias { root } => {
+                        if matches!(value, crate::ir::Operand::Local(src) if special.root_struct_local(*src) == Some(*root))
+                        {
+                            return Ok(true);
+                        }
+                    }
+                }
+            }
             let value = operand_load(names, value, func, lines, counter, ty, string_literals)?;
             lines.push(format!(
                 "  store {} {value}, ptr %local{}, align 8",

@@ -112,10 +112,7 @@ impl RtString {
                 base: base.clone(),
                 range,
             },
-            RtStringRepr::AsciiSlice {
-                base,
-                range: outer,
-            } => RtStringRepr::AsciiSlice {
+            RtStringRepr::AsciiSlice { base, range: outer } => RtStringRepr::AsciiSlice {
                 base: base.clone(),
                 range: (outer.start + range.start)..(outer.start + range.end),
             },

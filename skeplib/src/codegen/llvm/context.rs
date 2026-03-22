@@ -6,6 +6,7 @@ use crate::codegen::llvm::instr_runtime;
 use crate::codegen::llvm::instr_scalar;
 use crate::codegen::llvm::module;
 use crate::codegen::llvm::runtime;
+use crate::codegen::llvm::special_locals::SpecialLocals;
 use crate::codegen::llvm::strings::collect_string_literals;
 use crate::codegen::llvm::terminator;
 use crate::codegen::llvm::value::{ValueNames, llvm_symbol};
@@ -65,15 +66,16 @@ impl<'a> LlvmEmitter<'a> {
     fn emit_function(&self, func: &IrFunction) -> Result<Vec<String>, CodegenError> {
         function::validate_function_layout(func)?;
         let names = function::value_names(func);
+        let special = SpecialLocals::analyze(func);
         let mut lines = function::emit_function_header(func)?;
 
         let mut counter = 0usize;
         for (idx, block) in func.blocks.iter().enumerate() {
-            function::begin_block(func, block, idx, &mut lines)?;
+            function::begin_block(func, block, idx, &special, &mut lines)?;
             for instr in &block.instrs {
                 calls::ensure_supported(instr)?;
                 runtime::ensure_supported(instr)?;
-                self.emit_instr(func, &names, instr, &mut lines, &mut counter)?;
+                self.emit_instr(func, &names, &special, instr, &mut lines, &mut counter)?;
             }
             terminator::emit_terminator(
                 func,
@@ -93,6 +95,7 @@ impl<'a> LlvmEmitter<'a> {
         &self,
         func: &IrFunction,
         names: &ValueNames,
+        special: &SpecialLocals,
         instr: &Instr,
         lines: &mut Vec<String>,
         counter: &mut usize,
@@ -112,6 +115,7 @@ impl<'a> LlvmEmitter<'a> {
             self.program,
             func,
             names,
+            special,
             instr,
             lines,
             counter,
@@ -123,6 +127,7 @@ impl<'a> LlvmEmitter<'a> {
             self.program,
             func,
             names,
+            special,
             instr,
             lines,
             counter,

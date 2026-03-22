@@ -39,6 +39,18 @@ fn assemble_llvm_ir(llvm_ir: &str, label: &str) {
     );
 }
 
+fn llvm_function_body<'a>(llvm_ir: &'a str, name: &str) -> &'a str {
+    let marker = format!("define i64 @\"{name}\"");
+    let start = llvm_ir
+        .find(&marker)
+        .unwrap_or_else(|| panic!("missing function {name} in llvm ir"));
+    let body = &llvm_ir[start..];
+    let end = body
+        .find("\n}\n")
+        .unwrap_or_else(|| panic!("missing end for function {name}"));
+    &body[..end]
+}
+
 #[test]
 fn llvm_codegen_emits_valid_int_only_module() {
     let source = r#"
@@ -253,6 +265,49 @@ fn main() -> Int {
     assert!(llvm_ir.contains("define i64 @\"Pair::mix\"(ptr %arg0, i64 %arg1)"));
 
     assemble_llvm_ir(&llvm_ir, "struct_runtime");
+}
+
+#[test]
+fn llvm_codegen_scalarizes_benchmark_shaped_local_struct_field_reads() {
+    let source = r#"
+struct Pair {
+  a: Int,
+  b: Int
+}
+
+impl Pair {
+  fn mix(self, x: Int) -> Int {
+    return ((self.a + x) * 3 + self.b) % 1000000007;
+  }
+}
+
+fn main() -> Int {
+  let p = Pair { a: 11, b: 7 };
+  let i = 0;
+  let total = 0;
+  while (i < 10) {
+    total = total + p.mix(i % 13);
+    i = i + 1;
+  }
+  if (total > 0) {
+    return 0;
+  }
+  return 1;
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let llvm_ir =
+        codegen::compile_program_to_llvm_ir(&program).expect("LLVM lowering should succeed");
+
+    let main_body = llvm_function_body(&llvm_ir, "main");
+    assert!(main_body.contains("%local0_field0 = alloca i64"));
+    assert!(main_body.contains("%local0_field1 = alloca i64"));
+    assert!(main_body.contains("load i64, ptr %local0_field0"));
+    assert!(main_body.contains("load i64, ptr %local0_field1"));
+    assert!(!main_body.contains("@skp_rt_struct_get"));
+
+    assemble_llvm_ir(&llvm_ir, "struct_scalarized");
 }
 
 #[test]

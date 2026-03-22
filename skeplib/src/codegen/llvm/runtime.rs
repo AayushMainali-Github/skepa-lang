@@ -3,6 +3,7 @@ use crate::codegen::llvm::runtime_builtins;
 use crate::codegen::llvm::runtime_containers;
 use crate::codegen::llvm::runtime_decls::runtime_declarations;
 use crate::codegen::llvm::runtime_indirect;
+use crate::codegen::llvm::special_locals::SpecialLocals;
 use crate::codegen::llvm::value::ValueNames;
 use crate::ir::Instr;
 use crate::ir::{IrFunction, IrProgram, IrType, TempId};
@@ -111,6 +112,7 @@ pub fn emit_make_array_repeat(
 pub fn emit_array_get(
     func: &IrFunction,
     names: &ValueNames,
+    special: &SpecialLocals,
     dst: TempId,
     elem_ty: &IrType,
     array: &crate::ir::Operand,
@@ -122,6 +124,7 @@ pub fn emit_array_get(
     runtime_containers::emit_array_get(
         func,
         names,
+        special,
         dst,
         elem_ty,
         array,
@@ -136,6 +139,7 @@ pub fn emit_array_get(
 pub fn emit_array_set(
     func: &IrFunction,
     names: &ValueNames,
+    special: &SpecialLocals,
     elem_ty: &IrType,
     array: &crate::ir::Operand,
     index: &crate::ir::Operand,
@@ -147,6 +151,7 @@ pub fn emit_array_set(
     runtime_containers::emit_array_set(
         func,
         names,
+        special,
         elem_ty,
         array,
         index,
@@ -304,6 +309,7 @@ pub fn emit_make_struct(
 pub fn emit_struct_get(
     func: &IrFunction,
     names: &ValueNames,
+    special: &SpecialLocals,
     dst: TempId,
     ty: &IrType,
     base: &crate::ir::Operand,
@@ -315,6 +321,7 @@ pub fn emit_struct_get(
     runtime_containers::emit_struct_get(
         func,
         names,
+        special,
         dst,
         ty,
         base,
@@ -329,6 +336,7 @@ pub fn emit_struct_get(
 pub fn emit_struct_set(
     func: &IrFunction,
     names: &ValueNames,
+    special: &SpecialLocals,
     ty: &IrType,
     base: &crate::ir::Operand,
     field: &crate::ir::FieldRef,
@@ -340,6 +348,7 @@ pub fn emit_struct_set(
     runtime_containers::emit_struct_set(
         func,
         names,
+        special,
         ty,
         base,
         field,

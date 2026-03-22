@@ -13,6 +13,7 @@ mod runtime_builtins;
 mod runtime_containers;
 mod runtime_decls;
 mod runtime_indirect;
+mod special_locals;
 mod strings;
 mod terminator;
 mod types;

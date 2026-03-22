@@ -2,8 +2,8 @@ use std::slice;
 
 use crate::array::RtArray;
 use crate::ffi_support::{
-    boxed_array, boxed_string, boxed_struct, boxed_value, boxed_vec, clear_last_error,
-    clone_value, ffi_try, invalid_argument, set_last_error,
+    boxed_array, boxed_string, boxed_struct, boxed_value, boxed_vec, clear_last_error, clone_value,
+    ffi_try, invalid_argument, set_last_error,
 };
 use crate::string::RtString;
 use crate::value::{RtFunctionRef, RtStruct, RtValue};

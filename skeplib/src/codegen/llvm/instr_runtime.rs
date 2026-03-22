@@ -1,5 +1,6 @@
 use crate::codegen::CodegenError;
 use crate::codegen::llvm::runtime;
+use crate::codegen::llvm::special_locals::SpecialLocals;
 use crate::codegen::llvm::value::ValueNames;
 use crate::ir::{Instr, IrFunction, IrProgram};
 use std::collections::HashMap;
@@ -9,6 +10,7 @@ pub fn emit_runtime_instr(
     program: &IrProgram,
     func: &IrFunction,
     names: &ValueNames,
+    special: &SpecialLocals,
     instr: &Instr,
     lines: &mut Vec<String>,
     counter: &mut usize,
@@ -105,6 +107,7 @@ pub fn emit_runtime_instr(
             runtime::emit_array_get(
                 func,
                 names,
+                special,
                 *dst,
                 elem_ty,
                 array,
@@ -124,6 +127,7 @@ pub fn emit_runtime_instr(
             runtime::emit_array_set(
                 func,
                 names,
+                special,
                 elem_ty,
                 array,
                 index,
@@ -239,6 +243,7 @@ pub fn emit_runtime_instr(
             runtime::emit_struct_get(
                 func,
                 names,
+                special,
                 *dst,
                 ty,
                 base,
@@ -258,6 +263,7 @@ pub fn emit_runtime_instr(
             runtime::emit_struct_set(
                 func,
                 names,
+                special,
                 ty,
                 base,
                 field,
