@@ -43,9 +43,9 @@ pub fn emit_builtin_call(
 
     match spec.meta.lowering {
         BuiltinLowering::RuntimeCall => {
-            let helper = builtin_runtime_helper(spec.sig.package, spec.sig.name).ok_or(
-                CodegenError::Unsupported("runtime-call builtin is missing a helper mapping"),
-            )?;
+            let helper = spec.meta.runtime_helper.ok_or(CodegenError::Unsupported(
+                "runtime-call builtin is missing a helper mapping",
+            ))?;
             emit_builtin_call_runtime_helper(
                 func,
                 names,
@@ -182,14 +182,4 @@ fn emit_builtin_call_generic(
     emit_unbox_value(names, dst, call.ret_ty, &raw, lines)?;
     emit_free_boxed_value(&raw, lines);
     Ok(())
-}
-
-fn builtin_runtime_helper(package: &str, name: &str) -> Option<&'static str> {
-    match (package, name) {
-        ("str", "len") => Some("skp_rt_builtin_str_len"),
-        ("str", "contains") => Some("skp_rt_builtin_str_contains"),
-        ("str", "indexOf") => Some("skp_rt_builtin_str_index_of"),
-        ("str", "slice") => Some("skp_rt_builtin_str_slice"),
-        _ => None,
-    }
 }

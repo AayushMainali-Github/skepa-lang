@@ -34,6 +34,7 @@ pub struct BuiltinMeta {
     pub purity: BuiltinPurity,
     pub lowering: BuiltinLowering,
     pub can_const_fold: bool,
+    pub runtime_helper: Option<&'static str>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -123,16 +124,25 @@ fn builtin_meta(package: &str, name: &str) -> BuiltinMeta {
                     | "replace"
                     | "repeat"
             ),
+            runtime_helper: match name {
+                "len" => Some("skp_rt_builtin_str_len"),
+                "contains" => Some("skp_rt_builtin_str_contains"),
+                "indexOf" => Some("skp_rt_builtin_str_index_of"),
+                "slice" => Some("skp_rt_builtin_str_slice"),
+                _ => None,
+            },
         },
         ("arr", _) => BuiltinMeta {
             purity: BuiltinPurity::Pure,
             lowering: BuiltinLowering::TypeDirected,
             can_const_fold: false,
+            runtime_helper: None,
         },
         ("io", "format") => BuiltinMeta {
             purity: BuiltinPurity::Pure,
             lowering: BuiltinLowering::GenericDispatch,
             can_const_fold: false,
+            runtime_helper: None,
         },
         ("io", "print")
         | ("io", "println")
@@ -145,21 +155,25 @@ fn builtin_meta(package: &str, name: &str) -> BuiltinMeta {
             purity: BuiltinPurity::HostEffectful,
             lowering: BuiltinLowering::GenericDispatch,
             can_const_fold: false,
+            runtime_helper: None,
         },
         ("datetime", "nowUnix") | ("datetime", "nowMillis") => BuiltinMeta {
             purity: BuiltinPurity::HostStateful,
             lowering: BuiltinLowering::GenericDispatch,
             can_const_fold: false,
+            runtime_helper: None,
         },
         ("datetime", _) | ("fs", _) | ("os", _) | ("random", _) => BuiltinMeta {
             purity: BuiltinPurity::HostEffectful,
             lowering: BuiltinLowering::GenericDispatch,
             can_const_fold: false,
+            runtime_helper: None,
         },
         _ => BuiltinMeta {
             purity: BuiltinPurity::HostEffectful,
             lowering: BuiltinLowering::GenericDispatch,
             can_const_fold: false,
+            runtime_helper: None,
         },
     }
 }
@@ -178,6 +192,7 @@ mod tests {
         assert_eq!(spec.meta.purity, BuiltinPurity::Pure);
         assert_eq!(spec.meta.lowering, BuiltinLowering::RuntimeCall);
         assert!(spec.meta.can_const_fold);
+        assert_eq!(spec.meta.runtime_helper, Some("skp_rt_builtin_str_slice"));
     }
 
     #[test]
