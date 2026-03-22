@@ -87,7 +87,7 @@ impl<'a> LlvmEmitter<'a> {
 
         let mut counter = 0usize;
         for (idx, block) in func.blocks.iter().enumerate() {
-            function::begin_block(func, block, idx, &lowered.native_aggregates, &mut lines)?;
+            function::begin_block(func, block, idx, &lowered, &mut lines)?;
             for instr in &block.instrs {
                 calls::ensure_supported(instr)?;
                 runtime::ensure_supported(instr)?;
@@ -132,7 +132,7 @@ impl<'a> LlvmEmitter<'a> {
             self.program,
             func,
             names,
-            &lowered.native_aggregates,
+            lowered,
             instr,
             lines,
             counter,

@@ -2,7 +2,7 @@ use crate::codegen::CodegenError;
 use crate::codegen::llvm::block::{ensure_terminator, label};
 use crate::codegen::llvm::types::llvm_ty;
 use crate::codegen::llvm::value::{ValueNames, llvm_function_symbol};
-use crate::ir::{BasicBlock, IrFunction, NativeAggregatePlan, NativeArrayPlan, NativeStructPlan};
+use crate::ir::{BasicBlock, IrFunction, LoweredIrFunction, NativeArrayPlan, NativeStructPlan};
 
 pub fn validate_function_layout(func: &IrFunction) -> Result<(), CodegenError> {
     if func.locals.len() < func.params.len() {
@@ -40,7 +40,7 @@ pub fn begin_block(
     func: &IrFunction,
     block: &BasicBlock,
     idx: usize,
-    native: &NativeAggregatePlan,
+    lowered: &LoweredIrFunction,
     lines: &mut Vec<String>,
 ) -> Result<(), CodegenError> {
     ensure_terminator(&block.terminator)?;
@@ -52,7 +52,8 @@ pub fn begin_block(
                 local.id.0,
                 llvm_ty(&local.ty)?
             ));
-            if let Some(NativeStructPlan::ScalarFields { fields }) = native.struct_local(local.id) {
+            if let Some(NativeStructPlan::ScalarFields { fields }) = lowered.struct_local(local.id)
+            {
                 for (index, _) in fields.iter().enumerate() {
                     lines.push(format!(
                         "  %local{}_field{} = alloca i64, align 8",
@@ -60,7 +61,7 @@ pub fn begin_block(
                     ));
                 }
             } else if let Some(NativeArrayPlan::IntRepeat { size, .. }) =
-                native.array_local(local.id)
+                lowered.array_local(local.id)
             {
                 for index in 0..size {
                     lines.push(format!(
@@ -69,14 +70,14 @@ pub fn begin_block(
                     ));
                 }
             } else if let Some(NativeArrayPlan::FloatRepeat { size, .. }) =
-                native.array_local(local.id)
+                lowered.array_local(local.id)
             {
                 lines.push(format!(
                     "  %local{}_data = alloca [{} x double], align 8",
                     local.id.0, size
                 ));
             } else if let Some(NativeArrayPlan::StringItems { size, .. }) =
-                native.array_local(local.id)
+                lowered.array_local(local.id)
             {
                 for index in 0..size {
                     lines.push(format!(

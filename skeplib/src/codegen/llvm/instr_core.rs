@@ -3,7 +3,7 @@ use crate::codegen::llvm::calls::{self, DirectCall};
 use crate::codegen::llvm::types::llvm_ty;
 use crate::codegen::llvm::value::{ValueNames, operand_load};
 use crate::ir::{
-    Instr, IrFunction, IrProgram, NativeAggregatePlan, NativeArrayPlan, NativeStructPlan,
+    Instr, IrFunction, IrProgram, LoweredIrFunction, NativeArrayPlan, NativeStructPlan,
 };
 use std::collections::HashMap;
 
@@ -12,7 +12,7 @@ pub fn emit_core_instr(
     program: &IrProgram,
     func: &IrFunction,
     names: &ValueNames,
-    native: &NativeAggregatePlan,
+    lowered: &LoweredIrFunction,
     instr: &Instr,
     lines: &mut Vec<String>,
     counter: &mut usize,
@@ -47,10 +47,10 @@ pub fn emit_core_instr(
             Ok(true)
         }
         Instr::StoreLocal { local, ty, value } => {
-            if let Some(kind) = native.array_local(*local) {
+            if let Some(kind) = lowered.array_local(*local) {
                 match kind {
                     NativeArrayPlan::IntRepeat { size, init } => {
-                        if matches!(value, crate::ir::Operand::Temp(temp) if native.temp_root(*temp) == Some(*local))
+                        if matches!(value, crate::ir::Operand::Temp(temp) if lowered.temp_root(*temp) == Some(*local))
                         {
                             let init = operand_load(
                                 names,
@@ -71,7 +71,7 @@ pub fn emit_core_instr(
                         }
                     }
                     NativeArrayPlan::FloatRepeat { size, init } => {
-                        if matches!(value, crate::ir::Operand::Temp(temp) if native.temp_root(*temp) == Some(*local))
+                        if matches!(value, crate::ir::Operand::Temp(temp) if lowered.temp_root(*temp) == Some(*local))
                         {
                             let init = operand_load(
                                 names,
@@ -98,7 +98,7 @@ pub fn emit_core_instr(
                         }
                     }
                     NativeArrayPlan::StringItems { size, items } => {
-                        if matches!(value, crate::ir::Operand::Temp(temp) if native.temp_root(*temp) == Some(*local))
+                        if matches!(value, crate::ir::Operand::Temp(temp) if lowered.temp_root(*temp) == Some(*local))
                         {
                             for (index, item) in items.iter().enumerate().take(size) {
                                 let loaded = operand_load(
@@ -120,10 +120,10 @@ pub fn emit_core_instr(
                     }
                 }
             }
-            if let Some(kind) = native.struct_local(*local) {
+            if let Some(kind) = lowered.struct_local(*local) {
                 match kind {
                     NativeStructPlan::ScalarFields { fields } => {
-                        if matches!(value, crate::ir::Operand::Temp(temp) if native.temp_root(*temp) == Some(*local))
+                        if matches!(value, crate::ir::Operand::Temp(temp) if lowered.temp_root(*temp) == Some(*local))
                         {
                             for (index, field) in fields.iter().enumerate() {
                                 let loaded = operand_load(
@@ -144,7 +144,7 @@ pub fn emit_core_instr(
                         }
                     }
                     NativeStructPlan::Alias { root } => {
-                        if matches!(value, crate::ir::Operand::Local(src) if native.root_struct_local(*src) == Some(root))
+                        if matches!(value, crate::ir::Operand::Local(src) if lowered.root_struct_local(*src) == Some(root))
                         {
                             return Ok(true);
                         }

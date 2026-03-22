@@ -1,4 +1,7 @@
-use crate::ir::{IrFunction, NativeAggregatePlan, NativeCallPlan, NativeStringPlan};
+use crate::ir::{
+    FunctionId, IrFunction, LocalId, NativeAggregatePlan, NativeArrayPlan, NativeCallLowering,
+    NativeCallPlan, NativeStringPlan, NativeStringValue, NativeStructPlan, Operand, TempId,
+};
 
 #[derive(Debug, Clone)]
 pub struct LoweredIrFunction {
@@ -14,6 +17,42 @@ impl LoweredIrFunction {
             native_calls: NativeCallPlan::analyze(func),
             native_strings: NativeStringPlan::analyze(func),
         }
+    }
+
+    pub fn array_local(&self, local: LocalId) -> Option<NativeArrayPlan> {
+        self.native_aggregates.array_local(local)
+    }
+
+    pub fn struct_local(&self, local: LocalId) -> Option<NativeStructPlan> {
+        self.native_aggregates.struct_local(local)
+    }
+
+    pub fn root_struct_local(&self, local: LocalId) -> Option<LocalId> {
+        self.native_aggregates.root_struct_local(local)
+    }
+
+    pub fn temp_root(&self, temp: TempId) -> Option<LocalId> {
+        self.native_aggregates.temp_root(temp)
+    }
+
+    pub fn root_struct_plan(&self, local: LocalId) -> Option<(LocalId, NativeStructPlan)> {
+        self.native_aggregates.root_struct_plan(local)
+    }
+
+    pub fn known_function(&self, operand: &Operand) -> Option<FunctionId> {
+        self.native_calls.known_function(operand)
+    }
+
+    pub fn operand_call_lowering(&self, operand: &Operand) -> NativeCallLowering {
+        self.native_calls.operand_lowering(operand)
+    }
+
+    pub fn temp_call_lowering(&self, temp: TempId) -> NativeCallLowering {
+        self.native_calls.temp_lowering(temp)
+    }
+
+    pub fn string_value(&self, operand: &Operand) -> Option<NativeStringValue> {
+        self.native_strings.string_value(operand)
     }
 }
 
