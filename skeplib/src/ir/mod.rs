@@ -3,6 +3,7 @@ mod builder;
 mod instr;
 mod interp;
 pub mod lowering;
+mod nativeability;
 pub mod opt;
 mod pretty;
 mod program;
@@ -16,6 +17,7 @@ pub use instr::{
     BinaryOp, BranchTerminator, BuiltinCall, CmpOp, FieldRef, Instr, LogicOp, Terminator, UnaryOp,
 };
 pub use interp::{IrInterpError, IrInterpreter};
+pub use nativeability::{NativeLocalKind, NativeabilityAnalysis};
 pub use pretty::PrettyIr;
 pub use program::{
     IrFunction, IrGlobal, IrLocal, IrModuleInit, IrParam, IrProgram, IrStruct, IrTemp, StructField,
