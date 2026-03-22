@@ -6,11 +6,10 @@ use crate::codegen::llvm::instr_runtime;
 use crate::codegen::llvm::instr_scalar;
 use crate::codegen::llvm::module;
 use crate::codegen::llvm::runtime;
-use crate::codegen::llvm::special_locals::SpecialLocals;
 use crate::codegen::llvm::strings::collect_string_literals;
 use crate::codegen::llvm::terminator;
 use crate::codegen::llvm::value::{ValueNames, llvm_function_symbol, llvm_symbol};
-use crate::ir::{Instr, IrFunction, IrProgram};
+use crate::ir::{Instr, IrFunction, IrProgram, NativeabilityAnalysis};
 use std::collections::HashMap;
 
 pub struct LlvmEmitter<'a> {
@@ -83,16 +82,16 @@ impl<'a> LlvmEmitter<'a> {
     fn emit_function(&self, func: &IrFunction) -> Result<Vec<String>, CodegenError> {
         function::validate_function_layout(func)?;
         let names = function::value_names(func);
-        let special = SpecialLocals::analyze(func);
+        let native = NativeabilityAnalysis::analyze(func);
         let mut lines = function::emit_function_header(func)?;
 
         let mut counter = 0usize;
         for (idx, block) in func.blocks.iter().enumerate() {
-            function::begin_block(func, block, idx, &special, &mut lines)?;
+            function::begin_block(func, block, idx, &native, &mut lines)?;
             for instr in &block.instrs {
                 calls::ensure_supported(instr)?;
                 runtime::ensure_supported(instr)?;
-                self.emit_instr(func, &names, &special, instr, &mut lines, &mut counter)?;
+                self.emit_instr(func, &names, &native, instr, &mut lines, &mut counter)?;
             }
             terminator::emit_terminator(
                 func,
@@ -108,11 +107,12 @@ impl<'a> LlvmEmitter<'a> {
         Ok(lines)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn emit_instr(
         &self,
         func: &IrFunction,
         names: &ValueNames,
-        special: &SpecialLocals,
+        native: &NativeabilityAnalysis,
         instr: &Instr,
         lines: &mut Vec<String>,
         counter: &mut usize,
@@ -132,7 +132,7 @@ impl<'a> LlvmEmitter<'a> {
             self.program,
             func,
             names,
-            special,
+            native,
             instr,
             lines,
             counter,
@@ -144,7 +144,7 @@ impl<'a> LlvmEmitter<'a> {
             self.program,
             func,
             names,
-            special,
+            native,
             instr,
             lines,
             counter,

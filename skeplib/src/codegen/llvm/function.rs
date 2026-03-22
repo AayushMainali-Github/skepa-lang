@@ -1,9 +1,8 @@
 use crate::codegen::CodegenError;
 use crate::codegen::llvm::block::{ensure_terminator, label};
-use crate::codegen::llvm::special_locals::{SpecialLocalKind, SpecialLocals};
 use crate::codegen::llvm::types::llvm_ty;
 use crate::codegen::llvm::value::{ValueNames, llvm_function_symbol};
-use crate::ir::{BasicBlock, IrFunction};
+use crate::ir::{BasicBlock, IrFunction, NativeLocalKind, NativeabilityAnalysis};
 
 pub fn validate_function_layout(func: &IrFunction) -> Result<(), CodegenError> {
     if func.locals.len() < func.params.len() {
@@ -41,7 +40,7 @@ pub fn begin_block(
     func: &IrFunction,
     block: &BasicBlock,
     idx: usize,
-    special: &SpecialLocals,
+    native: &NativeabilityAnalysis,
     lines: &mut Vec<String>,
 ) -> Result<(), CodegenError> {
     ensure_terminator(&block.terminator)?;
@@ -53,28 +52,26 @@ pub fn begin_block(
                 local.id.0,
                 llvm_ty(&local.ty)?
             ));
-            if let Some(SpecialLocalKind::ScalarStruct { fields }) = special.local(local.id) {
+            if let Some(NativeLocalKind::ScalarStruct { fields }) = native.local(local.id) {
                 for (index, _) in fields.iter().enumerate() {
                     lines.push(format!(
                         "  %local{}_field{} = alloca i64, align 8",
                         local.id.0, index
                     ));
                 }
-            } else if let Some(SpecialLocalKind::IntArray { size, .. }) = special.local(local.id) {
+            } else if let Some(NativeLocalKind::IntArray { size, .. }) = native.local(local.id) {
                 for index in 0..*size {
                     lines.push(format!(
                         "  %local{}_elem{} = alloca i64, align 8",
                         local.id.0, index
                     ));
                 }
-            } else if let Some(SpecialLocalKind::FloatArray { size, .. }) = special.local(local.id)
-            {
+            } else if let Some(NativeLocalKind::FloatArray { size, .. }) = native.local(local.id) {
                 lines.push(format!(
                     "  %local{}_data = alloca [{} x double], align 8",
                     local.id.0, size
                 ));
-            } else if let Some(SpecialLocalKind::StringArray { size, .. }) = special.local(local.id)
-            {
+            } else if let Some(NativeLocalKind::StringArray { size, .. }) = native.local(local.id) {
                 for index in 0..*size {
                     lines.push(format!(
                         "  %local{}_elem{} = alloca ptr, align 8",

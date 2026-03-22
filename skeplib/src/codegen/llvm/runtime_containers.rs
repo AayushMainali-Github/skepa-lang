@@ -2,9 +2,8 @@ use crate::codegen::CodegenError;
 use crate::codegen::llvm::runtime_boxing::{
     emit_abort_if_error, emit_boxed_operand, emit_unbox_value, infer_operand_type,
 };
-use crate::codegen::llvm::special_locals::{SpecialLocalKind, SpecialLocals};
 use crate::codegen::llvm::value::{ValueNames, operand_load};
-use crate::ir::{IrFunction, IrProgram, IrType, TempId};
+use crate::ir::{IrFunction, IrProgram, IrType, NativeLocalKind, NativeabilityAnalysis, TempId};
 use std::collections::HashMap;
 
 #[allow(clippy::too_many_arguments)]
@@ -59,7 +58,7 @@ pub fn emit_make_array_repeat(
 pub fn emit_array_get(
     func: &IrFunction,
     names: &ValueNames,
-    special: &SpecialLocals,
+    native: &NativeabilityAnalysis,
     dst: TempId,
     elem_ty: &IrType,
     array: &crate::ir::Operand,
@@ -70,7 +69,7 @@ pub fn emit_array_get(
 ) -> Result<(), CodegenError> {
     if *elem_ty == IrType::Int
         && let crate::ir::Operand::Local(local) = array
-        && let Some(SpecialLocalKind::IntArray { size, .. }) = special.local(*local)
+        && let Some(NativeLocalKind::IntArray { size, .. }) = native.local(*local)
     {
         let dest = names.temp(dst)?;
         match index {
@@ -156,7 +155,7 @@ pub fn emit_array_get(
         }
     } else if *elem_ty == IrType::String
         && let crate::ir::Operand::Local(local) = array
-        && let Some(SpecialLocalKind::StringArray { size, .. }) = special.local(*local)
+        && let Some(NativeLocalKind::StringArray { size, .. }) = native.local(*local)
     {
         let dest = names.temp(dst)?;
         match index {
@@ -242,7 +241,7 @@ pub fn emit_array_get(
         }
     } else if *elem_ty == IrType::Float
         && let crate::ir::Operand::Local(local) = array
-        && let Some(SpecialLocalKind::FloatArray { size, .. }) = special.local(*local)
+        && let Some(NativeLocalKind::FloatArray { size, .. }) = native.local(*local)
     {
         let dest = names.temp(dst)?;
         match index {
@@ -356,7 +355,7 @@ pub fn emit_array_get(
 pub fn emit_array_set(
     func: &IrFunction,
     names: &ValueNames,
-    special: &SpecialLocals,
+    native: &NativeabilityAnalysis,
     elem_ty: &IrType,
     array: &crate::ir::Operand,
     index: &crate::ir::Operand,
@@ -367,7 +366,7 @@ pub fn emit_array_set(
 ) -> Result<(), CodegenError> {
     if *elem_ty == IrType::Int
         && let crate::ir::Operand::Local(local) = array
-        && let Some(SpecialLocalKind::IntArray { size, .. }) = special.local(*local)
+        && let Some(NativeLocalKind::IntArray { size, .. }) = native.local(*local)
     {
         let stored = operand_load(
             names,
@@ -447,7 +446,7 @@ pub fn emit_array_set(
         }
     } else if *elem_ty == IrType::Float
         && let crate::ir::Operand::Local(local) = array
-        && let Some(SpecialLocalKind::FloatArray { size, .. }) = special.local(*local)
+        && let Some(NativeLocalKind::FloatArray { size, .. }) = native.local(*local)
     {
         let stored = operand_load(
             names,
@@ -799,7 +798,7 @@ pub fn emit_make_struct(
 pub fn emit_struct_get(
     func: &IrFunction,
     names: &ValueNames,
-    special: &SpecialLocals,
+    native: &NativeabilityAnalysis,
     dst: TempId,
     ty: &IrType,
     base: &crate::ir::Operand,
@@ -810,7 +809,7 @@ pub fn emit_struct_get(
 ) -> Result<(), CodegenError> {
     if *ty == IrType::Int
         && let crate::ir::Operand::Local(local) = base
-        && let Some(root) = special.root_struct_local(*local)
+        && let Some(root) = native.root_struct_local(*local)
     {
         let slot = format!("%v{counter}");
         *counter += 1;
@@ -845,7 +844,7 @@ pub fn emit_struct_get(
 pub fn emit_struct_set(
     func: &IrFunction,
     names: &ValueNames,
-    _special: &SpecialLocals,
+    _native: &NativeabilityAnalysis,
     ty: &IrType,
     base: &crate::ir::Operand,
     field: &crate::ir::FieldRef,

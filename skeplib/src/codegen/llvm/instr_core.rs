@@ -1,9 +1,8 @@
 use crate::codegen::CodegenError;
 use crate::codegen::llvm::calls::{self, DirectCall};
-use crate::codegen::llvm::special_locals::{SpecialLocalKind, SpecialLocals};
 use crate::codegen::llvm::types::llvm_ty;
 use crate::codegen::llvm::value::{ValueNames, operand_load};
-use crate::ir::{Instr, IrFunction, IrProgram};
+use crate::ir::{Instr, IrFunction, IrProgram, NativeLocalKind, NativeabilityAnalysis};
 use std::collections::HashMap;
 
 #[allow(clippy::too_many_arguments)]
@@ -11,7 +10,7 @@ pub fn emit_core_instr(
     program: &IrProgram,
     func: &IrFunction,
     names: &ValueNames,
-    special: &SpecialLocals,
+    native: &NativeabilityAnalysis,
     instr: &Instr,
     lines: &mut Vec<String>,
     counter: &mut usize,
@@ -46,10 +45,10 @@ pub fn emit_core_instr(
             Ok(true)
         }
         Instr::StoreLocal { local, ty, value } => {
-            if let Some(kind) = special.local(*local) {
+            if let Some(kind) = native.local(*local) {
                 match kind {
-                    SpecialLocalKind::IntArray { size, init } => {
-                        if matches!(value, crate::ir::Operand::Temp(temp) if special.temp_root(*temp) == Some(*local))
+                    NativeLocalKind::IntArray { size, init } => {
+                        if matches!(value, crate::ir::Operand::Temp(temp) if native.temp_root(*temp) == Some(*local))
                         {
                             let init = operand_load(
                                 names,
@@ -68,8 +67,8 @@ pub fn emit_core_instr(
                             }
                         }
                     }
-                    SpecialLocalKind::FloatArray { size, init } => {
-                        if matches!(value, crate::ir::Operand::Temp(temp) if special.temp_root(*temp) == Some(*local))
+                    NativeLocalKind::FloatArray { size, init } => {
+                        if matches!(value, crate::ir::Operand::Temp(temp) if native.temp_root(*temp) == Some(*local))
                         {
                             let init = operand_load(
                                 names,
@@ -94,8 +93,8 @@ pub fn emit_core_instr(
                             }
                         }
                     }
-                    SpecialLocalKind::StringArray { size, items } => {
-                        if matches!(value, crate::ir::Operand::Temp(temp) if special.temp_root(*temp) == Some(*local))
+                    NativeLocalKind::StringArray { size, items } => {
+                        if matches!(value, crate::ir::Operand::Temp(temp) if native.temp_root(*temp) == Some(*local))
                         {
                             for (index, item) in items.iter().enumerate().take(*size) {
                                 let loaded = operand_load(
@@ -115,8 +114,8 @@ pub fn emit_core_instr(
                             return Ok(true);
                         }
                     }
-                    SpecialLocalKind::ScalarStruct { fields } => {
-                        if matches!(value, crate::ir::Operand::Temp(temp) if special.temp_root(*temp) == Some(*local))
+                    NativeLocalKind::ScalarStruct { fields } => {
+                        if matches!(value, crate::ir::Operand::Temp(temp) if native.temp_root(*temp) == Some(*local))
                         {
                             for (index, field) in fields.iter().enumerate() {
                                 let loaded = operand_load(
@@ -136,8 +135,8 @@ pub fn emit_core_instr(
                             return Ok(true);
                         }
                     }
-                    SpecialLocalKind::StructAlias { root } => {
-                        if matches!(value, crate::ir::Operand::Local(src) if special.root_struct_local(*src) == Some(*root))
+                    NativeLocalKind::StructAlias { root } => {
+                        if matches!(value, crate::ir::Operand::Local(src) if native.root_struct_local(*src) == Some(*root))
                         {
                             return Ok(true);
                         }
