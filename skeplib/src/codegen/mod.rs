@@ -77,27 +77,46 @@ pub fn compile_program_to_object_file(
     program: &IrProgram,
     path: &Path,
 ) -> Result<(), CodegenError> {
-    compile_program_to_object_file_with_tools(program, path, "llvm-as", "llc")
+    compile_program_to_object_file_with_tools(program, path, "llvm-as", "opt", "llc")
 }
 
 fn compile_program_to_object_file_with_tools(
     program: &IrProgram,
     path: &Path,
     llvm_as: &str,
+    opt: &str,
     llc: &str,
 ) -> Result<(), CodegenError> {
     let bc_path = temp_codegen_path("module", "bc");
+    let opt_bc_path = temp_codegen_path("module_opt", "bc");
     compile_program_to_bitcode_file_with_tool(program, &bc_path, llvm_as)?;
+    let opt_result = run_tool(
+        opt,
+        &[
+            "-passes=mem2reg,instcombine,simplifycfg,loop-simplify,loop-unroll",
+            "-unroll-threshold=10000",
+            bc_path.as_os_str().to_string_lossy().as_ref(),
+            "-o",
+            opt_bc_path.as_os_str().to_string_lossy().as_ref(),
+        ],
+    );
+    if let Err(err) = opt_result {
+        let _ = fs::remove_file(&bc_path);
+        let _ = fs::remove_file(&opt_bc_path);
+        return Err(err);
+    }
     let result = run_tool(
         llc,
         &[
+            "-O3",
             "-filetype=obj",
-            bc_path.as_os_str().to_string_lossy().as_ref(),
+            opt_bc_path.as_os_str().to_string_lossy().as_ref(),
             "-o",
             path.as_os_str().to_string_lossy().as_ref(),
         ],
     );
     let _ = fs::remove_file(&bc_path);
+    let _ = fs::remove_file(&opt_bc_path);
     result
 }
 
@@ -381,6 +400,7 @@ fn main() -> Int {
             &program,
             &obj_path,
             "llvm-as",
+            "opt",
             "definitely-missing-llc-test-tool",
         )
         .expect_err("missing llc should be reported");
@@ -419,6 +439,28 @@ fn main() -> Int {
         match err {
             CodegenError::Tool(msg) => {
                 assert!(msg.contains("failed to run `definitely-missing-clang-test-tool`"));
+            }
+            other => panic!("unexpected error kind: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn missing_opt_reports_clean_tool_error() {
+        let program = simple_program();
+        let obj_path =
+            temp_codegen_test_path("missing_opt", if cfg!(windows) { "obj" } else { "o" });
+        let err = compile_program_to_object_file_with_tools(
+            &program,
+            &obj_path,
+            "llvm-as",
+            "definitely-missing-opt-test-tool",
+            "llc",
+        )
+        .expect_err("missing opt should be reported");
+        let _ = fs::remove_file(&obj_path);
+        match err {
+            CodegenError::Tool(msg) => {
+                assert!(msg.contains("failed to run `definitely-missing-opt-test-tool`"));
             }
             other => panic!("unexpected error kind: {other:?}"),
         }
