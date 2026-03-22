@@ -67,6 +67,14 @@ pub fn begin_block(
                         local.id.0, index
                     ));
                 }
+            } else if let Some(SpecialLocalKind::StringArray { size, .. }) = special.local(local.id)
+            {
+                for index in 0..*size {
+                    lines.push(format!(
+                        "  %local{}_elem{} = alloca ptr, align 8",
+                        local.id.0, index
+                    ));
+                }
             }
         }
         for (param, local) in func.params.iter().zip(func.locals.iter()) {

@@ -191,6 +191,37 @@ fn main() -> Int {
 }
 
 #[test]
+fn llvm_codegen_scalarizes_read_only_local_string_arrays() {
+    let source = r#"
+import str;
+
+fn main() -> Int {
+  let words: [String; 4] = ["skepa", "language", "native", "speed"];
+  let i = 0;
+  let total = 0;
+  while (i < 10) {
+    let word = words[i % 4];
+    total = total + str.len(word);
+    i = i + 1;
+  }
+  return total;
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let llvm_ir =
+        codegen::compile_program_to_llvm_ir(&program).expect("LLVM lowering should succeed");
+
+    let main_body = llvm_function_body(&llvm_ir, "main");
+    assert!(main_body.contains("%local0_elem0 = alloca ptr"));
+    assert!(main_body.contains("%local0_elem3 = alloca ptr"));
+    assert!(main_body.contains("array_get_case_"));
+    assert!(!main_body.contains("@skp_rt_array_get"));
+
+    assemble_llvm_ir(&llvm_ir, "string_array_scalarized");
+}
+
+#[test]
 fn llvm_codegen_emits_project_entry_wrapper_calls() {
     let project = common::TempProject::new("project_codegen");
     let entry = project.file(
