@@ -28,6 +28,7 @@ impl<'a> IrInterpreter<'a> {
                     (UnaryOp::Neg, RtValue::Int(v)) => RtValue::Int(-v),
                     (UnaryOp::Neg, RtValue::Float(v)) => RtValue::Float(-v),
                     (UnaryOp::Not, RtValue::Bool(v)) => RtValue::Bool(!v),
+                    (UnaryOp::BitNot, RtValue::Int(v)) => RtValue::Int(!v),
                     _ => return Err(IrInterpError::TypeMismatch("bad unary operand")),
                 };
                 frame.temps.insert(*dst, out);
@@ -435,6 +436,15 @@ impl<'a> IrInterpreter<'a> {
             }
             (BinaryOp::Div, RtValue::Int(a), RtValue::Int(b)) => Ok(RtValue::Int(a / b)),
             (BinaryOp::Mod, RtValue::Int(a), RtValue::Int(b)) => Ok(RtValue::Int(a % b)),
+            (BinaryOp::BitAnd, RtValue::Int(a), RtValue::Int(b)) => Ok(RtValue::Int(a & b)),
+            (BinaryOp::BitOr, RtValue::Int(a), RtValue::Int(b)) => Ok(RtValue::Int(a | b)),
+            (BinaryOp::BitXor, RtValue::Int(a), RtValue::Int(b)) => Ok(RtValue::Int(a ^ b)),
+            (BinaryOp::Shl, RtValue::Int(a), RtValue::Int(b)) if b >= 0 => {
+                Ok(RtValue::Int(a.wrapping_shl(b as u32)))
+            }
+            (BinaryOp::Shr, RtValue::Int(a), RtValue::Int(b)) if b >= 0 => {
+                Ok(RtValue::Int(a.wrapping_shr(b as u32)))
+            }
             (BinaryOp::Add, RtValue::Float(a), RtValue::Float(b)) => Ok(RtValue::Float(a + b)),
             (BinaryOp::Sub, RtValue::Float(a), RtValue::Float(b)) => Ok(RtValue::Float(a - b)),
             (BinaryOp::Mul, RtValue::Float(a), RtValue::Float(b)) => Ok(RtValue::Float(a * b)),

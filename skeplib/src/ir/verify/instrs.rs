@@ -26,6 +26,7 @@ impl IrVerifier {
                 let expected_operand_ty = match op {
                     crate::ir::UnaryOp::Neg => ty,
                     crate::ir::UnaryOp::Not => &IrType::Bool,
+                    crate::ir::UnaryOp::BitNot => &IrType::Int,
                 };
                 Self::expect_operand_type(program, func, operand, expected_operand_ty)?;
                 match op {
@@ -37,6 +38,11 @@ impl IrVerifier {
                         });
                     }
                     crate::ir::UnaryOp::Not if !matches!(ty, IrType::Bool | IrType::Unknown) => {
+                        return Err(IrVerifyError::OperandTypeMismatch {
+                            function: func.name.clone(),
+                        });
+                    }
+                    crate::ir::UnaryOp::BitNot if !matches!(ty, IrType::Int | IrType::Unknown) => {
                         return Err(IrVerifyError::OperandTypeMismatch {
                             function: func.name.clone(),
                         });
@@ -72,6 +78,17 @@ impl IrVerifier {
                     | crate::ir::BinaryOp::Div
                     | crate::ir::BinaryOp::Mod
                         if !matches!(ty, IrType::Int | IrType::Float | IrType::Unknown) =>
+                    {
+                        return Err(IrVerifyError::OperandTypeMismatch {
+                            function: func.name.clone(),
+                        });
+                    }
+                    crate::ir::BinaryOp::BitAnd
+                    | crate::ir::BinaryOp::BitOr
+                    | crate::ir::BinaryOp::BitXor
+                    | crate::ir::BinaryOp::Shl
+                    | crate::ir::BinaryOp::Shr
+                        if !matches!(ty, IrType::Int | IrType::Unknown) =>
                     {
                         return Err(IrVerifyError::OperandTypeMismatch {
                             function: func.name.clone(),

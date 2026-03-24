@@ -115,6 +115,11 @@ impl IrLowerer {
             AstBinaryOp::Mul => Some(BinaryOp::Mul),
             AstBinaryOp::Div => Some(BinaryOp::Div),
             AstBinaryOp::Mod => Some(BinaryOp::Mod),
+            AstBinaryOp::BitAnd => Some(BinaryOp::BitAnd),
+            AstBinaryOp::BitOr => Some(BinaryOp::BitOr),
+            AstBinaryOp::BitXor => Some(BinaryOp::BitXor),
+            AstBinaryOp::Shl => Some(BinaryOp::Shl),
+            AstBinaryOp::Shr => Some(BinaryOp::Shr),
             AstBinaryOp::AndAnd | AstBinaryOp::OrOr => None,
             _ => None,
         }

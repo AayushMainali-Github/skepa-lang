@@ -102,6 +102,39 @@ fn main() -> Int {
 }
 
 #[test]
+fn llvm_codegen_emits_bitwise_integer_ops() {
+    let source = r#"
+fn main() -> Int {
+  let a = 12;
+  let b = 10;
+  let c = ~a;
+  let d = a & b;
+  let e = a | b;
+  let f = a ^ b;
+  let g = a << 2;
+  let h = a >> 1;
+  if (c == -13 && d == 8 && e == 14 && f == 6 && g == 48 && h == 6) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let llvm_ir =
+        codegen::compile_program_to_llvm_ir(&program).expect("LLVM lowering should succeed");
+
+    let main_body = llvm_function_body(&llvm_ir, "main");
+    assert!(main_body.contains("xor i64"));
+    assert!(main_body.contains("and i64"));
+    assert!(main_body.contains("or i64"));
+    assert!(main_body.contains("shl i64"));
+    assert!(main_body.contains("ashr i64"));
+
+    assemble_llvm_ir(&llvm_ir, "bitwise_scalar");
+}
+
+#[test]
 fn llvm_codegen_rewrites_known_indirect_calls_to_direct_calls() {
     let source = r#"
 fn step(x: Int) -> Int {

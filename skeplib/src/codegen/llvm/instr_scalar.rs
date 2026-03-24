@@ -86,6 +86,9 @@ pub fn emit_scalar_instr(
                 (UnaryOp::Not, crate::ir::IrType::Bool) => {
                     lines.push(format!("  {dest} = xor i1 {value}, true"));
                 }
+                (UnaryOp::BitNot, crate::ir::IrType::Int) => {
+                    lines.push(format!("  {dest} = xor i64 {value}, -1"));
+                }
                 _ => {
                     return Err(CodegenError::Unsupported(
                         "unsupported unary op/type in LLVM lowering",
@@ -119,6 +122,11 @@ pub fn emit_scalar_instr(
                 (BinaryOp::Mul, _) => "mul",
                 (BinaryOp::Div, _) => "sdiv",
                 (BinaryOp::Mod, _) => "srem",
+                (BinaryOp::BitAnd, _) => "and",
+                (BinaryOp::BitOr, _) => "or",
+                (BinaryOp::BitXor, _) => "xor",
+                (BinaryOp::Shl, _) => "shl",
+                (BinaryOp::Shr, _) => "ashr",
             };
             lines.push(format!(
                 "  {dest} = {opname} {} {left}, {right}",

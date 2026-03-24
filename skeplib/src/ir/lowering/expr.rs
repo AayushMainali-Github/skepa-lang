@@ -217,7 +217,8 @@ impl IrLowerer {
                 let op = match op {
                     AstUnaryOp::Neg => UnaryOp::Neg,
                     AstUnaryOp::Not => UnaryOp::Not,
-                    AstUnaryOp::Pos | AstUnaryOp::BitNot => {
+                    AstUnaryOp::BitNot => UnaryOp::BitNot,
+                    AstUnaryOp::Pos => {
                         self.unsupported("unary operator is not in the initial IR lowering subset");
                         return None;
                     }

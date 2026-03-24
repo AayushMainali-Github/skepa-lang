@@ -200,6 +200,7 @@ fn eval_unary(op: UnaryOp, value: &ConstValue) -> Option<ConstValue> {
         (UnaryOp::Neg, ConstValue::Int(v)) => Some(ConstValue::Int(-v)),
         (UnaryOp::Neg, ConstValue::Float(v)) => Some(ConstValue::Float(-v)),
         (UnaryOp::Not, ConstValue::Bool(v)) => Some(ConstValue::Bool(!v)),
+        (UnaryOp::BitNot, ConstValue::Int(v)) => Some(ConstValue::Int(!v)),
         _ => None,
     }
 }
@@ -213,6 +214,15 @@ fn eval_binary(op: BinaryOp, left: &ConstValue, right: &ConstValue) -> Option<Co
         (BinaryOp::Div, ConstValue::Int(a), ConstValue::Int(b)) => Some(ConstValue::Int(a / b)),
         (BinaryOp::Mod, ConstValue::Int(_), ConstValue::Int(0)) => None,
         (BinaryOp::Mod, ConstValue::Int(a), ConstValue::Int(b)) => Some(ConstValue::Int(a % b)),
+        (BinaryOp::BitAnd, ConstValue::Int(a), ConstValue::Int(b)) => Some(ConstValue::Int(a & b)),
+        (BinaryOp::BitOr, ConstValue::Int(a), ConstValue::Int(b)) => Some(ConstValue::Int(a | b)),
+        (BinaryOp::BitXor, ConstValue::Int(a), ConstValue::Int(b)) => Some(ConstValue::Int(a ^ b)),
+        (BinaryOp::Shl, ConstValue::Int(a), ConstValue::Int(b)) if *b >= 0 => {
+            Some(ConstValue::Int(a.wrapping_shl(*b as u32)))
+        }
+        (BinaryOp::Shr, ConstValue::Int(a), ConstValue::Int(b)) if *b >= 0 => {
+            Some(ConstValue::Int(a.wrapping_shr(*b as u32)))
+        }
         (BinaryOp::Add, ConstValue::Float(a), ConstValue::Float(b)) => {
             Some(ConstValue::Float(a + b))
         }
