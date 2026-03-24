@@ -175,6 +175,40 @@ fn main() -> Int {
 }
 
 #[test]
+fn run_executes_bitwise_integer_program_end_to_end() {
+    let tmp = make_temp_dir("skepac_run_bitwise");
+    let source = tmp.join("main.sk");
+    fs::write(
+        &source,
+        r#"
+fn main() -> Int {
+  let a = 12;
+  let b = 10;
+  let c = ~a;
+  let d = a & b;
+  let e = a | b;
+  let f = a ^ b;
+  let g = a << 2;
+  let h = a >> 1;
+  if (c == -13 && d == 8 && e == 14 && f == 6 && g == 48 && h == 6) {
+    return 7;
+  }
+  return 1;
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("run")
+        .arg(&source)
+        .output()
+        .expect("run skepac run");
+
+    assert_eq!(output.status.code(), Some(7), "{:?}", output);
+}
+
+#[test]
 fn build_llvm_ir_writes_ir_artifact() {
     let tmp = make_temp_dir("skepac_build_ll");
     let source = tmp.join("main.sk");

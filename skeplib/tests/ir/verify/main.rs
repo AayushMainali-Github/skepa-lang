@@ -794,3 +794,82 @@ fn verifier_rejects_bad_load_get_and_operator_result_types() {
     let err = IrVerifier::verify_program(&program).expect_err("verifier should fail");
     assert!(matches!(err, ir::IrVerifyError::OperandTypeMismatch { .. }));
 }
+
+#[test]
+fn verifier_rejects_bitwise_operators_on_non_int_types() {
+    let func = IrFunction {
+        id: FunctionId(0),
+        name: "main".into(),
+        params: Vec::new(),
+        locals: Vec::new(),
+        temps: vec![
+            IrTemp {
+                id: TempId(0),
+                ty: IrType::Bool,
+            },
+            IrTemp {
+                id: TempId(1),
+                ty: IrType::Bool,
+            },
+            IrTemp {
+                id: TempId(2),
+                ty: IrType::Bool,
+            },
+            IrTemp {
+                id: TempId(3),
+                ty: IrType::Float,
+            },
+            IrTemp {
+                id: TempId(4),
+                ty: IrType::Float,
+            },
+        ],
+        ret_ty: IrType::Int,
+        entry: BlockId(0),
+        blocks: vec![BasicBlock {
+            id: BlockId(0),
+            name: "entry".into(),
+            instrs: vec![
+                Instr::Const {
+                    dst: TempId(0),
+                    ty: IrType::Bool,
+                    value: ir::ConstValue::Bool(true),
+                },
+                Instr::Const {
+                    dst: TempId(3),
+                    ty: IrType::Float,
+                    value: ir::ConstValue::Float(1.0),
+                },
+                Instr::Unary {
+                    dst: TempId(1),
+                    ty: IrType::Bool,
+                    op: ir::UnaryOp::BitNot,
+                    operand: ir::Operand::Temp(TempId(0)),
+                },
+                Instr::Binary {
+                    dst: TempId(2),
+                    ty: IrType::Bool,
+                    op: ir::BinaryOp::BitAnd,
+                    left: ir::Operand::Temp(TempId(0)),
+                    right: ir::Operand::Const(ir::ConstValue::Bool(false)),
+                },
+                Instr::Binary {
+                    dst: TempId(4),
+                    ty: IrType::Float,
+                    op: ir::BinaryOp::Shl,
+                    left: ir::Operand::Temp(TempId(3)),
+                    right: ir::Operand::Const(ir::ConstValue::Float(2.0)),
+                },
+            ],
+            terminator: Terminator::Return(Some(ir::Operand::Const(ir::ConstValue::Int(0)))),
+        }],
+    };
+    let program = IrProgram {
+        functions: vec![func],
+        globals: Vec::new(),
+        structs: Vec::new(),
+        module_init: None,
+    };
+    let err = IrVerifier::verify_program(&program).expect_err("verifier should fail");
+    assert!(matches!(err, ir::IrVerifyError::OperandTypeMismatch { .. }));
+}
