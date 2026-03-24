@@ -331,7 +331,7 @@ impl<'a> IrInterpreter<'a> {
             Instr::MakeClosure { dst, function } => {
                 frame
                     .temps
-                    .insert(*dst, RtValue::Function(RtFunctionRef(function.0 as u32)));
+                    .insert(*dst, RtValue::Function(RtFunctionRef(function.0)));
             }
             Instr::CallDirect {
                 dst,
@@ -353,7 +353,7 @@ impl<'a> IrInterpreter<'a> {
             } => {
                 let callee = frame.read_operand(callee, &self.globals)?;
                 let function = match callee {
-                    RtValue::Function(function) => FunctionId(function.0 as usize),
+                    RtValue::Function(function) => FunctionId(function.0),
                     _ => return Err(IrInterpError::TypeMismatch("indirect call on non-closure")),
                 };
                 let args = args

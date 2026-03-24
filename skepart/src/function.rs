@@ -14,7 +14,7 @@ impl RtFunctionRegistry {
     }
 
     pub fn register(&mut self, function: RtNativeFn) -> RtFunctionRef {
-        let id = self.functions.len() as u32;
+        let id = self.functions.len();
         self.functions.push(function);
         RtFunctionRef(id)
     }
@@ -25,7 +25,7 @@ impl RtFunctionRegistry {
         function: RtFunctionRef,
         args: &[RtValue],
     ) -> RtResult<RtValue> {
-        let function = self.functions.get(function.0 as usize).ok_or_else(|| {
+        let function = self.functions.get(function.0).ok_or_else(|| {
             crate::RtError::new(
                 crate::RtErrorKind::InvalidArgument,
                 format!("unknown runtime function id {}", function.0),

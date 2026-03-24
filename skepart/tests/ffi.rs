@@ -10,8 +10,8 @@ unsafe extern "C" {
     fn skp_rt_value_from_unit() -> *mut c_void;
     fn skp_rt_value_from_string(value: *mut c_void) -> *mut c_void;
     fn skp_rt_value_to_int(value: *mut c_void) -> i64;
-    fn skp_rt_value_from_function(value: i32) -> *mut c_void;
-    fn skp_rt_value_to_function(value: *mut c_void) -> i32;
+    fn skp_rt_value_from_function(value: *mut c_void) -> *mut c_void;
+    fn skp_rt_value_to_function(value: *mut c_void) -> *mut c_void;
     fn skp_rt_array_repeat(value: *mut c_void, size: i64) -> *mut c_void;
     fn skp_rt_array_get(array: *mut c_void, index: i64) -> *mut c_void;
     fn skp_rt_vec_new() -> *mut c_void;
@@ -26,7 +26,11 @@ unsafe extern "C" {
         argc: i64,
         argv: *const *mut c_void,
     ) -> *mut c_void;
-    fn skp_rt_call_function(function: i32, argc: i64, argv: *const *mut c_void) -> *mut c_void;
+    fn skp_rt_call_function(
+        function: *mut c_void,
+        argc: i64,
+        argv: *const *mut c_void,
+    ) -> *mut c_void;
     fn skp_rt_last_error_kind() -> i32;
     fn skp_rt_value_free(ptr: *mut c_void);
     fn skp_rt_string_free(ptr: *mut c_void);
@@ -55,8 +59,9 @@ fn ffi_string_and_value_roundtrip_surfaces_work() {
 
 #[test]
 fn ffi_function_and_container_surfaces_work() {
-    let fn_ptr = unsafe { skp_rt_value_from_function(7) };
-    assert_eq!(unsafe { skp_rt_value_to_function(fn_ptr) }, 7);
+    let raw_fn = 7usize as *mut c_void;
+    let fn_ptr = unsafe { skp_rt_value_from_function(raw_fn) };
+    assert_eq!(unsafe { skp_rt_value_to_function(fn_ptr) }, raw_fn);
     assert_eq!(
         unsafe { (*(fn_ptr as *mut RtValue)).expect_function().expect("fn") },
         RtFunctionRef(7)
@@ -118,9 +123,12 @@ fn ffi_records_invalid_argument_for_null_and_negative_inputs() {
     let _ = unsafe { skp_rt_builtin_str_len(std::ptr::null_mut()) };
     assert_eq!(unsafe { skp_rt_last_error_kind() }, 5);
 
-    let bad_fn = unsafe { skp_rt_value_from_function(-1) };
-    assert!(bad_fn.is_null());
-    assert_eq!(unsafe { skp_rt_last_error_kind() }, 5);
+    let fn_ptr = unsafe { skp_rt_value_from_function(std::ptr::null_mut()) };
+    assert!(!fn_ptr.is_null());
+    assert!(matches!(
+        unsafe { (*(fn_ptr as *mut RtValue)).clone() },
+        RtValue::Function(RtFunctionRef(0))
+    ));
 }
 
 #[test]
@@ -142,7 +150,7 @@ fn ffi_exports_free_helpers_for_boxed_runtime_values() {
 
 #[test]
 fn ffi_call_function_stub_fails_as_invalid_external_abi_use() {
-    let result = unsafe { skp_rt_call_function(7, 0, std::ptr::null()) };
+    let result = unsafe { skp_rt_call_function(7usize as *mut c_void, 0, std::ptr::null()) };
     let value = unsafe { (*(result as *mut RtValue)).clone() };
     assert!(matches!(value, RtValue::Unit));
     assert_eq!(unsafe { skp_rt_last_error_kind() }, 5);

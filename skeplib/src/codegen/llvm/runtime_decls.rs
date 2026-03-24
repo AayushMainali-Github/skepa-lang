@@ -26,7 +26,7 @@ const RUNTIME_DECLS: &[(&str, &str)] = &[
     ),
     (
         "skp_rt_call_function",
-        "declare ptr @skp_rt_call_function(i32, i64, ptr)",
+        "declare ptr @skp_rt_call_function(ptr, i64, ptr)",
     ),
     (
         "skp_rt_abort_if_error",
@@ -66,7 +66,7 @@ const RUNTIME_DECLS: &[(&str, &str)] = &[
     ),
     (
         "skp_rt_value_from_function",
-        "declare ptr @skp_rt_value_from_function(i32)",
+        "declare ptr @skp_rt_value_from_function(ptr)",
     ),
     ("skp_rt_value_free", "declare void @skp_rt_value_free(ptr)"),
     (
@@ -99,7 +99,7 @@ const RUNTIME_DECLS: &[(&str, &str)] = &[
     ),
     (
         "skp_rt_value_to_function",
-        "declare i32 @skp_rt_value_to_function(ptr)",
+        "declare ptr @skp_rt_value_to_function(ptr)",
     ),
     ("skp_rt_array_new", "declare ptr @skp_rt_array_new(i64)"),
     (

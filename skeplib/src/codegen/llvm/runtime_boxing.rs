@@ -101,7 +101,7 @@ pub fn emit_unbox_value(
             "  {dest} = call ptr @skp_rt_value_to_struct(ptr {raw})"
         )),
         IrType::Fn { .. } => lines.push(format!(
-            "  {dest} = call i32 @skp_rt_value_to_function(ptr {raw})"
+            "  {dest} = call ptr @skp_rt_value_to_function(ptr {raw})"
         )),
         _ => {
             return Err(CodegenError::Unsupported(

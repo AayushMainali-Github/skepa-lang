@@ -602,14 +602,14 @@ fn main() -> Int {
     let llvm_ir =
         codegen::compile_program_to_llvm_ir(&program).expect("LLVM lowering should succeed");
 
-    assert!(llvm_ir.contains("define internal ptr @__skp_rt_call_function_dispatch("));
-    assert!(llvm_ir.contains("call ptr @__skp_rt_call_function_dispatch("));
-    assert!(llvm_ir.contains("declare ptr @skp_rt_value_from_function(i32)"));
-    assert!(llvm_ir.contains("declare i32 @skp_rt_value_to_function(ptr)"));
+    assert!(llvm_ir.contains("define internal ptr @__skp_rt_fnwrap_0("));
+    assert!(llvm_ir.contains("call ptr %"));
+    assert!(!llvm_ir.contains("@__skp_rt_call_function_dispatch"));
+    assert!(llvm_ir.contains("declare ptr @skp_rt_value_from_function(ptr)"));
+    assert!(llvm_ir.contains("declare ptr @skp_rt_value_to_function(ptr)"));
     assert!(llvm_ir.contains("declare void @skp_rt_value_free(ptr)"));
     assert!(llvm_ir.contains("icmp eq i64 %argc, 1"));
-    assert!(llvm_ir.contains("call ptr @skp_rt_call_function(i32 0, i64 %argc, ptr %argv)"));
-    assert!(llvm_ir.contains("call ptr @skp_rt_call_function(i32 -1, i64 %argc, ptr %argv)"));
+    assert!(llvm_ir.contains("call ptr @skp_rt_call_function(ptr null, i64 %argc, ptr %argv)"));
     assert!(llvm_ir.contains("call void @skp_rt_value_free(ptr %v"));
 
     assemble_llvm_ir(&llvm_ir, "indirect_call_runtime");

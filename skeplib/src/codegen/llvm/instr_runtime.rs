@@ -43,10 +43,16 @@ pub fn emit_runtime_instr(
             match lowered.native_calls.temp_lowering(*dst) {
                 NativeCallLowering::KnownFunction(known) => {
                     debug_assert_eq!(known, *function);
-                    lines.push(format!("  {dest} = add i32 0, {}", known.0));
+                    lines.push(format!(
+                        "  {dest} = bitcast ptr @__skp_rt_fnwrap_{} to ptr",
+                        known.0
+                    ));
                 }
                 NativeCallLowering::Dynamic => {
-                    lines.push(format!("  {dest} = add i32 0, {}", function.0));
+                    lines.push(format!(
+                        "  {dest} = bitcast ptr @__skp_rt_fnwrap_{} to ptr",
+                        function.0
+                    ));
                 }
             }
             Ok(true)

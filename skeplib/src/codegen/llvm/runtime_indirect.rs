@@ -78,7 +78,7 @@ pub fn emit_indirect_call(
     let raw = format!("%v{counter}");
     *counter += 1;
     lines.push(format!(
-        "  {raw} = call ptr @__skp_rt_call_function_dispatch(i32 {callee}, i64 {}, ptr {})",
+        "  {raw} = call ptr {callee}(i64 {}, ptr {})",
         args.len(),
         boxed_args.array
     ));
@@ -106,36 +106,6 @@ pub fn emit_indirect_call_dispatch(
         out.extend(emit_indirect_wrapper(func)?);
         out.push(String::new());
     }
-
-    out.push("define internal ptr @__skp_rt_call_function_dispatch(i32 %function, i64 %argc, ptr %argv) {".into());
-    out.push("entry:".into());
-    if program.functions.is_empty() {
-        out.push("  %unit = call ptr @skp_rt_value_from_unit()".into());
-        out.push("  ret ptr %unit".into());
-        out.push("}".into());
-        return Ok(());
-    }
-    let cases = program
-        .functions
-        .iter()
-        .map(|func| format!("    i32 {}, label %case{}", func.id.0, func.id.0))
-        .collect::<Vec<_>>()
-        .join("\n");
-    out.push(format!(
-        "  switch i32 %function, label %default [\n{cases}\n  ]"
-    ));
-    for func in &program.functions {
-        out.push(format!("case{}:", func.id.0));
-        out.push(format!(
-            "  %call{} = call ptr @__skp_rt_fnwrap_{}(i64 %argc, ptr %argv)",
-            func.id.0, func.id.0
-        ));
-        out.push(format!("  ret ptr %call{}", func.id.0));
-    }
-    out.push("default:".into());
-    out.push("  %invalid = call ptr @skp_rt_call_function(i32 -1, i64 %argc, ptr %argv)".into());
-    out.push("  ret ptr %invalid".into());
-    out.push("}".into());
     Ok(())
 }
 
@@ -154,10 +124,9 @@ fn emit_indirect_wrapper(func: &IrFunction) -> Result<Vec<String>, CodegenError>
         "  br i1 {argc_ok}, label %argc_ok, label %argc_bad"
     ));
     lines.push("argc_bad:".into());
-    lines.push(format!(
-        "  %argc_err = call ptr @skp_rt_call_function(i32 {}, i64 %argc, ptr %argv)",
-        func.id.0
-    ));
+    lines.push(
+        "  %argc_err = call ptr @skp_rt_call_function(ptr null, i64 %argc, ptr %argv)".into(),
+    );
     lines.push("  ret ptr %argc_err".into());
     lines.push("argc_ok:".into());
     for (index, param) in func.params.iter().enumerate() {
@@ -190,7 +159,7 @@ fn emit_indirect_wrapper(func: &IrFunction) -> Result<Vec<String>, CodegenError>
                 "  %arg{index} = call ptr @skp_rt_value_to_struct(ptr %argraw{index})"
             )),
             IrType::Fn { .. } => lines.push(format!(
-                "  %arg{index} = call i32 @skp_rt_value_to_function(ptr %argraw{index})"
+                "  %arg{index} = call ptr @skp_rt_value_to_function(ptr %argraw{index})"
             )),
             _ => {
                 return Err(CodegenError::Unsupported(

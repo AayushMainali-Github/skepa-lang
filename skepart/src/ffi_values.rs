@@ -1,3 +1,4 @@
+use std::ffi::c_void;
 use std::slice;
 
 use crate::array::RtArray;
@@ -202,12 +203,11 @@ pub extern "C" fn skp_rt_value_from_struct(value: *mut RtStruct) -> *mut RtValue
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_value_from_function(value: i32) -> *mut RtValue {
+pub extern "C" fn skp_rt_value_from_function(value: *mut c_void) -> *mut RtValue {
     match ffi_try(|| {
-        if value < 0 {
-            return Err(invalid_argument("function id must be non-negative"));
-        }
-        Ok(boxed_value(RtValue::Function(RtFunctionRef(value as u32))))
+        Ok(boxed_value(RtValue::Function(RtFunctionRef(
+            value as usize,
+        ))))
     }) {
         Ok(value) => value,
         Err(err) => {
@@ -295,16 +295,16 @@ pub extern "C" fn skp_rt_value_to_struct(value: *mut RtValue) -> *mut RtStruct {
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_value_to_function(value: *mut RtValue) -> i32 {
+pub extern "C" fn skp_rt_value_to_function(value: *mut RtValue) -> *mut c_void {
     match ffi_try(|| {
         clone_value(value)?
             .expect_function()
-            .map(|value| value.0 as i32)
+            .map(|value| value.0 as *mut c_void)
     }) {
         Ok(value) => value,
         Err(err) => {
             set_last_error(err);
-            0
+            std::ptr::null_mut()
         }
     }
 }

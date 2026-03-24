@@ -1,9 +1,11 @@
+use std::ffi::c_void;
+
 use crate::ffi_support::{boxed_value, set_last_error};
 use crate::value::RtValue;
 
 #[no_mangle]
 pub extern "C" fn skp_rt_call_function(
-    function: i32,
+    function: *mut c_void,
     argc: i64,
     _argv: *const *mut RtValue,
 ) -> *mut RtValue {
@@ -14,7 +16,8 @@ pub extern "C" fn skp_rt_call_function(
     set_last_error(crate::RtError::new(
         crate::RtErrorKind::InvalidArgument,
         format!(
-            "skp_rt_call_function is not a supported external ABI entrypoint; function id {function} must be dispatched by generated wrappers"
+            "skp_rt_call_function is not a supported external ABI entrypoint; function pointer {:?} must be dispatched by generated wrappers",
+            function
         ),
     ));
     boxed_value(RtValue::Unit)

@@ -3,7 +3,7 @@ use std::rc::Rc;
 use crate::{RtArray, RtError, RtResult, RtString, RtVec};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct RtFunctionRef(pub u32);
+pub struct RtFunctionRef(pub usize);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RtStructLayout {

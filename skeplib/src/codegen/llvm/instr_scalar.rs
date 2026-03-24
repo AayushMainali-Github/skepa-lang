@@ -58,10 +58,9 @@ pub fn emit_scalar_instr(
                     | crate::ir::IrType::Named(_)
                     | crate::ir::IrType::Array { .. }
                     | crate::ir::IrType::Vec { .. }
+                    | crate::ir::IrType::Fn { .. }
             ) {
                 lines.push(format!("  {dest} = bitcast ptr {value} to ptr"));
-            } else if matches!(ty, crate::ir::IrType::Fn { .. }) {
-                lines.push(format!("  {dest} = add i32 0, {value}"));
             } else if matches!(ty, crate::ir::IrType::Float) {
                 lines.push(format!("  {dest} = fadd {} 0.0, {value}", llvm_ty(ty)?));
             } else {
