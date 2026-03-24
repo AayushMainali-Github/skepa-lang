@@ -272,11 +272,43 @@ impl IrLowerer {
                 }
                 Some(Operand::Temp(dst))
             }
-            Expr::CustomInfix { operator, .. } => {
-                self.unsupported(format!(
-                    "user-defined operator expressions are not in the initial IR lowering subset: `{operator}`"
-                ));
-                None
+            Expr::CustomInfix { .. } => {
+                let Expr::CustomInfix {
+                    left,
+                    operator,
+                    right,
+                } = expr
+                else {
+                    unreachable!();
+                };
+                let left = self.compile_expr(func, lowering, left)?;
+                let right = self.compile_expr(func, lowering, right)?;
+                let qualified = self.qualify_name(operator);
+                let Some(sig) = self.functions.get(&qualified).cloned() else {
+                    self.unsupported(format!(
+                        "unknown user-defined operator `{operator}` in IR lowering"
+                    ));
+                    return None;
+                };
+                let dst = if sig.ret.is_void() {
+                    None
+                } else {
+                    Some(self.builder.push_temp(func, sig.ret.clone()))
+                };
+                self.builder.push_instr(
+                    func,
+                    lowering.current_block,
+                    Instr::CallDirect {
+                        dst,
+                        ret_ty: sig.ret.clone(),
+                        function: sig.id,
+                        args: vec![left, right],
+                    },
+                );
+                match dst {
+                    Some(dst) => Some(Operand::Temp(dst)),
+                    None => Some(Operand::Const(ConstValue::Unit)),
+                }
             }
             Expr::Call { callee, args } => self.compile_call(func, lowering, callee, args),
         }

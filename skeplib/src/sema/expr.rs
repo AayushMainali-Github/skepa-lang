@@ -136,13 +136,32 @@ impl Checker {
                 operator,
                 right,
             } => {
-                let _ = self.check_expr(left, scopes);
-                let _ = self.check_expr(right, scopes);
-                self.error(format!(
-                    "User-defined operator expressions are parsed but not semantically enabled yet: `{}`",
-                    operator
-                ));
-                TypeInfo::Unknown
+                let lt = self.check_expr(left, scopes);
+                let rt = self.check_expr(right, scopes);
+                let Some(sig) = self.operators.get(operator).cloned() else {
+                    self.error(format!("Unknown operator `{}`", operator));
+                    return TypeInfo::Unknown;
+                };
+                if sig.params.len() != 2 {
+                    self.error(format!(
+                        "Operator `{}` must have exactly 2 parameters",
+                        operator
+                    ));
+                    return TypeInfo::Unknown;
+                }
+                if lt != TypeInfo::Unknown && lt != sig.params[0] {
+                    self.error(format!(
+                        "Left operand for operator `{}`: expected {:?}, got {:?}",
+                        operator, sig.params[0], lt
+                    ));
+                }
+                if rt != TypeInfo::Unknown && rt != sig.params[1] {
+                    self.error(format!(
+                        "Right operand for operator `{}`: expected {:?}, got {:?}",
+                        operator, sig.params[1], rt
+                    ));
+                }
+                sig.ret
             }
             Expr::Call { callee, args } => self.check_call(callee, args, scopes),
             Expr::ArrayLit(items) => {

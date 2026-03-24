@@ -135,6 +135,21 @@ fn main() -> Int {
 }
 
 #[test]
+fn codegen_builds_native_executable_for_user_defined_operator_program() {
+    let source = r#"
+opr xoxo(lhs: Int, rhs: Int) -> Int precedence 9 {
+  return lhs * 10 + rhs;
+}
+
+fn main() -> Int {
+  return 5 `xoxo` 4 + 1;
+}
+"#;
+
+    assert_eq!(common::native_run_structured(source).exit_code(), 55);
+}
+
+#[test]
 fn llvm_codegen_rewrites_known_indirect_calls_to_direct_calls() {
     let source = r#"
 fn step(x: Int) -> Int {

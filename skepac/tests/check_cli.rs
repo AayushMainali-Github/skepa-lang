@@ -209,6 +209,33 @@ fn main() -> Int {
 }
 
 #[test]
+fn run_executes_user_defined_operator_program_end_to_end() {
+    let tmp = make_temp_dir("skepac_run_user_operator");
+    let source = tmp.join("main.sk");
+    fs::write(
+        &source,
+        r#"
+opr xoxo(lhs: Int, rhs: Int) -> Int precedence 9 {
+  return lhs * 10 + rhs;
+}
+
+fn main() -> Int {
+  return 5 `xoxo` 4 + 1;
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("run")
+        .arg(&source)
+        .output()
+        .expect("run skepac run");
+
+    assert_eq!(output.status.code(), Some(55), "{:?}", output);
+}
+
+#[test]
 fn build_llvm_ir_writes_ir_artifact() {
     let tmp = make_temp_dir("skepac_build_ll");
     let source = tmp.join("main.sk");

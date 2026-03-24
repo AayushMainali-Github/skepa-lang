@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::ast::{Program, Stmt, TypeName};
+use crate::ast::{OperatorDecl, Program, Stmt, TypeName};
 use crate::diagnostic::{DiagnosticBag, Span};
 use crate::parser::Parser;
 use crate::types::{FunctionSig, TypeInfo};
@@ -42,6 +42,7 @@ pub fn analyze_source(source: &str) -> (SemaResult, DiagnosticBag) {
 struct Checker {
     diagnostics: DiagnosticBag,
     functions: HashMap<String, FunctionSig>,
+    operators: HashMap<String, FunctionSig>,
     methods: HashMap<String, HashMap<String, FunctionSig>>,
     imported_modules: HashSet<String>,
     direct_imports: HashMap<String, String>,
@@ -173,6 +174,7 @@ impl Checker {
         Self {
             diagnostics: DiagnosticBag::new(),
             functions: HashMap::new(),
+            operators: HashMap::new(),
             methods: HashMap::new(),
             imported_modules,
             direct_imports,
@@ -227,6 +229,10 @@ impl Checker {
             );
         }
 
+        for operator in &program.operators {
+            self.collect_operator_signature(operator);
+        }
+
         self.check_global_declarations(program);
         self.check_export_declarations(program);
 
@@ -239,13 +245,59 @@ impl Checker {
                 self.check_method(imp.target.as_str(), method);
             }
         }
-
         for operator in &program.operators {
+            self.check_operator(operator);
+        }
+    }
+
+    fn collect_operator_signature(&mut self, operator: &OperatorDecl) {
+        if self.functions.contains_key(&operator.name)
+            || self.operators.contains_key(&operator.name)
+        {
             self.error(format!(
-                "User-defined operators are parsed but not semantically enabled yet: `{}`",
+                "Duplicate operator declaration `{}`",
+                operator.name
+            ));
+            return;
+        }
+        if operator.params.len() != 2 {
+            self.error(format!(
+                "Operator `{}` must declare exactly 2 parameters",
+                operator.name
+            ));
+            return;
+        }
+        if operator.precedence < 0 {
+            self.error(format!(
+                "Operator `{}` precedence must be non-negative",
                 operator.name
             ));
         }
+        for param in &operator.params {
+            self.check_decl_type_exists(
+                &param.ty,
+                format!(
+                    "Unknown type in operator `{}` parameter `{}`",
+                    operator.name, param.name
+                ),
+            );
+        }
+        self.check_decl_type_exists(
+            &operator.return_type,
+            format!("Unknown return type in operator `{}`", operator.name),
+        );
+        self.operators.insert(
+            operator.name.clone(),
+            FunctionSig {
+                name: operator.name.clone(),
+                params: operator
+                    .params
+                    .iter()
+                    .map(|p| TypeInfo::from_ast(&p.ty))
+                    .collect(),
+                ret: TypeInfo::from_ast(&operator.return_type),
+            },
+        );
     }
 
     fn check_global_declarations(&mut self, program: &Program) {
@@ -521,6 +573,23 @@ impl Checker {
             self.error(format!(
                 "Method `{}.{}` may exit without returning {:?}",
                 target, m.name, expected_ret
+            ));
+        }
+    }
+
+    fn check_operator(&mut self, operator: &OperatorDecl) {
+        let expected_ret = TypeInfo::from_ast(&operator.return_type);
+        let mut scopes = vec![HashMap::<String, TypeInfo>::new()];
+        for p in &operator.params {
+            scopes[0].insert(p.name.clone(), TypeInfo::from_ast(&p.ty));
+        }
+        for stmt in &operator.body {
+            self.check_stmt(stmt, &mut scopes, &expected_ret);
+        }
+        if !Self::block_must_return(&operator.body) {
+            self.error(format!(
+                "Operator `{}` may exit without returning {:?}",
+                operator.name, expected_ret
             ));
         }
     }

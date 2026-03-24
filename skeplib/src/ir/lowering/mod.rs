@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::ast::{FnDecl, MethodDecl, Program, StructDecl};
+use crate::ast::{FnDecl, MethodDecl, OperatorDecl, Program, StructDecl};
 use crate::diagnostic::{DiagnosticBag, Span};
 use crate::ir::{Instr, IrProgram, IrType, IrVerifier, Terminator, opt};
 use crate::parser::Parser;
@@ -310,6 +310,24 @@ impl IrLowerer {
             );
         }
 
+        for operator in &program.operators {
+            let params = operator
+                .params
+                .iter()
+                .map(|param| self.lower_type_name(&param.ty))
+                .collect::<Vec<_>>();
+            let ret_ty = self.lower_type_name(&operator.return_type);
+            let id = crate::ir::FunctionId(self.functions.len());
+            self.functions.insert(
+                self.qualify_name(&operator.name),
+                FunctionSig {
+                    id,
+                    params,
+                    ret: ret_ty,
+                },
+            );
+        }
+
         for imp in &program.impls {
             for method in &imp.methods {
                 let params = method
@@ -366,6 +384,12 @@ impl IrLowerer {
 
         for func in &program.functions {
             if let Some(lowered) = self.compile_function(func) {
+                out.functions.push(lowered);
+            }
+        }
+
+        for operator in &program.operators {
+            if let Some(lowered) = self.compile_operator(operator) {
                 out.functions.push(lowered);
             }
         }
@@ -452,6 +476,67 @@ impl IrLowerer {
             };
             self.builder
                 .set_terminator(&mut out, lowering.current_block, terminator);
+        }
+
+        Some(out)
+    }
+
+    fn compile_operator(&mut self, operator: &OperatorDecl) -> Option<crate::ir::IrFunction> {
+        let sig = self
+            .functions
+            .get(&self.qualify_name(&operator.name))
+            .cloned()
+            .unwrap_or(FunctionSig {
+                id: crate::ir::FunctionId(usize::MAX),
+                params: Vec::new(),
+                ret: IrType::Void,
+            });
+        let mut out = self
+            .builder
+            .begin_function(self.qualify_name(&operator.name), sig.ret.clone());
+        out.id = sig.id;
+        let mut lowering = FunctionLowering {
+            current_block: out.entry,
+            locals: HashMap::new(),
+            scratch_counter: 0,
+            loops: Vec::new(),
+        };
+
+        for param in &operator.params {
+            self.builder.push_param(
+                &mut out,
+                param.name.clone(),
+                self.lower_type_name(&param.ty),
+            );
+            let local = self.builder.push_local(
+                &mut out,
+                param.name.clone(),
+                self.lower_type_name(&param.ty),
+            );
+            lowering.locals.insert(param.name.clone(), local);
+        }
+
+        for stmt in &operator.body {
+            if !self.compile_stmt(&mut out, &mut lowering, stmt) {
+                return None;
+            }
+        }
+
+        if matches!(
+            out.blocks
+                .iter()
+                .find(|block| block.id == lowering.current_block)
+                .map(|block| &block.terminator),
+            Some(Terminator::Unreachable)
+        ) {
+            self.diags.error(
+                format!(
+                    "IR lowering currently requires explicit return in operator `{}`",
+                    operator.name
+                ),
+                Span::default(),
+            );
+            return None;
         }
 
         Some(out)

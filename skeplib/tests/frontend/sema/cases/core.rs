@@ -1213,7 +1213,7 @@ fn main() -> Int {
 }
 
 #[test]
-fn sema_rejects_user_defined_operators_until_feature_is_fully_enabled() {
+fn sema_accepts_user_defined_operator_expression_in_same_module() {
     let src = r#"
 opr xoxo(lhs: Int, rhs: Int) -> Int precedence 2 {
   return lhs + rhs;
@@ -1224,10 +1224,22 @@ fn main() -> Int {
 }
 "#;
     let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
+
+#[test]
+fn sema_rejects_unknown_user_defined_operator_and_invalid_operator_shape() {
+    let src = r#"
+opr bad(a: Int) -> Int precedence -1 {
+  return a;
+}
+
+fn main() -> Int {
+  return 5 `missing` 4;
+}
+"#;
+    let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert_has_diag(&diags, "User-defined operators are parsed but not semantically enabled yet");
-    assert_has_diag(
-        &diags,
-        "User-defined operator expressions are parsed but not semantically enabled yet",
-    );
+    assert_has_diag(&diags, "Operator `bad` must declare exactly 2 parameters");
+    assert_has_diag(&diags, "Unknown operator `missing`");
 }
