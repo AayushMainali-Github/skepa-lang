@@ -1211,3 +1211,23 @@ fn main() -> Int {
     assert!(result.has_errors);
     assert_has_diag(&diags, "Argument 1 for `takesFloatFn`");
 }
+
+#[test]
+fn sema_rejects_user_defined_operators_until_feature_is_fully_enabled() {
+    let src = r#"
+opr xoxo(lhs: Int, rhs: Int) -> Int precedence 2 {
+  return lhs + rhs;
+}
+
+fn main() -> Int {
+  return 5 `xoxo` 4;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert_has_diag(&diags, "User-defined operators are parsed but not semantically enabled yet");
+    assert_has_diag(
+        &diags,
+        "User-defined operator expressions are parsed but not semantically enabled yet",
+    );
+}

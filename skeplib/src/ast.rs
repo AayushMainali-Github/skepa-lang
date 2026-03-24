@@ -5,6 +5,7 @@ pub struct Program {
     pub globals: Vec<GlobalLetDecl>,
     pub structs: Vec<StructDecl>,
     pub impls: Vec<ImplDecl>,
+    pub operators: Vec<OperatorDecl>,
     pub functions: Vec<FnDecl>,
 }
 
@@ -59,6 +60,15 @@ pub struct FnDecl {
     pub name: String,
     pub params: Vec<Param>,
     pub return_type: Option<TypeName>,
+    pub body: Vec<Stmt>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OperatorDecl {
+    pub name: String,
+    pub params: Vec<Param>,
+    pub return_type: TypeName,
+    pub precedence: i64,
     pub body: Vec<Stmt>,
 }
 
@@ -190,6 +200,11 @@ pub enum Expr {
     Binary {
         left: Box<Expr>,
         op: BinaryOp,
+        right: Box<Expr>,
+    },
+    CustomInfix {
+        left: Box<Expr>,
+        operator: String,
         right: Box<Expr>,
     },
     Call {
@@ -336,6 +351,9 @@ impl Program {
         for i in &self.impls {
             pretty_impl(i, 0, &mut out);
         }
+        for operator in &self.operators {
+            pretty_operator(operator, 0, &mut out);
+        }
         for func in &self.functions {
             pretty_fn(func, 0, &mut out);
         }
@@ -395,6 +413,26 @@ fn pretty_fn(func: &FnDecl, indent: usize, out: &mut String) {
         .unwrap_or_else(|| "Void".to_string());
     out.push_str(&format!("{pad}fn {}({}) -> {}\n", func.name, params, ret));
     for stmt in &func.body {
+        pretty_stmt(stmt, indent + 2, out);
+    }
+}
+
+fn pretty_operator(operator: &OperatorDecl, indent: usize, out: &mut String) {
+    let pad = " ".repeat(indent);
+    let params = operator
+        .params
+        .iter()
+        .map(|p| format!("{}: {}", p.name, p.ty.as_str()))
+        .collect::<Vec<_>>()
+        .join(", ");
+    out.push_str(&format!(
+        "{pad}opr {}({}) -> {} precedence {}\n",
+        operator.name,
+        params,
+        operator.return_type.as_str(),
+        operator.precedence
+    ));
+    for stmt in &operator.body {
         pretty_stmt(stmt, indent + 2, out);
     }
 }
@@ -590,6 +628,16 @@ fn pretty_expr(expr: &Expr) -> String {
             };
             format!("({} {} {})", pretty_expr(left), symbol, pretty_expr(right))
         }
+        Expr::CustomInfix {
+            left,
+            operator,
+            right,
+        } => format!(
+            "({} `{}` {})",
+            pretty_expr(left),
+            operator,
+            pretty_expr(right)
+        ),
         Expr::Call { callee, args } => {
             let args = args.iter().map(pretty_expr).collect::<Vec<_>>().join(", ");
             format!("{}({})", pretty_expr(callee), args)

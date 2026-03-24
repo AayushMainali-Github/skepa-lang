@@ -272,6 +272,12 @@ impl IrLowerer {
                 }
                 Some(Operand::Temp(dst))
             }
+            Expr::CustomInfix { operator, .. } => {
+                self.unsupported(format!(
+                    "user-defined operator expressions are not in the initial IR lowering subset: `{operator}`"
+                ));
+                None
+            }
             Expr::Call { callee, args } => self.compile_call(func, lowering, callee, args),
         }
     }

@@ -1,6 +1,6 @@
 use crate::ast::{
     ExportDecl, ExportItem, FieldDecl, FnDecl, GlobalLetDecl, ImplDecl, ImportDecl, ImportItem,
-    MethodDecl, Param, Program, StructDecl, TypeName,
+    MethodDecl, OperatorDecl, Param, Program, StructDecl, TypeName,
 };
 use crate::diagnostic::{DiagnosticBag, Span};
 use crate::lexer::lex;
@@ -49,6 +49,7 @@ impl Parser {
         let mut globals = Vec::new();
         let mut structs = Vec::new();
         let mut impls = Vec::new();
+        let mut operators = Vec::new();
         let mut functions = Vec::new();
 
         while !self.at(TokenKind::Eof) {
@@ -83,6 +84,12 @@ impl Parser {
                 }
                 continue;
             }
+            if self.at(TokenKind::KwOpr) {
+                if let Some(operator) = self.parse_operator() {
+                    operators.push(operator);
+                }
+                continue;
+            }
             if self.at(TokenKind::KwStruct) {
                 if let Some(s) = self.parse_struct_decl() {
                     structs.push(s);
@@ -97,7 +104,7 @@ impl Parser {
             }
 
             self.error_here_expected(
-                "Expected top-level declaration (`import`, `from`, `export`, `let`, `struct`, `impl`, or `fn`)",
+                "Expected top-level declaration (`import`, `from`, `export`, `let`, `struct`, `impl`, `opr`, or `fn`)",
             );
             self.synchronize_toplevel();
         }
@@ -108,6 +115,7 @@ impl Parser {
             globals,
             structs,
             impls,
+            operators,
             functions,
         }
     }
@@ -330,6 +338,67 @@ impl Parser {
         })
     }
 
+    fn parse_operator(&mut self) -> Option<OperatorDecl> {
+        self.expect(TokenKind::KwOpr, "Expected `opr`")?;
+        let name = self.expect_ident("Expected operator name after `opr`")?;
+        self.expect(TokenKind::LParen, "Expected `(` after operator name")?;
+        let mut params = Vec::new();
+        if !self.at(TokenKind::RParen) {
+            loop {
+                let param_name = self.expect_ident("Expected operator parameter name")?;
+                self.expect(
+                    TokenKind::Colon,
+                    "Expected `:` after operator parameter name",
+                )?;
+                let param_ty = self.expect_type_name("Expected operator parameter type")?;
+                params.push(Param {
+                    name: param_name.lexeme,
+                    ty: param_ty,
+                });
+                if self.at(TokenKind::Comma) {
+                    self.bump();
+                    if self.at(TokenKind::RParen) {
+                        break;
+                    }
+                    continue;
+                }
+                break;
+            }
+        }
+        self.expect(TokenKind::RParen, "Expected `)` after operator parameters")?;
+        self.expect(TokenKind::Arrow, "Expected `->` after operator parameters")?;
+        let return_type = self.expect_type_name("Expected operator return type after `->`")?;
+        self.expect(
+            TokenKind::KwPrecedence,
+            "Expected `precedence` after operator return type",
+        )?;
+        let precedence = self
+            .expect(
+                TokenKind::IntLit,
+                "Expected integer precedence after `precedence`",
+            )?
+            .lexeme
+            .parse::<i64>()
+            .ok()?;
+        self.expect(TokenKind::LBrace, "Expected `{` before operator body")?;
+        let mut body = Vec::new();
+        while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
+            match self.parse_stmt() {
+                Some(stmt) => body.push(stmt),
+                None => self.synchronize_stmt(),
+            }
+        }
+        self.expect(TokenKind::RBrace, "Expected `}` after operator body")?;
+
+        Some(OperatorDecl {
+            name: name.lexeme,
+            params,
+            return_type,
+            precedence,
+            body,
+        })
+    }
+
     fn parse_struct_decl(&mut self) -> Option<StructDecl> {
         self.expect(TokenKind::KwStruct, "Expected `struct`")?;
         let name = self.expect_ident("Expected struct name after `struct`")?;
@@ -498,6 +567,7 @@ impl Parser {
                 || self.at(TokenKind::KwExport)
                 || self.at(TokenKind::KwLet)
                 || self.at(TokenKind::KwFn)
+                || self.at(TokenKind::KwOpr)
                 || self.at(TokenKind::KwStruct)
                 || self.at(TokenKind::KwImpl)
             {

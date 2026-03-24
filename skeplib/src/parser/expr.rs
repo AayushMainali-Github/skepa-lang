@@ -5,7 +5,26 @@ use super::Parser;
 
 impl Parser {
     pub(super) fn parse_expr(&mut self) -> Option<Expr> {
-        self.parse_logical_or()
+        self.parse_custom_infix()
+    }
+
+    fn parse_custom_infix(&mut self) -> Option<Expr> {
+        let mut expr = self.parse_logical_or()?;
+        while self.at(TokenKind::Backtick) {
+            self.bump();
+            let operator = self.expect_ident("Expected operator name after backtick")?;
+            self.expect(
+                TokenKind::Backtick,
+                "Expected closing backtick after custom operator name",
+            )?;
+            let rhs = self.parse_logical_or()?;
+            expr = Expr::CustomInfix {
+                left: Box::new(expr),
+                operator: operator.lexeme,
+                right: Box::new(rhs),
+            };
+        }
+        Some(expr)
     }
 
     fn parse_logical_or(&mut self) -> Option<Expr> {

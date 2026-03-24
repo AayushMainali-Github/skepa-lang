@@ -333,6 +333,48 @@ fn main() -> Int {
 }
 
 #[test]
+fn parses_operator_declaration_and_custom_backtick_infix_expr() {
+    let src = r#"
+opr xoxo(lhs: Int, rhs: Int) -> Int precedence 2 {
+  return lhs + rhs;
+}
+
+fn main() -> Int {
+  let x = 5 `xoxo` 4 + 3;
+  return x;
+}
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert_no_diags(&diags);
+    assert_eq!(program.operators.len(), 1);
+    assert_eq!(program.operators[0].name, "xoxo");
+    assert_eq!(program.operators[0].precedence, 2);
+    assert_eq!(program.operators[0].params.len(), 2);
+    match &program.functions[0].body[0] {
+        Stmt::Let {
+            value:
+                Expr::CustomInfix {
+                    left,
+                    operator,
+                    right,
+                },
+            ..
+        } => {
+            assert_eq!(operator, "xoxo");
+            assert!(matches!(&**left, Expr::IntLit(5)));
+            assert!(matches!(
+                &**right,
+                Expr::Binary {
+                    op: BinaryOp::Add,
+                    ..
+                }
+            ));
+        }
+        other => panic!("expected custom infix expression, got {other:?}"),
+    }
+}
+
+#[test]
 fn parses_chained_index_field_and_call_in_complex_order() {
     let src = r#"
 fn main() -> Int {

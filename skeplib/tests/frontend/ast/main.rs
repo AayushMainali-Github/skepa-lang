@@ -22,6 +22,7 @@ fn create_program_with_one_import_and_one_function() {
         globals: Vec::new(),
         structs: Vec::new(),
         impls: Vec::new(),
+        operators: Vec::new(),
         functions: vec![FnDecl {
             name: "main".to_string(),
             params: Vec::new(),
@@ -77,6 +78,7 @@ fn struct_and_impl_ast_nodes_roundtrip_data() {
         globals: Vec::new(),
         structs: vec![s],
         impls: vec![i],
+        operators: Vec::new(),
         functions: Vec::new(),
     };
     assert_eq!(p.structs[0].name, "User");

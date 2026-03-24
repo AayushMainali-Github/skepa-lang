@@ -18,6 +18,7 @@ fn resolver_graph_types_construct_cleanly() {
                 exports: vec![],
                 structs: vec![],
                 impls: vec![],
+                operators: vec![],
             },
             imports: vec!["io".to_string()],
         },

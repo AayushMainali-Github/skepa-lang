@@ -131,6 +131,19 @@ impl Checker {
                 let rt = self.check_expr(right, scopes);
                 self.check_binary(*op, lt, rt)
             }
+            Expr::CustomInfix {
+                left,
+                operator,
+                right,
+            } => {
+                let _ = self.check_expr(left, scopes);
+                let _ = self.check_expr(right, scopes);
+                self.error(format!(
+                    "User-defined operator expressions are parsed but not semantically enabled yet: `{}`",
+                    operator
+                ));
+                TypeInfo::Unknown
+            }
             Expr::Call { callee, args } => self.check_call(callee, args, scopes),
             Expr::ArrayLit(items) => {
                 if items.is_empty() {

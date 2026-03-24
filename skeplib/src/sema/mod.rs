@@ -239,6 +239,13 @@ impl Checker {
                 self.check_method(imp.target.as_str(), method);
             }
         }
+
+        for operator in &program.operators {
+            self.error(format!(
+                "User-defined operators are parsed but not semantically enabled yet: `{}`",
+                operator.name
+            ));
+        }
     }
 
     fn check_global_declarations(&mut self, program: &Program) {
