@@ -365,6 +365,9 @@ impl Checker {
         for g in &program.globals {
             local_exportables.insert(g.name.as_str());
         }
+        for operator in &program.operators {
+            local_exportables.insert(operator.name.as_str());
+        }
 
         let mut seen_targets = HashSet::new();
         for export_decl in &program.exports {

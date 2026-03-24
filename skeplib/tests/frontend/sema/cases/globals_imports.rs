@@ -94,6 +94,22 @@ fn main() -> Int { return 0; }
 }
 
 #[test]
+fn sema_accepts_exporting_local_operator_declaration() {
+    let src = r#"
+opr xoxo(lhs: Int, rhs: Int) -> Int precedence 9 {
+  return lhs + rhs;
+}
+export { xoxo };
+
+fn main() -> Int {
+  return 1 `xoxo` 2;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
+
+#[test]
 fn sema_accepts_call_via_direct_from_import_binding() {
     let src = r#"
 from utils.math import add;

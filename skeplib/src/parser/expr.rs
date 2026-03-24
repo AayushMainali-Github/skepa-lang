@@ -71,11 +71,19 @@ impl Parser {
                     self.error_here_expected("Expected backtick operator in the form `` `name` ``");
                     return None;
                 }
-                let precedence = self
-                    .custom_operator_precedences
-                    .get(&operator.lexeme)
-                    .copied()
-                    .unwrap_or(0);
+                let precedence = match self.custom_operator_precedences.get(&operator.lexeme) {
+                    Some(precedence) => *precedence,
+                    None => {
+                        self.diagnostics.error(
+                            format!(
+                                "Unknown operator `{}`; declare it before use in the same module",
+                                operator.lexeme
+                            ),
+                            operator.span,
+                        );
+                        0
+                    }
+                };
                 Some((InfixOp::Custom(operator.lexeme.clone()), precedence))
             }
             _ => None,

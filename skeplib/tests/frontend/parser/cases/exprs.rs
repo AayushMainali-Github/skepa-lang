@@ -243,6 +243,24 @@ fn main() -> Int {
   let c = ~7;
   return 0;
 }
+
+#[test]
+fn reports_user_defined_operator_used_before_declaration_in_same_module() {
+    let src = r#"
+fn main() -> Int {
+  return 1 `xoxo` 2;
+}
+
+opr xoxo(lhs: Int, rhs: Int) -> Int precedence 9 {
+  return lhs + rhs;
+}
+"#;
+    let (_program, diags) = Parser::parse_source(src);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("Unknown operator `xoxo`; declare it before use in the same module")
+    }));
+}
 "#;
     let (program, diags) = Parser::parse_source(src);
     assert_no_diags(&diags);

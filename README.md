@@ -56,11 +56,19 @@ Skepa supports:
 - comparison: `==`, `!=`, `<`, `<=`, `>`, `>=`
 - logical: `!`, `&&`, `||`
 - bitwise integer operators: `~`, `&`, `|`, `^`, `<<`, `>>`
+- user-defined infix operators in backticks, for example ``a `xoxo` b``
 
 Current bitwise rules:
 - bitwise operators are `Int`-only
 - shifts require an `Int` right-hand side
 - bitwise assignment operators like `&=` and `<<=` are not implemented yet
+
+Current user-defined operator rules:
+- declare with `opr name(lhs: T1, rhs: T2) -> R precedence N { ... }`
+- binary only
+- backtick infix use only
+- custom operators must currently be declared before use in the same module
+- cross-module imported custom operator usage is not implemented yet
 
 ## Migration
 
