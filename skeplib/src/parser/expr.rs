@@ -3,210 +3,103 @@ use crate::token::TokenKind;
 
 use super::Parser;
 
+#[derive(Debug, Clone)]
+enum InfixOp {
+    Builtin(BinaryOp),
+    Custom(String),
+}
+
 impl Parser {
     pub(super) fn parse_expr(&mut self) -> Option<Expr> {
-        self.parse_custom_infix()
+        self.parse_binary_expr(0)
     }
 
-    fn parse_custom_infix(&mut self) -> Option<Expr> {
-        let mut expr = self.parse_logical_or()?;
-        while self.at(TokenKind::Backtick) {
-            self.bump();
-            let operator = self.expect_ident("Expected operator name after backtick")?;
-            self.expect(
-                TokenKind::Backtick,
-                "Expected closing backtick after custom operator name",
-            )?;
-            let rhs = self.parse_logical_or()?;
-            expr = Expr::CustomInfix {
-                left: Box::new(expr),
-                operator: operator.lexeme,
-                right: Box::new(rhs),
-            };
-        }
-        Some(expr)
-    }
-
-    fn parse_logical_or(&mut self) -> Option<Expr> {
-        let mut expr = self.parse_logical_and()?;
-        while self.at(TokenKind::OrOr) {
-            self.bump();
-            let rhs = self.parse_logical_and()?;
-            expr = Expr::Binary {
-                left: Box::new(expr),
-                op: BinaryOp::OrOr,
-                right: Box::new(rhs),
-            };
-        }
-        Some(expr)
-    }
-
-    fn parse_logical_and(&mut self) -> Option<Expr> {
-        let mut expr = self.parse_equality()?;
-        while self.at(TokenKind::AndAnd) {
-            self.bump();
-            let rhs = self.parse_equality()?;
-            expr = Expr::Binary {
-                left: Box::new(expr),
-                op: BinaryOp::AndAnd,
-                right: Box::new(rhs),
-            };
-        }
-        Some(expr)
-    }
-
-    fn parse_equality(&mut self) -> Option<Expr> {
-        let mut expr = self.parse_comparison()?;
-        loop {
-            let op = if self.at(TokenKind::EqEq) {
-                Some(BinaryOp::EqEq)
-            } else if self.at(TokenKind::Neq) {
-                Some(BinaryOp::Neq)
-            } else {
-                None
-            };
-            let Some(op) = op else { break };
-            self.bump();
-            let rhs = self.parse_comparison()?;
-            expr = Expr::Binary {
-                left: Box::new(expr),
-                op,
-                right: Box::new(rhs),
-            };
-        }
-        Some(expr)
-    }
-
-    fn parse_comparison(&mut self) -> Option<Expr> {
-        let mut expr = self.parse_bitwise_or()?;
-        loop {
-            let op = match self.current().kind {
-                TokenKind::Lt => Some(BinaryOp::Lt),
-                TokenKind::Lte => Some(BinaryOp::Lte),
-                TokenKind::Gt => Some(BinaryOp::Gt),
-                TokenKind::Gte => Some(BinaryOp::Gte),
-                _ => None,
-            };
-            let Some(op) = op else { break };
-            self.bump();
-            let rhs = self.parse_term()?;
-            expr = Expr::Binary {
-                left: Box::new(expr),
-                op,
-                right: Box::new(rhs),
-            };
-        }
-        Some(expr)
-    }
-
-    fn parse_bitwise_or(&mut self) -> Option<Expr> {
-        let mut expr = self.parse_bitwise_xor()?;
-        while self.at(TokenKind::Pipe) {
-            self.bump();
-            let rhs = self.parse_bitwise_xor()?;
-            expr = Expr::Binary {
-                left: Box::new(expr),
-                op: BinaryOp::BitOr,
-                right: Box::new(rhs),
-            };
-        }
-        Some(expr)
-    }
-
-    fn parse_bitwise_xor(&mut self) -> Option<Expr> {
-        let mut expr = self.parse_bitwise_and()?;
-        while self.at(TokenKind::Caret) {
-            self.bump();
-            let rhs = self.parse_bitwise_and()?;
-            expr = Expr::Binary {
-                left: Box::new(expr),
-                op: BinaryOp::BitXor,
-                right: Box::new(rhs),
-            };
-        }
-        Some(expr)
-    }
-
-    fn parse_bitwise_and(&mut self) -> Option<Expr> {
-        let mut expr = self.parse_shift()?;
-        while self.at(TokenKind::Amp) {
-            self.bump();
-            let rhs = self.parse_shift()?;
-            expr = Expr::Binary {
-                left: Box::new(expr),
-                op: BinaryOp::BitAnd,
-                right: Box::new(rhs),
-            };
-        }
-        Some(expr)
-    }
-
-    fn parse_shift(&mut self) -> Option<Expr> {
-        let mut expr = self.parse_term()?;
-        loop {
-            let op = if self.at(TokenKind::Shl) {
-                Some(BinaryOp::Shl)
-            } else if self.at(TokenKind::Shr) {
-                Some(BinaryOp::Shr)
-            } else {
-                None
-            };
-            let Some(op) = op else { break };
-            self.bump();
-            let rhs = self.parse_term()?;
-            expr = Expr::Binary {
-                left: Box::new(expr),
-                op,
-                right: Box::new(rhs),
-            };
-        }
-        Some(expr)
-    }
-
-    fn parse_term(&mut self) -> Option<Expr> {
-        let mut expr = self.parse_factor()?;
-        loop {
-            let op = if self.at(TokenKind::Plus) {
-                Some(BinaryOp::Add)
-            } else if self.at(TokenKind::Minus) {
-                Some(BinaryOp::Sub)
-            } else {
-                None
-            };
-            let Some(op) = op else { break };
-            self.bump();
-            let rhs = self.parse_factor()?;
-            expr = Expr::Binary {
-                left: Box::new(expr),
-                op,
-                right: Box::new(rhs),
-            };
-        }
-        Some(expr)
-    }
-
-    fn parse_factor(&mut self) -> Option<Expr> {
+    fn parse_binary_expr(&mut self, min_precedence: i64) -> Option<Expr> {
         let mut expr = self.parse_unary()?;
+
         loop {
-            let op = if self.at(TokenKind::Star) {
-                Some(BinaryOp::Mul)
-            } else if self.at(TokenKind::Slash) {
-                Some(BinaryOp::Div)
-            } else if self.at(TokenKind::Percent) {
-                Some(BinaryOp::Mod)
-            } else {
-                None
+            let Some((op, precedence)) = self.peek_infix_operator() else {
+                break;
             };
-            let Some(op) = op else { break };
-            self.bump();
-            let rhs = self.parse_unary()?;
-            expr = Expr::Binary {
-                left: Box::new(expr),
-                op,
-                right: Box::new(rhs),
+            if precedence < min_precedence {
+                break;
+            }
+
+            self.consume_infix_operator(&op)?;
+            let rhs = self.parse_binary_expr(precedence + 1)?;
+            expr = match op {
+                InfixOp::Builtin(op) => Expr::Binary {
+                    left: Box::new(expr),
+                    op,
+                    right: Box::new(rhs),
+                },
+                InfixOp::Custom(operator) => Expr::CustomInfix {
+                    left: Box::new(expr),
+                    operator,
+                    right: Box::new(rhs),
+                },
             };
         }
+
         Some(expr)
+    }
+
+    fn peek_infix_operator(&mut self) -> Option<(InfixOp, i64)> {
+        match self.current().kind {
+            TokenKind::OrOr => Some((InfixOp::Builtin(BinaryOp::OrOr), 1)),
+            TokenKind::AndAnd => Some((InfixOp::Builtin(BinaryOp::AndAnd), 2)),
+            TokenKind::EqEq => Some((InfixOp::Builtin(BinaryOp::EqEq), 3)),
+            TokenKind::Neq => Some((InfixOp::Builtin(BinaryOp::Neq), 3)),
+            TokenKind::Lt => Some((InfixOp::Builtin(BinaryOp::Lt), 4)),
+            TokenKind::Lte => Some((InfixOp::Builtin(BinaryOp::Lte), 4)),
+            TokenKind::Gt => Some((InfixOp::Builtin(BinaryOp::Gt), 4)),
+            TokenKind::Gte => Some((InfixOp::Builtin(BinaryOp::Gte), 4)),
+            TokenKind::Pipe => Some((InfixOp::Builtin(BinaryOp::BitOr), 5)),
+            TokenKind::Caret => Some((InfixOp::Builtin(BinaryOp::BitXor), 6)),
+            TokenKind::Amp => Some((InfixOp::Builtin(BinaryOp::BitAnd), 7)),
+            TokenKind::Shl => Some((InfixOp::Builtin(BinaryOp::Shl), 8)),
+            TokenKind::Shr => Some((InfixOp::Builtin(BinaryOp::Shr), 8)),
+            TokenKind::Plus => Some((InfixOp::Builtin(BinaryOp::Add), 9)),
+            TokenKind::Minus => Some((InfixOp::Builtin(BinaryOp::Sub), 9)),
+            TokenKind::Star => Some((InfixOp::Builtin(BinaryOp::Mul), 10)),
+            TokenKind::Slash => Some((InfixOp::Builtin(BinaryOp::Div), 10)),
+            TokenKind::Percent => Some((InfixOp::Builtin(BinaryOp::Mod), 10)),
+            TokenKind::Backtick => {
+                let operator = self.tokens.get(self.idx + 1)?;
+                let closing = self.tokens.get(self.idx + 2)?;
+                if operator.kind != TokenKind::Ident || closing.kind != TokenKind::Backtick {
+                    self.error_here_expected("Expected backtick operator in the form `` `name` ``");
+                    return None;
+                }
+                let precedence = self
+                    .custom_operator_precedences
+                    .get(&operator.lexeme)
+                    .copied()
+                    .unwrap_or(0);
+                Some((InfixOp::Custom(operator.lexeme.clone()), precedence))
+            }
+            _ => None,
+        }
+    }
+
+    fn consume_infix_operator(&mut self, op: &InfixOp) -> Option<()> {
+        match op {
+            InfixOp::Builtin(_) => {
+                self.bump();
+            }
+            InfixOp::Custom(_) => {
+                self.expect(
+                    TokenKind::Backtick,
+                    "Expected opening backtick for custom operator",
+                )?;
+                self.expect_ident("Expected operator name after backtick")?;
+                self.expect(
+                    TokenKind::Backtick,
+                    "Expected closing backtick after custom operator name",
+                )?;
+            }
+        }
+        Some(())
     }
 
     fn parse_unary(&mut self) -> Option<Expr> {

@@ -375,6 +375,86 @@ fn main() -> Int {
 }
 
 #[test]
+fn custom_operator_precedence_interacts_with_builtin_binary_ops() {
+    let src = r#"
+opr low(lhs: Int, rhs: Int) -> Int precedence 1 {
+  return lhs + rhs;
+}
+
+opr high(lhs: Int, rhs: Int) -> Int precedence 10 {
+  return lhs + rhs;
+}
+
+fn main() -> Int {
+  let a = 1 + 2 `low` 3 * 4;
+  let b = 1 + 2 `high` 3 * 4;
+  return a + b;
+}
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert_no_diags(&diags);
+
+    let a = match &program.functions[0].body[0] {
+        Stmt::Let { value, .. } => value,
+        _ => panic!("expected first let"),
+    };
+    match a {
+        Expr::CustomInfix {
+            left,
+            operator,
+            right,
+        } => {
+            assert_eq!(operator, "low");
+            assert!(matches!(
+                &**left,
+                Expr::Binary {
+                    op: BinaryOp::Add,
+                    ..
+                }
+            ));
+            assert!(matches!(
+                &**right,
+                Expr::Binary {
+                    op: BinaryOp::Mul,
+                    ..
+                }
+            ));
+        }
+        other => panic!("expected low-precedence custom infix, got {other:?}"),
+    }
+
+    let b = match &program.functions[0].body[1] {
+        Stmt::Let { value, .. } => value,
+        _ => panic!("expected second let"),
+    };
+    match b {
+        Expr::Binary {
+            left,
+            op: BinaryOp::Add,
+            right: _,
+        } => match &**left {
+            Expr::CustomInfix {
+                left,
+                operator,
+                right,
+            } => {
+                assert_eq!(operator, "high");
+                assert!(matches!(&**left, Expr::IntLit(1)));
+                assert!(matches!(
+                    &**right,
+                    Expr::Binary {
+                        op: BinaryOp::Mul,
+                        ..
+                    }
+                ));
+            }
+            other => panic!("expected custom infix under add, got {other:?}"),
+        },
+        other => panic!("expected add around high-precedence custom infix, got {other:?}"),
+    }
+}
+
+#[test]
 fn parses_chained_index_field_and_call_in_complex_order() {
     let src = r#"
 fn main() -> Int {

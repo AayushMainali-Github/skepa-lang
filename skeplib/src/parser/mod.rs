@@ -5,7 +5,7 @@ use crate::ast::{
 use crate::diagnostic::{DiagnosticBag, Span};
 use crate::lexer::lex;
 use crate::token::{Token, TokenKind};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 mod expr;
 mod stmt;
@@ -16,6 +16,7 @@ pub struct Parser {
     tokens: Vec<Token>,
     idx: usize,
     diagnostics: DiagnosticBag,
+    custom_operator_precedences: HashMap<String, i64>,
 }
 
 impl Default for Parser {
@@ -24,6 +25,7 @@ impl Default for Parser {
             tokens: vec![Token::new(TokenKind::Eof, "", Span::default())],
             idx: 0,
             diagnostics: DiagnosticBag::new(),
+            custom_operator_precedences: HashMap::new(),
         }
     }
 }
@@ -35,6 +37,7 @@ impl Parser {
             tokens,
             idx: 0,
             diagnostics: DiagnosticBag::new(),
+            custom_operator_precedences: HashMap::new(),
         };
         let program = parser.parse_program();
         for d in parser.diagnostics.into_vec() {
@@ -86,6 +89,8 @@ impl Parser {
             }
             if self.at(TokenKind::KwOpr) {
                 if let Some(operator) = self.parse_operator() {
+                    self.custom_operator_precedences
+                        .insert(operator.name.clone(), operator.precedence);
                     operators.push(operator);
                 }
                 continue;
