@@ -67,7 +67,7 @@ Current user-defined operator rules:
 - declare with `opr name(lhs: T1, rhs: T2) -> R precedence N { ... }`
 - binary only
 - backtick infix use only
-- custom operators must currently be declared before use in the same module
+- same-module custom operators may be used before or after their declaration
 - cross-module imported custom operator usage is not implemented yet
 
 ## Migration

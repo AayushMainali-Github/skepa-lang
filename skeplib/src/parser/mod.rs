@@ -33,17 +33,68 @@ impl Default for Parser {
 impl Parser {
     pub fn parse_source(source: &str) -> (Program, DiagnosticBag) {
         let (tokens, mut diagnostics) = lex(source);
+        let custom_operator_precedences = Self::collect_operator_precedences(&tokens);
         let mut parser = Parser {
             tokens,
             idx: 0,
             diagnostics: DiagnosticBag::new(),
-            custom_operator_precedences: HashMap::new(),
+            custom_operator_precedences,
         };
         let program = parser.parse_program();
         for d in parser.diagnostics.into_vec() {
             diagnostics.push(d);
         }
         (program, diagnostics)
+    }
+
+    fn collect_operator_precedences(tokens: &[Token]) -> HashMap<String, i64> {
+        let mut out = HashMap::new();
+        let mut idx = 0usize;
+        let mut brace_depth = 0usize;
+
+        while idx < tokens.len() {
+            match tokens[idx].kind {
+                TokenKind::LBrace => {
+                    brace_depth += 1;
+                    idx += 1;
+                }
+                TokenKind::RBrace => {
+                    brace_depth = brace_depth.saturating_sub(1);
+                    idx += 1;
+                }
+                TokenKind::KwOpr if brace_depth == 0 => {
+                    let Some(name_tok) = tokens.get(idx + 1) else {
+                        break;
+                    };
+                    if name_tok.kind != TokenKind::Ident {
+                        idx += 1;
+                        continue;
+                    }
+                    let mut scan = idx + 2;
+                    while let Some(tok) = tokens.get(scan) {
+                        match tok.kind {
+                            TokenKind::KwPrecedence => {
+                                if let Some(value_tok) = tokens.get(scan + 1)
+                                    && value_tok.kind == TokenKind::IntLit
+                                    && let Ok(precedence) = value_tok.lexeme.parse::<i64>()
+                                {
+                                    out.insert(name_tok.lexeme.clone(), precedence);
+                                }
+                                break;
+                            }
+                            TokenKind::LBrace | TokenKind::Semi | TokenKind::Eof => break,
+                            _ => scan += 1,
+                        }
+                    }
+                    idx += 1;
+                }
+                _ => {
+                    idx += 1;
+                }
+            }
+        }
+
+        out
     }
 
     fn parse_program(&mut self) -> Program {

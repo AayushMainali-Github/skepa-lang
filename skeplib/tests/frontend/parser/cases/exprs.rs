@@ -245,7 +245,7 @@ fn main() -> Int {
 }
 
 #[test]
-fn reports_user_defined_operator_used_before_declaration_in_same_module() {
+fn parses_user_defined_operator_used_before_declaration_in_same_module() {
     let src = r#"
 fn main() -> Int {
   return 1 `xoxo` 2;
@@ -255,11 +255,20 @@ opr xoxo(lhs: Int, rhs: Int) -> Int precedence 9 {
   return lhs + rhs;
 }
 "#;
-    let (_program, diags) = Parser::parse_source(src);
-    assert!(diags.as_slice().iter().any(|d| {
-        d.message
-            .contains("Unknown operator `xoxo`; declare it before use in the same module")
-    }));
+    let (program, diags) = Parser::parse_source(src);
+    assert_no_diags(&diags);
+    match &program.functions[0].body[0] {
+        Stmt::Return(Some(Expr::CustomInfix {
+            left,
+            operator,
+            right,
+        })) => {
+            assert_eq!(operator, "xoxo");
+            assert!(matches!(&**left, Expr::IntLit(1)));
+            assert!(matches!(&**right, Expr::IntLit(2)));
+        }
+        other => panic!("expected custom infix return expression, got {other:?}"),
+    }
 }
 "#;
     let (program, diags) = Parser::parse_source(src);
