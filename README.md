@@ -49,6 +49,19 @@ skepac build-obj app.sk app.obj
 skepac build-llvm-ir app.sk app.ll
 ```
 
+## Operators
+
+Skepa supports:
+- arithmetic: `+`, `-`, `*`, `/`, `%`
+- comparison: `==`, `!=`, `<`, `<=`, `>`, `>=`
+- logical: `!`, `&&`, `||`
+- bitwise integer operators: `~`, `&`, `|`, `^`, `<<`, `>>`
+
+Current bitwise rules:
+- bitwise operators are `Int`-only
+- shifts require an `Int` right-hand side
+- bitwise assignment operators like `&=` and `<<=` are not implemented yet
+
 ## Migration
 
 Old commands were removed:
