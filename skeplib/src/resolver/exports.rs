@@ -357,6 +357,16 @@ pub fn collect_module_symbols(program: &Program, module_id: &str) -> ModuleSymbo
             },
         );
     }
+    for operator in &program.operators {
+        locals.insert(
+            operator.name.clone(),
+            SymbolRef {
+                module_id: module_id.to_string(),
+                local_name: operator.name.clone(),
+                kind: SymbolKind::Fn,
+            },
+        );
+    }
     for s in &program.structs {
         locals.insert(
             s.name.clone(),

@@ -123,6 +123,20 @@ fn build_module_api(program: &Program) -> ModuleApi {
             },
         );
     }
+    for operator in &program.operators {
+        api.functions.insert(
+            operator.name.clone(),
+            FunctionSig {
+                name: operator.name.clone(),
+                params: operator
+                    .params
+                    .iter()
+                    .map(|p| TypeInfo::from_ast(&p.ty))
+                    .collect(),
+                ret: TypeInfo::from_ast(&operator.return_type),
+            },
+        );
+    }
     for s in &program.structs {
         let mut fields = HashMap::new();
         for fld in &s.fields {
