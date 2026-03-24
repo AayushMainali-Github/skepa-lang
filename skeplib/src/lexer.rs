@@ -71,6 +71,7 @@ impl Lexer {
             '*' => self.single(TokenKind::Star, start, line, col),
             '/' => self.single(TokenKind::Slash, start, line, col),
             '%' => self.single(TokenKind::Percent, start, line, col),
+            '~' => self.single(TokenKind::Tilde, start, line, col),
             '-' => {
                 self.bump();
                 if self.peek() == Some('>') {
@@ -103,7 +104,10 @@ impl Lexer {
             }
             '<' => {
                 self.bump();
-                if self.peek() == Some('=') {
+                if self.peek() == Some('<') {
+                    self.bump();
+                    self.push_token(TokenKind::Shl, start, line, col);
+                } else if self.peek() == Some('=') {
                     self.bump();
                     self.push_token(TokenKind::Lte, start, line, col);
                 } else {
@@ -112,7 +116,10 @@ impl Lexer {
             }
             '>' => {
                 self.bump();
-                if self.peek() == Some('=') {
+                if self.peek() == Some('>') {
+                    self.bump();
+                    self.push_token(TokenKind::Shr, start, line, col);
+                } else if self.peek() == Some('=') {
                     self.bump();
                     self.push_token(TokenKind::Gte, start, line, col);
                 } else {
@@ -125,12 +132,10 @@ impl Lexer {
                     self.bump();
                     self.push_token(TokenKind::AndAnd, start, line, col);
                 } else {
-                    self.diagnostics.error(
-                        "Unexpected '&'. Did you mean '&&'?",
-                        Span::new(start, self.idx, line, col),
-                    );
+                    self.push_token(TokenKind::Amp, start, line, col);
                 }
             }
+            '^' => self.single(TokenKind::Caret, start, line, col),
             '|' => {
                 self.bump();
                 if self.peek() == Some('|') {

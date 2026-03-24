@@ -59,7 +59,7 @@ impl Parser {
     }
 
     fn parse_comparison(&mut self) -> Option<Expr> {
-        let mut expr = self.parse_term()?;
+        let mut expr = self.parse_bitwise_or()?;
         loop {
             let op = match self.current().kind {
                 TokenKind::Lt => Some(BinaryOp::Lt),
@@ -67,6 +67,70 @@ impl Parser {
                 TokenKind::Gt => Some(BinaryOp::Gt),
                 TokenKind::Gte => Some(BinaryOp::Gte),
                 _ => None,
+            };
+            let Some(op) = op else { break };
+            self.bump();
+            let rhs = self.parse_term()?;
+            expr = Expr::Binary {
+                left: Box::new(expr),
+                op,
+                right: Box::new(rhs),
+            };
+        }
+        Some(expr)
+    }
+
+    fn parse_bitwise_or(&mut self) -> Option<Expr> {
+        let mut expr = self.parse_bitwise_xor()?;
+        while self.at(TokenKind::Pipe) {
+            self.bump();
+            let rhs = self.parse_bitwise_xor()?;
+            expr = Expr::Binary {
+                left: Box::new(expr),
+                op: BinaryOp::BitOr,
+                right: Box::new(rhs),
+            };
+        }
+        Some(expr)
+    }
+
+    fn parse_bitwise_xor(&mut self) -> Option<Expr> {
+        let mut expr = self.parse_bitwise_and()?;
+        while self.at(TokenKind::Caret) {
+            self.bump();
+            let rhs = self.parse_bitwise_and()?;
+            expr = Expr::Binary {
+                left: Box::new(expr),
+                op: BinaryOp::BitXor,
+                right: Box::new(rhs),
+            };
+        }
+        Some(expr)
+    }
+
+    fn parse_bitwise_and(&mut self) -> Option<Expr> {
+        let mut expr = self.parse_shift()?;
+        while self.at(TokenKind::Amp) {
+            self.bump();
+            let rhs = self.parse_shift()?;
+            expr = Expr::Binary {
+                left: Box::new(expr),
+                op: BinaryOp::BitAnd,
+                right: Box::new(rhs),
+            };
+        }
+        Some(expr)
+    }
+
+    fn parse_shift(&mut self) -> Option<Expr> {
+        let mut expr = self.parse_term()?;
+        loop {
+            let op = if self.at(TokenKind::Shl) {
+                Some(BinaryOp::Shl)
+            } else if self.at(TokenKind::Shr) {
+                Some(BinaryOp::Shr)
+            } else {
+                None
             };
             let Some(op) = op else { break };
             self.bump();
@@ -132,6 +196,14 @@ impl Parser {
             let expr = self.parse_unary()?;
             return Some(Expr::Unary {
                 op: UnaryOp::Not,
+                expr: Box::new(expr),
+            });
+        }
+        if self.at(TokenKind::Tilde) {
+            self.bump();
+            let expr = self.parse_unary()?;
+            return Some(Expr::Unary {
+                op: UnaryOp::BitNot,
                 expr: Box::new(expr),
             });
         }

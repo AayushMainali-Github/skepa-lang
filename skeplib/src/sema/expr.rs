@@ -116,6 +116,14 @@ impl Checker {
                             TypeInfo::Unknown
                         }
                     }
+                    UnaryOp::BitNot => {
+                        if ty == TypeInfo::Int || ty == TypeInfo::Unknown {
+                            TypeInfo::Int
+                        } else {
+                            self.error("Unary `~` expects Int".to_string());
+                            TypeInfo::Unknown
+                        }
+                    }
                 }
             }
             Expr::Binary { left, op, right } => {
@@ -341,6 +349,19 @@ impl Checker {
                 }
             }
             Mod => {
+                if lt == TypeInfo::Int && rt == TypeInfo::Int {
+                    TypeInfo::Int
+                } else if lt == TypeInfo::Unknown || rt == TypeInfo::Unknown {
+                    TypeInfo::Unknown
+                } else {
+                    self.error(format!(
+                        "Invalid operands for {:?}: left {:?}, right {:?}",
+                        op, lt, rt
+                    ));
+                    TypeInfo::Unknown
+                }
+            }
+            BitAnd | BitOr | BitXor | Shl | Shr => {
                 if lt == TypeInfo::Int && rt == TypeInfo::Int {
                     TypeInfo::Int
                 } else if lt == TypeInfo::Unknown || rt == TypeInfo::Unknown {

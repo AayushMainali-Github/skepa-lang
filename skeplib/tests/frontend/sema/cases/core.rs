@@ -737,6 +737,42 @@ fn main() -> Int {
 }
 
 #[test]
+fn sema_accepts_bitwise_and_shift_for_ints() {
+    let src = r#"
+fn main() -> Int {
+  let a: Int = ~1;
+  let b: Int = 1 & 2;
+  let c: Int = 1 | 2;
+  let d: Int = 1 ^ 2;
+  let e: Int = 1 << 3;
+  let f: Int = 8 >> 1;
+  return a + b + c + d + e + f;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
+
+#[test]
+fn sema_rejects_bitwise_operators_for_non_ints() {
+    let src = r#"
+fn main() -> Int {
+  let a = ~true;
+  let b = 1.0 & 2.0;
+  let c = false | true;
+  let d = 1 << 2.0;
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert_has_diag(&diags, "Unary `~` expects Int");
+    assert_has_diag(&diags, "Invalid operands for BitAnd");
+    assert_has_diag(&diags, "Invalid operands for BitOr");
+    assert_has_diag(&diags, "Invalid operands for Shl");
+}
+
+#[test]
 fn sema_rejects_unary_plus_for_bool() {
     let src = r#"
 fn main() -> Int {

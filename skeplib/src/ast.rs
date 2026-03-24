@@ -231,6 +231,7 @@ pub enum UnaryOp {
     Neg,
     Pos,
     Not,
+    BitNot,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -240,6 +241,11 @@ pub enum BinaryOp {
     Mul,
     Div,
     Mod,
+    BitAnd,
+    BitOr,
+    BitXor,
+    Shl,
+    Shr,
     EqEq,
     Neq,
     Lt,
@@ -557,6 +563,7 @@ fn pretty_expr(expr: &Expr) -> String {
                 UnaryOp::Neg => "-",
                 UnaryOp::Pos => "+",
                 UnaryOp::Not => "!",
+                UnaryOp::BitNot => "~",
             };
             format!("({}{})", symbol, pretty_expr(expr))
         }
@@ -567,6 +574,11 @@ fn pretty_expr(expr: &Expr) -> String {
                 BinaryOp::Mul => "*",
                 BinaryOp::Div => "/",
                 BinaryOp::Mod => "%",
+                BinaryOp::BitAnd => "&",
+                BinaryOp::BitOr => "|",
+                BinaryOp::BitXor => "^",
+                BinaryOp::Shl => "<<",
+                BinaryOp::Shr => ">>",
                 BinaryOp::EqEq => "==",
                 BinaryOp::Neq => "!=",
                 BinaryOp::Lt => "<",

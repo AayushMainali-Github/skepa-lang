@@ -240,6 +240,7 @@ fn main() -> Int {
   let a = -1;
   let p = +2;
   let b = !false;
+  let c = ~7;
   return 0;
 }
 "#;
@@ -274,6 +275,60 @@ fn main() -> Int {
             }
         )),
         _ => panic!("expected let"),
+    }
+    match &program.functions[0].body[3] {
+        Stmt::Let { value, .. } => assert!(matches!(
+            value,
+            Expr::Unary {
+                op: UnaryOp::BitNot,
+                ..
+            }
+        )),
+        _ => panic!("expected let"),
+    }
+}
+
+#[test]
+fn parses_bitwise_and_shift_precedence() {
+    let src = r#"
+fn main() -> Int {
+  let x = 1 | 2 ^ 3 & 4 << 1;
+  return x;
+}
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert_no_diags(&diags);
+    let expr = match &program.functions[0].body[0] {
+        Stmt::Let { value, .. } => value,
+        _ => panic!("expected let"),
+    };
+    match expr {
+        Expr::Binary {
+            op: BinaryOp::BitOr,
+            left: _,
+            right,
+        } => match &**right {
+            Expr::Binary {
+                op: BinaryOp::BitXor,
+                right,
+                ..
+            } => match &**right {
+                Expr::Binary {
+                    op: BinaryOp::BitAnd,
+                    right,
+                    ..
+                } => match &**right {
+                    Expr::Binary {
+                        op: BinaryOp::Shl,
+                        ..
+                    } => {}
+                    _ => panic!("expected shift on right of bitand"),
+                },
+                _ => panic!("expected bitand on right of xor"),
+            },
+            _ => panic!("expected xor on right of bitor"),
+        },
+        _ => panic!("expected top-level bitwise or"),
     }
 }
 
