@@ -68,7 +68,8 @@ Current user-defined operator rules:
 - binary only
 - backtick infix use only
 - same-module custom operators may be used before or after their declaration
-- cross-module imported custom operator usage is not implemented yet
+- direct project imports like `from ops.math import xoxo;` may use the operator in backtick form
+- imported operator precedence through re-export chains is not implemented yet
 
 ## Migration
 

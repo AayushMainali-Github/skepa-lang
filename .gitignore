@@ -10,3 +10,4 @@ tmp_*.sk
 tmp_*.txt
 temp_*
 tmp_*
+.tmp_*

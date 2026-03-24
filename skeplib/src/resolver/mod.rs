@@ -157,6 +157,7 @@ pub fn resolve_project(entry: &Path) -> Result<ModuleGraph, Vec<ResolveError>> {
         .map(Path::to_path_buf)
         .unwrap_or_else(|| PathBuf::from("."));
     let mut graph = ModuleGraph::default();
+    let mut headers = HashMap::<ModuleId, crate::parser::SourceHeaderInfo>::new();
     let mut errors = Vec::new();
     let mut queue = VecDeque::new();
     queue.push_back(entry.to_path_buf());
@@ -201,12 +202,8 @@ pub fn resolve_project(entry: &Path) -> Result<ModuleGraph, Vec<ResolveError>> {
                 continue;
             }
         };
-        let (program, parse_diags) = Parser::parse_source(&source);
-        if !parse_diags.is_empty() {
-            errors.extend(parse_diagnostics_to_resolve_errors(&path, &parse_diags));
-            continue;
-        }
-        let import_paths = collect_import_module_paths(&program);
+        let header = Parser::scan_source_headers(&source);
+        let import_paths = header.dependency_paths.clone();
         let mut imports = Vec::new();
 
         for import_path in import_paths {
@@ -248,16 +245,78 @@ pub fn resolve_project(entry: &Path) -> Result<ModuleGraph, Vec<ResolveError>> {
             }
         }
 
+        headers.insert(id.clone(), header);
         graph.modules.insert(
             id.clone(),
             ModuleUnit {
                 id,
                 path,
                 source,
-                program,
+                program: Program::default(),
                 imports,
             },
         );
+    }
+
+    if errors.is_empty() {
+        let exported_operator_precedences = graph
+            .modules
+            .keys()
+            .filter_map(|id| {
+                headers.get(id).map(|header| {
+                    (
+                        id.clone(),
+                        header.local_exported_operator_precedences.clone(),
+                    )
+                })
+            })
+            .collect::<HashMap<_, _>>();
+
+        let module_ids = graph.modules.keys().cloned().collect::<Vec<_>>();
+        for id in module_ids {
+            let Some(unit) = graph.modules.get(&id).cloned() else {
+                continue;
+            };
+            let Some(header) = headers.get(&id) else {
+                continue;
+            };
+            let mut external_precedences = HashMap::new();
+            for from_import in &header.from_imports {
+                let targets = resolve_import_module_targets(&graph, &from_import.path);
+                if targets.len() != 1 {
+                    continue;
+                }
+                let Some(exports) = exported_operator_precedences.get(&targets[0]) else {
+                    continue;
+                };
+                if from_import.wildcard {
+                    for (name, precedence) in exports {
+                        external_precedences.insert(name.clone(), *precedence);
+                    }
+                } else {
+                    for item in &from_import.items {
+                        if let Some(precedence) = exports.get(&item.name) {
+                            external_precedences.insert(
+                                item.alias.clone().unwrap_or_else(|| item.name.clone()),
+                                *precedence,
+                            );
+                        }
+                    }
+                }
+            }
+            let (program, parse_diags) =
+                Parser::parse_source_with_operator_precedences(&unit.source, external_precedences);
+            if !parse_diags.is_empty() {
+                errors.extend(parse_diagnostics_to_resolve_errors(
+                    &unit.path,
+                    &parse_diags,
+                ));
+                continue;
+            }
+            if let Some(slot) = graph.modules.get_mut(&id) {
+                slot.program = program;
+            }
+        }
     }
 
     if errors.is_empty() {

@@ -59,6 +59,19 @@ from utils.math import add;
 fn apply(f: Fn(Int, Int) -> Int, x: Int, y: Int) -> Int {
   return f(x, y);
 }
+fn make() -> Fn(Int, Int) -> Int { return add; }
+fn main() -> Int {
+  let f = make();
+  return apply(f, 20, 22);
+}
+"#,
+    )
+    .expect("write main");
+
+    let (res, diags) = analyze_project_entry(&root.join("main.sk")).expect("resolver/sema");
+    common::assert_sema_success(&res, &diags);
+    let _ = fs::remove_dir_all(root);
+}
 
 #[test]
 fn sema_project_accepts_imported_operator_as_callable_symbol() {
@@ -91,14 +104,14 @@ fn main() -> Int {
 }
 
 #[test]
-fn sema_project_rejects_imported_operator_backtick_use_without_local_declaration() {
-    let root = common::make_temp_dir("imported_operator_infix_parse_limit");
+fn sema_project_accepts_imported_operator_backtick_use_via_direct_from_import() {
+    let root = common::make_temp_dir("imported_operator_infix_direct");
     fs::create_dir_all(root.join("ops")).expect("create ops folder");
     fs::write(
         root.join("ops").join("math.sk"),
         r#"
 opr xoxo(lhs: Int, rhs: Int) -> Int precedence 9 {
-  return lhs + rhs;
+  return lhs * 10 + rhs;
 }
 export { xoxo };
 "#,
@@ -109,23 +122,7 @@ export { xoxo };
         r#"
 from ops.math import xoxo;
 fn main() -> Int {
-  return 1 `xoxo` 2;
-}
-"#,
-    )
-    .expect("write main");
-
-    let errs = analyze_project_entry(&root.join("main.sk")).expect_err("parse should fail");
-    assert!(errs.iter().any(|e| {
-        e.kind == skeplib::resolver::ResolveErrorKind::Parse
-            && e.message.contains("Unknown operator `xoxo`; declare it before use in the same module")
-    }));
-    let _ = fs::remove_dir_all(root);
-}
-fn make() -> Fn(Int, Int) -> Int { return add; }
-fn main() -> Int {
-  let f = make();
-  return apply(f, 20, 22);
+  return 4 `xoxo` 2;
 }
 "#,
     )

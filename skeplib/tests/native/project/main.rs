@@ -113,6 +113,30 @@ fn main() -> Int { return xoxo(4, 2); }
 }
 
 #[test]
+fn imported_operator_backtick_infix_executes_natively() {
+    let project = common::TempProject::new("imported_operator_infix");
+    project.file(
+        "ops/math.sk",
+        r#"
+opr xoxo(lhs: Int, rhs: Int) -> Int precedence 9 {
+  return lhs * 10 + rhs;
+}
+export { xoxo };
+"#,
+    );
+    let entry = project.file(
+        "main.sk",
+        r#"
+from ops.math import xoxo;
+fn main() -> Int { return 4 `xoxo` 2; }
+"#,
+    );
+
+    let output = common::native_run_project_ok(&entry);
+    assert_eq!(output.status.code(), Some(42));
+}
+
+#[test]
 fn project_compile_failure_is_reported_as_parse_error_for_native_path() {
     let project = common::TempProject::new("codegen_error_kind");
     let entry = project.file(

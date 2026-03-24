@@ -11,6 +11,27 @@ mod expr;
 mod stmt;
 mod types;
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct HeaderImportItem {
+    pub name: String,
+    pub alias: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct HeaderFromImport {
+    pub path: Vec<String>,
+    pub wildcard: bool,
+    pub items: Vec<HeaderImportItem>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SourceHeaderInfo {
+    pub dependency_paths: Vec<Vec<String>>,
+    pub from_imports: Vec<HeaderFromImport>,
+    pub local_operator_precedences: HashMap<String, i64>,
+    pub local_exported_operator_precedences: HashMap<String, i64>,
+}
+
 #[derive(Debug, Clone)]
 pub struct Parser {
     tokens: Vec<Token>,
@@ -32,13 +53,23 @@ impl Default for Parser {
 
 impl Parser {
     pub fn parse_source(source: &str) -> (Program, DiagnosticBag) {
+        Self::parse_source_with_operator_precedences(source, HashMap::new())
+    }
+
+    pub fn parse_source_with_operator_precedences(
+        source: &str,
+        mut external_operator_precedences: HashMap<String, i64>,
+    ) -> (Program, DiagnosticBag) {
         let (tokens, mut diagnostics) = lex(source);
         let custom_operator_precedences = Self::collect_operator_precedences(&tokens);
+        for (name, precedence) in custom_operator_precedences {
+            external_operator_precedences.insert(name, precedence);
+        }
         let mut parser = Parser {
             tokens,
             idx: 0,
             diagnostics: DiagnosticBag::new(),
-            custom_operator_precedences,
+            custom_operator_precedences: external_operator_precedences,
         };
         let program = parser.parse_program();
         for d in parser.diagnostics.into_vec() {
@@ -47,8 +78,17 @@ impl Parser {
         (program, diagnostics)
     }
 
+    pub fn scan_source_headers(source: &str) -> SourceHeaderInfo {
+        let (tokens, _diagnostics) = lex(source);
+        Self::scan_header_tokens(&tokens)
+    }
+
     fn collect_operator_precedences(tokens: &[Token]) -> HashMap<String, i64> {
-        let mut out = HashMap::new();
+        Self::scan_header_tokens(tokens).local_operator_precedences
+    }
+
+    fn scan_header_tokens(tokens: &[Token]) -> SourceHeaderInfo {
+        let mut out = SourceHeaderInfo::default();
         let mut idx = 0usize;
         let mut brace_depth = 0usize;
 
@@ -78,7 +118,8 @@ impl Parser {
                                     && value_tok.kind == TokenKind::IntLit
                                     && let Ok(precedence) = value_tok.lexeme.parse::<i64>()
                                 {
-                                    out.insert(name_tok.lexeme.clone(), precedence);
+                                    out.local_operator_precedences
+                                        .insert(name_tok.lexeme.clone(), precedence);
                                 }
                                 break;
                             }
@@ -87,6 +128,174 @@ impl Parser {
                         }
                     }
                     idx += 1;
+                }
+                TokenKind::KwImport if brace_depth == 0 => {
+                    let mut scan = idx + 1;
+                    let mut path = Vec::new();
+                    while let Some(tok) = tokens.get(scan) {
+                        if tok.kind != TokenKind::Ident {
+                            break;
+                        }
+                        path.push(tok.lexeme.clone());
+                        scan += 1;
+                        if !matches!(tokens.get(scan).map(|t| t.kind), Some(TokenKind::Dot)) {
+                            break;
+                        }
+                        scan += 1;
+                    }
+                    if !path.is_empty() {
+                        out.dependency_paths.push(path);
+                    }
+                    idx = scan;
+                }
+                TokenKind::KwFrom if brace_depth == 0 => {
+                    let mut scan = idx + 1;
+                    let mut path = Vec::new();
+                    while let Some(tok) = tokens.get(scan) {
+                        if tok.kind != TokenKind::Ident {
+                            break;
+                        }
+                        path.push(tok.lexeme.clone());
+                        scan += 1;
+                        if !matches!(tokens.get(scan).map(|t| t.kind), Some(TokenKind::Dot)) {
+                            break;
+                        }
+                        scan += 1;
+                    }
+                    if !path.is_empty() {
+                        out.dependency_paths.push(path.clone());
+                    }
+                    if !matches!(tokens.get(scan).map(|t| t.kind), Some(TokenKind::KwImport)) {
+                        idx = scan;
+                        continue;
+                    }
+                    scan += 1;
+                    if matches!(tokens.get(scan).map(|t| t.kind), Some(TokenKind::Star)) {
+                        out.from_imports.push(HeaderFromImport {
+                            path,
+                            wildcard: true,
+                            items: Vec::new(),
+                        });
+                        idx = scan;
+                        continue;
+                    }
+                    let mut items = Vec::new();
+                    while let Some(tok) = tokens.get(scan) {
+                        if tok.kind != TokenKind::Ident {
+                            break;
+                        }
+                        let name = tok.lexeme.clone();
+                        scan += 1;
+                        let alias =
+                            if matches!(tokens.get(scan).map(|t| t.kind), Some(TokenKind::KwAs)) {
+                                scan += 1;
+                                match tokens.get(scan) {
+                                    Some(alias_tok) if alias_tok.kind == TokenKind::Ident => {
+                                        scan += 1;
+                                        Some(alias_tok.lexeme.clone())
+                                    }
+                                    _ => None,
+                                }
+                            } else {
+                                None
+                            };
+                        items.push(HeaderImportItem { name, alias });
+                        if !matches!(tokens.get(scan).map(|t| t.kind), Some(TokenKind::Comma)) {
+                            break;
+                        }
+                        scan += 1;
+                    }
+                    out.from_imports.push(HeaderFromImport {
+                        path,
+                        wildcard: false,
+                        items,
+                    });
+                    idx = scan;
+                }
+                TokenKind::KwExport if brace_depth == 0 => {
+                    let mut scan = idx + 1;
+                    if matches!(tokens.get(scan).map(|t| t.kind), Some(TokenKind::Star)) {
+                        scan += 1;
+                        if matches!(tokens.get(scan).map(|t| t.kind), Some(TokenKind::KwFrom)) {
+                            scan += 1;
+                            let mut path = Vec::new();
+                            while let Some(tok) = tokens.get(scan) {
+                                if tok.kind != TokenKind::Ident {
+                                    break;
+                                }
+                                path.push(tok.lexeme.clone());
+                                scan += 1;
+                                if !matches!(tokens.get(scan).map(|t| t.kind), Some(TokenKind::Dot))
+                                {
+                                    break;
+                                }
+                                scan += 1;
+                            }
+                            if !path.is_empty() {
+                                out.dependency_paths.push(path);
+                            }
+                        }
+                        idx = scan;
+                        continue;
+                    }
+                    if !matches!(tokens.get(scan).map(|t| t.kind), Some(TokenKind::LBrace)) {
+                        idx = scan;
+                        continue;
+                    }
+                    scan += 1;
+                    while let Some(tok) = tokens.get(scan) {
+                        if tok.kind == TokenKind::RBrace {
+                            scan += 1;
+                            break;
+                        }
+                        if tok.kind != TokenKind::Ident {
+                            break;
+                        }
+                        let local_name = tok.lexeme.clone();
+                        scan += 1;
+                        let export_name =
+                            if matches!(tokens.get(scan).map(|t| t.kind), Some(TokenKind::KwAs)) {
+                                scan += 1;
+                                match tokens.get(scan) {
+                                    Some(alias_tok) if alias_tok.kind == TokenKind::Ident => {
+                                        scan += 1;
+                                        alias_tok.lexeme.clone()
+                                    }
+                                    _ => local_name.clone(),
+                                }
+                            } else {
+                                local_name.clone()
+                            };
+                        if let Some(precedence) =
+                            out.local_operator_precedences.get(&local_name).copied()
+                        {
+                            out.local_exported_operator_precedences
+                                .insert(export_name, precedence);
+                        }
+                        if !matches!(tokens.get(scan).map(|t| t.kind), Some(TokenKind::Comma)) {
+                            continue;
+                        }
+                        scan += 1;
+                    }
+                    if matches!(tokens.get(scan).map(|t| t.kind), Some(TokenKind::KwFrom)) {
+                        scan += 1;
+                        let mut path = Vec::new();
+                        while let Some(tok) = tokens.get(scan) {
+                            if tok.kind != TokenKind::Ident {
+                                break;
+                            }
+                            path.push(tok.lexeme.clone());
+                            scan += 1;
+                            if !matches!(tokens.get(scan).map(|t| t.kind), Some(TokenKind::Dot)) {
+                                break;
+                            }
+                            scan += 1;
+                        }
+                        if !path.is_empty() {
+                            out.dependency_paths.push(path);
+                        }
+                    }
+                    idx = scan;
                 }
                 _ => {
                     idx += 1;
