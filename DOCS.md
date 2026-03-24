@@ -44,6 +44,7 @@ Operators and delimiters (selected):
 - arithmetic: `+`, `-`, `*`, `/`, `%`
 - comparison: `==`, `!=`, `<`, `<=`, `>`, `>=`
 - logical: `&&`, `||`, `!`
+- bitwise: `~`, `&`, `|`, `^`, `<<`, `>>`
 - assignment / arrows: `=`, `->`, `=>`
 - grouping / separators: `()`, `[]`, `{}`, `.`, `,`, `:`, `;`
 
@@ -223,17 +224,73 @@ These are available through namespace paths (`string.case.up(...)`).
 - Builtin package names (`io`, `str`, `arr`, `datetime`, `random`, `os`, `fs`, `vec`) are reserved package roots.
 - `import ns; ns.f(...)` works only when `f` is exported exactly under that namespace level. Example: `import string; string.toUpper(...)` is invalid if only `string.case.toUpper` exists.
 
-## 5. Operator Precedence
+## 5. Operators
+
+### 5.1 Built-in Operators
+
+Arithmetic:
+- `+`, `-`, `*`, `/`, `%`
+
+Comparison:
+- `==`, `!=`, `<`, `<=`, `>`, `>=`
+
+Logical:
+- `!`, `&&`, `||`
+
+Bitwise:
+- `~`, `&`, `|`, `^`, `<<`, `>>`
+
+Current bitwise rules:
+- bitwise operators are `Int`-only
+- shifts require an `Int` right-hand side
+- bitwise assignment operators like `&=` and `<<=` are not implemented
+
+### 5.2 User-Defined Infix Operators
+
+Declaration:
+
+```sk
+opr xoxo(lhs: Int, rhs: Int) -> Int precedence 9 {
+  return lhs * 10 + rhs;
+}
+```
+
+Use:
+
+```sk
+let v = 4 `xoxo` 2;
+```
+
+Rules:
+- user-defined operators are binary only
+- they are used only in backtick infix form
+- they lower to ordinary function calls
+- precedence only competes with binary operators
+- unary and postfix operators always bind tighter than any custom infix operator
+- same-module operators may be used before or after their declaration
+- direct imports, wildcard imports, and simple re-export chains are supported for infix use
+- if the parser cannot know an operator's precedence, it reports a parse error and suggests importing it directly with `from ... import ...`
+
+### 5.3 Operator Precedence
 
 Highest to lowest:
 1. postfix: call `()`, field `.x`, index `[i]`
-2. unary: `+`, `-`, `!`
+2. unary: `+`, `-`, `!`, `~`
 3. multiplicative: `*`, `/`, `%`
 4. additive: `+`, `-`
-5. comparison: `<`, `<=`, `>`, `>=`
-6. equality: `==`, `!=`
-7. logical AND: `&&`
-8. logical OR: `||`
+5. shift: `<<`, `>>`
+6. bitwise AND: `&`
+7. bitwise XOR: `^`
+8. bitwise OR: `|`
+9. comparison: `<`, `<=`, `>`, `>=`
+10. equality: `==`, `!=`
+11. logical AND: `&&`
+12. logical OR: `||`
+
+User-defined operator precedence:
+- user-defined operators participate only in the binary precedence lattice
+- higher numeric precedence binds tighter among binary operators
+- postfix and unary operators remain structurally above all binary operators
 
 Associativity:
 - binary operators: left-associative
