@@ -69,7 +69,30 @@ Current user-defined operator rules:
 - backtick infix use only
 - same-module custom operators may be used before or after their declaration
 - direct project imports like `from ops.math import xoxo;` may use the operator in backtick form
-- imported operator precedence through re-export chains is not implemented yet
+
+### User-Defined Operators
+
+Declaration:
+
+```sk
+opr xoxo(lhs: Int, rhs: Int) -> Int precedence 9 {
+  return lhs * 10 + rhs;
+}
+```
+
+Use:
+
+```sk
+let v = 4 `xoxo` 2;
+```
+
+Notes:
+- user-defined operators are binary only
+- they lower to ordinary function calls
+- precedence only competes with binary operators
+- unary operators and postfix forms still bind tighter than any custom infix operator
+- direct imports, wildcard imports, and simple re-export chains are supported for infix use
+- if the parser cannot know an operator's precedence, it reports an explicit parse error and suggests direct `from ... import ...` usage
 
 ## Migration
 

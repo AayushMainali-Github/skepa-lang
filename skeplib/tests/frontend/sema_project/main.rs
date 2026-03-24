@@ -134,6 +134,73 @@ fn main() -> Int {
 }
 
 #[test]
+fn sema_project_accepts_wildcard_imported_operator_backtick_use() {
+    let root = common::make_temp_dir("imported_operator_wildcard");
+    fs::create_dir_all(root.join("ops")).expect("create ops folder");
+    fs::write(
+        root.join("ops").join("math.sk"),
+        r#"
+opr xoxo(lhs: Int, rhs: Int) -> Int precedence 9 {
+  return lhs * 10 + rhs;
+}
+export { xoxo };
+"#,
+    )
+    .expect("write module");
+    fs::write(
+        root.join("main.sk"),
+        r#"
+from ops.math import *;
+fn main() -> Int {
+  return 4 `xoxo` 2;
+}
+"#,
+    )
+    .expect("write main");
+
+    let (res, diags) = analyze_project_entry(&root.join("main.sk")).expect("resolver/sema");
+    common::assert_sema_success(&res, &diags);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn sema_project_accepts_reexported_operator_backtick_use() {
+    let root = common::make_temp_dir("reexported_operator_infix");
+    fs::create_dir_all(root.join("ops")).expect("create ops folder");
+    fs::write(
+        root.join("ops").join("math.sk"),
+        r#"
+opr xoxo(lhs: Int, rhs: Int) -> Int precedence 9 {
+  return lhs * 10 + rhs;
+}
+export { xoxo };
+"#,
+    )
+    .expect("write math");
+    fs::write(
+        root.join("mid.sk"),
+        r#"
+export { xoxo } from ops.math;
+"#,
+    )
+    .expect("write mid");
+    fs::write(
+        root.join("main.sk"),
+        r#"
+from mid import xoxo;
+fn main() -> Int {
+  return 4 `xoxo` 2;
+}
+"#,
+    )
+    .expect("write main");
+
+    let (res, diags) = analyze_project_entry(&root.join("main.sk")).expect("resolver/sema");
+    common::assert_sema_success(&res, &diags);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn sema_project_accepts_function_value_via_qualified_import_namespace_path() {
     let root = common::make_temp_dir("qualified_import_fn_value");
     fs::create_dir_all(root.join("utils")).expect("create utils folder");

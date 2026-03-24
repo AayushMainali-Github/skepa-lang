@@ -144,6 +144,75 @@ pub(crate) fn parse_diagnostics_to_resolve_errors(
         .collect()
 }
 
+fn build_operator_precedence_export_maps(
+    graph: &ModuleGraph,
+    headers: &HashMap<ModuleId, crate::parser::SourceHeaderInfo>,
+) -> HashMap<ModuleId, HashMap<String, i64>> {
+    fn visit(
+        id: &str,
+        graph: &ModuleGraph,
+        headers: &HashMap<ModuleId, crate::parser::SourceHeaderInfo>,
+        out: &mut HashMap<ModuleId, HashMap<String, i64>>,
+        marks: &mut HashMap<ModuleId, bool>,
+    ) {
+        if out.contains_key(id) || marks.get(id).copied().unwrap_or(false) {
+            return;
+        }
+        marks.insert(id.to_string(), true);
+        let Some(header) = headers.get(id) else {
+            return;
+        };
+        let mut map = header.local_exported_operator_precedences.clone();
+
+        for reexport in &header.reexported_operator_paths {
+            let targets = resolve_import_module_targets(graph, &reexport.path);
+            if targets.len() != 1 {
+                continue;
+            }
+            let dep = &targets[0];
+            visit(dep, graph, headers, out, marks);
+            let Some(dep_map) = out.get(dep) else {
+                continue;
+            };
+            for item in &reexport.items {
+                if let Some(precedence) = dep_map.get(&item.name) {
+                    map.insert(
+                        item.alias.clone().unwrap_or_else(|| item.name.clone()),
+                        *precedence,
+                    );
+                }
+            }
+        }
+
+        for path in &header.export_all_paths {
+            let targets = resolve_import_module_targets(graph, path);
+            if targets.len() != 1 {
+                continue;
+            }
+            let dep = &targets[0];
+            visit(dep, graph, headers, out, marks);
+            let Some(dep_map) = out.get(dep) else {
+                continue;
+            };
+            for (name, precedence) in dep_map {
+                map.entry(name.clone()).or_insert(*precedence);
+            }
+        }
+
+        out.insert(id.to_string(), map);
+        marks.insert(id.to_string(), false);
+    }
+
+    let mut out = HashMap::new();
+    let mut marks = HashMap::new();
+    let mut ids = graph.modules.keys().cloned().collect::<Vec<_>>();
+    ids.sort();
+    for id in ids {
+        visit(&id, graph, headers, &mut out, &mut marks);
+    }
+    out
+}
+
 pub fn resolve_project(entry: &Path) -> Result<ModuleGraph, Vec<ResolveError>> {
     if !entry.exists() {
         return Err(vec![ResolveError::new(
@@ -259,18 +328,7 @@ pub fn resolve_project(entry: &Path) -> Result<ModuleGraph, Vec<ResolveError>> {
     }
 
     if errors.is_empty() {
-        let exported_operator_precedences = graph
-            .modules
-            .keys()
-            .filter_map(|id| {
-                headers.get(id).map(|header| {
-                    (
-                        id.clone(),
-                        header.local_exported_operator_precedences.clone(),
-                    )
-                })
-            })
-            .collect::<HashMap<_, _>>();
+        let exported_operator_precedences = build_operator_precedence_export_maps(&graph, &headers);
 
         let module_ids = graph.modules.keys().cloned().collect::<Vec<_>>();
         for id in module_ids {

@@ -30,6 +30,8 @@ pub struct SourceHeaderInfo {
     pub from_imports: Vec<HeaderFromImport>,
     pub local_operator_precedences: HashMap<String, i64>,
     pub local_exported_operator_precedences: HashMap<String, i64>,
+    pub reexported_operator_paths: Vec<HeaderFromImport>,
+    pub export_all_paths: Vec<Vec<String>>,
 }
 
 #[derive(Debug, Clone)]
@@ -233,6 +235,8 @@ impl Parser {
                             }
                             if !path.is_empty() {
                                 out.dependency_paths.push(path);
+                                out.export_all_paths
+                                    .push(out.dependency_paths.last().cloned().unwrap_or_default());
                             }
                         }
                         idx = scan;
@@ -293,6 +297,49 @@ impl Parser {
                         }
                         if !path.is_empty() {
                             out.dependency_paths.push(path);
+                            out.reexported_operator_paths.push(HeaderFromImport {
+                                path: out.dependency_paths.last().cloned().unwrap_or_default(),
+                                wildcard: false,
+                                items: Vec::new(),
+                            });
+                            if let Some(last) = out.reexported_operator_paths.last_mut() {
+                                let mut export_scan = idx + 2;
+                                while let Some(tok) = tokens.get(export_scan) {
+                                    if tok.kind == TokenKind::RBrace {
+                                        break;
+                                    }
+                                    if tok.kind != TokenKind::Ident {
+                                        export_scan += 1;
+                                        continue;
+                                    }
+                                    let name = tok.lexeme.clone();
+                                    export_scan += 1;
+                                    let alias = if matches!(
+                                        tokens.get(export_scan).map(|t| t.kind),
+                                        Some(TokenKind::KwAs)
+                                    ) {
+                                        export_scan += 1;
+                                        match tokens.get(export_scan) {
+                                            Some(alias_tok)
+                                                if alias_tok.kind == TokenKind::Ident =>
+                                            {
+                                                export_scan += 1;
+                                                Some(alias_tok.lexeme.clone())
+                                            }
+                                            _ => None,
+                                        }
+                                    } else {
+                                        None
+                                    };
+                                    last.items.push(HeaderImportItem { name, alias });
+                                    if matches!(
+                                        tokens.get(export_scan).map(|t| t.kind),
+                                        Some(TokenKind::Comma)
+                                    ) {
+                                        export_scan += 1;
+                                    }
+                                }
+                            }
                         }
                     }
                     idx = scan;

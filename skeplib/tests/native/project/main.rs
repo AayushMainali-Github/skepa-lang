@@ -137,6 +137,60 @@ fn main() -> Int { return 4 `xoxo` 2; }
 }
 
 #[test]
+fn wildcard_imported_operator_backtick_infix_executes_natively() {
+    let project = common::TempProject::new("wildcard_operator_infix");
+    project.file(
+        "ops/math.sk",
+        r#"
+opr xoxo(lhs: Int, rhs: Int) -> Int precedence 9 {
+  return lhs * 10 + rhs;
+}
+export { xoxo };
+"#,
+    );
+    let entry = project.file(
+        "main.sk",
+        r#"
+from ops.math import *;
+fn main() -> Int { return 4 `xoxo` 2; }
+"#,
+    );
+
+    let output = common::native_run_project_ok(&entry);
+    assert_eq!(output.status.code(), Some(42));
+}
+
+#[test]
+fn reexported_operator_backtick_infix_executes_natively() {
+    let project = common::TempProject::new("reexported_operator_infix");
+    project.file(
+        "ops/math.sk",
+        r#"
+opr xoxo(lhs: Int, rhs: Int) -> Int precedence 9 {
+  return lhs * 10 + rhs;
+}
+export { xoxo };
+"#,
+    );
+    project.file(
+        "mid.sk",
+        r#"
+export { xoxo } from ops.math;
+"#,
+    );
+    let entry = project.file(
+        "main.sk",
+        r#"
+from mid import xoxo;
+fn main() -> Int { return 4 `xoxo` 2; }
+"#,
+    );
+
+    let output = common::native_run_project_ok(&entry);
+    assert_eq!(output.status.code(), Some(42));
+}
+
+#[test]
 fn project_compile_failure_is_reported_as_parse_error_for_native_path() {
     let project = common::TempProject::new("codegen_error_kind");
     let entry = project.file(

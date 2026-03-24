@@ -76,7 +76,7 @@ impl Parser {
                     None => {
                         self.diagnostics.error(
                             format!(
-                                "Unknown operator `{}`; declare it before use in the same module",
+                                "Unknown operator `{}`; declare it locally or import it with `from ... import ...` so its precedence is known during parsing",
                                 operator.lexeme
                             ),
                             operator.span,
