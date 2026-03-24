@@ -13,9 +13,18 @@ pub struct RtStructLayout {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+enum RtStructFields {
+    Values(Vec<RtValue>),
+    Ints(Vec<i64>),
+    Floats(Vec<f64>),
+    Bools(Vec<bool>),
+    Strings(Vec<RtString>),
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct RtStruct {
     pub layout: Rc<RtStructLayout>,
-    pub fields: Vec<RtValue>,
+    fields: RtStructFields,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -165,7 +174,10 @@ impl RtStruct {
                 )));
             }
         }
-        Ok(Self { layout, fields })
+        Ok(Self {
+            layout,
+            fields: Self::infer_fields(fields),
+        })
     }
 
     pub fn named(name: impl Into<String>, fields: Vec<RtValue>) -> RtResult<Self> {
@@ -187,10 +199,14 @@ impl RtStruct {
     }
 
     pub fn get_field(&self, index: usize) -> RtResult<RtValue> {
-        self.fields
-            .get(index)
-            .cloned()
-            .ok_or_else(|| RtError::new(crate::RtErrorKind::MissingField, "field out of range"))
+        match &self.fields {
+            RtStructFields::Values(fields) => fields.get(index).cloned(),
+            RtStructFields::Ints(fields) => fields.get(index).copied().map(RtValue::Int),
+            RtStructFields::Floats(fields) => fields.get(index).copied().map(RtValue::Float),
+            RtStructFields::Bools(fields) => fields.get(index).copied().map(RtValue::Bool),
+            RtStructFields::Strings(fields) => fields.get(index).cloned().map(RtValue::String),
+        }
+        .ok_or_else(|| RtError::new(crate::RtErrorKind::MissingField, "field out of range"))
     }
 
     pub fn set_field(&mut self, index: usize, value: RtValue) -> RtResult<()> {
@@ -205,12 +221,52 @@ impl RtStruct {
                 )));
             }
         }
-        let slot = self
-            .fields
-            .get_mut(index)
-            .ok_or_else(|| RtError::new(crate::RtErrorKind::MissingField, "field out of range"))?;
-        *slot = value;
-        Ok(())
+        match (&mut self.fields, value) {
+            (RtStructFields::Values(fields), value) => {
+                let slot = fields.get_mut(index).ok_or_else(|| {
+                    RtError::new(crate::RtErrorKind::MissingField, "field out of range")
+                })?;
+                *slot = value;
+                Ok(())
+            }
+            (RtStructFields::Ints(fields), RtValue::Int(value)) => {
+                let slot = fields.get_mut(index).ok_or_else(|| {
+                    RtError::new(crate::RtErrorKind::MissingField, "field out of range")
+                })?;
+                *slot = value;
+                Ok(())
+            }
+            (RtStructFields::Floats(fields), RtValue::Float(value)) => {
+                let slot = fields.get_mut(index).ok_or_else(|| {
+                    RtError::new(crate::RtErrorKind::MissingField, "field out of range")
+                })?;
+                *slot = value;
+                Ok(())
+            }
+            (RtStructFields::Bools(fields), RtValue::Bool(value)) => {
+                let slot = fields.get_mut(index).ok_or_else(|| {
+                    RtError::new(crate::RtErrorKind::MissingField, "field out of range")
+                })?;
+                *slot = value;
+                Ok(())
+            }
+            (RtStructFields::Strings(fields), RtValue::String(value)) => {
+                let slot = fields.get_mut(index).ok_or_else(|| {
+                    RtError::new(crate::RtErrorKind::MissingField, "field out of range")
+                })?;
+                *slot = value;
+                Ok(())
+            }
+            (fields, value) => {
+                let mut values = Self::fields_to_values(fields);
+                let slot = values.get_mut(index).ok_or_else(|| {
+                    RtError::new(crate::RtErrorKind::MissingField, "field out of range")
+                })?;
+                *slot = value;
+                *fields = RtStructFields::Values(values);
+                Ok(())
+            }
+        }
     }
 
     pub fn get_named_field(&self, name: &str) -> RtResult<RtValue> {
@@ -221,5 +277,71 @@ impl RtStruct {
             )
         })?;
         self.get_field(index)
+    }
+
+    fn infer_fields(fields: Vec<RtValue>) -> RtStructFields {
+        if fields.iter().all(|field| matches!(field, RtValue::Int(_))) {
+            return RtStructFields::Ints(
+                fields
+                    .into_iter()
+                    .map(|field| match field {
+                        RtValue::Int(value) => value,
+                        _ => unreachable!(),
+                    })
+                    .collect(),
+            );
+        }
+        if fields
+            .iter()
+            .all(|field| matches!(field, RtValue::Float(_)))
+        {
+            return RtStructFields::Floats(
+                fields
+                    .into_iter()
+                    .map(|field| match field {
+                        RtValue::Float(value) => value,
+                        _ => unreachable!(),
+                    })
+                    .collect(),
+            );
+        }
+        if fields.iter().all(|field| matches!(field, RtValue::Bool(_))) {
+            return RtStructFields::Bools(
+                fields
+                    .into_iter()
+                    .map(|field| match field {
+                        RtValue::Bool(value) => value,
+                        _ => unreachable!(),
+                    })
+                    .collect(),
+            );
+        }
+        if fields
+            .iter()
+            .all(|field| matches!(field, RtValue::String(_)))
+        {
+            return RtStructFields::Strings(
+                fields
+                    .into_iter()
+                    .map(|field| match field {
+                        RtValue::String(value) => value,
+                        _ => unreachable!(),
+                    })
+                    .collect(),
+            );
+        }
+        RtStructFields::Values(fields)
+    }
+
+    fn fields_to_values(fields: &RtStructFields) -> Vec<RtValue> {
+        match fields {
+            RtStructFields::Values(fields) => fields.clone(),
+            RtStructFields::Ints(fields) => fields.iter().copied().map(RtValue::Int).collect(),
+            RtStructFields::Floats(fields) => fields.iter().copied().map(RtValue::Float).collect(),
+            RtStructFields::Bools(fields) => fields.iter().copied().map(RtValue::Bool).collect(),
+            RtStructFields::Strings(fields) => {
+                fields.iter().cloned().map(RtValue::String).collect()
+            }
+        }
     }
 }

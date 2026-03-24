@@ -115,3 +115,26 @@ fn structs_reject_wrong_field_type_when_layout_declares_runtime_types() {
         .expect_err("wrong runtime field type");
     assert_eq!(err.kind, RtErrorKind::TypeMismatch);
 }
+
+#[test]
+fn structs_keep_typed_storage_until_mixed_mutation() {
+    let mut strukt = RtStruct::new(
+        Rc::new(RtStructLayout {
+            name: "Typed".into(),
+            field_names: vec!["a".into(), "b".into()],
+            field_types: vec![None, None],
+        }),
+        vec![RtValue::Int(1), RtValue::Int(2)],
+    )
+    .expect("typed struct");
+
+    strukt.set_field(1, RtValue::Int(9)).expect("typed update");
+    assert_eq!(strukt.get_field(0), Ok(RtValue::Int(1)));
+    assert_eq!(strukt.get_field(1), Ok(RtValue::Int(9)));
+
+    strukt
+        .set_field(0, RtValue::String("mixed".into()))
+        .expect("mixed fallback");
+    assert_eq!(strukt.get_field(0), Ok(RtValue::String("mixed".into())));
+    assert_eq!(strukt.get_field(1), Ok(RtValue::Int(9)));
+}

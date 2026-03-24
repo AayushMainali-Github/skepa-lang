@@ -10,42 +10,49 @@ struct RtStringMeta {
 }
 
 #[derive(Debug, Clone)]
+struct RtStringStorage(Rc<str>);
+
+#[derive(Debug, Clone)]
+struct RtStringView {
+    storage: RtStringStorage,
+    bytes: Range<usize>,
+    meta: RtStringMeta,
+}
+
+#[derive(Debug, Clone)]
 enum RtStringRepr {
-    Owned(Rc<str>),
-    Slice { base: Rc<str>, bytes: Range<usize> },
+    NativeView(RtStringView),
+    RuntimeObject(RtStringStorage),
 }
 
 #[derive(Debug, Clone)]
 pub struct RtString {
     repr: RtStringRepr,
-    meta: RtStringMeta,
 }
 
 impl RtString {
     pub fn new(value: impl Into<String>) -> Self {
         let value = value.into();
-        let meta = meta_for_str(&value);
         Self {
-            repr: RtStringRepr::Owned(Rc::<str>::from(value)),
-            meta,
+            repr: RtStringRepr::RuntimeObject(RtStringStorage(Rc::<str>::from(value))),
         }
     }
 
     pub fn as_str(&self) -> &str {
         match &self.repr {
-            RtStringRepr::Owned(value) => value,
-            RtStringRepr::Slice { base, bytes } => &base[bytes.clone()],
+            RtStringRepr::NativeView(view) => &view.storage.0[view.bytes.clone()],
+            RtStringRepr::RuntimeObject(storage) => &storage.0,
         }
     }
 
     pub fn len_chars(&self) -> usize {
-        self.meta.len_chars
+        self.meta().len_chars
     }
 
     pub fn contains(&self, needle: &RtString) -> bool {
         let haystack = self.as_str();
         let needle_str = needle.as_str();
-        if self.meta.is_ascii && needle.meta.is_ascii && needle_str.len() == 1 {
+        if self.meta().is_ascii && needle.meta().is_ascii && needle_str.len() == 1 {
             return haystack.as_bytes().contains(&needle_str.as_bytes()[0]);
         }
         haystack.contains(needle_str)
@@ -54,7 +61,7 @@ impl RtString {
     pub fn index_of(&self, needle: &RtString) -> i64 {
         let value = self.as_str();
         let needle_str = needle.as_str();
-        if self.meta.is_ascii && needle.meta.is_ascii {
+        if self.meta().is_ascii && needle.meta().is_ascii {
             if needle_str.len() == 1 {
                 return value
                     .as_bytes()
@@ -72,23 +79,27 @@ impl RtString {
     }
 
     pub fn slice_chars(&self, range: Range<usize>) -> RtResult<Self> {
-        if range.start > range.end || range.end > self.meta.len_chars {
+        if range.start > range.end || range.end > self.meta().len_chars {
             return Err(RtError::new(
                 RtErrorKind::IndexOutOfBounds,
                 format!(
                     "str.slice bounds out of range: start={}, end={}, len={}",
-                    range.start, range.end, self.meta.len_chars
+                    range.start,
+                    range.end,
+                    self.meta().len_chars
                 ),
             ));
         }
 
-        if self.meta.is_ascii {
+        if self.meta().is_ascii {
             return Ok(Self {
-                repr: self.slice_bytes(range.start..range.end),
-                meta: RtStringMeta {
-                    is_ascii: true,
-                    len_chars: range.end - range.start,
-                },
+                repr: RtStringRepr::NativeView(self.slice_view(
+                    range.start..range.end,
+                    RtStringMeta {
+                        is_ascii: true,
+                        len_chars: range.end - range.start,
+                    },
+                )),
             });
         }
 
@@ -98,7 +109,9 @@ impl RtString {
                 RtErrorKind::IndexOutOfBounds,
                 format!(
                     "str.slice bounds out of range: start={}, end={}, len={}",
-                    range.start, range.end, self.meta.len_chars
+                    range.start,
+                    range.end,
+                    self.meta().len_chars
                 ),
             ));
         };
@@ -107,28 +120,41 @@ impl RtString {
                 RtErrorKind::IndexOutOfBounds,
                 format!(
                     "str.slice bounds out of range: start={}, end={}, len={}",
-                    range.start, range.end, self.meta.len_chars
+                    range.start,
+                    range.end,
+                    self.meta().len_chars
                 ),
             ));
         };
         Ok(Self {
-            repr: self.slice_bytes(start..end),
-            meta: RtStringMeta {
-                is_ascii: false,
-                len_chars: range.end - range.start,
-            },
+            repr: RtStringRepr::NativeView(self.slice_view(
+                start..end,
+                RtStringMeta {
+                    is_ascii: false,
+                    len_chars: range.end - range.start,
+                },
+            )),
         })
     }
 
-    fn slice_bytes(&self, bytes: Range<usize>) -> RtStringRepr {
+    fn meta(&self) -> RtStringMeta {
         match &self.repr {
-            RtStringRepr::Owned(base) => RtStringRepr::Slice {
-                base: base.clone(),
-                bytes,
+            RtStringRepr::NativeView(view) => view.meta,
+            RtStringRepr::RuntimeObject(storage) => meta_for_str(&storage.0),
+        }
+    }
+
+    fn slice_view(&self, bytes: Range<usize>, meta: RtStringMeta) -> RtStringView {
+        match &self.repr {
+            RtStringRepr::NativeView(view) => RtStringView {
+                storage: view.storage.clone(),
+                bytes: (view.bytes.start + bytes.start)..(view.bytes.start + bytes.end),
+                meta,
             },
-            RtStringRepr::Slice { base, bytes: outer } => RtStringRepr::Slice {
-                base: base.clone(),
-                bytes: (outer.start + bytes.start)..(outer.start + bytes.end),
+            RtStringRepr::RuntimeObject(storage) => RtStringView {
+                storage: storage.clone(),
+                bytes,
+                meta,
             },
         }
     }
