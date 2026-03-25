@@ -1,9 +1,5 @@
 use crate::{RtHost, RtResult, RtValue};
 
-pub fn cwd(host: &mut dyn RtHost) -> RtResult<RtValue> {
-    Ok(RtValue::String(host.os_cwd()?))
-}
-
 pub fn platform(host: &mut dyn RtHost) -> RtResult<RtValue> {
     Ok(RtValue::String(host.os_platform()?))
 }
@@ -50,12 +46,4 @@ pub fn exec(host: &mut dyn RtHost, program: &str) -> RtResult<RtValue> {
 
 pub fn exec_out(host: &mut dyn RtHost, program: &str) -> RtResult<RtValue> {
     Ok(RtValue::String(host.os_exec_out(program)?))
-}
-
-pub fn exec_shell(host: &mut dyn RtHost, command: &str) -> RtResult<RtValue> {
-    Ok(RtValue::Int(host.os_exec_shell(command)?))
-}
-
-pub fn exec_shell_out(host: &mut dyn RtHost, command: &str) -> RtResult<RtValue> {
-    Ok(RtValue::String(host.os_exec_shell_out(command)?))
 }

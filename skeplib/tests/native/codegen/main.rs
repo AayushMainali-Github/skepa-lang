@@ -612,9 +612,9 @@ import str;
 
 fn main() -> Int {
   let now = datetime.nowUnix();
-  let cwd = os.cwd();
+  let platform = os.platform();
   if (fs.exists("missing.txt")) {
-    return now + str.len(cwd);
+    return now + str.len(platform);
   }
   return now;
 }
@@ -1256,10 +1256,10 @@ fn codegen_builds_native_executable_for_fs_and_os_builtins() {
     let path = dir.join("note.txt");
     let path_text = path.to_string_lossy().replace('\\', "\\\\");
     let joined_left = dir.to_string_lossy().replace('\\', "\\\\");
-    let shell = if cfg!(windows) {
-        "echo hi"
+    let exec_name = if cfg!(windows) {
+        "hostname.exe"
     } else {
-        "printf hi"
+        "hostname"
     };
 
     let source = format!(
@@ -1274,14 +1274,14 @@ fn main() -> Int {{
   fs.appendText("{path_text}", "b");
   let text = fs.readText("{path_text}");
   let joined = fs.join("{joined_left}", "note.txt");
-  let cwd = os.cwd();
   let platform = os.platform();
-  let shell = os.execShellOut("{shell}");
+  let arch = os.arch();
+  let out = os.execOut("{exec_name}");
   io.print(text);
   io.println("");
-  io.print(shell);
+  io.print(out);
   io.println("");
-  if (fs.exists("{path_text}") && str.len(text) == 2 && str.contains(joined, "note.txt") && str.len(cwd) > 0 && str.len(platform) > 0) {{
+  if (fs.exists("{path_text}") && str.len(text) == 2 && str.contains(joined, "note.txt") && str.len(platform) > 0 && str.len(arch) > 0) {{
     return 0;
   }}
   return 1;
@@ -1300,8 +1300,8 @@ fn main() -> Int {{
         output.stdout_lossy()
     );
     assert!(
-        output.stdout_lossy().contains("hi"),
-        "expected shell output, got: {}",
+        output.stdout_lossy().lines().count() >= 2,
+        "expected exec output, got: {}",
         output.stdout_lossy()
     );
 }

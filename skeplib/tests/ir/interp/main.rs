@@ -70,10 +70,6 @@ impl RtHost for TestHost {
         Ok(RtString::from(format!("{left}/{right}")))
     }
 
-    fn os_cwd(&mut self) -> RtResult<RtString> {
-        Ok(RtString::from("/tmp/skepa"))
-    }
-
     fn os_platform(&mut self) -> RtResult<RtString> {
         Ok(RtString::from("test-os"))
     }
@@ -128,13 +124,6 @@ impl RtHost for TestHost {
         Ok(RtString::from(format!("exec:{program}")))
     }
 
-    fn os_exec_shell(&mut self, command: &str) -> RtResult<i64> {
-        Ok(command.len() as i64)
-    }
-
-    fn os_exec_shell_out(&mut self, command: &str) -> RtResult<RtString> {
-        Ok(RtString::from(format!("out:{command}")))
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -638,11 +627,10 @@ import str;
 fn main() -> Int {
   random.seed(9);
   let total = random.int(2, 5);
-  let cwd = os.cwd();
   let plat = os.platform();
-  let out = os.execShellOut("echo hi");
+  let out = os.execOut("git");
   if (fs.exists("exists.txt")) {
-    return total + str.len(cwd) + str.len(plat) + str.len(out);
+    return total + str.len(plat) + str.len(out);
   }
   return 0;
 }
@@ -652,7 +640,7 @@ fn main() -> Int {
     let value = IrInterpreter::with_host(&program, Box::new(TestHost::default()))
         .run_main()
         .expect("IR interpreter should run source");
-    assert_eq!(value, IrValue::Int(35));
+    assert_eq!(value, IrValue::Int(22));
 }
 
 #[test]
@@ -702,9 +690,9 @@ fn main() -> Int {
   let text = fs.readText("alpha.txt");
   let path = fs.join("root", "leaf");
   let out = io.format("v=%d %b", 12, true);
-  let shell = os.execShell("echo hi");
+  let code = os.exec("git");
   let bonus = random.int(1, 2);
-  return str.len(joined) + str.len(text) + str.len(path) + str.len(out) + shell + bonus;
+  return str.len(joined) + str.len(text) + str.len(path) + str.len(out) + code + bonus;
 }
 "#;
 

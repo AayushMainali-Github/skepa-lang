@@ -10,13 +10,6 @@ const STRING2_PARAMS: &[TypeInfo] = &[TypeInfo::String, TypeInfo::String];
 pub(super) const SIGS: &[BuiltinSig] = &[
     BuiltinSig {
         package: "os",
-        name: "cwd",
-        params: NO_PARAMS,
-        ret: TypeInfo::String,
-        kind: BuiltinKind::FixedArity,
-    },
-    BuiltinSig {
-        package: "os",
         name: "platform",
         params: NO_PARAMS,
         ret: TypeInfo::String,
@@ -88,20 +81,6 @@ pub(super) const SIGS: &[BuiltinSig] = &[
     BuiltinSig {
         package: "os",
         name: "execOut",
-        params: STRING_PARAM,
-        ret: TypeInfo::String,
-        kind: BuiltinKind::FixedArity,
-    },
-    BuiltinSig {
-        package: "os",
-        name: "execShell",
-        params: STRING_PARAM,
-        ret: TypeInfo::Int,
-        kind: BuiltinKind::FixedArity,
-    },
-    BuiltinSig {
-        package: "os",
-        name: "execShellOut",
         params: STRING_PARAM,
         ret: TypeInfo::String,
         kind: BuiltinKind::FixedArity,

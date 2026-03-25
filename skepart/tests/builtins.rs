@@ -182,10 +182,6 @@ fn builtins_cover_host_backed_fs_os_and_random_families_more_thoroughly() {
     .expect("rm dir");
 
     assert_eq!(
-        builtins::call_with_host(&mut host, "os", "cwd", &[]).expect("cwd"),
-        RtValue::String(RtString::from("tmp/work"))
-    );
-    assert_eq!(
         builtins::call_with_host(&mut host, "os", "arch", &[]).expect("arch"),
         RtValue::String(RtString::from("test-arch"))
     );
@@ -250,27 +246,7 @@ fn builtins_cover_host_backed_fs_os_and_random_families_more_thoroughly() {
             &[RtValue::String(RtString::from("git"))],
         )
         .expect("execOut"),
-        RtValue::String(RtString::from("shell-out"))
-    );
-    assert_eq!(
-        builtins::call_with_host(
-            &mut host,
-            "os",
-            "execShell",
-            &[RtValue::String(RtString::from("echo hi"))],
-        )
-        .expect("shell"),
-        RtValue::Int(9)
-    );
-    assert_eq!(
-        builtins::call_with_host(
-            &mut host,
-            "os",
-            "execShellOut",
-            &[RtValue::String(RtString::from("echo hi"))],
-        )
-        .expect("shell out"),
-        RtValue::String(RtString::from("shell-out"))
+        RtValue::String(RtString::from("exec-out"))
     );
 
     builtins::call_with_host(&mut host, "random", "seed", &[RtValue::Int(123)]).expect("seed");
@@ -287,7 +263,7 @@ fn builtins_cover_host_backed_fs_os_and_random_families_more_thoroughly() {
 
     assert_eq!(
         host.output,
-        "[write a.txt=hello][append a.txt+=!][mkdir tmp/dir][rmfile a.txt][rmdir tmp/dir][envset MODE=debug][envrm HOME][sleep 33][exit 7][exec git][execout git][sh echo hi][shout echo hi]"
+        "[write a.txt=hello][append a.txt+=!][mkdir tmp/dir][rmfile a.txt][rmdir tmp/dir][envset MODE=debug][envrm HOME][sleep 33][exit 7][exec git][execout git]"
     );
 }
 

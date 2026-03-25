@@ -922,7 +922,7 @@ fn main() -> Int {
 fn sema_rejects_os_without_import() {
     let src = r#"
 fn main() -> Int {
-  let _x = os.cwd();
+  let _x = os.platform();
   return 0;
 }
 "#;
@@ -937,11 +937,11 @@ fn main() -> Int {
 }
 
 #[test]
-fn sema_rejects_os_cwd_arity_mismatch() {
+fn sema_rejects_os_platform_arity_mismatch() {
     let src = r#"
 import os;
 fn main() -> Int {
-  let _x = os.cwd(1);
+  let _x = os.platform(1);
   return 0;
 }
 "#;
@@ -951,7 +951,7 @@ fn main() -> Int {
         diags
             .as_slice()
             .iter()
-            .any(|d| { d.message.contains("os.cwd expects 0 argument(s), got 1") })
+            .any(|d| { d.message.contains("os.platform expects 0 argument(s), got 1") })
     );
 }
 
@@ -975,7 +975,7 @@ fn main() -> Int {
 }
 
 #[test]
-fn sema_rejects_os_exec_shell_type_mismatch() {
+fn sema_rejects_os_exec_type_mismatch() {
     let src = r#"
 import os;
 fn main() -> Int {
@@ -993,7 +993,7 @@ fn main() -> Int {
 }
 
 #[test]
-fn sema_rejects_os_exec_shell_out_type_mismatch() {
+fn sema_rejects_os_exec_out_type_mismatch() {
     let src = r#"
 import os;
 fn main() -> Int {

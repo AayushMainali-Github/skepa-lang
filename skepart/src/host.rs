@@ -86,10 +86,6 @@ pub trait RtHost {
         Err(RtError::unsupported_builtin("fs.join"))
     }
 
-    fn os_cwd(&mut self) -> RtResult<RtString> {
-        Err(RtError::unsupported_builtin("os.cwd"))
-    }
-
     fn os_platform(&mut self) -> RtResult<RtString> {
         Err(RtError::unsupported_builtin("os.platform"))
     }
@@ -132,14 +128,6 @@ pub trait RtHost {
 
     fn os_exec_out(&mut self, _program: &str) -> RtResult<RtString> {
         Err(RtError::unsupported_builtin("os.execOut"))
-    }
-
-    fn os_exec_shell(&mut self, _command: &str) -> RtResult<i64> {
-        Err(RtError::unsupported_builtin("os.execShell"))
-    }
-
-    fn os_exec_shell_out(&mut self, _command: &str) -> RtResult<RtString> {
-        Err(RtError::unsupported_builtin("os.execShellOut"))
     }
 }
 
@@ -279,12 +267,6 @@ impl RtHost for NoopHost {
         ))
     }
 
-    fn os_cwd(&mut self) -> RtResult<RtString> {
-        std::env::current_dir()
-            .map(|path| RtString::from(path.to_string_lossy().into_owned()))
-            .map_err(|err| RtError::io(err.to_string()))
-    }
-
     fn os_platform(&mut self) -> RtResult<RtString> {
         Ok(RtString::from(std::env::consts::OS))
     }
@@ -358,30 +340,6 @@ impl RtHost for NoopHost {
         let output = Command::new(program)
             .output()
             .map_err(|err| RtError::process(err.to_string()))?;
-        Ok(RtString::from(
-            String::from_utf8_lossy(&output.stdout)
-                .trim_end()
-                .to_string(),
-        ))
-    }
-
-    fn os_exec_shell(&mut self, command: &str) -> RtResult<i64> {
-        let output = if cfg!(windows) {
-            Command::new("cmd").args(["/C", command]).output()
-        } else {
-            Command::new("sh").args(["-c", command]).output()
-        }
-        .map_err(|err| RtError::process(err.to_string()))?;
-        Ok(output.status.code().unwrap_or(-1) as i64)
-    }
-
-    fn os_exec_shell_out(&mut self, command: &str) -> RtResult<RtString> {
-        let output = if cfg!(windows) {
-            Command::new("cmd").args(["/C", command]).output()
-        } else {
-            Command::new("sh").args(["-c", command]).output()
-        }
-        .map_err(|err| RtError::process(err.to_string()))?;
         Ok(RtString::from(
             String::from_utf8_lossy(&output.stdout)
                 .trim_end()

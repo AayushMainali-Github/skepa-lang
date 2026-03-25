@@ -134,7 +134,6 @@ pub fn call_with_host(
             left.expect_string()?.as_str(),
             right.expect_string()?.as_str(),
         ),
-        ("os", "cwd", []) => os::cwd(host),
         ("os", "platform", []) => os::platform(host),
         ("os", "arch", []) => os::arch(host),
         ("os", "arg", [value]) => os::arg(host, value.expect_int()?),
@@ -150,10 +149,6 @@ pub fn call_with_host(
         ("os", "exit", [value]) => os::exit(host, value.expect_int()?),
         ("os", "exec", [value]) => os::exec(host, value.expect_string()?.as_str()),
         ("os", "execOut", [value]) => os::exec_out(host, value.expect_string()?.as_str()),
-        ("os", "execShell", [value]) => os::exec_shell(host, value.expect_string()?.as_str()),
-        ("os", "execShellOut", [value]) => {
-            os::exec_shell_out(host, value.expect_string()?.as_str())
-        }
         _ => Err(RtError::new(
             RtErrorKind::UnsupportedBuiltin,
             format!("unsupported builtin `{package}.{name}`"),

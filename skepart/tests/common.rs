@@ -11,13 +11,12 @@ pub struct RecordingHost {
     pub millis_now: i64,
     pub random_int_value: i64,
     pub random_float_value: f64,
-    pub cwd: String,
     pub platform: String,
     pub arch: String,
     pub args: Vec<String>,
     pub read_line: String,
-    pub shell_status: i64,
-    pub shell_out: String,
+    pub exec_status: i64,
+    pub exec_out: String,
     pub env: HashMap<String, String>,
     pub files: HashMap<String, String>,
     pub existing_paths: HashMap<String, bool>,
@@ -30,13 +29,12 @@ impl RecordingHost {
             millis_now: 1234,
             random_int_value: 5,
             random_float_value: 0.25,
-            cwd: "tmp/work".into(),
             platform: "test-os".into(),
             arch: "test-arch".into(),
             args: vec!["skepa".into(), "--flag".into()],
             read_line: "typed line".into(),
-            shell_status: 9,
-            shell_out: "shell-out".into(),
+            exec_status: 9,
+            exec_out: "exec-out".into(),
             env: HashMap::from([(String::from("HOME"), String::from("/tmp/home"))]),
             files: HashMap::from([(String::from("exists.txt"), String::from("seeded"))]),
             existing_paths: HashMap::from([(String::from("exists.txt"), true)]),
@@ -81,11 +79,6 @@ impl RecordingHostBuilder {
         self
     }
 
-    pub fn cwd(mut self, value: impl Into<String>) -> Self {
-        self.host.cwd = value.into();
-        self
-    }
-
     pub fn platform(mut self, value: impl Into<String>) -> Self {
         self.host.platform = value.into();
         self
@@ -106,13 +99,13 @@ impl RecordingHostBuilder {
         self
     }
 
-    pub fn shell_status(mut self, value: i64) -> Self {
-        self.host.shell_status = value;
+    pub fn exec_status(mut self, value: i64) -> Self {
+        self.host.exec_status = value;
         self
     }
 
-    pub fn shell_out(mut self, value: impl Into<String>) -> Self {
-        self.host.shell_out = value.into();
+    pub fn exec_out(mut self, value: impl Into<String>) -> Self {
+        self.host.exec_out = value.into();
         self
     }
 
@@ -237,10 +230,6 @@ impl RtHost for RecordingHost {
         Ok(RtString::from(format!("{left}/{right}")))
     }
 
-    fn os_cwd(&mut self) -> RtResult<RtString> {
-        Ok(RtString::from(self.cwd.clone()))
-    }
-
     fn os_platform(&mut self) -> RtResult<RtString> {
         Ok(RtString::from(self.platform.clone()))
     }
@@ -304,21 +293,11 @@ impl RtHost for RecordingHost {
 
     fn os_exec(&mut self, program: &str) -> RtResult<i64> {
         self.output.push_str(&format!("[exec {program}]"));
-        Ok(self.shell_status)
+        Ok(self.exec_status)
     }
 
     fn os_exec_out(&mut self, program: &str) -> RtResult<RtString> {
         self.output.push_str(&format!("[execout {program}]"));
-        Ok(RtString::from(self.shell_out.clone()))
-    }
-
-    fn os_exec_shell(&mut self, command: &str) -> RtResult<i64> {
-        self.output.push_str(&format!("[sh {command}]"));
-        Ok(self.shell_status)
-    }
-
-    fn os_exec_shell_out(&mut self, command: &str) -> RtResult<RtString> {
-        self.output.push_str(&format!("[shout {command}]"));
-        Ok(RtString::from(self.shell_out.clone()))
+        Ok(RtString::from(self.exec_out.clone()))
     }
 }
