@@ -7,6 +7,7 @@ mod io;
 mod os;
 mod random;
 mod str_pkg;
+mod vec_pkg;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuiltinKind {
@@ -61,6 +62,7 @@ pub fn find_builtin_sig(package: &str, name: &str) -> Option<&'static BuiltinSig
         .chain(fs::SIGS.iter())
         .chain(os::SIGS.iter())
         .chain(random::SIGS.iter())
+        .chain(vec_pkg::SIGS.iter())
         .find(|s| s.package == package && s.name == name)
 }
 
@@ -88,6 +90,7 @@ fn all_builtin_sigs() -> Vec<&'static BuiltinSig> {
         .chain(fs::SIGS.iter())
         .chain(os::SIGS.iter())
         .chain(random::SIGS.iter())
+        .chain(vec_pkg::SIGS.iter())
         .collect()
 }
 
@@ -134,6 +137,18 @@ fn builtin_meta(package: &str, name: &str) -> BuiltinMeta {
         },
         ("arr", _) => BuiltinMeta {
             purity: BuiltinPurity::Pure,
+            lowering: BuiltinLowering::TypeDirected,
+            can_const_fold: false,
+            runtime_helper: None,
+        },
+        ("vec", "len") | ("vec", "get") => BuiltinMeta {
+            purity: BuiltinPurity::Pure,
+            lowering: BuiltinLowering::TypeDirected,
+            can_const_fold: false,
+            runtime_helper: None,
+        },
+        ("vec", "new") | ("vec", "push") | ("vec", "set") | ("vec", "delete") => BuiltinMeta {
+            purity: BuiltinPurity::HostEffectful,
             lowering: BuiltinLowering::TypeDirected,
             can_const_fold: false,
             runtime_helper: None,
@@ -206,11 +221,13 @@ mod tests {
             super::fs::SIGS.len(),
             super::os::SIGS.len(),
             super::random::SIGS.len(),
+            super::vec_pkg::SIGS.len(),
         ]
         .into_iter()
         .sum::<usize>();
         assert_eq!(sig_count, manual_count);
         assert!(find_builtin_sig("datetime", "nowUnix").is_some());
+        assert!(find_builtin_spec("vec", "push").is_some());
         assert!(find_builtin_spec("missing", "name").is_none());
     }
 }
