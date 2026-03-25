@@ -231,26 +231,40 @@ fn runtime_library_path() -> Result<PathBuf, CodegenError> {
 }
 
 fn runtime_library_path_in_target_dir(target_dir: &Path) -> Result<PathBuf, CodegenError> {
-    let deps_dir = target_dir.join("deps");
-    let mut candidates = if deps_dir.exists() {
-        fs::read_dir(&deps_dir)
+    fn is_runtime_archive(path: &Path) -> bool {
+        path.file_name()
+            .and_then(|name| name.to_str())
+            .map(|name| {
+                if cfg!(windows) {
+                    (name.starts_with("libskepart-") && name.ends_with(".a"))
+                        || (name.starts_with("skepart-") && name.ends_with(".lib"))
+                        || name == "skepart.lib"
+                } else {
+                    name.starts_with("libskepart-") && name.ends_with(".a")
+                }
+            })
+            .unwrap_or(false)
+    }
+
+    let candidate_dirs = [target_dir.join("deps"), target_dir.to_path_buf()];
+    let mut candidates = Vec::new();
+    for dir in candidate_dirs {
+        if !dir.exists() {
+            continue;
+        }
+        let mut found = fs::read_dir(&dir)
             .map_err(|err| CodegenError::Io(err.to_string()))?
             .filter_map(|entry| entry.ok())
             .map(|entry| entry.path())
-            .filter(|path| {
-                path.file_name()
-                    .and_then(|name| name.to_str())
-                    .map(|name| name.starts_with("libskepart-") && name.ends_with(".a"))
-                    .unwrap_or(false)
-            })
-            .collect::<Vec<_>>()
-    } else {
-        Vec::new()
-    };
+            .filter(|path| is_runtime_archive(path))
+            .collect::<Vec<_>>();
+        candidates.append(&mut found);
+    }
     candidates.sort();
     if let Some(path) = candidates.into_iter().last() {
         Ok(path)
     } else {
+        let deps_dir = target_dir.join("deps");
         Err(CodegenError::Tool(format!(
             "native runtime library missing under {}",
             deps_dir.display()
