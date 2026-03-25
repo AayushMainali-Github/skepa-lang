@@ -40,6 +40,13 @@ fn recording_host_captures_output_and_overrides_services() {
         host.os_platform().expect("platform"),
         RtString::from("test-os")
     );
+    assert_eq!(host.os_arch().expect("arch"), RtString::from("test-arch"));
+    assert_eq!(host.os_arg(0).expect("arg0"), RtString::from("skepa"));
+    assert!(host.os_env_has("HOME").expect("env has"));
+    assert_eq!(
+        host.os_env_get("HOME").expect("env get"),
+        RtString::from("/tmp/home")
+    );
     assert_eq!(
         host.fs_read_text("file.txt").expect("read"),
         RtString::from("read:file.txt")
@@ -57,11 +64,19 @@ fn recording_host_tracks_fs_os_and_random_side_effects() {
     assert!(host.fs_exists("exists.txt").expect("exists"));
     assert_eq!(host.fs_join("a", "b").expect("join"), RtString::from("a/b"));
     assert_eq!(host.os_cwd().expect("cwd"), RtString::from("tmp/work"));
+    assert_eq!(host.os_exec("hostname").expect("exec"), 9);
+    assert_eq!(
+        host.os_exec_out("hostname").expect("exec out"),
+        RtString::from("shell-out")
+    );
     assert_eq!(host.os_exec_shell("echo hi").expect("shell"), 9);
     assert_eq!(
         host.os_exec_shell_out("echo hi").expect("shell out"),
         RtString::from("shell-out")
     );
+    host.os_env_set("MODE", "debug").expect("env set");
+    host.os_env_remove("MODE").expect("env remove");
+    host.os_exit(7).expect("exit");
     host.fs_write_text("f.txt", "x").expect("write");
     host.fs_append_text("f.txt", "y").expect("append");
     host.fs_mkdir_all("dir").expect("mkdir");
@@ -70,6 +85,6 @@ fn recording_host_tracks_fs_os_and_random_side_effects() {
     host.os_sleep(12).expect("sleep");
     assert_eq!(
         host.output,
-        "[sh echo hi][shout echo hi][write f.txt=x][append f.txt+=y][mkdir dir][rmfile f.txt][rmdir dir][sleep 12]"
+        "[exec hostname][execout hostname][sh echo hi][shout echo hi][envset MODE=debug][envrm MODE][exit 7][write f.txt=x][append f.txt+=y][mkdir dir][rmfile f.txt][rmdir dir][sleep 12]"
     );
 }
