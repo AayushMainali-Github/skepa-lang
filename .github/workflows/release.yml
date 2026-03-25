@@ -45,7 +45,7 @@ jobs:
             "$env:ChocolateyInstall\lib"
           ) | Where-Object { $_ -and (Test-Path $_) }
 
-          $toolNames = @("llvm-as.exe", "llc.exe", "clang.exe")
+          $toolNames = @("llvm-as.exe", "llc.exe", "opt.exe", "clang.exe")
           $toolDirs = New-Object System.Collections.Generic.HashSet[string]
 
           foreach ($toolName in $toolNames) {
