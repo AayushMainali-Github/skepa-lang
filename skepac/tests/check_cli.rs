@@ -317,27 +317,27 @@ fn main() -> Int {
 fn check_accepts_minimal_os_builtins_program() {
     let tmp = make_temp_dir("skepac_check_os_minimal");
     let file = tmp.join("os_minimal.sk");
-    let shell_ok = if cfg!(target_os = "windows") {
-        "exit /b 0"
+    let exec_name = if cfg!(windows) {
+        "hostname.exe"
     } else {
-        "exit 0"
-    };
-    let shell_out = if cfg!(target_os = "windows") {
-        "echo hi"
-    } else {
-        "printf hi"
+        "hostname"
     };
     let src = format!(
         r#"
 import os;
 import str;
 fn main() -> Int {{
-  let c = os.cwd();
   let p = os.platform();
+  let a = os.arch();
+  let arg0 = os.arg(0);
+  let has = os.envHas("PATH");
+  let path = os.envGet("PATH");
+  os.envSet("SKEPA_TMP_ENV", "ok");
+  os.envRemove("SKEPA_TMP_ENV");
   os.sleep(1);
-  let code = os.execShell("{shell_ok}");
-  let out = os.execShellOut("{shell_out}");
-  if (str.len(c) > 0 && str.len(p) > 0 && code == 0 && str.contains(out, "hi")) {{
+  let code = os.exec("{exec_name}");
+  let out = os.execOut("{exec_name}");
+  if (str.len(p) > 0 && str.len(a) > 0 && str.len(arg0) > 0 && has && str.len(path) > 0 && code == 0 && str.len(out) > 0) {{
     return 0;
   }}
   return 1;

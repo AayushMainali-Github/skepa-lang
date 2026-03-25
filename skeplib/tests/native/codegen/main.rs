@@ -1307,6 +1307,50 @@ fn main() -> Int {{
 }
 
 #[test]
+fn codegen_builds_native_executable_for_new_os_builtins() {
+    // Use a process name that typically exits successfully with no args on both platforms.
+    let exec_name = if cfg!(windows) { "hostname.exe" } else { "hostname" };
+    let source = format!(
+        r#"
+import os;
+import str;
+
+fn main() -> Int {{
+  let plat = os.platform();
+  let arch = os.arch();
+  let arg0 = os.arg(0);
+  os.envSet("SKEPA_TMP_ENV", "ok");
+  let tmp = os.envGet("SKEPA_TMP_ENV");
+  let has = os.envHas("SKEPA_TMP_ENV");
+  os.envRemove("SKEPA_TMP_ENV");
+  let removed = !os.envHas("SKEPA_TMP_ENV");
+  let code = os.exec("{exec_name}");
+  let out = os.execOut("{exec_name}");
+  if (str.len(plat) > 0 && str.len(arch) > 0 && str.len(arg0) > 0 && tmp == "ok" && has && removed && code == 0 && str.len(out) > 0) {{
+    return 0;
+  }}
+  return 1;
+}}
+"#
+    );
+
+    assert_eq!(common::native_run_structured(&source).exit_code(), 0);
+}
+
+#[test]
+fn codegen_builds_native_executable_for_os_exit() {
+    let source = r#"
+import os;
+
+fn main() -> Void {
+  os.exit(7);
+}
+"#;
+
+    assert_eq!(common::native_run_structured(source).exit_code(), 7);
+}
+
+#[test]
 fn codegen_builds_native_project_entry_wrapper_executable() {
     let project = common::TempProject::new("project_native_runtime");
     project.file(

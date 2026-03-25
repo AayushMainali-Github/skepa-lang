@@ -78,8 +78,54 @@ impl RtHost for TestHost {
         Ok(RtString::from("test-os"))
     }
 
+    fn os_arch(&mut self) -> RtResult<RtString> {
+        Ok(RtString::from("test-arch"))
+    }
+
+    fn os_arg(&mut self, index: i64) -> RtResult<RtString> {
+        match index {
+            0 => Ok(RtString::from("prog")),
+            1 => Ok(RtString::from("--flag")),
+            _ => Err(skepart::RtError::index_out_of_bounds(index as usize, 2)),
+        }
+    }
+
+    fn os_env_has(&mut self, name: &str) -> RtResult<bool> {
+        Ok(name == "HOME")
+    }
+
+    fn os_env_get(&mut self, name: &str) -> RtResult<RtString> {
+        match name {
+            "HOME" => Ok(RtString::from("/tmp/home")),
+            _ => Err(skepart::RtError::new(
+                skepart::RtErrorKind::InvalidArgument,
+                format!("environment variable `{name}` is not set or not valid UTF-8"),
+            )),
+        }
+    }
+
+    fn os_env_set(&mut self, _name: &str, _value: &str) -> RtResult<()> {
+        Ok(())
+    }
+
+    fn os_env_remove(&mut self, _name: &str) -> RtResult<()> {
+        Ok(())
+    }
+
     fn os_sleep(&mut self, _millis: i64) -> RtResult<()> {
         Ok(())
+    }
+
+    fn os_exit(&mut self, _code: i64) -> RtResult<()> {
+        Ok(())
+    }
+
+    fn os_exec(&mut self, program: &str) -> RtResult<i64> {
+        Ok(program.len() as i64)
+    }
+
+    fn os_exec_out(&mut self, program: &str) -> RtResult<RtString> {
+        Ok(RtString::from(format!("exec:{program}")))
     }
 
     fn os_exec_shell(&mut self, command: &str) -> RtResult<i64> {
@@ -607,6 +653,37 @@ fn main() -> Int {
         .run_main()
         .expect("IR interpreter should run source");
     assert_eq!(value, IrValue::Int(35));
+}
+
+#[test]
+fn interpreter_builtin_matrix_covers_new_os_host_helpers() {
+    let source = r#"
+import os;
+import str;
+
+fn main() -> Int {
+  let arch = os.arch();
+  let arg0 = os.arg(0);
+  let has = os.envHas("HOME");
+  let home = os.envGet("HOME");
+  os.envSet("MODE", "debug");
+  os.envRemove("MODE");
+  os.sleep(1);
+  os.exit(0);
+  let code = os.exec("git");
+  let out = os.execOut("git");
+  if (has && str.len(arch) > 0 && str.len(arg0) > 0 && str.len(home) > 0 && code > 0 && str.len(out) > 0) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let value = IrInterpreter::with_host(&program, Box::new(TestHost::default()))
+        .run_main()
+        .expect("IR interpreter should run source");
+    assert_eq!(value, IrValue::Int(1));
 }
 
 #[test]
