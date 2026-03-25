@@ -63,9 +63,13 @@ fn recording_host_tracks_fs_os_and_random_side_effects() {
     assert_eq!(host.random_float().expect("rand float"), 0.25);
     assert!(host.fs_exists("exists.txt").expect("exists"));
     assert_eq!(host.fs_join("a", "b").expect("join"), RtString::from("a/b"));
-    assert_eq!(host.os_exec("hostname").expect("exec"), 9);
     assert_eq!(
-        host.os_exec_out("hostname").expect("exec out"),
+        host.os_exec("hostname", &["--help".into()]).expect("exec"),
+        9
+    );
+    assert_eq!(
+        host.os_exec_out("hostname", &["--help".into()])
+            .expect("exec out"),
         RtString::from("exec-out")
     );
     host.os_env_set("MODE", "debug").expect("env set");
@@ -79,6 +83,6 @@ fn recording_host_tracks_fs_os_and_random_side_effects() {
     host.os_sleep(12).expect("sleep");
     assert_eq!(
         host.output,
-        "[exec hostname][execout hostname][envset MODE=debug][envrm MODE][exit 7][write f.txt=x][append f.txt+=y][mkdir dir][rmfile f.txt][rmdir dir][sleep 12]"
+        "[exec hostname --help][execout hostname --help][envset MODE=debug][envrm MODE][exit 7][write f.txt=x][append f.txt+=y][mkdir dir][rmfile f.txt][rmdir dir][sleep 12]"
     );
 }

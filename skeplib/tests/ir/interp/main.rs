@@ -116,14 +116,18 @@ impl RtHost for TestHost {
         Ok(())
     }
 
-    fn os_exec(&mut self, program: &str) -> RtResult<i64> {
-        Ok(program.len() as i64)
+    fn os_exec(&mut self, program: &str, args: &[String]) -> RtResult<i64> {
+        Ok((program.len() + args.iter().map(|arg| arg.len()).sum::<usize>()) as i64)
     }
 
-    fn os_exec_out(&mut self, program: &str) -> RtResult<RtString> {
-        Ok(RtString::from(format!("exec:{program}")))
+    fn os_exec_out(&mut self, program: &str, args: &[String]) -> RtResult<RtString> {
+        let suffix = if args.is_empty() {
+            String::new()
+        } else {
+            format!(":{}", args.join(","))
+        };
+        Ok(RtString::from(format!("exec:{program}{suffix}")))
     }
-
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -623,12 +627,15 @@ import fs;
 import os;
 import random;
 import str;
+import vec;
 
 fn main() -> Int {
   random.seed(9);
   let total = random.int(2, 5);
   let plat = os.platform();
-  let out = os.execOut("git");
+  let args: Vec[String] = vec.new();
+  vec.push(args, "status");
+  let out = os.execOut("git", args);
   if (fs.exists("exists.txt")) {
     return total + str.len(plat) + str.len(out);
   }
@@ -648,6 +655,7 @@ fn interpreter_builtin_matrix_covers_new_os_host_helpers() {
     let source = r#"
 import os;
 import str;
+import vec;
 
 fn main() -> Int {
   let arch = os.arch();
@@ -658,8 +666,10 @@ fn main() -> Int {
   os.envRemove("MODE");
   os.sleep(1);
   os.exit(0);
-  let code = os.exec("git");
-  let out = os.execOut("git");
+  let args: Vec[String] = vec.new();
+  vec.push(args, "status");
+  let code = os.exec("git", args);
+  let out = os.execOut("git", args);
   if (has && str.len(arch) > 0 && str.len(arg0) > 0 && str.len(home) > 0 && code > 0 && str.len(out) > 0) {
     return 1;
   }
@@ -683,6 +693,7 @@ import io;
 import os;
 import random;
 import str;
+import vec;
 
 fn main() -> Int {
   let parts: [String; 2] = ["ab"; 2];
@@ -690,7 +701,9 @@ fn main() -> Int {
   let text = fs.readText("alpha.txt");
   let path = fs.join("root", "leaf");
   let out = io.format("v=%d %b", 12, true);
-  let code = os.exec("git");
+  let args: Vec[String] = vec.new();
+  vec.push(args, "status");
+  let code = os.exec("git", args);
   let bonus = random.int(1, 2);
   return str.len(joined) + str.len(text) + str.len(path) + str.len(out) + code + bonus;
 }

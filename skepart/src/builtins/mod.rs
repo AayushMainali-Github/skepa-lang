@@ -147,8 +147,16 @@ pub fn call_with_host(
         ("os", "envRemove", [value]) => os::env_remove(host, value.expect_string()?.as_str()),
         ("os", "sleep", [value]) => os::sleep(host, value.expect_int()?),
         ("os", "exit", [value]) => os::exit(host, value.expect_int()?),
-        ("os", "exec", [value]) => os::exec(host, value.expect_string()?.as_str()),
-        ("os", "execOut", [value]) => os::exec_out(host, value.expect_string()?.as_str()),
+        ("os", "exec", [program, args]) => os::exec(
+            host,
+            program.expect_string()?.as_str(),
+            &args.expect_string_vec()?,
+        ),
+        ("os", "execOut", [program, args]) => os::exec_out(
+            host,
+            program.expect_string()?.as_str(),
+            &args.expect_string_vec()?,
+        ),
         _ => Err(RtError::new(
             RtErrorKind::UnsupportedBuiltin,
             format!("unsupported builtin `{package}.{name}`"),

@@ -11,6 +11,14 @@ impl RtHost for UnsupportedHost {
     }
 }
 
+fn string_vec(items: &[&str]) -> RtValue {
+    let value = skepart::RtVec::new();
+    for item in items {
+        value.push(RtValue::String(RtString::from(*item)));
+    }
+    RtValue::Vec(value)
+}
+
 #[test]
 fn builtins_dispatch_valid_core_families() {
     let mut host = RecordingHostBuilder::seeded().build();
@@ -233,7 +241,10 @@ fn builtins_cover_host_backed_fs_os_and_random_families_more_thoroughly() {
             &mut host,
             "os",
             "exec",
-            &[RtValue::String(RtString::from("git"))],
+            &[
+                RtValue::String(RtString::from("git")),
+                string_vec(&["status"])
+            ],
         )
         .expect("exec"),
         RtValue::Int(9)
@@ -243,7 +254,10 @@ fn builtins_cover_host_backed_fs_os_and_random_families_more_thoroughly() {
             &mut host,
             "os",
             "execOut",
-            &[RtValue::String(RtString::from("git"))],
+            &[
+                RtValue::String(RtString::from("git")),
+                string_vec(&["rev-parse"])
+            ],
         )
         .expect("execOut"),
         RtValue::String(RtString::from("exec-out"))
@@ -263,7 +277,7 @@ fn builtins_cover_host_backed_fs_os_and_random_families_more_thoroughly() {
 
     assert_eq!(
         host.output,
-        "[write a.txt=hello][append a.txt+=!][mkdir tmp/dir][rmfile a.txt][rmdir tmp/dir][envset MODE=debug][envrm HOME][sleep 33][exit 7][exec git][execout git]"
+        "[write a.txt=hello][append a.txt+=!][mkdir tmp/dir][rmfile a.txt][rmdir tmp/dir][envset MODE=debug][envrm HOME][sleep 33][exit 7][exec git status][execout git rev-parse]"
     );
 }
 
@@ -356,5 +370,21 @@ fn builtins_reject_new_os_invalid_argument_shapes() {
         .expect_err("missing env")
         .kind,
         RtErrorKind::InvalidArgument
+    );
+    let bad_args = skepart::RtVec::new();
+    bad_args.push(RtValue::Int(1));
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "os",
+            "exec",
+            &[
+                RtValue::String(RtString::from("git")),
+                RtValue::Vec(bad_args)
+            ],
+        )
+        .expect_err("non-string exec arg")
+        .kind,
+        RtErrorKind::TypeMismatch
     );
 }

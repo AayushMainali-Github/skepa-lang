@@ -17,6 +17,7 @@ pub struct RecordingHost {
     pub read_line: String,
     pub exec_status: i64,
     pub exec_out: String,
+    pub exec_argv: Vec<String>,
     pub env: HashMap<String, String>,
     pub files: HashMap<String, String>,
     pub existing_paths: HashMap<String, bool>,
@@ -35,6 +36,7 @@ impl RecordingHost {
             read_line: "typed line".into(),
             exec_status: 9,
             exec_out: "exec-out".into(),
+            exec_argv: Vec::new(),
             env: HashMap::from([(String::from("HOME"), String::from("/tmp/home"))]),
             files: HashMap::from([(String::from("exists.txt"), String::from("seeded"))]),
             existing_paths: HashMap::from([(String::from("exists.txt"), true)]),
@@ -106,6 +108,11 @@ impl RecordingHostBuilder {
 
     pub fn exec_out(mut self, value: impl Into<String>) -> Self {
         self.host.exec_out = value.into();
+        self
+    }
+
+    pub fn exec_argv(mut self, values: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        self.host.exec_argv = values.into_iter().map(Into::into).collect();
         self
     }
 
@@ -291,13 +298,25 @@ impl RtHost for RecordingHost {
         Ok(())
     }
 
-    fn os_exec(&mut self, program: &str) -> RtResult<i64> {
-        self.output.push_str(&format!("[exec {program}]"));
+    fn os_exec(&mut self, program: &str, args: &[String]) -> RtResult<i64> {
+        self.exec_argv = args.to_vec();
+        if args.is_empty() {
+            self.output.push_str(&format!("[exec {program}]"));
+        } else {
+            self.output
+                .push_str(&format!("[exec {program} {}]", args.join(" ")));
+        }
         Ok(self.exec_status)
     }
 
-    fn os_exec_out(&mut self, program: &str) -> RtResult<RtString> {
-        self.output.push_str(&format!("[execout {program}]"));
+    fn os_exec_out(&mut self, program: &str, args: &[String]) -> RtResult<RtString> {
+        self.exec_argv = args.to_vec();
+        if args.is_empty() {
+            self.output.push_str(&format!("[execout {program}]"));
+        } else {
+            self.output
+                .push_str(&format!("[execout {program} {}]", args.join(" ")));
+        }
         Ok(RtString::from(self.exec_out.clone()))
     }
 }

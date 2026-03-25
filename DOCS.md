@@ -475,8 +475,8 @@ Signatures:
 - `os.envRemove(name: String) -> Void`
 - `os.sleep(ms: Int) -> Void`
 - `os.exit(code: Int) -> Void`
-- `os.exec(program: String) -> Int`
-- `os.execOut(program: String) -> String`
+- `os.exec(program: String, args: Vec[String]) -> Int`
+- `os.execOut(program: String, args: Vec[String]) -> String`
 
 Behavior:
 - All `os` functions are synchronous/blocking.
@@ -489,15 +489,15 @@ Behavior:
 - `os.envRemove(name)` removes an environment variable from the current process.
 - `os.sleep(ms)` requires non-negative milliseconds; negative values raise a runtime error.
 - `os.exit(code)` terminates the current process with the provided exit code.
-- `os.exec(program)` runs the program directly and returns the process exit code.
-- `os.execOut(program)` runs the program directly and returns stdout as `String`.
+- `os.exec(program, args)` runs the program directly with argv arguments and returns the process exit code.
+- `os.execOut(program, args)` runs the program directly with argv arguments and returns stdout as `String`.
 
 Notes:
 - `os.arg(index)` raises a runtime error for negative or out-of-range indices.
 - `os.envGet(name)` raises a runtime error if the variable is missing or not valid UTF-8.
 - `os.exec*` raises a runtime error if the program cannot be spawned.
-- `os.execOut(program)` uses lossy UTF-8 decoding for stdout and trims trailing line endings.
-- If a process exits without a normal exit code, `os.exec(program)` returns `-1`.
+- `os.execOut(program, args)` uses lossy UTF-8 decoding for stdout and trims trailing line endings.
+- If a process exits without a normal exit code, `os.exec(program, args)` returns `-1`.
 
 ### 8.8 `fs`
 

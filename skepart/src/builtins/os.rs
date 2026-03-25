@@ -40,10 +40,10 @@ pub fn exit(host: &mut dyn RtHost, code: i64) -> RtResult<RtValue> {
     Ok(RtValue::Unit)
 }
 
-pub fn exec(host: &mut dyn RtHost, program: &str) -> RtResult<RtValue> {
-    Ok(RtValue::Int(host.os_exec(program)?))
+pub fn exec(host: &mut dyn RtHost, program: &str, args: &[String]) -> RtResult<RtValue> {
+    Ok(RtValue::Int(host.os_exec(program, args)?))
 }
 
-pub fn exec_out(host: &mut dyn RtHost, program: &str) -> RtResult<RtValue> {
-    Ok(RtValue::String(host.os_exec_out(program)?))
+pub fn exec_out(host: &mut dyn RtHost, program: &str, args: &[String]) -> RtResult<RtValue> {
+    Ok(RtValue::String(host.os_exec_out(program, args)?))
 }

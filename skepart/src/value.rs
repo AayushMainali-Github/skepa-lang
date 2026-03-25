@@ -115,6 +115,18 @@ impl RtValue {
         }
     }
 
+    pub fn expect_string_vec(&self) -> RtResult<Vec<String>> {
+        let value = self.expect_vec()?;
+        (0..value.len())
+            .map(|index| {
+                value
+                    .get(index)?
+                    .expect_string()
+                    .map(|item| item.as_str().to_owned())
+            })
+            .collect()
+    }
+
     pub fn expect_struct(&self) -> RtResult<RtStruct> {
         match self {
             Self::Struct(value) => Ok(value.clone()),

@@ -897,6 +897,7 @@ fn sema_accepts_minimal_os_builtin_signatures() {
     let src = r#"
 import str;
 import os;
+import vec;
 fn main() -> Int {
   let plat: String = os.platform();
   let arch: String = os.arch();
@@ -906,8 +907,10 @@ fn main() -> Int {
   os.envSet("MODE", "debug");
   os.envRemove("MODE");
   os.sleep(1);
-  let code: Int = os.exec("git");
-  let out: String = os.execOut("git");
+  let args: Vec[String] = vec.new();
+  vec.push(args, "status");
+  let code: Int = os.exec("git", args);
+  let out: String = os.execOut("git", args);
   if (str.len(plat) >= 0 && str.len(arch) >= 0 && str.len(arg0) >= 0 && hasHome && str.len(home) >= 0 && code >= 0 && str.len(out) >= 0) {
     return 0;
   }
@@ -978,8 +981,10 @@ fn main() -> Int {
 fn sema_rejects_os_exec_type_mismatch() {
     let src = r#"
 import os;
+import vec;
 fn main() -> Int {
-  return os.exec(1);
+  let args: Vec[String] = vec.new();
+  return os.exec(1, args);
 }
 "#;
     let (result, diags) = analyze_source(src);
@@ -996,8 +1001,10 @@ fn main() -> Int {
 fn sema_rejects_os_exec_out_type_mismatch() {
     let src = r#"
 import os;
+import vec;
 fn main() -> Int {
-  let _x = os.execOut(false);
+  let args: Vec[String] = vec.new();
+  let _x = os.execOut(false, args);
   return 0;
 }
 "#;
@@ -1007,6 +1014,26 @@ fn main() -> Int {
         d.message
             .contains("os.execOut argument 1 expects String")
     }));
+}
+
+#[test]
+fn sema_rejects_os_exec_vec_type_mismatch() {
+    let src = r#"
+import os;
+import vec;
+fn main() -> Int {
+  let args: Vec[Int] = vec.new();
+  return os.exec("git", args);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("os.exec argument 2 expects Vec[String]"))
+    );
 }
 
 #[test]
@@ -1357,6 +1384,7 @@ import datetime;
 import random;
 import fs;
 import os;
+import vec;
 
 fn main() -> Int {
   let s: String = io.format("%d", 1);
@@ -1367,7 +1395,9 @@ fn main() -> Int {
   let now: String = datetime.fromUnix(0);
   let r: Float = random.float();
   let exists: Bool = fs.exists("a");
-  let code: Int = os.exec("git");
+  let args: Vec[String] = vec.new();
+  vec.push(args, "status");
+  let code: Int = os.exec("git", args);
   if (b || exists || code >= 0 || r >= 0.0 || str.len(now) >= 0 || first >= 0 || str.len(s) >= 0) {
     return vec.len(xs);
   }

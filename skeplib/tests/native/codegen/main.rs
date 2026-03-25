@@ -1256,10 +1256,10 @@ fn codegen_builds_native_executable_for_fs_and_os_builtins() {
     let path = dir.join("note.txt");
     let path_text = path.to_string_lossy().replace('\\', "\\\\");
     let joined_left = dir.to_string_lossy().replace('\\', "\\\\");
-    let exec_name = if cfg!(windows) {
-        "hostname.exe"
+    let (exec_name, exec_arg) = if cfg!(windows) {
+        ("where.exe", "cmd")
     } else {
-        "hostname"
+        ("which", "sh")
     };
 
     let source = format!(
@@ -1268,6 +1268,7 @@ import fs;
 import io;
 import os;
 import str;
+import vec;
 
 fn main() -> Int {{
   fs.writeText("{path_text}", "a");
@@ -1276,7 +1277,9 @@ fn main() -> Int {{
   let joined = fs.join("{joined_left}", "note.txt");
   let platform = os.platform();
   let arch = os.arch();
-  let out = os.execOut("{exec_name}");
+  let args: Vec[String] = vec.new();
+  vec.push(args, "{exec_arg}");
+  let out = os.execOut("{exec_name}", args);
   io.print(text);
   io.println("");
   io.print(out);
@@ -1308,12 +1311,16 @@ fn main() -> Int {{
 
 #[test]
 fn codegen_builds_native_executable_for_new_os_builtins() {
-    // Use a process name that typically exits successfully with no args on both platforms.
-    let exec_name = if cfg!(windows) { "hostname.exe" } else { "hostname" };
+    let (exec_name, exec_arg) = if cfg!(windows) {
+        ("where.exe", "cmd")
+    } else {
+        ("which", "sh")
+    };
     let source = format!(
         r#"
 import os;
 import str;
+import vec;
 
 fn main() -> Int {{
   let plat = os.platform();
@@ -1324,8 +1331,10 @@ fn main() -> Int {{
   let has = os.envHas("SKEPA_TMP_ENV");
   os.envRemove("SKEPA_TMP_ENV");
   let removed = !os.envHas("SKEPA_TMP_ENV");
-  let code = os.exec("{exec_name}");
-  let out = os.execOut("{exec_name}");
+  let args: Vec[String] = vec.new();
+  vec.push(args, "{exec_arg}");
+  let code = os.exec("{exec_name}", args);
+  let out = os.execOut("{exec_name}", args);
   if (str.len(plat) > 0 && str.len(arch) > 0 && str.len(arg0) > 0 && tmp == "ok" && has && removed && code == 0 && str.len(out) > 0) {{
     return 0;
   }}

@@ -122,11 +122,11 @@ pub trait RtHost {
         Err(RtError::unsupported_builtin("os.exit"))
     }
 
-    fn os_exec(&mut self, _program: &str) -> RtResult<i64> {
+    fn os_exec(&mut self, _program: &str, _args: &[String]) -> RtResult<i64> {
         Err(RtError::unsupported_builtin("os.exec"))
     }
 
-    fn os_exec_out(&mut self, _program: &str) -> RtResult<RtString> {
+    fn os_exec_out(&mut self, _program: &str, _args: &[String]) -> RtResult<RtString> {
         Err(RtError::unsupported_builtin("os.execOut"))
     }
 }
@@ -329,15 +329,17 @@ impl RtHost for NoopHost {
         std::process::exit(code as i32)
     }
 
-    fn os_exec(&mut self, program: &str) -> RtResult<i64> {
+    fn os_exec(&mut self, program: &str, args: &[String]) -> RtResult<i64> {
         let output = Command::new(program)
+            .args(args)
             .output()
             .map_err(|err| RtError::process(err.to_string()))?;
         Ok(output.status.code().unwrap_or(-1) as i64)
     }
 
-    fn os_exec_out(&mut self, program: &str) -> RtResult<RtString> {
+    fn os_exec_out(&mut self, program: &str, args: &[String]) -> RtResult<RtString> {
         let output = Command::new(program)
+            .args(args)
             .output()
             .map_err(|err| RtError::process(err.to_string()))?;
         Ok(RtString::from(
