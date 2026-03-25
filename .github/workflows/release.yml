@@ -45,20 +45,30 @@ jobs:
             "$env:ChocolateyInstall\lib"
           ) | Where-Object { $_ -and (Test-Path $_) }
 
-          $llvmAs = $null
-          foreach ($root in $searchRoots) {
-            $found = Get-ChildItem -Path $root -Filter llvm-as.exe -Recurse -File -ErrorAction SilentlyContinue | Select-Object -First 1
-            if ($found) {
-              $llvmAs = $found
-              break
+          $toolNames = @("llvm-as.exe", "llc.exe", "clang.exe")
+          $toolDirs = New-Object System.Collections.Generic.HashSet[string]
+
+          foreach ($toolName in $toolNames) {
+            $toolPath = $null
+            foreach ($root in $searchRoots) {
+              $found = Get-ChildItem -Path $root -Filter $toolName -Recurse -File -ErrorAction SilentlyContinue | Select-Object -First 1
+              if ($found) {
+                $toolPath = $found.FullName
+                break
+              }
             }
+
+            if (-not $toolPath) {
+              throw "Could not locate $toolName after Chocolatey llvm install"
+            }
+
+            $toolDir = Split-Path $toolPath -Parent
+            $null = $toolDirs.Add($toolDir)
           }
 
-          $llvmBin = if ($llvmAs) { Split-Path $llvmAs.FullName -Parent } else { $null }
-          if (-not $llvmBin) {
-            throw "Could not locate llvm-as.exe after Chocolatey llvm install"
+          foreach ($toolDir in $toolDirs) {
+            Add-Content -Path $env:GITHUB_PATH -Value $toolDir
           }
-          Add-Content -Path $env:GITHUB_PATH -Value $llvmBin
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
