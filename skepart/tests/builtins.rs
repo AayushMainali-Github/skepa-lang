@@ -185,7 +185,73 @@ fn builtins_cover_host_backed_fs_os_and_random_families_more_thoroughly() {
         builtins::call_with_host(&mut host, "os", "cwd", &[]).expect("cwd"),
         RtValue::String(RtString::from("tmp/work"))
     );
+    assert_eq!(
+        builtins::call_with_host(&mut host, "os", "arch", &[]).expect("arch"),
+        RtValue::String(RtString::from("test-arch"))
+    );
+    assert_eq!(
+        builtins::call_with_host(&mut host, "os", "arg", &[RtValue::Int(1)]).expect("arg"),
+        RtValue::String(RtString::from("--flag"))
+    );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "os",
+            "envHas",
+            &[RtValue::String(RtString::from("HOME"))],
+        )
+        .expect("envHas"),
+        RtValue::Bool(true)
+    );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "os",
+            "envGet",
+            &[RtValue::String(RtString::from("HOME"))],
+        )
+        .expect("envGet"),
+        RtValue::String(RtString::from("/tmp/home"))
+    );
+    builtins::call_with_host(
+        &mut host,
+        "os",
+        "envSet",
+        &[
+            RtValue::String(RtString::from("MODE")),
+            RtValue::String(RtString::from("debug")),
+        ],
+    )
+    .expect("envSet");
+    builtins::call_with_host(
+        &mut host,
+        "os",
+        "envRemove",
+        &[RtValue::String(RtString::from("HOME"))],
+    )
+    .expect("envRemove");
     builtins::call_with_host(&mut host, "os", "sleep", &[RtValue::Int(33)]).expect("sleep");
+    builtins::call_with_host(&mut host, "os", "exit", &[RtValue::Int(7)]).expect("exit");
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "os",
+            "exec",
+            &[RtValue::String(RtString::from("git"))],
+        )
+        .expect("exec"),
+        RtValue::Int(9)
+    );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "os",
+            "execOut",
+            &[RtValue::String(RtString::from("git"))],
+        )
+        .expect("execOut"),
+        RtValue::String(RtString::from("shell-out"))
+    );
     assert_eq!(
         builtins::call_with_host(
             &mut host,
@@ -221,7 +287,7 @@ fn builtins_cover_host_backed_fs_os_and_random_families_more_thoroughly() {
 
     assert_eq!(
         host.output,
-        "[write a.txt=hello][append a.txt+=!][mkdir tmp/dir][rmfile a.txt][rmdir tmp/dir][sleep 33][sh echo hi][shout echo hi]"
+        "[write a.txt=hello][append a.txt+=!][mkdir tmp/dir][rmfile a.txt][rmdir tmp/dir][envset MODE=debug][envrm HOME][sleep 33][exit 7][exec git][execout git][sh echo hi][shout echo hi]"
     );
 }
 

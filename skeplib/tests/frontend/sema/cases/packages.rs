@@ -898,12 +898,17 @@ fn sema_accepts_minimal_os_builtin_signatures() {
 import str;
 import os;
 fn main() -> Int {
-  let cwd: String = os.cwd();
   let plat: String = os.platform();
+  let arch: String = os.arch();
+  let arg0: String = os.arg(0);
+  let hasHome: Bool = os.envHas("HOME");
+  let home: String = os.envGet("HOME");
+  os.envSet("MODE", "debug");
+  os.envRemove("MODE");
   os.sleep(1);
-  let code: Int = os.execShell("echo hi");
-  let out: String = os.execShellOut("echo hi");
-  if (str.len(cwd) >= 0 && str.len(plat) >= 0 && code >= 0 && str.len(out) >= 0) {
+  let code: Int = os.exec("git");
+  let out: String = os.execOut("git");
+  if (str.len(plat) >= 0 && str.len(arch) >= 0 && str.len(arg0) >= 0 && hasHome && str.len(home) >= 0 && code >= 0 && str.len(out) >= 0) {
     return 0;
   }
   return 1;
@@ -974,7 +979,7 @@ fn sema_rejects_os_exec_shell_type_mismatch() {
     let src = r#"
 import os;
 fn main() -> Int {
-  return os.execShell(1);
+  return os.exec(1);
 }
 "#;
     let (result, diags) = analyze_source(src);
@@ -983,7 +988,7 @@ fn main() -> Int {
         diags
             .as_slice()
             .iter()
-            .any(|d| d.message.contains("os.execShell argument 1 expects String"))
+            .any(|d| d.message.contains("os.exec argument 1 expects String"))
     );
 }
 
@@ -992,7 +997,7 @@ fn sema_rejects_os_exec_shell_out_type_mismatch() {
     let src = r#"
 import os;
 fn main() -> Int {
-  let _x = os.execShellOut(false);
+  let _x = os.execOut(false);
   return 0;
 }
 "#;
@@ -1000,7 +1005,7 @@ fn main() -> Int {
     assert!(result.has_errors);
     assert!(diags.as_slice().iter().any(|d| {
         d.message
-            .contains("os.execShellOut argument 1 expects String")
+            .contains("os.execOut argument 1 expects String")
     }));
 }
 
@@ -1329,7 +1334,7 @@ fn main() -> Int {
   let now: String = datetime.fromUnix(0);
   let r: Float = random.float();
   let exists: Bool = fs.exists("a");
-  let code: Int = os.execShell("echo hi");
+  let code: Int = os.exec("git");
   if (b || exists || code >= 0 || r >= 0.0 || str.len(now) >= 0 || first >= 0 || str.len(s) >= 0) {
     return vec.len(xs);
   }

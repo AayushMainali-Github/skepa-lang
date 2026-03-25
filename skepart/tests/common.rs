@@ -13,9 +13,12 @@ pub struct RecordingHost {
     pub random_float_value: f64,
     pub cwd: String,
     pub platform: String,
+    pub arch: String,
+    pub args: Vec<String>,
     pub read_line: String,
     pub shell_status: i64,
     pub shell_out: String,
+    pub env: HashMap<String, String>,
     pub files: HashMap<String, String>,
     pub existing_paths: HashMap<String, bool>,
 }
@@ -29,9 +32,12 @@ impl RecordingHost {
             random_float_value: 0.25,
             cwd: "tmp/work".into(),
             platform: "test-os".into(),
+            arch: "test-arch".into(),
+            args: vec!["skepa".into(), "--flag".into()],
             read_line: "typed line".into(),
             shell_status: 9,
             shell_out: "shell-out".into(),
+            env: HashMap::from([(String::from("HOME"), String::from("/tmp/home"))]),
             files: HashMap::from([(String::from("exists.txt"), String::from("seeded"))]),
             existing_paths: HashMap::from([(String::from("exists.txt"), true)]),
             ..Self::default()
@@ -85,6 +91,16 @@ impl RecordingHostBuilder {
         self
     }
 
+    pub fn arch(mut self, value: impl Into<String>) -> Self {
+        self.host.arch = value.into();
+        self
+    }
+
+    pub fn args(mut self, values: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        self.host.args = values.into_iter().map(Into::into).collect();
+        self
+    }
+
     pub fn read_line(mut self, value: impl Into<String>) -> Self {
         self.host.read_line = value.into();
         self
@@ -109,6 +125,11 @@ impl RecordingHostBuilder {
 
     pub fn existing_path(mut self, path: impl Into<String>, exists: bool) -> Self {
         self.host.existing_paths.insert(path.into(), exists);
+        self
+    }
+
+    pub fn env(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
+        self.host.env.insert(name.into(), value.into());
         self
     }
 
@@ -224,9 +245,71 @@ impl RtHost for RecordingHost {
         Ok(RtString::from(self.platform.clone()))
     }
 
+    fn os_arch(&mut self) -> RtResult<RtString> {
+        Ok(RtString::from(self.arch.clone()))
+    }
+
+    fn os_arg(&mut self, index: i64) -> RtResult<RtString> {
+        let index = usize::try_from(index).map_err(|_| {
+            skepart::RtError::new(
+                skepart::RtErrorKind::InvalidArgument,
+                "os.arg index must be non-negative",
+            )
+        })?;
+        self.args
+            .get(index)
+            .cloned()
+            .map(RtString::from)
+            .ok_or_else(|| skepart::RtError::index_out_of_bounds(index, self.args.len()))
+    }
+
+    fn os_env_has(&mut self, name: &str) -> RtResult<bool> {
+        Ok(self.env.contains_key(name))
+    }
+
+    fn os_env_get(&mut self, name: &str) -> RtResult<RtString> {
+        self.env
+            .get(name)
+            .cloned()
+            .map(RtString::from)
+            .ok_or_else(|| {
+                skepart::RtError::new(
+                    skepart::RtErrorKind::InvalidArgument,
+                    format!("environment variable `{name}` is not set or not valid UTF-8"),
+                )
+            })
+    }
+
+    fn os_env_set(&mut self, name: &str, value: &str) -> RtResult<()> {
+        self.env.insert(name.to_string(), value.to_string());
+        self.output.push_str(&format!("[envset {name}={value}]"));
+        Ok(())
+    }
+
+    fn os_env_remove(&mut self, name: &str) -> RtResult<()> {
+        self.env.remove(name);
+        self.output.push_str(&format!("[envrm {name}]"));
+        Ok(())
+    }
+
     fn os_sleep(&mut self, millis: i64) -> RtResult<()> {
         self.output.push_str(&format!("[sleep {millis}]"));
         Ok(())
+    }
+
+    fn os_exit(&mut self, code: i64) -> RtResult<()> {
+        self.output.push_str(&format!("[exit {code}]"));
+        Ok(())
+    }
+
+    fn os_exec(&mut self, program: &str) -> RtResult<i64> {
+        self.output.push_str(&format!("[exec {program}]"));
+        Ok(self.shell_status)
+    }
+
+    fn os_exec_out(&mut self, program: &str) -> RtResult<RtString> {
+        self.output.push_str(&format!("[execout {program}]"));
+        Ok(RtString::from(self.shell_out.clone()))
     }
 
     fn os_exec_shell(&mut self, command: &str) -> RtResult<i64> {

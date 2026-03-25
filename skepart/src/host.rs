@@ -94,8 +94,44 @@ pub trait RtHost {
         Err(RtError::unsupported_builtin("os.platform"))
     }
 
+    fn os_arch(&mut self) -> RtResult<RtString> {
+        Err(RtError::unsupported_builtin("os.arch"))
+    }
+
+    fn os_arg(&mut self, _index: i64) -> RtResult<RtString> {
+        Err(RtError::unsupported_builtin("os.arg"))
+    }
+
+    fn os_env_has(&mut self, _name: &str) -> RtResult<bool> {
+        Err(RtError::unsupported_builtin("os.envHas"))
+    }
+
+    fn os_env_get(&mut self, _name: &str) -> RtResult<RtString> {
+        Err(RtError::unsupported_builtin("os.envGet"))
+    }
+
+    fn os_env_set(&mut self, _name: &str, _value: &str) -> RtResult<()> {
+        Err(RtError::unsupported_builtin("os.envSet"))
+    }
+
+    fn os_env_remove(&mut self, _name: &str) -> RtResult<()> {
+        Err(RtError::unsupported_builtin("os.envRemove"))
+    }
+
     fn os_sleep(&mut self, _millis: i64) -> RtResult<()> {
         Err(RtError::unsupported_builtin("os.sleep"))
+    }
+
+    fn os_exit(&mut self, _code: i64) -> RtResult<()> {
+        Err(RtError::unsupported_builtin("os.exit"))
+    }
+
+    fn os_exec(&mut self, _program: &str) -> RtResult<i64> {
+        Err(RtError::unsupported_builtin("os.exec"))
+    }
+
+    fn os_exec_out(&mut self, _program: &str) -> RtResult<RtString> {
+        Err(RtError::unsupported_builtin("os.execOut"))
     }
 
     fn os_exec_shell(&mut self, _command: &str) -> RtResult<i64> {
@@ -253,6 +289,49 @@ impl RtHost for NoopHost {
         Ok(RtString::from(std::env::consts::OS))
     }
 
+    fn os_arch(&mut self) -> RtResult<RtString> {
+        Ok(RtString::from(std::env::consts::ARCH))
+    }
+
+    fn os_arg(&mut self, index: i64) -> RtResult<RtString> {
+        let index = usize::try_from(index).map_err(|_| {
+            RtError::new(
+                RtErrorKind::InvalidArgument,
+                "os.arg index must be non-negative",
+            )
+        })?;
+        let args = std::env::args().collect::<Vec<_>>();
+        args.get(index)
+            .cloned()
+            .map(RtString::from)
+            .ok_or_else(|| RtError::index_out_of_bounds(index, args.len()))
+    }
+
+    fn os_env_has(&mut self, name: &str) -> RtResult<bool> {
+        Ok(std::env::var_os(name).is_some())
+    }
+
+    fn os_env_get(&mut self, name: &str) -> RtResult<RtString> {
+        std::env::var(name).map(RtString::from).map_err(|_| {
+            RtError::new(
+                RtErrorKind::InvalidArgument,
+                format!("environment variable `{name}` is not set or not valid UTF-8"),
+            )
+        })
+    }
+
+    fn os_env_set(&mut self, name: &str, value: &str) -> RtResult<()> {
+        // Safety: tests and runtime mutate process environment synchronously through the host boundary.
+        unsafe { std::env::set_var(name, value) };
+        Ok(())
+    }
+
+    fn os_env_remove(&mut self, name: &str) -> RtResult<()> {
+        // Safety: tests and runtime mutate process environment synchronously through the host boundary.
+        unsafe { std::env::remove_var(name) };
+        Ok(())
+    }
+
     fn os_sleep(&mut self, millis: i64) -> RtResult<()> {
         if millis < 0 {
             return Err(RtError::new(
@@ -262,6 +341,28 @@ impl RtHost for NoopHost {
         }
         std::thread::sleep(std::time::Duration::from_millis(millis as u64));
         Ok(())
+    }
+
+    fn os_exit(&mut self, code: i64) -> RtResult<()> {
+        std::process::exit(code as i32)
+    }
+
+    fn os_exec(&mut self, program: &str) -> RtResult<i64> {
+        let output = Command::new(program)
+            .output()
+            .map_err(|err| RtError::process(err.to_string()))?;
+        Ok(output.status.code().unwrap_or(-1) as i64)
+    }
+
+    fn os_exec_out(&mut self, program: &str) -> RtResult<RtString> {
+        let output = Command::new(program)
+            .output()
+            .map_err(|err| RtError::process(err.to_string()))?;
+        Ok(RtString::from(
+            String::from_utf8_lossy(&output.stdout)
+                .trim_end()
+                .to_string(),
+        ))
     }
 
     fn os_exec_shell(&mut self, command: &str) -> RtResult<i64> {
