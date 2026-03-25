@@ -38,12 +38,16 @@ jobs:
         shell: pwsh
         run: |
           choco install llvm --yes --no-progress
-          $candidates = @(
-            "C:\Program Files\LLVM\bin",
-            "C:\LLVM\bin",
-            "$env:ChocolateyInstall\lib\llvm\tools\llvm\bin"
-          )
-          $llvmBin = $candidates | Where-Object { Test-Path (Join-Path $_ "llvm-as.exe") } | Select-Object -First 1
+          $searchRoots = @(
+            "C:\Program Files",
+            "C:\Program Files (x86)",
+            "C:\LLVM",
+            "$env:ChocolateyInstall\lib"
+          ) | Where-Object { $_ -and (Test-Path $_) }
+          $llvmAs = foreach ($root in $searchRoots) {
+            Get-ChildItem -Path $root -Filter llvm-as.exe -Recurse -File -ErrorAction SilentlyContinue | Select-Object -First 1
+          } | Select-Object -First 1
+          $llvmBin = if ($llvmAs) { Split-Path $llvmAs.FullName -Parent } else { $null }
           if (-not $llvmBin) {
             throw "Could not locate llvm-as.exe after Chocolatey llvm install"
           }
