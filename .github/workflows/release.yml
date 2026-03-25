@@ -74,7 +74,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Build Release Binaries
-        run: cargo build --release -p skepac
+        run: cargo build --release -p skepart -p skepac
 
       - name: Verify Native Toolchain (Unix)
         if: runner.os != 'Windows'
