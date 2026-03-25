@@ -44,9 +44,16 @@ jobs:
             "C:\LLVM",
             "$env:ChocolateyInstall\lib"
           ) | Where-Object { $_ -and (Test-Path $_) }
-          $llvmAs = foreach ($root in $searchRoots) {
-            Get-ChildItem -Path $root -Filter llvm-as.exe -Recurse -File -ErrorAction SilentlyContinue | Select-Object -First 1
-          } | Select-Object -First 1
+
+          $llvmAs = $null
+          foreach ($root in $searchRoots) {
+            $found = Get-ChildItem -Path $root -Filter llvm-as.exe -Recurse -File -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($found) {
+              $llvmAs = $found
+              break
+            }
+          }
+
           $llvmBin = if ($llvmAs) { Split-Path $llvmAs.FullName -Parent } else { $null }
           if (-not $llvmBin) {
             throw "Could not locate llvm-as.exe after Chocolatey llvm install"
