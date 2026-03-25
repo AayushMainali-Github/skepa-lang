@@ -348,7 +348,7 @@ Behavior:
 - `arr`: static-array helpers (`len`, `isEmpty`, `contains`, `indexOf`, `count`, `first`, `last`, `join`)
 - `datetime`: unix timestamp/time component helpers
 - `random`: deterministic seed + random int/float
-- `os`: basic host/process helpers (`cwd`, `platform`, `sleep`, `execShell`, `execShellOut`)
+- `os`: host/process helpers (`platform`, `arch`, `arg`, `envHas`, `envGet`, `envSet`, `envRemove`, `sleep`, `exit`, `exec`, `execOut`)
 - `fs`: basic filesystem helpers (`exists`, `readText`, `writeText`, `appendText`, `mkdirAll`, `removeFile`, `removeDirAll`, `join`)
 - `vec`: runtime-sized vector helpers (`new`, `len`, `push`, `get`, `set`, `delete`)
 
@@ -466,24 +466,38 @@ Notes:
 ### 8.7 `os`
 
 Signatures:
-- `os.cwd() -> String`
 - `os.platform() -> String`
+- `os.arch() -> String`
+- `os.arg(index: Int) -> String`
+- `os.envHas(name: String) -> Bool`
+- `os.envGet(name: String) -> String`
+- `os.envSet(name: String, value: String) -> Void`
+- `os.envRemove(name: String) -> Void`
 - `os.sleep(ms: Int) -> Void`
-- `os.execShell(cmd: String) -> Int`
-- `os.execShellOut(cmd: String) -> String`
+- `os.exit(code: Int) -> Void`
+- `os.exec(program: String) -> Int`
+- `os.execOut(program: String) -> String`
 
 Behavior:
 - All `os` functions are synchronous/blocking.
 - `os.platform()` returns one of `windows`, `linux`, `macos`.
+- `os.arch()` returns the host architecture string from the runtime environment.
+- `os.arg(index)` returns the process argument at `index`.
+- `os.envHas(name)` returns whether an environment variable is present.
+- `os.envGet(name)` returns the environment variable value.
+- `os.envSet(name, value)` sets an environment variable for the current process.
+- `os.envRemove(name)` removes an environment variable from the current process.
 - `os.sleep(ms)` requires non-negative milliseconds; negative values raise a runtime error.
-- `os.execShell(cmd)` runs through the platform shell and returns the process exit code.
-- `os.execShellOut(cmd)` runs through the platform shell and returns stdout as `String`.
+- `os.exit(code)` terminates the current process with the provided exit code.
+- `os.exec(program)` runs the program directly and returns the process exit code.
+- `os.execOut(program)` runs the program directly and returns stdout as `String`.
 
 Notes:
-- `os.execShellOut` requires stdout to be valid UTF-8.
-- Shell wrapper: Windows uses `cmd /C`; Linux/macOS use `sh -c`.
-- `os.execShell*` can be dangerous with untrusted input (shell injection risk).
-- If a process exits without a normal exit code, `os.execShell` returns `-1`.
+- `os.arg(index)` raises a runtime error for negative or out-of-range indices.
+- `os.envGet(name)` raises a runtime error if the variable is missing or not valid UTF-8.
+- `os.exec*` raises a runtime error if the program cannot be spawned.
+- `os.execOut(program)` uses lossy UTF-8 decoding for stdout and trims trailing line endings.
+- If a process exits without a normal exit code, `os.exec(program)` returns `-1`.
 
 ### 8.8 `fs`
 

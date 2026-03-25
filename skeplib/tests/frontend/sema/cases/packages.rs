@@ -1010,6 +1010,39 @@ fn main() -> Int {
 }
 
 #[test]
+fn sema_rejects_removed_os_legacy_builtins() {
+    let src = r#"
+import os;
+fn main() -> Int {
+  let _a = os.cwd();
+  let _b = os.execShell("echo hi");
+  let _c = os.execShellOut("echo hi");
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Unknown builtin `os.cwd`"))
+    );
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Unknown builtin `os.execShell`"))
+    );
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Unknown builtin `os.execShellOut`"))
+    );
+}
+
+#[test]
 fn sema_rejects_os_platform_assignment_type_mismatch() {
     let src = r#"
 import os;

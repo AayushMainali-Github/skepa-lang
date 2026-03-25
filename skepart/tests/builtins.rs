@@ -330,3 +330,31 @@ fn builtins_reject_typed_io_print_mismatches_and_format_extra_args() {
         RtErrorKind::InvalidArgument
     );
 }
+
+#[test]
+fn builtins_reject_new_os_invalid_argument_shapes() {
+    let mut host = RecordingHostBuilder::seeded().build();
+    assert_eq!(
+        builtins::call_with_host(&mut host, "os", "arg", &[RtValue::Int(-1)])
+            .expect_err("negative arg index")
+            .kind,
+        RtErrorKind::InvalidArgument
+    );
+    assert_eq!(
+        builtins::call_with_host(&mut host, "os", "arg", &[RtValue::Int(99)],)
+            .expect_err("oob arg index")
+            .kind,
+        RtErrorKind::IndexOutOfBounds
+    );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "os",
+            "envGet",
+            &[RtValue::String(RtString::from("MISSING"))],
+        )
+        .expect_err("missing env")
+        .kind,
+        RtErrorKind::InvalidArgument
+    );
+}
