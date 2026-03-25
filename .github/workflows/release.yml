@@ -19,11 +19,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install LLVM Toolchain (Ubuntu)
+      - name: Install LLVM Toolchain (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y llvm clang
+
+      - name: Install LLVM Toolchain (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          brew update
+          brew install llvm
+          echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
+
+      - name: Install LLVM Toolchain (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install llvm --yes --no-progress
+          "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -33,6 +48,14 @@ jobs:
 
       - name: Verify Native Toolchain (Unix)
         if: runner.os != 'Windows'
+        run: |
+          llvm-as --version
+          llc --version
+          clang --version
+
+      - name: Verify Native Toolchain (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
         run: |
           llvm-as --version
           llc --version
