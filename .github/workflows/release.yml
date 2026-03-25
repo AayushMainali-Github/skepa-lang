@@ -38,7 +38,16 @@ jobs:
         shell: pwsh
         run: |
           choco install llvm --yes --no-progress
-          "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          $candidates = @(
+            "C:\Program Files\LLVM\bin",
+            "C:\LLVM\bin",
+            "$env:ChocolateyInstall\lib\llvm\tools\llvm\bin"
+          )
+          $llvmBin = $candidates | Where-Object { Test-Path (Join-Path $_ "llvm-as.exe") } | Select-Object -First 1
+          if (-not $llvmBin) {
+            throw "Could not locate llvm-as.exe after Chocolatey llvm install"
+          }
+          Add-Content -Path $env:GITHUB_PATH -Value $llvmBin
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
