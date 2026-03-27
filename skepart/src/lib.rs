@@ -16,7 +16,7 @@ pub use array::RtArray;
 pub use builtins::str as str_builtin;
 pub use error::{RtError, RtErrorKind, RtResult};
 pub use function::{RtFunctionRegistry, RtNativeFn};
-pub use host::{NoopHost, RtHost};
+pub use host::{NoopHost, RtHost, RtNetResource, RtNetResourceTable};
 pub use string::RtString;
 pub use value::{RtFunctionRef, RtHandle, RtHandleKind, RtStruct, RtStructLayout, RtValue};
 pub use vec::RtVec;

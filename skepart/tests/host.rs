@@ -2,6 +2,8 @@ mod common;
 
 use common::RecordingHostBuilder;
 use skepart::{NoopHost, RtHandle, RtHandleKind, RtHost, RtString};
+use std::io::{Read, Write};
+use std::net::{TcpListener, TcpStream};
 
 #[test]
 fn noop_host_supports_print_and_time_defaults() {
@@ -132,6 +134,56 @@ fn noop_host_tracks_placeholder_net_handle_lifetimes() {
     assert_eq!(
         host.net_lookup_handle_kind(socket)
             .expect_err("closed handle should be gone")
+            .kind,
+        skepart::RtErrorKind::InvalidArgument
+    );
+}
+
+#[test]
+fn noop_host_stores_and_recovers_live_tcp_resources_by_handle() {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind listener");
+    let addr = listener.local_addr().expect("listener addr");
+    let client = TcpStream::connect(addr).expect("connect client");
+    let (server, _) = listener.accept().expect("accept server");
+
+    let mut host = NoopHost::default();
+    let listener_handle = host
+        .net_store_tcp_listener(listener)
+        .expect("store listener");
+    let socket_handle = host.net_store_tcp_stream(server).expect("store server");
+
+    assert_eq!(
+        host.net_lookup_handle_kind(listener_handle)
+            .expect("listener kind"),
+        RtHandleKind::Listener
+    );
+    assert_eq!(
+        host.net_lookup_handle_kind(socket_handle)
+            .expect("socket kind"),
+        RtHandleKind::Socket
+    );
+    assert_eq!(
+        host.net_tcp_listener(listener_handle)
+            .expect("typed listener lookup")
+            .local_addr()
+            .expect("stored listener addr"),
+        addr
+    );
+
+    host.net_tcp_stream(socket_handle)
+        .expect("typed socket lookup")
+        .write_all(b"ping")
+        .expect("write server->client");
+    let mut buf = [0_u8; 4];
+    let mut client = client;
+    client.read_exact(&mut buf).expect("read client");
+    assert_eq!(&buf, b"ping");
+
+    host.net_close_handle(socket_handle)
+        .expect("close stored socket");
+    assert_eq!(
+        host.net_tcp_stream(socket_handle)
+            .expect_err("closed socket should fail")
             .kind,
         skepart::RtErrorKind::InvalidArgument
     );

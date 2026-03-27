@@ -1,11 +1,110 @@
 use std::collections::HashMap;
 use std::fs;
 use std::io::Write;
+use std::net::{TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::{RtError, RtErrorKind, RtHandle, RtHandleKind, RtResult, RtString};
+
+pub enum RtNetResource {
+    Placeholder(RtHandleKind),
+    TcpStream(TcpStream),
+    TcpListener(TcpListener),
+}
+
+impl RtNetResource {
+    pub fn kind(&self) -> RtHandleKind {
+        match self {
+            Self::Placeholder(kind) => *kind,
+            Self::TcpStream(_) => RtHandleKind::Socket,
+            Self::TcpListener(_) => RtHandleKind::Listener,
+        }
+    }
+}
+
+#[derive(Default)]
+pub struct RtNetResourceTable {
+    next_handle_id: usize,
+    resources: HashMap<usize, RtNetResource>,
+}
+
+impl RtNetResourceTable {
+    pub fn alloc_placeholder(&mut self, kind: RtHandleKind) -> RtHandle {
+        self.insert(RtNetResource::Placeholder(kind))
+    }
+
+    pub fn insert_socket(&mut self, stream: TcpStream) -> RtHandle {
+        self.insert(RtNetResource::TcpStream(stream))
+    }
+
+    pub fn insert_listener(&mut self, listener: TcpListener) -> RtHandle {
+        self.insert(RtNetResource::TcpListener(listener))
+    }
+
+    pub fn kind_of(&self, handle: RtHandle) -> RtResult<RtHandleKind> {
+        let actual = self
+            .resources
+            .get(&handle.id)
+            .map(RtNetResource::kind)
+            .ok_or_else(|| RtError::invalid_handle(format!("unknown handle id {}", handle.id)))?;
+        if actual != handle.kind {
+            return Err(RtError::invalid_handle_kind(
+                handle.kind.type_name(),
+                actual.type_name(),
+            ));
+        }
+        Ok(actual)
+    }
+
+    pub fn socket_mut(&mut self, handle: RtHandle) -> RtResult<&mut TcpStream> {
+        self.kind_of(handle)?;
+        match self.resources.get_mut(&handle.id) {
+            Some(RtNetResource::TcpStream(stream)) => Ok(stream),
+            Some(other) => Err(RtError::invalid_handle_kind(
+                RtHandleKind::Socket.type_name(),
+                other.kind().type_name(),
+            )),
+            None => Err(RtError::invalid_handle(format!(
+                "unknown handle id {}",
+                handle.id
+            ))),
+        }
+    }
+
+    pub fn listener_mut(&mut self, handle: RtHandle) -> RtResult<&mut TcpListener> {
+        self.kind_of(handle)?;
+        match self.resources.get_mut(&handle.id) {
+            Some(RtNetResource::TcpListener(listener)) => Ok(listener),
+            Some(other) => Err(RtError::invalid_handle_kind(
+                RtHandleKind::Listener.type_name(),
+                other.kind().type_name(),
+            )),
+            None => Err(RtError::invalid_handle(format!(
+                "unknown handle id {}",
+                handle.id
+            ))),
+        }
+    }
+
+    pub fn remove(&mut self, handle: RtHandle) -> RtResult<RtNetResource> {
+        self.kind_of(handle)?;
+        self.resources
+            .remove(&handle.id)
+            .ok_or_else(|| RtError::invalid_handle(format!("unknown handle id {}", handle.id)))
+    }
+
+    fn insert(&mut self, resource: RtNetResource) -> RtHandle {
+        let handle = RtHandle {
+            id: self.next_handle_id,
+            kind: resource.kind(),
+        };
+        self.next_handle_id += 1;
+        self.resources.insert(handle.id, resource);
+        handle
+    }
+}
 
 pub trait RtHost {
     fn io_print(&mut self, text: &str) -> RtResult<()>;
@@ -150,20 +249,34 @@ pub trait RtHost {
     fn net_close_handle(&mut self, _handle: RtHandle) -> RtResult<()> {
         Err(RtError::unsupported_builtin("net.Handle"))
     }
+
+    fn net_store_tcp_stream(&mut self, _stream: TcpStream) -> RtResult<RtHandle> {
+        Err(RtError::unsupported_builtin("net.Socket"))
+    }
+
+    fn net_store_tcp_listener(&mut self, _listener: TcpListener) -> RtResult<RtHandle> {
+        Err(RtError::unsupported_builtin("net.Listener"))
+    }
+
+    fn net_tcp_stream(&mut self, _handle: RtHandle) -> RtResult<&mut TcpStream> {
+        Err(RtError::unsupported_builtin("net.Socket"))
+    }
+
+    fn net_tcp_listener(&mut self, _handle: RtHandle) -> RtResult<&mut TcpListener> {
+        Err(RtError::unsupported_builtin("net.Listener"))
+    }
 }
 
 pub struct NoopHost {
     random_state: u64,
-    next_handle_id: usize,
-    net_handles: HashMap<usize, RtHandleKind>,
+    net_resources: RtNetResourceTable,
 }
 
 impl Default for NoopHost {
     fn default() -> Self {
         Self {
             random_state: 0x1234_5678_9ABC_DEF0,
-            next_handle_id: 0,
-            net_handles: HashMap::new(),
+            net_resources: RtNetResourceTable::default(),
         }
     }
 }
@@ -379,7 +492,9 @@ impl RtHost for NoopHost {
             id,
             kind: RtHandleKind::Socket,
         };
-        self.net_handles.insert(id, RtHandleKind::Socket);
+        self.net_resources
+            .resources
+            .insert(id, RtNetResource::Placeholder(RtHandleKind::Socket));
         Ok(handle)
     }
 
@@ -388,38 +503,39 @@ impl RtHost for NoopHost {
             id,
             kind: RtHandleKind::Listener,
         };
-        self.net_handles.insert(id, RtHandleKind::Listener);
+        self.net_resources
+            .resources
+            .insert(id, RtNetResource::Placeholder(RtHandleKind::Listener));
         Ok(handle)
     }
 
     fn net_alloc_handle(&mut self, kind: RtHandleKind) -> RtResult<RtHandle> {
-        let handle = RtHandle {
-            id: self.next_handle_id,
-            kind,
-        };
-        self.next_handle_id += 1;
-        self.net_handles.insert(handle.id, kind);
-        Ok(handle)
+        Ok(self.net_resources.alloc_placeholder(kind))
     }
 
     fn net_lookup_handle_kind(&mut self, handle: RtHandle) -> RtResult<RtHandleKind> {
-        let actual =
-            self.net_handles.get(&handle.id).copied().ok_or_else(|| {
-                RtError::invalid_handle(format!("unknown handle id {}", handle.id))
-            })?;
-        if actual != handle.kind {
-            return Err(RtError::invalid_handle_kind(
-                handle.kind.type_name(),
-                actual.type_name(),
-            ));
-        }
-        Ok(actual)
+        self.net_resources.kind_of(handle)
     }
 
     fn net_close_handle(&mut self, handle: RtHandle) -> RtResult<()> {
-        self.net_lookup_handle_kind(handle)?;
-        self.net_handles.remove(&handle.id);
+        self.net_resources.remove(handle)?;
         Ok(())
+    }
+
+    fn net_store_tcp_stream(&mut self, stream: TcpStream) -> RtResult<RtHandle> {
+        Ok(self.net_resources.insert_socket(stream))
+    }
+
+    fn net_store_tcp_listener(&mut self, listener: TcpListener) -> RtResult<RtHandle> {
+        Ok(self.net_resources.insert_listener(listener))
+    }
+
+    fn net_tcp_stream(&mut self, handle: RtHandle) -> RtResult<&mut TcpStream> {
+        self.net_resources.socket_mut(handle)
+    }
+
+    fn net_tcp_listener(&mut self, handle: RtHandle) -> RtResult<&mut TcpListener> {
+        self.net_resources.listener_mut(handle)
     }
 }
 
