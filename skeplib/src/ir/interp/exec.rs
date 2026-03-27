@@ -414,6 +414,7 @@ impl<'a> IrInterpreter<'a> {
             IrType::String => matches!(value, RtValue::String(_)),
             IrType::Void => matches!(value, RtValue::Unit),
             IrType::Named(_) => matches!(value, RtValue::Struct(_)),
+            IrType::Opaque(_) => matches!(value, RtValue::Handle(_)),
             IrType::Array { .. } => matches!(value, RtValue::Array(_)),
             IrType::Vec { .. } => matches!(value, RtValue::Vec(_)),
             IrType::Fn { .. } => matches!(value, RtValue::Function(_)),

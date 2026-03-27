@@ -916,6 +916,38 @@ fn main() -> Int {
   }
   return 1;
 }
+
+#[test]
+fn sema_accepts_builtin_opaque_net_types_in_annotations() {
+    let src = r#"
+fn takes_socket(s: net.Socket) -> Void {
+  return;
+}
+
+fn main() -> Void {
+  return;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
+
+#[test]
+fn sema_rejects_unknown_builtin_opaque_net_type_name() {
+    let src = r#"
+fn main(x: net.Server) -> Void {
+  return;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Unknown type in function `main` parameter `x`: `net.Server`"))
+    );
+}
 "#;
     let (result, diags) = analyze_source(src);
     assert_sema_success(&result, &diags);

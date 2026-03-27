@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use crate::ast::{OperatorDecl, Program, Stmt, TypeName};
 use crate::diagnostic::{DiagnosticBag, Span};
 use crate::parser::Parser;
-use crate::types::{FunctionSig, TypeInfo};
+use crate::types::{FunctionSig, TypeInfo, is_builtin_opaque_type};
 
 mod calls;
 mod expr;
@@ -57,6 +57,9 @@ struct Checker {
 
 impl Checker {
     fn resolve_named_type_name(&self, name: &str) -> Option<String> {
+        if is_builtin_opaque_type(name) {
+            return Some(name.to_string());
+        }
         if self.struct_names.contains(name) {
             return Some(name.to_string());
         }

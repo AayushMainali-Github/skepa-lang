@@ -182,6 +182,7 @@ fn runtime_type_name(ty: &IrType) -> &'static str {
         IrType::Vec { .. } => "Vec",
         IrType::Fn { .. } => "Function",
         IrType::Named(_) => "Struct",
+        IrType::Opaque(_) => "Handle",
         IrType::Void => "Void",
         IrType::Unknown => "Unknown",
     }

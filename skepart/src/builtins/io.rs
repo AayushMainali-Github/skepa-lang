@@ -43,6 +43,7 @@ fn display_value(value: &RtValue) -> String {
         RtValue::Array(_) => "[array]".to_owned(),
         RtValue::Vec(_) => "[vec]".to_owned(),
         RtValue::Function(_) => "[function]".to_owned(),
+        RtValue::Handle(value) => format!("[handle {:?}#{}]", value.kind, value.id),
         RtValue::Struct(value) => format!("[struct {}]", value.layout.name),
         RtValue::Unit => String::new(),
     }

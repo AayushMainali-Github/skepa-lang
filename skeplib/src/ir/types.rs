@@ -8,6 +8,7 @@ pub enum IrType {
     String,
     Void,
     Named(String),
+    Opaque(String),
     Array {
         elem: Box<IrType>,
         size: usize,
@@ -31,6 +32,7 @@ impl From<&TypeInfo> for IrType {
             TypeInfo::String => Self::String,
             TypeInfo::Void => Self::Void,
             TypeInfo::Named(name) => Self::Named(name.clone()),
+            TypeInfo::Opaque(name) => Self::Opaque(name.clone()),
             TypeInfo::Array { elem, size } => Self::Array {
                 elem: Box::new(Self::from(elem.as_ref())),
                 size: *size,

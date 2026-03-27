@@ -18,5 +18,5 @@ pub use error::{RtError, RtErrorKind, RtResult};
 pub use function::{RtFunctionRegistry, RtNativeFn};
 pub use host::{NoopHost, RtHost};
 pub use string::RtString;
-pub use value::{RtFunctionRef, RtStruct, RtStructLayout, RtValue};
+pub use value::{RtFunctionRef, RtHandle, RtHandleKind, RtStruct, RtStructLayout, RtValue};
 pub use vec::RtVec;

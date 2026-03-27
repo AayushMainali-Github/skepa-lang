@@ -5,6 +5,18 @@ use crate::{RtArray, RtError, RtResult, RtString, RtVec};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RtFunctionRef(pub usize);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum RtHandleKind {
+    Socket,
+    Listener,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct RtHandle {
+    pub id: usize,
+    pub kind: RtHandleKind,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RtStructLayout {
     pub name: String,
@@ -36,6 +48,7 @@ pub enum RtValue {
     Array(RtArray),
     Vec(RtVec),
     Function(RtFunctionRef),
+    Handle(RtHandle),
     Struct(RtStruct),
     Unit,
 }
@@ -50,6 +63,7 @@ impl RtValue {
             Self::Array(_) => "Array",
             Self::Vec(_) => "Vec",
             Self::Function(_) => "Function",
+            Self::Handle(_) => "Handle",
             Self::Struct(_) => "Struct",
             Self::Unit => "Void",
         }
@@ -142,6 +156,16 @@ impl RtValue {
             Self::Function(value) => Ok(*value),
             other => Err(RtError::type_mismatch(format!(
                 "expected Function, got {}",
+                other.type_name()
+            ))),
+        }
+    }
+
+    pub fn expect_handle(&self) -> RtResult<RtHandle> {
+        match self {
+            Self::Handle(value) => Ok(*value),
+            other => Err(RtError::type_mismatch(format!(
+                "expected Handle, got {}",
                 other.type_name()
             ))),
         }

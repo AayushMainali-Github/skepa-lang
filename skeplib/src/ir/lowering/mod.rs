@@ -216,7 +216,11 @@ impl IrLowerer {
             crate::ast::TypeName::String => IrType::String,
             crate::ast::TypeName::Void => IrType::Void,
             crate::ast::TypeName::Named(name) => {
-                IrType::Named(self.resolve_struct_runtime_name(name))
+                if crate::types::is_builtin_opaque_type(name) {
+                    IrType::Opaque(name.clone())
+                } else {
+                    IrType::Named(self.resolve_struct_runtime_name(name))
+                }
             }
             crate::ast::TypeName::Array { elem, size } => IrType::Array {
                 elem: Box::new(self.lower_type_name(elem)),

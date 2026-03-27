@@ -8,6 +8,7 @@ pub enum TypeInfo {
     String,
     Void,
     Named(String),
+    Opaque(String),
     Array {
         elem: Box<TypeInfo>,
         size: usize,
@@ -30,7 +31,13 @@ impl TypeInfo {
             TypeName::Bool => TypeInfo::Bool,
             TypeName::String => TypeInfo::String,
             TypeName::Void => TypeInfo::Void,
-            TypeName::Named(name) => TypeInfo::Named(name.clone()),
+            TypeName::Named(name) => {
+                if is_builtin_opaque_type(name) {
+                    TypeInfo::Opaque(name.clone())
+                } else {
+                    TypeInfo::Named(name.clone())
+                }
+            }
             TypeName::Array { elem, size } => TypeInfo::Array {
                 elem: Box::new(TypeInfo::from_ast(elem)),
                 size: *size,
@@ -44,6 +51,10 @@ impl TypeInfo {
             },
         }
     }
+}
+
+pub fn is_builtin_opaque_type(name: &str) -> bool {
+    matches!(name, "net.Socket" | "net.Listener")
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -1,4 +1,6 @@
-use skepart::{RtArray, RtErrorKind, RtFunctionRef, RtString, RtStruct, RtValue, RtVec};
+use skepart::{
+    RtArray, RtErrorKind, RtFunctionRef, RtHandle, RtHandleKind, RtString, RtStruct, RtValue, RtVec,
+};
 
 #[test]
 fn value_accessors_return_expected_values() {
@@ -21,6 +23,17 @@ fn value_accessors_return_expected_values() {
     assert_eq!(
         RtValue::Function(RtFunctionRef(3)).expect_function(),
         Ok(RtFunctionRef(3))
+    );
+    assert_eq!(
+        RtValue::Handle(RtHandle {
+            id: 7,
+            kind: RtHandleKind::Socket,
+        })
+        .expect_handle(),
+        Ok(RtHandle {
+            id: 7,
+            kind: RtHandleKind::Socket,
+        })
     );
 }
 
@@ -49,6 +62,10 @@ fn value_accessors_report_wrong_type() {
             .expect_struct()
             .expect_err("wrong type")
             .kind,
+        RtErrorKind::TypeMismatch
+    );
+    assert_eq!(
+        RtValue::Unit.expect_handle().expect_err("wrong type").kind,
         RtErrorKind::TypeMismatch
     );
 }
