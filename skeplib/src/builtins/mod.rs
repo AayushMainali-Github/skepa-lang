@@ -4,6 +4,7 @@ mod arr;
 mod datetime;
 mod fs;
 mod io;
+mod net;
 mod os;
 mod random;
 mod str_pkg;
@@ -60,6 +61,7 @@ pub fn find_builtin_sig(package: &str, name: &str) -> Option<&'static BuiltinSig
         .chain(arr::SIGS.iter())
         .chain(datetime::SIGS.iter())
         .chain(fs::SIGS.iter())
+        .chain(net::SIGS.iter())
         .chain(os::SIGS.iter())
         .chain(random::SIGS.iter())
         .chain(vec_pkg::SIGS.iter())
@@ -88,6 +90,7 @@ fn all_builtin_sigs() -> Vec<&'static BuiltinSig> {
         .chain(arr::SIGS.iter())
         .chain(datetime::SIGS.iter())
         .chain(fs::SIGS.iter())
+        .chain(net::SIGS.iter())
         .chain(os::SIGS.iter())
         .chain(random::SIGS.iter())
         .chain(vec_pkg::SIGS.iter())
@@ -178,7 +181,7 @@ fn builtin_meta(package: &str, name: &str) -> BuiltinMeta {
             can_const_fold: false,
             runtime_helper: None,
         },
-        ("datetime", _) | ("fs", _) | ("os", _) | ("random", _) => BuiltinMeta {
+        ("datetime", _) | ("fs", _) | ("net", _) | ("os", _) | ("random", _) => BuiltinMeta {
             purity: BuiltinPurity::HostEffectful,
             lowering: BuiltinLowering::GenericDispatch,
             can_const_fold: false,
@@ -219,6 +222,7 @@ mod tests {
             super::arr::SIGS.len(),
             super::datetime::SIGS.len(),
             super::fs::SIGS.len(),
+            super::net::SIGS.len(),
             super::os::SIGS.len(),
             super::random::SIGS.len(),
             super::vec_pkg::SIGS.len(),

@@ -707,6 +707,26 @@ fn main() -> Int {
   let bonus = random.int(1, 2);
   return str.len(joined) + str.len(text) + str.len(path) + str.len(out) + code + bonus;
 }
+
+#[test]
+fn interpreter_carries_dummy_net_handle_values_through_calls() {
+    let source = r#"
+import net;
+
+fn make() -> net.Socket {
+  return net.__testSocket();
+}
+
+fn main() -> Int {
+  let s: net.Socket = make();
+  let t: net.Socket = s;
+  return 0;
+}
+"#;
+
+    let value = common::ir_run_ok(source);
+    assert_eq!(value, IrValue::Int(0));
+}
 "#;
 
     let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");

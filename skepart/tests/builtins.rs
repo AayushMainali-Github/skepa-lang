@@ -91,6 +91,13 @@ fn builtins_map_host_backed_results_consistently() {
         builtins::call_with_host(&mut host, "random", "float", &[]).expect("random.float"),
         RtValue::Float(0.25)
     );
+    assert_eq!(
+        builtins::call_with_host(&mut host, "net", "__testSocket", &[]).expect("net socket"),
+        RtValue::Handle(skepart::RtHandle {
+            id: 0,
+            kind: skepart::RtHandleKind::Socket,
+        })
+    );
 }
 
 #[test]

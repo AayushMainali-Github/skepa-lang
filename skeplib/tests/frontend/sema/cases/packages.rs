@@ -948,6 +948,24 @@ fn main(x: net.Server) -> Void {
             .any(|d| d.message.contains("Unknown type in function `main` parameter `x`: `net.Server`"))
     );
 }
+
+#[test]
+fn sema_accepts_dummy_net_builtin_returning_socket_handle() {
+    let src = r#"
+import net;
+
+fn make() -> net.Socket {
+  return net.__testSocket();
+}
+
+fn main() -> Void {
+  let s: net.Socket = make();
+  return;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
 "#;
     let (result, diags) = analyze_source(src);
     assert_sema_success(&result, &diags);

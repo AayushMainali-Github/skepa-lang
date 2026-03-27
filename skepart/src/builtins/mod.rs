@@ -2,6 +2,7 @@ pub mod arr;
 pub mod datetime;
 pub mod fs;
 pub mod io;
+pub mod net;
 pub mod os;
 pub mod random;
 pub mod str;
@@ -134,6 +135,7 @@ pub fn call_with_host(
             left.expect_string()?.as_str(),
             right.expect_string()?.as_str(),
         ),
+        ("net", "__testSocket", []) => net::test_socket(host),
         ("os", "platform", []) => os::platform(host),
         ("os", "arch", []) => os::arch(host),
         ("os", "arg", [value]) => os::arg(host, value.expect_int()?),
