@@ -136,6 +136,12 @@ pub fn call_with_host(
             right.expect_string()?.as_str(),
         ),
         ("net", "__testSocket", []) => net::test_socket(host),
+        ("net", "listen", [address]) => net::listen(host, address.expect_string()?.as_str()),
+        ("net", "connect", [address]) => net::connect(host, address.expect_string()?.as_str()),
+        ("net", "accept", [listener]) => net::accept(
+            host,
+            listener.expect_handle_kind(crate::RtHandleKind::Listener)?,
+        ),
         ("os", "platform", []) => os::platform(host),
         ("os", "arch", []) => os::arch(host),
         ("os", "arg", [value]) => os::arg(host, value.expect_int()?),

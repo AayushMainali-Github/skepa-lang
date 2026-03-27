@@ -1,4 +1,4 @@
-use skepart::{RtHost, RtResult, RtString};
+use skepart::{RtHandleKind, RtHost, RtResult, RtString};
 use skeplib::ir::{
     self, BasicBlock, BlockId, FunctionId, Instr, IrFunction, IrInterpError, IrInterpreter,
     IrProgram, IrType, IrValue, Terminator,
@@ -127,6 +127,19 @@ impl RtHost for TestHost {
             format!(":{}", args.join(","))
         };
         Ok(RtString::from(format!("exec:{program}{suffix}")))
+    }
+
+    fn net_listen(&mut self, _address: &str) -> RtResult<skepart::RtHandle> {
+        self.net_alloc_handle(RtHandleKind::Listener)
+    }
+
+    fn net_connect(&mut self, _address: &str) -> RtResult<skepart::RtHandle> {
+        self.net_alloc_handle(RtHandleKind::Socket)
+    }
+
+    fn net_accept(&mut self, listener: skepart::RtHandle) -> RtResult<skepart::RtHandle> {
+        self.net_lookup_handle_kind(listener)?;
+        self.net_alloc_handle(RtHandleKind::Socket)
     }
 }
 
@@ -706,6 +719,13 @@ fn main() -> Int {
   let code = os.exec("git", args);
   let bonus = random.int(1, 2);
   return str.len(joined) + str.len(text) + str.len(path) + str.len(out) + code + bonus;
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let value = IrInterpreter::with_host(&program, Box::new(TestHost::default()))
+        .run_main()
+        .expect("IR interpreter should run source");
+    assert_eq!(value, IrValue::Int(47));
 }
 
 #[test]
@@ -727,13 +747,25 @@ fn main() -> Int {
     let value = common::ir_run_ok(source);
     assert_eq!(value, IrValue::Int(0));
 }
+
+#[test]
+fn interpreter_carries_real_net_builtin_handles_through_calls() {
+    let source = r#"
+import net;
+
+fn main() -> Int {
+  let listener: net.Listener = net.listen("127.0.0.1:0");
+  let server: net.Socket = net.accept(listener);
+  let client: net.Socket = net.connect("127.0.0.1:8080");
+  return 0;
+}
 "#;
 
     let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
     let value = IrInterpreter::with_host(&program, Box::new(TestHost::default()))
         .run_main()
-        .expect("IR interpreter should run source");
-    assert_eq!(value, IrValue::Int(47));
+        .expect("IR interpreter should run source with net handles");
+    assert_eq!(value, IrValue::Int(0));
 }
 
 #[test]

@@ -368,4 +368,17 @@ impl RtHost for RecordingHost {
         self.net_handles.remove(&handle.id);
         Ok(())
     }
+
+    fn net_listen(&mut self, _address: &str) -> RtResult<RtHandle> {
+        self.net_alloc_handle(RtHandleKind::Listener)
+    }
+
+    fn net_connect(&mut self, _address: &str) -> RtResult<RtHandle> {
+        self.net_alloc_handle(RtHandleKind::Socket)
+    }
+
+    fn net_accept(&mut self, listener: RtHandle) -> RtResult<RtHandle> {
+        self.net_lookup_handle_kind(listener)?;
+        self.net_alloc_handle(RtHandleKind::Socket)
+    }
 }

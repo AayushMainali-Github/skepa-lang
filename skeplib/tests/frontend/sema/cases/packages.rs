@@ -915,6 +915,9 @@ fn main() -> Int {
     return 0;
   }
   return 1;
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
 }
 
 #[test]
@@ -950,6 +953,41 @@ fn main(x: net.Server) -> Void {
 }
 
 #[test]
+fn sema_accepts_minimal_net_listener_and_socket_builtins() {
+    let src = r#"
+import net;
+
+fn main() -> Void {
+  let listener: net.Listener = net.listen("127.0.0.1:0");
+  let socket: net.Socket = net.accept(listener);
+  let client: net.Socket = net.connect("127.0.0.1:8080");
+  return;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
+
+#[test]
+fn sema_rejects_net_accept_listener_type_mismatch() {
+    let src = r#"
+import net;
+
+fn main() -> Void {
+  let socket: net.Socket = net.__testSocket();
+  let _x = net.accept(socket);
+  return;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("net.accept argument 1 expects Opaque(\"net.Listener\")")
+    }));
+}
+
+#[test]
 fn sema_accepts_dummy_net_builtin_returning_socket_handle() {
     let src = r#"
 import net;
@@ -961,10 +999,6 @@ fn make() -> net.Socket {
 fn main() -> Void {
   let s: net.Socket = make();
   return;
-}
-"#;
-    let (result, diags) = analyze_source(src);
-    assert_sema_success(&result, &diags);
 }
 "#;
     let (result, diags) = analyze_source(src);

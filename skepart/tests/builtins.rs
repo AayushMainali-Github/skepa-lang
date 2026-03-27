@@ -98,6 +98,19 @@ fn builtins_map_host_backed_results_consistently() {
             kind: skepart::RtHandleKind::Socket,
         })
     );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "net",
+            "listen",
+            &[RtValue::String(RtString::from("127.0.0.1:0"))],
+        )
+        .expect("net listener"),
+        RtValue::Handle(skepart::RtHandle {
+            id: 1,
+            kind: skepart::RtHandleKind::Listener,
+        })
+    );
 }
 
 #[test]

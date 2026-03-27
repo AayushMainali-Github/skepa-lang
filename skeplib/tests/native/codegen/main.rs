@@ -1360,6 +1360,20 @@ fn main() -> Void {
 }
 
 #[test]
+fn codegen_builds_native_executable_for_minimal_net_listener_builtin() {
+    let source = r#"
+import net;
+
+fn main() -> Int {
+  let listener: net.Listener = net.listen("127.0.0.1:0");
+  return 0;
+}
+"#;
+
+    assert_eq!(common::native_run_structured(source).exit_code(), 0);
+}
+
+#[test]
 fn codegen_builds_native_project_entry_wrapper_executable() {
     let project = common::TempProject::new("project_native_runtime");
     project.file(

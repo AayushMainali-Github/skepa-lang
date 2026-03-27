@@ -265,6 +265,18 @@ pub trait RtHost {
     fn net_tcp_listener(&mut self, _handle: RtHandle) -> RtResult<&mut TcpListener> {
         Err(RtError::unsupported_builtin("net.Listener"))
     }
+
+    fn net_listen(&mut self, _address: &str) -> RtResult<RtHandle> {
+        Err(RtError::unsupported_builtin("net.listen"))
+    }
+
+    fn net_connect(&mut self, _address: &str) -> RtResult<RtHandle> {
+        Err(RtError::unsupported_builtin("net.connect"))
+    }
+
+    fn net_accept(&mut self, _listener: RtHandle) -> RtResult<RtHandle> {
+        Err(RtError::unsupported_builtin("net.accept"))
+    }
 }
 
 pub struct NoopHost {
@@ -536,6 +548,27 @@ impl RtHost for NoopHost {
 
     fn net_tcp_listener(&mut self, handle: RtHandle) -> RtResult<&mut TcpListener> {
         self.net_resources.listener_mut(handle)
+    }
+
+    fn net_listen(&mut self, address: &str) -> RtResult<RtHandle> {
+        let listener = TcpListener::bind(address).map_err(|err| RtError::io(err.to_string()))?;
+        self.net_store_tcp_listener(listener)
+    }
+
+    fn net_connect(&mut self, address: &str) -> RtResult<RtHandle> {
+        let stream = TcpStream::connect(address).map_err(|err| RtError::io(err.to_string()))?;
+        self.net_store_tcp_stream(stream)
+    }
+
+    fn net_accept(&mut self, listener: RtHandle) -> RtResult<RtHandle> {
+        let stream = {
+            let listener_ref = self.net_tcp_listener(listener)?;
+            let (stream, _) = listener_ref
+                .accept()
+                .map_err(|err| RtError::io(err.to_string()))?;
+            stream
+        };
+        self.net_store_tcp_stream(stream)
     }
 }
 
