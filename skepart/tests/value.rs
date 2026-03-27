@@ -35,6 +35,17 @@ fn value_accessors_return_expected_values() {
             kind: RtHandleKind::Socket,
         })
     );
+    assert_eq!(
+        RtValue::Handle(RtHandle {
+            id: 8,
+            kind: RtHandleKind::Listener,
+        })
+        .expect_handle_kind(RtHandleKind::Listener),
+        Ok(RtHandle {
+            id: 8,
+            kind: RtHandleKind::Listener,
+        })
+    );
 }
 
 #[test]
@@ -67,5 +78,15 @@ fn value_accessors_report_wrong_type() {
     assert_eq!(
         RtValue::Unit.expect_handle().expect_err("wrong type").kind,
         RtErrorKind::TypeMismatch
+    );
+    assert_eq!(
+        RtValue::Handle(RtHandle {
+            id: 9,
+            kind: RtHandleKind::Socket,
+        })
+        .expect_handle_kind(RtHandleKind::Listener)
+        .expect_err("wrong handle kind")
+        .kind,
+        RtErrorKind::InvalidArgument
     );
 }

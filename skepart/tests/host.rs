@@ -1,7 +1,7 @@
 mod common;
 
 use common::RecordingHostBuilder;
-use skepart::{NoopHost, RtHost, RtString};
+use skepart::{NoopHost, RtHandle, RtHandleKind, RtHost, RtString};
 
 #[test]
 fn noop_host_supports_print_and_time_defaults() {
@@ -84,5 +84,24 @@ fn recording_host_tracks_fs_os_and_random_side_effects() {
     assert_eq!(
         host.output,
         "[exec hostname --help][execout hostname --help][envset MODE=debug][envrm MODE][exit 7][write f.txt=x][append f.txt+=y][mkdir dir][rmfile f.txt][rmdir dir][sleep 12]"
+    );
+}
+
+#[test]
+fn hosts_can_construct_typed_placeholder_net_handles() {
+    let mut noop = NoopHost::default();
+    assert_eq!(
+        noop.net_make_socket_handle(1).expect("socket handle"),
+        RtHandle {
+            id: 1,
+            kind: RtHandleKind::Socket,
+        }
+    );
+    assert_eq!(
+        noop.net_make_listener_handle(2).expect("listener handle"),
+        RtHandle {
+            id: 2,
+            kind: RtHandleKind::Listener,
+        }
     );
 }

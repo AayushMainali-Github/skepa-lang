@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use skepart::{RtHost, RtResult, RtString};
+use skepart::{RtHandle, RtHandleKind, RtHost, RtResult, RtString};
 
 #[derive(Default)]
 pub struct RecordingHost {
@@ -318,5 +318,19 @@ impl RtHost for RecordingHost {
                 .push_str(&format!("[execout {program} {}]", args.join(" ")));
         }
         Ok(RtString::from(self.exec_out.clone()))
+    }
+
+    fn net_make_socket_handle(&mut self, id: usize) -> RtResult<RtHandle> {
+        Ok(RtHandle {
+            id,
+            kind: RtHandleKind::Socket,
+        })
+    }
+
+    fn net_make_listener_handle(&mut self, id: usize) -> RtResult<RtHandle> {
+        Ok(RtHandle {
+            id,
+            kind: RtHandleKind::Listener,
+        })
     }
 }

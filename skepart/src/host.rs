@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::{RtError, RtErrorKind, RtResult, RtString};
+use crate::{RtError, RtErrorKind, RtHandle, RtHandleKind, RtResult, RtString};
 
 pub trait RtHost {
     fn io_print(&mut self, text: &str) -> RtResult<()>;
@@ -128,6 +128,14 @@ pub trait RtHost {
 
     fn os_exec_out(&mut self, _program: &str, _args: &[String]) -> RtResult<RtString> {
         Err(RtError::unsupported_builtin("os.execOut"))
+    }
+
+    fn net_make_socket_handle(&mut self, _id: usize) -> RtResult<RtHandle> {
+        Err(RtError::unsupported_builtin("net.Socket"))
+    }
+
+    fn net_make_listener_handle(&mut self, _id: usize) -> RtResult<RtHandle> {
+        Err(RtError::unsupported_builtin("net.Listener"))
     }
 }
 
@@ -347,6 +355,20 @@ impl RtHost for NoopHost {
                 .trim_end()
                 .to_string(),
         ))
+    }
+
+    fn net_make_socket_handle(&mut self, id: usize) -> RtResult<RtHandle> {
+        Ok(RtHandle {
+            id,
+            kind: RtHandleKind::Socket,
+        })
+    }
+
+    fn net_make_listener_handle(&mut self, id: usize) -> RtResult<RtHandle> {
+        Ok(RtHandle {
+            id,
+            kind: RtHandleKind::Listener,
+        })
     }
 }
 

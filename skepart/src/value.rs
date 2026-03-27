@@ -170,6 +170,26 @@ impl RtValue {
             ))),
         }
     }
+
+    pub fn expect_handle_kind(&self, kind: RtHandleKind) -> RtResult<RtHandle> {
+        let handle = self.expect_handle()?;
+        if handle.kind != kind {
+            return Err(RtError::invalid_handle_kind(
+                kind.type_name(),
+                handle.kind.type_name(),
+            ));
+        }
+        Ok(handle)
+    }
+}
+
+impl RtHandleKind {
+    pub fn type_name(self) -> &'static str {
+        match self {
+            Self::Socket => "Socket",
+            Self::Listener => "Listener",
+        }
+    }
 }
 
 impl RtStruct {

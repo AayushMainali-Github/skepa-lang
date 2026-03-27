@@ -53,6 +53,17 @@ impl RtError {
     pub fn process(message: impl Into<String>) -> Self {
         Self::new(RtErrorKind::Process, message)
     }
+
+    pub fn invalid_handle_kind(expected: impl Into<String>, actual: impl Into<String>) -> Self {
+        Self::new(
+            RtErrorKind::InvalidArgument,
+            format!(
+                "expected {} handle, got {} handle",
+                expected.into(),
+                actual.into()
+            ),
+        )
+    }
 }
 
 impl fmt::Display for RtError {
