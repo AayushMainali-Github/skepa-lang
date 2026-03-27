@@ -105,3 +105,34 @@ fn hosts_can_construct_typed_placeholder_net_handles() {
         }
     );
 }
+
+#[test]
+fn noop_host_tracks_placeholder_net_handle_lifetimes() {
+    let mut host = NoopHost::default();
+    let socket = host
+        .net_alloc_handle(RtHandleKind::Socket)
+        .expect("allocate socket");
+    let listener = host
+        .net_alloc_handle(RtHandleKind::Listener)
+        .expect("allocate listener");
+
+    assert_eq!(socket.id, 0);
+    assert_eq!(listener.id, 1);
+    assert_eq!(
+        host.net_lookup_handle_kind(socket).expect("lookup socket"),
+        RtHandleKind::Socket
+    );
+    assert_eq!(
+        host.net_lookup_handle_kind(listener)
+            .expect("lookup listener"),
+        RtHandleKind::Listener
+    );
+
+    host.net_close_handle(socket).expect("close socket");
+    assert_eq!(
+        host.net_lookup_handle_kind(socket)
+            .expect_err("closed handle should be gone")
+            .kind,
+        skepart::RtErrorKind::InvalidArgument
+    );
+}

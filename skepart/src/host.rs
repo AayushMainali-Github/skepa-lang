@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
@@ -137,16 +138,32 @@ pub trait RtHost {
     fn net_make_listener_handle(&mut self, _id: usize) -> RtResult<RtHandle> {
         Err(RtError::unsupported_builtin("net.Listener"))
     }
+
+    fn net_alloc_handle(&mut self, _kind: RtHandleKind) -> RtResult<RtHandle> {
+        Err(RtError::unsupported_builtin("net.Handle"))
+    }
+
+    fn net_lookup_handle_kind(&mut self, _handle: RtHandle) -> RtResult<RtHandleKind> {
+        Err(RtError::unsupported_builtin("net.Handle"))
+    }
+
+    fn net_close_handle(&mut self, _handle: RtHandle) -> RtResult<()> {
+        Err(RtError::unsupported_builtin("net.Handle"))
+    }
 }
 
 pub struct NoopHost {
     random_state: u64,
+    next_handle_id: usize,
+    net_handles: HashMap<usize, RtHandleKind>,
 }
 
 impl Default for NoopHost {
     fn default() -> Self {
         Self {
             random_state: 0x1234_5678_9ABC_DEF0,
+            next_handle_id: 0,
+            net_handles: HashMap::new(),
         }
     }
 }
@@ -358,17 +375,51 @@ impl RtHost for NoopHost {
     }
 
     fn net_make_socket_handle(&mut self, id: usize) -> RtResult<RtHandle> {
-        Ok(RtHandle {
+        let handle = RtHandle {
             id,
             kind: RtHandleKind::Socket,
-        })
+        };
+        self.net_handles.insert(id, RtHandleKind::Socket);
+        Ok(handle)
     }
 
     fn net_make_listener_handle(&mut self, id: usize) -> RtResult<RtHandle> {
-        Ok(RtHandle {
+        let handle = RtHandle {
             id,
             kind: RtHandleKind::Listener,
-        })
+        };
+        self.net_handles.insert(id, RtHandleKind::Listener);
+        Ok(handle)
+    }
+
+    fn net_alloc_handle(&mut self, kind: RtHandleKind) -> RtResult<RtHandle> {
+        let handle = RtHandle {
+            id: self.next_handle_id,
+            kind,
+        };
+        self.next_handle_id += 1;
+        self.net_handles.insert(handle.id, kind);
+        Ok(handle)
+    }
+
+    fn net_lookup_handle_kind(&mut self, handle: RtHandle) -> RtResult<RtHandleKind> {
+        let actual =
+            self.net_handles.get(&handle.id).copied().ok_or_else(|| {
+                RtError::invalid_handle(format!("unknown handle id {}", handle.id))
+            })?;
+        if actual != handle.kind {
+            return Err(RtError::invalid_handle_kind(
+                handle.kind.type_name(),
+                actual.type_name(),
+            ));
+        }
+        Ok(actual)
+    }
+
+    fn net_close_handle(&mut self, handle: RtHandle) -> RtResult<()> {
+        self.net_lookup_handle_kind(handle)?;
+        self.net_handles.remove(&handle.id);
+        Ok(())
     }
 }
 

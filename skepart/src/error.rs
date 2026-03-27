@@ -64,6 +64,10 @@ impl RtError {
             ),
         )
     }
+
+    pub fn invalid_handle(message: impl Into<String>) -> Self {
+        Self::new(RtErrorKind::InvalidArgument, message)
+    }
 }
 
 impl fmt::Display for RtError {

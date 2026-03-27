@@ -18,6 +18,8 @@ pub struct RecordingHost {
     pub exec_status: i64,
     pub exec_out: String,
     pub exec_argv: Vec<String>,
+    pub next_handle_id: usize,
+    pub net_handles: HashMap<usize, RtHandleKind>,
     pub env: HashMap<String, String>,
     pub files: HashMap<String, String>,
     pub existing_paths: HashMap<String, bool>,
@@ -37,6 +39,8 @@ impl RecordingHost {
             exec_status: 9,
             exec_out: "exec-out".into(),
             exec_argv: Vec::new(),
+            next_handle_id: 0,
+            net_handles: HashMap::new(),
             env: HashMap::from([(String::from("HOME"), String::from("/tmp/home"))]),
             files: HashMap::from([(String::from("exists.txt"), String::from("seeded"))]),
             existing_paths: HashMap::from([(String::from("exists.txt"), true)]),
@@ -321,6 +325,7 @@ impl RtHost for RecordingHost {
     }
 
     fn net_make_socket_handle(&mut self, id: usize) -> RtResult<RtHandle> {
+        self.net_handles.insert(id, RtHandleKind::Socket);
         Ok(RtHandle {
             id,
             kind: RtHandleKind::Socket,
@@ -328,9 +333,39 @@ impl RtHost for RecordingHost {
     }
 
     fn net_make_listener_handle(&mut self, id: usize) -> RtResult<RtHandle> {
+        self.net_handles.insert(id, RtHandleKind::Listener);
         Ok(RtHandle {
             id,
             kind: RtHandleKind::Listener,
         })
+    }
+
+    fn net_alloc_handle(&mut self, kind: RtHandleKind) -> RtResult<RtHandle> {
+        let handle = RtHandle {
+            id: self.next_handle_id,
+            kind,
+        };
+        self.next_handle_id += 1;
+        self.net_handles.insert(handle.id, kind);
+        Ok(handle)
+    }
+
+    fn net_lookup_handle_kind(&mut self, handle: RtHandle) -> RtResult<RtHandleKind> {
+        let actual = self.net_handles.get(&handle.id).copied().ok_or_else(|| {
+            skepart::RtError::invalid_handle(format!("unknown handle id {}", handle.id))
+        })?;
+        if actual != handle.kind {
+            return Err(skepart::RtError::invalid_handle_kind(
+                handle.kind.type_name(),
+                actual.type_name(),
+            ));
+        }
+        Ok(actual)
+    }
+
+    fn net_close_handle(&mut self, handle: RtHandle) -> RtResult<()> {
+        self.net_lookup_handle_kind(handle)?;
+        self.net_handles.remove(&handle.id);
+        Ok(())
     }
 }
