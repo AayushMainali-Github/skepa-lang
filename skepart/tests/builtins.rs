@@ -137,6 +137,51 @@ fn builtins_map_host_backed_results_consistently() {
         .expect("net closeListener"),
         RtValue::Unit
     );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "net",
+            "close",
+            &[RtValue::Handle(skepart::RtHandle {
+                id: 0,
+                kind: skepart::RtHandleKind::Socket,
+            })],
+        )
+        .expect_err("double close should fail")
+        .kind,
+        RtErrorKind::InvalidArgument
+    );
+}
+
+#[test]
+fn builtins_enforce_net_close_lifetime_rules() {
+    let mut host = RecordingHostBuilder::seeded().build();
+    let socket = builtins::call_with_host(&mut host, "net", "__testSocket", &[])
+        .expect("allocate socket through builtin");
+    let alias = socket.clone();
+
+    assert_eq!(
+        builtins::call_with_host(&mut host, "net", "close", std::slice::from_ref(&socket))
+            .expect("close through builtin"),
+        RtValue::Unit
+    );
+    assert_eq!(
+        builtins::call_with_host(&mut host, "net", "close", std::slice::from_ref(&alias))
+            .expect_err("alias should see closed handle")
+            .kind,
+        RtErrorKind::InvalidArgument
+    );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "net",
+            "closeListener",
+            std::slice::from_ref(&socket),
+        )
+        .expect_err("wrong handle kind should fail")
+        .kind,
+        RtErrorKind::InvalidArgument
+    );
 }
 
 #[test]
