@@ -137,6 +137,12 @@ fn noop_host_tracks_placeholder_net_handle_lifetimes() {
             .kind,
         skepart::RtErrorKind::InvalidArgument
     );
+    assert_eq!(
+        host.net_close_handle(socket)
+            .expect_err("double close should fail")
+            .kind,
+        skepart::RtErrorKind::InvalidArgument
+    );
 }
 
 #[test]
@@ -184,6 +190,46 @@ fn noop_host_stores_and_recovers_live_tcp_resources_by_handle() {
     assert_eq!(
         host.net_tcp_stream(socket_handle)
             .expect_err("closed socket should fail")
+            .kind,
+        skepart::RtErrorKind::InvalidArgument
+    );
+    assert_eq!(
+        host.net_close_handle(socket_handle)
+            .expect_err("double close should fail")
+            .kind,
+        skepart::RtErrorKind::InvalidArgument
+    );
+}
+
+#[test]
+fn noop_host_closing_any_handle_alias_closes_the_underlying_resource() {
+    let mut host = NoopHost::default();
+    let socket = host
+        .net_alloc_handle(RtHandleKind::Socket)
+        .expect("allocate socket");
+    let alias = socket;
+
+    host.net_close_handle(socket)
+        .expect("close through first alias");
+
+    assert_eq!(
+        host.net_lookup_handle_kind(alias)
+            .expect_err("alias should see closed resource")
+            .kind,
+        skepart::RtErrorKind::InvalidArgument
+    );
+}
+
+#[test]
+fn noop_host_rejects_using_socket_handle_as_listener_handle() {
+    let mut host = NoopHost::default();
+    let socket = host
+        .net_alloc_handle(RtHandleKind::Socket)
+        .expect("allocate socket");
+
+    assert_eq!(
+        host.net_tcp_listener(socket)
+            .expect_err("wrong handle kind should fail")
             .kind,
         skepart::RtErrorKind::InvalidArgument
     );
