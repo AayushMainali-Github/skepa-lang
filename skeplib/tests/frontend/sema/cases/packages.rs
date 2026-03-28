@@ -152,7 +152,7 @@ fn main() -> Int {
   let joined: Bytes = bytes.concat(cut, bytes.fromString("o"));
   let pushed: Bytes = bytes.push(joined, 33);
   let appended: Bytes = bytes.append(cut, bytes.fromString("lo"));
-  let same: Bool = bytes.eq(appended, bytes.fromString("ello"));
+  let same: Bool = appended == bytes.fromString("ello");
   if (s == "hello" && str.len(s) == n && first == 101 && bytes.toString(pushed) == "ello!" && same) {
     return 1;
   }
@@ -249,6 +249,16 @@ fn main() -> Int {
   let x: String = bytes.fromString("abc");
   return 0;
 }
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Type mismatch in let `x`"))
+    );
+}
 
 #[test]
 fn sema_rejects_bytes_get_and_slice_type_mismatches() {
@@ -288,6 +298,16 @@ fn main() -> Int {
   let _x = bytes.concat(raw, "z");
   return 0;
 }
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("bytes.concat argument 2 expects Bytes"))
+    );
+}
 
 #[test]
 fn sema_rejects_bytes_push_and_eq_type_mismatches() {
@@ -297,7 +317,7 @@ import bytes;
 fn main() -> Int {
   let raw: Bytes = bytes.fromString("abc");
   let _a = bytes.push(raw, "!");
-  let _b = bytes.eq(raw, 1);
+  let _b: Bool = raw == 1;
   return 0;
 }
 "#;
@@ -313,17 +333,7 @@ fn main() -> Int {
         diags
             .as_slice()
             .iter()
-            .any(|d| d.message.contains("bytes.eq argument 2 expects Bytes"))
-    );
-}
-"#;
-    let (result, diags) = analyze_source(src);
-    assert!(result.has_errors);
-    assert!(
-        diags
-            .as_slice()
-            .iter()
-            .any(|d| d.message.contains("bytes.concat argument 2 expects Bytes"))
+            .any(|d| d.message.contains("Invalid equality operands: left Bytes, right Int"))
     );
 }
 "#;

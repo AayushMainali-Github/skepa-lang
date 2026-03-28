@@ -53,6 +53,22 @@ pub fn emit_compare(
                 }
             }
         }
+        crate::ir::IrType::Bytes => {
+            let eq = format!("%v{counter}");
+            *counter += 1;
+            lines.push(format!(
+                "  {eq} = call i1 @skp_rt_bytes_eq(ptr {left}, ptr {right})"
+            ));
+            match op {
+                CmpOp::Eq => lines.push(format!("  {dest} = xor i1 {eq}, false")),
+                CmpOp::Ne => lines.push(format!("  {dest} = xor i1 {eq}, true")),
+                _ => {
+                    return Err(CodegenError::Unsupported(
+                        "bytes ordering comparisons are not implemented in LLVM lowering",
+                    ));
+                }
+            }
+        }
         crate::ir::IrType::Float => {
             let pred = match op {
                 CmpOp::Eq => "oeq",
@@ -95,6 +111,7 @@ pub fn infer_compare_operand_type(
         Some(crate::ir::IrType::Bool) => crate::ir::IrType::Bool,
         Some(crate::ir::IrType::Float) => crate::ir::IrType::Float,
         Some(crate::ir::IrType::String) => crate::ir::IrType::String,
+        Some(crate::ir::IrType::Bytes) => crate::ir::IrType::Bytes,
         Some(crate::ir::IrType::Int) => crate::ir::IrType::Int,
         Some(other) => other,
         None => crate::ir::IrType::Int,

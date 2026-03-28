@@ -1066,6 +1066,29 @@ fn main() -> Int {
 }
 
 #[test]
+fn llvm_codegen_lowers_bytes_equality_through_runtime_helper() {
+    let source = r#"
+import bytes;
+
+fn main() -> Int {
+  let a: Bytes = bytes.fromString("alpha");
+  let b: Bytes = bytes.fromString("alpha");
+  if (a == b) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let llvm_ir =
+        codegen::compile_program_to_llvm_ir(&program).expect("LLVM lowering should succeed");
+
+    assert!(llvm_ir.contains("declare i1 @skp_rt_bytes_eq(ptr, ptr)"));
+    assert!(llvm_ir.contains("call i1 @skp_rt_bytes_eq(ptr"));
+}
+
+#[test]
 fn llvm_codegen_emits_runtime_abi_for_struct_layout_and_builtin_dispatch() {
     let source = r#"
 import fs;
@@ -1310,6 +1333,24 @@ fn main() -> Int {{
         "expected exec output, got: {}",
         output.stdout_lossy()
     );
+}
+
+#[test]
+fn codegen_builds_native_executable_for_bytes_equality() {
+    let source = r#"
+import bytes;
+
+fn main() -> Int {
+  let a: Bytes = bytes.append(bytes.fromString("he"), bytes.fromString("llo"));
+  let b: Bytes = bytes.push(bytes.fromString("hell"), 111);
+  if (a == b && bytes.get(a, 0) == 104) {
+    return 0;
+  }
+  return 1;
+}
+"#;
+
+    assert_eq!(common::native_run_structured(source).exit_code(), 0);
 }
 
 #[test]

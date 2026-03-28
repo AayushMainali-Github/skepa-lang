@@ -39,9 +39,6 @@ pub fn call_with_host(
         ("bytes", "append", [left, right]) => {
             Ok(bytes::append(&left.expect_bytes()?, &right.expect_bytes()?))
         }
-        ("bytes", "eq", [left, right]) => {
-            Ok(bytes::eq(&left.expect_bytes()?, &right.expect_bytes()?))
-        }
         ("str", "len", [value]) => Ok(RtValue::Int(str::len(&value.expect_string()?))),
         ("str", "contains", [haystack, needle]) => Ok(RtValue::Bool(str::contains(
             &haystack.expect_string()?,

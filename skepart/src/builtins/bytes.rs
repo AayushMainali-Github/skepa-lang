@@ -61,7 +61,3 @@ pub fn push(value: &RtBytes, byte: i64) -> RtResult<RtValue> {
 pub fn append(left: &RtBytes, right: &RtBytes) -> RtValue {
     RtValue::Bytes(left.append(right))
 }
-
-pub fn eq(left: &RtBytes, right: &RtBytes) -> RtValue {
-    RtValue::Bool(left == right)
-}

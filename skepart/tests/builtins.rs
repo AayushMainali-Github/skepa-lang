@@ -129,18 +129,6 @@ fn builtins_cover_bytes_roundtrip_and_type_errors() {
         RtValue::Bytes(RtBytes::from("hello".as_bytes()))
     );
     assert_eq!(
-        builtins::call(
-            "bytes",
-            "eq",
-            &[
-                RtValue::Bytes(RtBytes::from("hello".as_bytes())),
-                RtValue::Bytes(RtBytes::from("hello".as_bytes())),
-            ],
-        )
-        .expect("bytes.eq"),
-        RtValue::Bool(true)
-    );
-    assert_eq!(
         builtins::call("bytes", "fromString", &[RtValue::Int(1)])
             .expect_err("bytes.fromString type mismatch")
             .kind,

@@ -679,16 +679,11 @@ fn main() -> Int {
   let mid: Bytes = bytes.slice(raw, 1, 3);
   let joined: Bytes = bytes.concat(mid, bytes.fromString("t"));
   let grown: Bytes = bytes.push(joined, 33);
-  let same: Bool = bytes.eq(bytes.append(mid, bytes.fromString("t")), joined);
+  let same: Bool = bytes.append(mid, bytes.fromString("t")) == joined;
   if (text == "net" && bytes.get(raw, 0) == 110 && bytes.toString(grown) == "ett!" && same) {
     return bytes.len(raw);
   }
   return 0;
-}
-"#;
-
-    let value = common::ir_run_ok(source);
-    assert_eq!(value, IrValue::Int(3));
 }
 "#;
 

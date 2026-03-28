@@ -491,6 +491,11 @@ impl<'a> IrInterpreter<'a> {
                 CmpOp::Ne => a.as_str() != b.as_str(),
                 _ => return Err(IrInterpError::TypeMismatch("unsupported string comparison")),
             }),
+            (RtValue::Bytes(a), RtValue::Bytes(b)) => Ok(match op {
+                CmpOp::Eq => a == b,
+                CmpOp::Ne => a != b,
+                _ => return Err(IrInterpError::TypeMismatch("unsupported bytes comparison")),
+            }),
             _ => Err(IrInterpError::TypeMismatch("bad compare operands")),
         }
     }

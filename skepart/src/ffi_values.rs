@@ -64,6 +64,16 @@ pub extern "C" fn skp_rt_string_eq(left: *mut RtString, right: *mut RtString) ->
 }
 
 #[no_mangle]
+pub extern "C" fn skp_rt_bytes_eq(left: *mut RtBytes, right: *mut RtBytes) -> bool {
+    clear_last_error();
+    if left.is_null() || right.is_null() {
+        set_last_error(invalid_argument("bytes pointers must not be null"));
+        return false;
+    }
+    unsafe { *left == *right }
+}
+
+#[no_mangle]
 pub extern "C" fn skp_rt_builtin_str_contains(
     haystack: *mut RtString,
     needle: *mut RtString,

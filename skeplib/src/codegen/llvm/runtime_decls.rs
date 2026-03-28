@@ -4,6 +4,7 @@ const RUNTIME_DECLS: &[(&str, &str)] = &[
         "declare ptr @skp_rt_string_from_utf8(ptr, i64)",
     ),
     ("skp_rt_string_eq", "declare i1 @skp_rt_string_eq(ptr, ptr)"),
+    ("skp_rt_bytes_eq", "declare i1 @skp_rt_bytes_eq(ptr, ptr)"),
     (
         "skp_rt_builtin_str_len",
         "declare i64 @skp_rt_builtin_str_len(ptr)",

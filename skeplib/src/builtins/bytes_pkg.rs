@@ -59,11 +59,4 @@ pub(super) const SIGS: &[BuiltinSig] = &[
         ret: TypeInfo::Bytes,
         kind: BuiltinKind::FixedArity,
     },
-    BuiltinSig {
-        package: "bytes",
-        name: "eq",
-        params: &[TypeInfo::Bytes, TypeInfo::Bytes],
-        ret: TypeInfo::Bool,
-        kind: BuiltinKind::FixedArity,
-    },
 ];
