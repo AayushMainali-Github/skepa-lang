@@ -5,6 +5,7 @@ use super::{BuiltinKind, BuiltinSig};
 const NO_PARAMS: &[TypeInfo] = &[];
 const STRING_PARAM: &[TypeInfo] = &[TypeInfo::String];
 const OPAQUE_PARAM_SENTINEL: &[TypeInfo] = &[TypeInfo::Unknown];
+const OPAQUE_AND_STRING_PARAM: &[TypeInfo] = &[TypeInfo::Unknown, TypeInfo::String];
 
 pub(super) const SIGS: &[BuiltinSig] = &[
     BuiltinSig {
@@ -33,6 +34,20 @@ pub(super) const SIGS: &[BuiltinSig] = &[
         name: "accept",
         params: STRING_PARAM,
         ret: TypeInfo::Unknown,
+        kind: BuiltinKind::FixedArity,
+    },
+    BuiltinSig {
+        package: "net",
+        name: "read",
+        params: OPAQUE_PARAM_SENTINEL,
+        ret: TypeInfo::String,
+        kind: BuiltinKind::FixedArity,
+    },
+    BuiltinSig {
+        package: "net",
+        name: "write",
+        params: OPAQUE_AND_STRING_PARAM,
+        ret: TypeInfo::Void,
         kind: BuiltinKind::FixedArity,
     },
     BuiltinSig {

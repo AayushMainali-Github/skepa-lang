@@ -32,6 +32,50 @@ pub(super) fn check_net_builtin(
             }
             TypeInfo::Opaque("net.Socket".to_string())
         }
+        "read" => {
+            if args.len() != 1 {
+                checker.error(format!(
+                    "net.read expects 1 argument(s), got {}",
+                    args.len()
+                ));
+                return TypeInfo::Unknown;
+            }
+            let got = checker.check_expr(&args[0], scopes);
+            let expected = TypeInfo::Opaque("net.Socket".to_string());
+            if got != TypeInfo::Unknown && got != expected {
+                checker.error(format!(
+                    "net.read argument 1 expects {:?}, got {:?}",
+                    expected, got
+                ));
+            }
+            TypeInfo::String
+        }
+        "write" => {
+            if args.len() != 2 {
+                checker.error(format!(
+                    "net.write expects 2 argument(s), got {}",
+                    args.len()
+                ));
+                return TypeInfo::Unknown;
+            }
+            let socket_ty = checker.check_expr(&args[0], scopes);
+            let socket_expected = TypeInfo::Opaque("net.Socket".to_string());
+            if socket_ty != TypeInfo::Unknown && socket_ty != socket_expected {
+                checker.error(format!(
+                    "net.write argument 1 expects {:?}, got {:?}",
+                    socket_expected, socket_ty
+                ));
+            }
+            let data_ty = checker.check_expr(&args[1], scopes);
+            if data_ty != TypeInfo::Unknown && data_ty != TypeInfo::String {
+                checker.error(format!(
+                    "net.write argument 2 expects {:?}, got {:?}",
+                    TypeInfo::String,
+                    data_ty
+                ));
+            }
+            TypeInfo::Void
+        }
         "close" => {
             if args.len() != 1 {
                 checker.error(format!(

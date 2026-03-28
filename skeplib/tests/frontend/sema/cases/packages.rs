@@ -961,6 +961,8 @@ fn main() -> Void {
   let listener: net.Listener = net.listen("127.0.0.1:0");
   let socket: net.Socket = net.accept(listener);
   let client: net.Socket = net.connect("127.0.0.1:8080");
+  let msg: String = net.read(socket);
+  net.write(client, msg);
   net.close(socket);
   net.close(client);
   net.closeListener(listener);
@@ -1006,6 +1008,49 @@ fn main() -> Void {
     assert!(diags.as_slice().iter().any(|d| {
         d.message
             .contains("net.close argument 1 expects Opaque(\"net.Socket\")")
+    }));
+}
+
+#[test]
+fn sema_rejects_net_read_type_mismatch() {
+    let src = r#"
+import net;
+
+fn main() -> Void {
+  let listener: net.Listener = net.listen("127.0.0.1:0");
+  let _x = net.read(listener);
+  return;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("net.read argument 1 expects Opaque(\"net.Socket\")")
+    }));
+}
+
+#[test]
+fn sema_rejects_net_write_type_mismatches() {
+    let src = r#"
+import net;
+
+fn main() -> Void {
+  let socket: net.Socket = net.__testSocket();
+  net.write("bad", 1);
+  net.write(socket, 1);
+  return;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("net.write argument 1 expects Opaque(\"net.Socket\")")
+    }));
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("net.write argument 2 expects String")
     }));
 }
 
