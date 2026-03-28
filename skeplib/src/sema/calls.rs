@@ -6,6 +6,7 @@ use crate::types::TypeInfo;
 
 use super::Checker;
 mod arr;
+mod bytes;
 mod datetime;
 mod fs;
 mod io;
@@ -58,6 +59,7 @@ impl Checker {
             && parts.len() == 2
             && (parts[0] == "io"
                 || parts[0] == "str"
+                || parts[0] == "bytes"
                 || parts[0] == "arr"
                 || parts[0] == "datetime"
                 || parts[0] == "random"
@@ -293,6 +295,7 @@ impl Checker {
         match package {
             "io" => return io::check_io_builtin(self, method, args, scopes, sig),
             "str" => return str_pkg::check_str_builtin(self, method, args, scopes, sig),
+            "bytes" => return bytes::check_bytes_builtin(self, method, args, scopes, sig),
             "arr" => return arr::check_arr_builtin(self, method, args, scopes),
             "datetime" => {
                 return datetime::check_datetime_builtin(self, method, args, scopes, sig);

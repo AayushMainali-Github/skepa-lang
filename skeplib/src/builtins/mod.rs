@@ -1,6 +1,7 @@
 use crate::types::TypeInfo;
 
 mod arr;
+mod bytes_pkg;
 mod datetime;
 mod fs;
 mod io;
@@ -57,6 +58,7 @@ pub struct BuiltinSpec {
 pub fn find_builtin_sig(package: &str, name: &str) -> Option<&'static BuiltinSig> {
     io::SIGS
         .iter()
+        .chain(bytes_pkg::SIGS.iter())
         .chain(str_pkg::SIGS.iter())
         .chain(arr::SIGS.iter())
         .chain(datetime::SIGS.iter())
@@ -86,6 +88,7 @@ pub fn all_builtin_specs() -> impl Iterator<Item = BuiltinSpec> {
 fn all_builtin_sigs() -> Vec<&'static BuiltinSig> {
     io::SIGS
         .iter()
+        .chain(bytes_pkg::SIGS.iter())
         .chain(str_pkg::SIGS.iter())
         .chain(arr::SIGS.iter())
         .chain(datetime::SIGS.iter())
@@ -187,6 +190,12 @@ fn builtin_meta(package: &str, name: &str) -> BuiltinMeta {
             can_const_fold: false,
             runtime_helper: None,
         },
+        ("bytes", _) => BuiltinMeta {
+            purity: BuiltinPurity::Pure,
+            lowering: BuiltinLowering::GenericDispatch,
+            can_const_fold: false,
+            runtime_helper: None,
+        },
         _ => BuiltinMeta {
             purity: BuiltinPurity::HostEffectful,
             lowering: BuiltinLowering::GenericDispatch,
@@ -218,6 +227,7 @@ mod tests {
         let sig_count = all_builtin_specs().count();
         let manual_count = [
             super::io::SIGS.len(),
+            super::bytes_pkg::SIGS.len(),
             super::str_pkg::SIGS.len(),
             super::arr::SIGS.len(),
             super::datetime::SIGS.len(),
@@ -232,6 +242,7 @@ mod tests {
         assert_eq!(sig_count, manual_count);
         assert!(find_builtin_sig("datetime", "nowUnix").is_some());
         assert!(find_builtin_spec("vec", "push").is_some());
+        assert!(find_builtin_spec("bytes", "fromString").is_some());
         assert!(find_builtin_spec("missing", "name").is_none());
     }
 }

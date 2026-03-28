@@ -662,6 +662,25 @@ fn main() -> Int {
   }
   return 0;
 }
+
+#[test]
+fn interpreter_supports_bytes_builtins_through_runtime() {
+    let source = r#"
+import bytes;
+
+fn main() -> Int {
+  let raw: Bytes = bytes.fromString("net");
+  let text: String = bytes.toString(raw);
+  if (text == "net") {
+    return bytes.len(raw);
+  }
+  return 0;
+}
+"#;
+
+    let value = common::ir_run_ok(source);
+    assert_eq!(value, IrValue::Int(3));
+}
 "#;
 
     let value = common::ir_run_ok(source);

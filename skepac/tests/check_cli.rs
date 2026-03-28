@@ -495,6 +495,37 @@ fn main() -> Int {
 }
 
 #[test]
+fn check_accepts_minimal_bytes_builtins_program() {
+    let tmp = make_temp_dir("skepac_check_bytes_minimal");
+    let file = tmp.join("bytes_minimal.sk");
+    fs::write(
+        &file,
+        r#"
+import bytes;
+import str;
+
+fn main() -> Int {
+  let raw: Bytes = bytes.fromString("hello");
+  let text: String = bytes.toString(raw);
+  let n: Int = bytes.len(raw);
+  if (text == "hello" && str.len(text) == n) {
+    return 0;
+  }
+  return 1;
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("check")
+        .arg(&file)
+        .output()
+        .expect("run check");
+    assert_eq!(output.status.code(), Some(0), "{:?}", output);
+}
+
+#[test]
 fn check_accepts_match_statement_program() {
     let tmp = make_temp_dir("skepac_check_match");
     let file = tmp.join("match_ok.sk");

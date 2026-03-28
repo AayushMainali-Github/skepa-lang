@@ -1,4 +1,5 @@
 pub mod arr;
+pub mod bytes;
 pub mod datetime;
 pub mod fs;
 pub mod io;
@@ -22,6 +23,9 @@ pub fn call_with_host(
     args: &[RtValue],
 ) -> RtResult<RtValue> {
     match (package, name, args) {
+        ("bytes", "fromString", [value]) => bytes::from_string(value.expect_string()?.as_str()),
+        ("bytes", "toString", [value]) => bytes::to_string(&value.expect_bytes()?),
+        ("bytes", "len", [value]) => Ok(bytes::len(&value.expect_bytes()?)),
         ("str", "len", [value]) => Ok(RtValue::Int(str::len(&value.expect_string()?))),
         ("str", "contains", [haystack, needle]) => Ok(RtValue::Bool(str::contains(
             &haystack.expect_string()?,

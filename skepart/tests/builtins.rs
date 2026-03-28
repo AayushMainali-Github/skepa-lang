@@ -1,7 +1,7 @@
 mod common;
 
 use common::RecordingHostBuilder;
-use skepart::{builtins, RtErrorKind, RtHost, RtResult, RtString, RtValue};
+use skepart::{builtins, RtBytes, RtErrorKind, RtHost, RtResult, RtString, RtValue};
 
 struct UnsupportedHost;
 
@@ -27,6 +27,15 @@ fn builtins_dispatch_valid_core_families() {
         RtValue::Int(100)
     );
     assert_eq!(
+        builtins::call(
+            "bytes",
+            "len",
+            &[RtValue::Bytes(RtBytes::from("abc".as_bytes()))]
+        )
+        .expect("bytes.len"),
+        RtValue::Int(3)
+    );
+    assert_eq!(
         builtins::call("str", "len", &[RtValue::String(RtString::from("abc"))]).expect("str.len"),
         RtValue::Int(3)
     );
@@ -35,6 +44,44 @@ fn builtins_dispatch_valid_core_families() {
             .expect("vec.new")
             .type_name(),
         "Vec"
+    );
+}
+
+#[test]
+fn builtins_cover_bytes_roundtrip_and_type_errors() {
+    let bytes_value = builtins::call(
+        "bytes",
+        "fromString",
+        &[RtValue::String(RtString::from("hello"))],
+    )
+    .expect("bytes.fromString");
+    let RtValue::Bytes(raw) = bytes_value.clone() else {
+        panic!("bytes.fromString should return Bytes");
+    };
+    assert_eq!(raw.as_slice(), b"hello");
+    assert_eq!(
+        builtins::call("bytes", "len", std::slice::from_ref(&bytes_value)).expect("bytes.len"),
+        RtValue::Int(5)
+    );
+    assert_eq!(
+        builtins::call("bytes", "toString", &[bytes_value]).expect("bytes.toString"),
+        RtValue::String(RtString::from("hello"))
+    );
+    assert_eq!(
+        builtins::call("bytes", "fromString", &[RtValue::Int(1)])
+            .expect_err("bytes.fromString type mismatch")
+            .kind,
+        RtErrorKind::TypeMismatch
+    );
+    assert_eq!(
+        builtins::call(
+            "bytes",
+            "toString",
+            &[RtValue::String(RtString::from("abc"))]
+        )
+        .expect_err("bytes.toString type mismatch")
+        .kind,
+        RtErrorKind::TypeMismatch
     );
 }
 

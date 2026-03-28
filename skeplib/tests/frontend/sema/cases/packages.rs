@@ -138,6 +138,123 @@ fn main() -> Int {
 }
 
 #[test]
+fn sema_accepts_bytes_builtins() {
+    let src = r#"
+import bytes;
+import str;
+
+fn main() -> Int {
+  let b: Bytes = bytes.fromString("hello");
+  let s: String = bytes.toString(b);
+  let n: Int = bytes.len(b);
+  if (s == "hello" && str.len(s) == n) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
+
+#[test]
+fn sema_rejects_bytes_without_import() {
+    let src = r#"
+fn main() -> Int {
+  let b: Bytes = bytes.fromString("x");
+  return bytes.len(b);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("`bytes.*` used without `import bytes;`"))
+    );
+}
+
+#[test]
+fn sema_rejects_bytes_from_string_type_mismatch() {
+    let src = r#"
+import bytes;
+
+fn main() -> Int {
+  let _b = bytes.fromString(1);
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("bytes.fromString argument 1 expects String"))
+    );
+}
+
+#[test]
+fn sema_rejects_bytes_to_string_type_mismatch() {
+    let src = r#"
+import bytes;
+
+fn main() -> Int {
+  let _s = bytes.toString("abc");
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("bytes.toString argument 1 expects Bytes"))
+    );
+}
+
+#[test]
+fn sema_rejects_bytes_len_type_mismatch() {
+    let src = r#"
+import bytes;
+
+fn main() -> Int {
+  return bytes.len(false);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("bytes.len argument 1 expects Bytes"))
+    );
+}
+
+#[test]
+fn sema_rejects_bytes_assignment_type_mismatch() {
+    let src = r#"
+import bytes;
+
+fn main() -> Int {
+  let x: String = bytes.fromString("abc");
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Type mismatch in let `x`"))
+    );
+}
+
+#[test]
 fn sema_reports_builtin_missing_import_and_argument_errors_together() {
     let src = r#"
 fn main() -> Int {
@@ -1629,7 +1746,8 @@ fn main() -> Int {
 #[test]
 fn sema_tracks_builtin_return_types_across_families() {
     let src = r#"
-import io;
+    import bytes;
+    import io;
 import str;
 import arr;
 import vec;
@@ -1640,7 +1758,8 @@ import os;
 import vec;
 
 fn main() -> Int {
-  let s: String = io.format("%d", 1);
+      let raw: Bytes = bytes.fromString("x");
+      let s: String = io.format("%d", 1);
   let b: Bool = str.isEmpty("");
   let a: [Int; 2] = [1, 2];
   let first: Int = arr.first(a);
@@ -1651,10 +1770,10 @@ fn main() -> Int {
   let args: Vec[String] = vec.new();
   vec.push(args, "status");
   let code: Int = os.exec("git", args);
-  if (b || exists || code >= 0 || r >= 0.0 || str.len(now) >= 0 || first >= 0 || str.len(s) >= 0) {
-    return vec.len(xs);
-  }
-  return 0;
+      if (bytes.len(raw) == 1 && (b || exists || code >= 0 || r >= 0.0 || str.len(now) >= 0 || first >= 0 || str.len(s) >= 0)) {
+        return vec.len(xs);
+      }
+      return 0;
 }
 "#;
     let (result, diags) = analyze_source(src);
