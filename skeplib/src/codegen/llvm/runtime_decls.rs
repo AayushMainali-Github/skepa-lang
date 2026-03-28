@@ -33,6 +33,10 @@ const RUNTIME_DECLS: &[(&str, &str)] = &[
         "declare void @skp_rt_abort_if_error()",
     ),
     (
+        "skp_rt_raise_division_by_zero",
+        "declare void @skp_rt_raise_division_by_zero()",
+    ),
+    (
         "skp_rt_value_from_int",
         "declare ptr @skp_rt_value_from_int(i64)",
     ),
@@ -159,5 +163,6 @@ mod tests {
         assert!(names.contains(&"skp_rt_call_function"));
         assert!(names.contains(&"skp_rt_value_free"));
         assert!(names.contains(&"skp_rt_abort_if_error"));
+        assert!(names.contains(&"skp_rt_raise_division_by_zero"));
     }
 }

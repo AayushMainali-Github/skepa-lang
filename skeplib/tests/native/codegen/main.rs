@@ -1360,6 +1360,23 @@ fn main() -> Void {
 }
 
 #[test]
+fn codegen_reports_runtime_failure_for_division_by_zero_natively() {
+    let source = r#"
+fn main() -> Int {
+  return 1 / 0;
+}
+"#;
+
+    let output = common::native_run_structured(source);
+    assert_ne!(output.exit_code(), 0);
+    assert!(
+        output.stderr_lossy().contains("division by zero"),
+        "expected division by zero runtime failure, got: {}",
+        output.stderr_lossy()
+    );
+}
+
+#[test]
 fn codegen_builds_native_executable_for_minimal_net_listener_builtin() {
     let source = r#"
 import net;

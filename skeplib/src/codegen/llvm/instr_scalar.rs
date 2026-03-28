@@ -107,6 +107,29 @@ pub fn emit_scalar_instr(
             let dest = names.temp(*dst)?;
             let left = operand_load(names, left, func, lines, counter, ty, string_literals)?;
             let right = operand_load(names, right, func, lines, counter, ty, string_literals)?;
+            if matches!(ty, crate::ir::IrType::Int) && matches!(op, BinaryOp::Div | BinaryOp::Mod) {
+                let zero_check = format!("%v{counter}");
+                *counter += 1;
+                let trap_label = format!("div_zero_{counter}");
+                *counter += 1;
+                let cont_label = format!("div_cont_{counter}");
+                *counter += 1;
+                let opname = match op {
+                    BinaryOp::Div => "sdiv",
+                    BinaryOp::Mod => "srem",
+                    _ => unreachable!(),
+                };
+                lines.push(format!("  {zero_check} = icmp eq i64 {right}, 0"));
+                lines.push(format!(
+                    "  br i1 {zero_check}, label %{trap_label}, label %{cont_label}"
+                ));
+                lines.push(format!("{trap_label}:"));
+                lines.push("  call void @skp_rt_raise_division_by_zero()".into());
+                lines.push("  unreachable".into());
+                lines.push(format!("{cont_label}:"));
+                lines.push(format!("  {dest} = {opname} i64 {left}, {right}"));
+                return Ok(true);
+            }
             let opname = match (op, ty) {
                 (BinaryOp::Add, crate::ir::IrType::Float) => "fadd",
                 (BinaryOp::Sub, crate::ir::IrType::Float) => "fsub",
