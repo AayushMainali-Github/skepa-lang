@@ -1459,6 +1459,46 @@ fn main() -> Int {{
 }
 
 #[test]
+fn codegen_builds_native_executable_for_net_listen_accept_roundtrip() {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind loopback listener");
+    let addr = listener.local_addr().expect("listener addr");
+    drop(listener);
+
+    let source = format!(
+        r#"
+import net;
+import str;
+
+fn main() -> Int {{
+  let listener: net.Listener = net.listen("{addr}");
+  let socket: net.Socket = net.accept(listener);
+  let msg = net.read(socket);
+  net.write(socket, "pong");
+  net.close(socket);
+  net.closeListener(listener);
+  if (msg == "ping" && str.len(msg) == 4) {{
+    return 0;
+  }}
+  return 1;
+}}
+"#
+    );
+
+    let addr_text = addr.to_string();
+    let peer = thread::spawn(move || {
+        let mut stream = TcpStream::connect(&addr_text).expect("connect server");
+        stream.write_all(b"ping").expect("write ping");
+        let mut buf = [0_u8; 4];
+        stream.read_exact(&mut buf).expect("read pong");
+        assert_eq!(&buf, b"pong");
+    });
+
+    let result = common::native_run_structured(&source);
+    peer.join().expect("peer thread should finish");
+    assert_eq!(result.exit_code(), 0, "stderr: {}", result.stderr_lossy());
+}
+
+#[test]
 fn codegen_reports_runtime_failure_for_non_utf8_net_reads() {
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind loopback listener");
     let addr = listener.local_addr().expect("listener addr");

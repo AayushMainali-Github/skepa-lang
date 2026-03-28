@@ -49,9 +49,6 @@ skepac build-obj app.sk app.obj
 skepac build-llvm-ir app.sk app.ll
 ```
 
-## Examples
-
-
 For full language/module reference, see `DOCS.md`.
 
 ## Contributing
