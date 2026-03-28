@@ -94,6 +94,8 @@ pub fn assert_cli_failure_class(output: &Output, class: CliFailureClass) {
                     || stderr.is_empty()
                     || stderr.contains("out of bounds")
                     || stderr.contains("division by zero")
+                    || stderr.contains("negative shift count")
+                    || stderr.contains("InvalidArgument")
                     || stderr.contains("index")
                     || stderr.contains("panic"),
                 "stderr was: {stderr}"

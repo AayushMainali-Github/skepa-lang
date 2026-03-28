@@ -209,6 +209,34 @@ fn main() -> Int {
 }
 
 #[test]
+fn run_reports_runtime_failure_for_negative_shift_count() {
+    let tmp = make_temp_dir("skepac_run_negative_shift");
+    let source = tmp.join("main.sk");
+    fs::write(
+        &source,
+        r#"
+fn main() -> Int {
+  return 1 << -1;
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("run")
+        .arg(&source)
+        .output()
+        .expect("run skepac run");
+
+    assert_cli_failure_class(&output, CliFailureClass::Runtime);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("negative shift count") || stderr.contains("runtime"),
+        "stderr was: {stderr}"
+    );
+}
+
+#[test]
 fn run_executes_user_defined_operator_program_end_to_end() {
     let tmp = make_temp_dir("skepac_run_user_operator");
     let source = tmp.join("main.sk");

@@ -130,6 +130,32 @@ pub fn emit_scalar_instr(
                 lines.push(format!("  {dest} = {opname} i64 {left}, {right}"));
                 return Ok(true);
             }
+            if matches!(ty, crate::ir::IrType::Int) && matches!(op, BinaryOp::Shl | BinaryOp::Shr) {
+                let negative_check = format!("%v{counter}");
+                *counter += 1;
+                let trap_label = format!("shift_neg_{counter}");
+                *counter += 1;
+                let cont_label = format!("shift_cont_{counter}");
+                *counter += 1;
+                let masked = format!("%v{counter}");
+                *counter += 1;
+                let opname = match op {
+                    BinaryOp::Shl => "shl",
+                    BinaryOp::Shr => "ashr",
+                    _ => unreachable!(),
+                };
+                lines.push(format!("  {negative_check} = icmp slt i64 {right}, 0"));
+                lines.push(format!(
+                    "  br i1 {negative_check}, label %{trap_label}, label %{cont_label}"
+                ));
+                lines.push(format!("{trap_label}:"));
+                lines.push("  call void @skp_rt_raise_negative_shift_count()".into());
+                lines.push("  unreachable".into());
+                lines.push(format!("{cont_label}:"));
+                lines.push(format!("  {masked} = and i64 {right}, 63"));
+                lines.push(format!("  {dest} = {opname} i64 {left}, {masked}"));
+                return Ok(true);
+            }
             let opname = match (op, ty) {
                 (BinaryOp::Add, crate::ir::IrType::Float) => "fadd",
                 (BinaryOp::Sub, crate::ir::IrType::Float) => "fsub",

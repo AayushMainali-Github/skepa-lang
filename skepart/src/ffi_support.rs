@@ -156,6 +156,15 @@ pub extern "C" fn skp_rt_raise_division_by_zero() {
 }
 
 #[no_mangle]
+pub extern "C" fn skp_rt_raise_negative_shift_count() {
+    set_last_error(crate::RtError::new(
+        crate::RtErrorKind::InvalidArgument,
+        "negative shift count",
+    ));
+    skp_rt_abort_if_error();
+}
+
+#[no_mangle]
 pub extern "C" fn skp_rt_last_error_kind() -> i32 {
     LAST_ERROR.with(|slot| match slot.borrow().as_ref().map(|err| &err.kind) {
         Some(crate::RtErrorKind::DivisionByZero) => 1,
