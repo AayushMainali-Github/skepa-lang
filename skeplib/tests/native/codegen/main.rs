@@ -1,5 +1,8 @@
 use std::fs;
+use std::io::{Read, Write};
+use std::net::TcpListener;
 use std::process::Command;
+use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use skeplib::codegen;
@@ -1418,6 +1421,41 @@ fn main() -> Int {
 "#;
 
     assert_eq!(common::native_run_structured(source).exit_code(), 0);
+}
+
+#[test]
+fn codegen_builds_native_executable_for_net_connect_read_write() {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind loopback listener");
+    let addr = listener.local_addr().expect("listener addr");
+    let peer = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("accept client");
+        let mut buf = [0_u8; 4];
+        stream.read_exact(&mut buf).expect("read ping");
+        assert_eq!(&buf, b"ping");
+        stream.write_all(b"pong").expect("write pong");
+    });
+
+    let source = format!(
+        r#"
+import net;
+import str;
+
+fn main() -> Int {{
+  let socket: net.Socket = net.connect("{addr}");
+  net.write(socket, "ping");
+  let msg = net.read(socket);
+  net.close(socket);
+  if (msg == "pong" && str.len(msg) == 4) {{
+    return 0;
+  }}
+  return 1;
+}}
+"#
+    );
+
+    let result = common::native_run_structured(&source);
+    peer.join().expect("peer thread should finish");
+    assert_eq!(result.exit_code(), 0, "stderr: {}", result.stderr_lossy());
 }
 
 #[test]
