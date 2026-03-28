@@ -68,6 +68,79 @@ fn builtins_cover_bytes_roundtrip_and_type_errors() {
         RtValue::String(RtString::from("hello"))
     );
     assert_eq!(
+        builtins::call(
+            "bytes",
+            "get",
+            &[
+                RtValue::Bytes(RtBytes::from("hello".as_bytes())),
+                RtValue::Int(1)
+            ],
+        )
+        .expect("bytes.get"),
+        RtValue::Int(101)
+    );
+    assert_eq!(
+        builtins::call(
+            "bytes",
+            "slice",
+            &[
+                RtValue::Bytes(RtBytes::from("hello".as_bytes())),
+                RtValue::Int(1),
+                RtValue::Int(4),
+            ],
+        )
+        .expect("bytes.slice"),
+        RtValue::Bytes(RtBytes::from("ell".as_bytes()))
+    );
+    assert_eq!(
+        builtins::call(
+            "bytes",
+            "concat",
+            &[
+                RtValue::Bytes(RtBytes::from("hel".as_bytes())),
+                RtValue::Bytes(RtBytes::from("lo".as_bytes())),
+            ],
+        )
+        .expect("bytes.concat"),
+        RtValue::Bytes(RtBytes::from("hello".as_bytes()))
+    );
+    assert_eq!(
+        builtins::call(
+            "bytes",
+            "push",
+            &[
+                RtValue::Bytes(RtBytes::from("hell".as_bytes())),
+                RtValue::Int(111)
+            ],
+        )
+        .expect("bytes.push"),
+        RtValue::Bytes(RtBytes::from("hello".as_bytes()))
+    );
+    assert_eq!(
+        builtins::call(
+            "bytes",
+            "append",
+            &[
+                RtValue::Bytes(RtBytes::from("hel".as_bytes())),
+                RtValue::Bytes(RtBytes::from("lo".as_bytes())),
+            ],
+        )
+        .expect("bytes.append"),
+        RtValue::Bytes(RtBytes::from("hello".as_bytes()))
+    );
+    assert_eq!(
+        builtins::call(
+            "bytes",
+            "eq",
+            &[
+                RtValue::Bytes(RtBytes::from("hello".as_bytes())),
+                RtValue::Bytes(RtBytes::from("hello".as_bytes())),
+            ],
+        )
+        .expect("bytes.eq"),
+        RtValue::Bool(true)
+    );
+    assert_eq!(
         builtins::call("bytes", "fromString", &[RtValue::Int(1)])
             .expect_err("bytes.fromString type mismatch")
             .kind,
@@ -82,6 +155,46 @@ fn builtins_cover_bytes_roundtrip_and_type_errors() {
         .expect_err("bytes.toString type mismatch")
         .kind,
         RtErrorKind::TypeMismatch
+    );
+    assert_eq!(
+        builtins::call(
+            "bytes",
+            "get",
+            &[
+                RtValue::Bytes(RtBytes::from("a".as_bytes())),
+                RtValue::Int(-1)
+            ],
+        )
+        .expect_err("bytes.get negative index")
+        .kind,
+        RtErrorKind::IndexOutOfBounds
+    );
+    assert_eq!(
+        builtins::call(
+            "bytes",
+            "slice",
+            &[
+                RtValue::Bytes(RtBytes::from("abc".as_bytes())),
+                RtValue::Int(2),
+                RtValue::Int(1),
+            ],
+        )
+        .expect_err("bytes.slice reversed range")
+        .kind,
+        RtErrorKind::IndexOutOfBounds
+    );
+    assert_eq!(
+        builtins::call(
+            "bytes",
+            "push",
+            &[
+                RtValue::Bytes(RtBytes::from("a".as_bytes())),
+                RtValue::Int(256)
+            ],
+        )
+        .expect_err("bytes.push invalid byte")
+        .kind,
+        RtErrorKind::InvalidArgument
     );
 }
 

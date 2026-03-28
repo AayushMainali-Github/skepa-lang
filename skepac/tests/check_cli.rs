@@ -508,7 +508,12 @@ fn main() -> Int {
   let raw: Bytes = bytes.fromString("hello");
   let text: String = bytes.toString(raw);
   let n: Int = bytes.len(raw);
-  if (text == "hello" && str.len(text) == n) {
+  let piece: Bytes = bytes.slice(raw, 1, 4);
+  let first: Int = bytes.get(raw, 0);
+  let joined: Bytes = bytes.concat(piece, bytes.fromString("lo"));
+  let pushed: Bytes = bytes.push(joined, 33);
+  let appended: Bytes = bytes.append(piece, bytes.fromString("lo"));
+  if (text == "hello" && str.len(text) == n && first == 104 && bytes.toString(pushed) == "ello!" && bytes.eq(appended, joined)) {
     return 0;
   }
   return 1;

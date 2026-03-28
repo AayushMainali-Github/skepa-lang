@@ -19,6 +19,32 @@ impl RtBytes {
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
+
+    pub fn get(&self, index: usize) -> Option<u8> {
+        self.0.get(index).copied()
+    }
+
+    pub fn slice(&self, start: usize, end: usize) -> Option<Self> {
+        self.0.get(start..end).map(Self::from)
+    }
+
+    pub fn concat(&self, other: &Self) -> Self {
+        let mut bytes = Vec::with_capacity(self.len() + other.len());
+        bytes.extend_from_slice(self.as_slice());
+        bytes.extend_from_slice(other.as_slice());
+        Self::from(bytes)
+    }
+
+    pub fn push(&self, byte: u8) -> Self {
+        let mut bytes = Vec::with_capacity(self.len() + 1);
+        bytes.extend_from_slice(self.as_slice());
+        bytes.push(byte);
+        Self::from(bytes)
+    }
+
+    pub fn append(&self, other: &Self) -> Self {
+        self.concat(other)
+    }
 }
 
 impl From<Vec<u8>> for RtBytes {

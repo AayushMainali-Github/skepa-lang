@@ -147,7 +147,13 @@ fn main() -> Int {
   let b: Bytes = bytes.fromString("hello");
   let s: String = bytes.toString(b);
   let n: Int = bytes.len(b);
-  if (s == "hello" && str.len(s) == n) {
+  let first: Int = bytes.get(b, 1);
+  let cut: Bytes = bytes.slice(b, 1, 4);
+  let joined: Bytes = bytes.concat(cut, bytes.fromString("o"));
+  let pushed: Bytes = bytes.push(joined, 33);
+  let appended: Bytes = bytes.append(cut, bytes.fromString("lo"));
+  let same: Bool = bytes.eq(appended, bytes.fromString("ello"));
+  if (s == "hello" && str.len(s) == n && first == 101 && bytes.toString(pushed) == "ello!" && same) {
     return 1;
   }
   return 0;
@@ -242,6 +248,83 @@ import bytes;
 fn main() -> Int {
   let x: String = bytes.fromString("abc");
   return 0;
+}
+
+#[test]
+fn sema_rejects_bytes_get_and_slice_type_mismatches() {
+    let src = r#"
+import bytes;
+
+fn main() -> Int {
+  let raw: Bytes = bytes.fromString("abc");
+  let _a = bytes.get(raw, "1");
+  let _b = bytes.slice(raw, false, 2);
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("bytes.get argument 2 expects Int"))
+    );
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("bytes.slice argument 2 expects Int"))
+    );
+}
+
+#[test]
+fn sema_rejects_bytes_concat_type_mismatch() {
+    let src = r#"
+import bytes;
+
+fn main() -> Int {
+  let raw: Bytes = bytes.fromString("abc");
+  let _x = bytes.concat(raw, "z");
+  return 0;
+}
+
+#[test]
+fn sema_rejects_bytes_push_and_eq_type_mismatches() {
+    let src = r#"
+import bytes;
+
+fn main() -> Int {
+  let raw: Bytes = bytes.fromString("abc");
+  let _a = bytes.push(raw, "!");
+  let _b = bytes.eq(raw, 1);
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("bytes.push argument 2 expects Int"))
+    );
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("bytes.eq argument 2 expects Bytes"))
+    );
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("bytes.concat argument 2 expects Bytes"))
+    );
 }
 "#;
     let (result, diags) = analyze_source(src);

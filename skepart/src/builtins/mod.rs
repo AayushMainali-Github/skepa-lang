@@ -26,6 +26,22 @@ pub fn call_with_host(
         ("bytes", "fromString", [value]) => bytes::from_string(value.expect_string()?.as_str()),
         ("bytes", "toString", [value]) => bytes::to_string(&value.expect_bytes()?),
         ("bytes", "len", [value]) => Ok(bytes::len(&value.expect_bytes()?)),
+        ("bytes", "get", [value, index]) => bytes::get(&value.expect_bytes()?, index.expect_int()?),
+        ("bytes", "slice", [value, start, end]) => bytes::slice(
+            &value.expect_bytes()?,
+            start.expect_int()?,
+            end.expect_int()?,
+        ),
+        ("bytes", "concat", [left, right]) => {
+            Ok(bytes::concat(&left.expect_bytes()?, &right.expect_bytes()?))
+        }
+        ("bytes", "push", [value, byte]) => bytes::push(&value.expect_bytes()?, byte.expect_int()?),
+        ("bytes", "append", [left, right]) => {
+            Ok(bytes::append(&left.expect_bytes()?, &right.expect_bytes()?))
+        }
+        ("bytes", "eq", [left, right]) => {
+            Ok(bytes::eq(&left.expect_bytes()?, &right.expect_bytes()?))
+        }
         ("str", "len", [value]) => Ok(RtValue::Int(str::len(&value.expect_string()?))),
         ("str", "contains", [haystack, needle]) => Ok(RtValue::Bool(str::contains(
             &haystack.expect_string()?,
