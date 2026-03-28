@@ -148,6 +148,7 @@ impl Checker {
                                 | "arr"
                                 | "datetime"
                                 | "random"
+                                | "bytes"
                                 | "net"
                                 | "os"
                                 | "fs"
@@ -512,6 +513,7 @@ impl Checker {
             | TypeName::Float
             | TypeName::Bool
             | TypeName::String
+            | TypeName::Bytes
             | TypeName::Void => {}
             TypeName::Array { elem, .. } => self.check_decl_type_exists(elem, err_prefix),
             TypeName::Vec { elem } => self.check_decl_type_exists(elem, err_prefix),

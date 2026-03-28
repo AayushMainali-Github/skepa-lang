@@ -76,6 +76,7 @@ impl Parser {
             TokenKind::TyFloat => TypeName::Float,
             TokenKind::TyBool => TypeName::Bool,
             TokenKind::TyString => TypeName::String,
+            TokenKind::TyBytes => TypeName::Bytes,
             TokenKind::TyVoid => TypeName::Void,
             TokenKind::Ident => {
                 let mut name = self.bump().lexeme;

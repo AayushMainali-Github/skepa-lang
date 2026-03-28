@@ -48,6 +48,7 @@ pub fn emit_globals(program: &IrProgram, out: &mut Vec<String>) -> Result<(), Co
                 crate::ir::IrType::Int | crate::ir::IrType::Bool => "0".into(),
                 crate::ir::IrType::Float => "0.0".into(),
                 crate::ir::IrType::String
+                | crate::ir::IrType::Bytes
                 | crate::ir::IrType::Named(_)
                 | crate::ir::IrType::Opaque(_)
                 | crate::ir::IrType::Array { .. }

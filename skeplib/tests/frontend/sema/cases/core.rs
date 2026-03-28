@@ -9,6 +9,22 @@ fn add(a: Int, b: Int) -> Int {
   return a + b;
 }
 
+#[test]
+fn sema_accepts_bytes_type_in_signatures_and_locals() {
+    let src = r#"
+fn id(data: Bytes) -> Bytes {
+  let copy: Bytes = data;
+  return copy;
+}
+
+fn main() -> Int {
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
+
 fn main() -> Int {
   let x: Int = add(1, 2);
   if (x > 0) {

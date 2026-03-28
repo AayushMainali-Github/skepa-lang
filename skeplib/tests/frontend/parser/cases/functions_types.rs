@@ -17,6 +17,19 @@ fn parses_typed_function_parameters() {
 fn add(a: Int, b: Int) -> Int {
   return 0;
 }
+
+#[test]
+fn parses_bytes_type_annotations() {
+    let src = r#"
+fn take(data: Bytes) -> Bytes {
+  return data;
+}
+"#;
+    let program = parse_ok(src);
+    let f = &program.functions[0];
+    assert_eq!(f.params[0].ty, TypeName::Bytes);
+    assert_eq!(f.return_type, Some(TypeName::Bytes));
+}
 "#;
     let program = parse_ok(src);
     assert_eq!(program.functions.len(), 1);

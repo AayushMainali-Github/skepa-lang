@@ -6,6 +6,7 @@ pub enum TypeInfo {
     Float,
     Bool,
     String,
+    Bytes,
     Void,
     Named(String),
     Opaque(String),
@@ -30,6 +31,7 @@ impl TypeInfo {
             TypeName::Float => TypeInfo::Float,
             TypeName::Bool => TypeInfo::Bool,
             TypeName::String => TypeInfo::String,
+            TypeName::Bytes => TypeInfo::Bytes,
             TypeName::Void => TypeInfo::Void,
             TypeName::Named(name) => {
                 if is_builtin_opaque_type(name) {

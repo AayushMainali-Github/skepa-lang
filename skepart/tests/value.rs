@@ -1,5 +1,6 @@
 use skepart::{
-    RtArray, RtErrorKind, RtFunctionRef, RtHandle, RtHandleKind, RtString, RtStruct, RtValue, RtVec,
+    RtArray, RtBytes, RtErrorKind, RtFunctionRef, RtHandle, RtHandleKind, RtString, RtStruct,
+    RtValue, RtVec,
 };
 
 #[test]
@@ -10,6 +11,10 @@ fn value_accessors_return_expected_values() {
     assert_eq!(
         RtValue::String(RtString::from("hi")).expect_string(),
         Ok(RtString::from("hi"))
+    );
+    assert_eq!(
+        RtValue::Bytes(RtBytes::from(vec![1_u8, 2, 3])).expect_bytes(),
+        Ok(RtBytes::from(vec![1_u8, 2, 3]))
     );
     assert_eq!(
         RtValue::Array(RtArray::new(vec![RtValue::Int(1)])).expect_array(),
@@ -60,6 +65,13 @@ fn value_accessors_report_wrong_type() {
     assert_eq!(
         RtValue::Int(1)
             .expect_string()
+            .expect_err("wrong type")
+            .kind,
+        RtErrorKind::TypeMismatch
+    );
+    assert_eq!(
+        RtValue::String(RtString::from("x"))
+            .expect_bytes()
             .expect_err("wrong type")
             .kind,
         RtErrorKind::TypeMismatch

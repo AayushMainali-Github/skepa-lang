@@ -187,6 +187,7 @@ impl Lexer {
             "Float" => TokenKind::TyFloat,
             "Bool" => TokenKind::TyBool,
             "String" => TokenKind::TyString,
+            "Bytes" => TokenKind::TyBytes,
             "Void" => TokenKind::TyVoid,
             _ => TokenKind::Ident,
         };

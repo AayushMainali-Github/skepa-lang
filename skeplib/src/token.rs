@@ -31,6 +31,7 @@ pub enum TokenKind {
     TyFloat,
     TyBool,
     TyString,
+    TyBytes,
     TyVoid,
     LParen,
     RParen,

@@ -214,6 +214,7 @@ impl IrLowerer {
             crate::ast::TypeName::Float => IrType::Float,
             crate::ast::TypeName::Bool => IrType::Bool,
             crate::ast::TypeName::String => IrType::String,
+            crate::ast::TypeName::Bytes => IrType::Bytes,
             crate::ast::TypeName::Void => IrType::Void,
             crate::ast::TypeName::Named(name) => {
                 if crate::types::is_builtin_opaque_type(name) {

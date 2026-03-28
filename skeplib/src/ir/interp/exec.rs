@@ -412,6 +412,7 @@ impl<'a> IrInterpreter<'a> {
             IrType::Float => matches!(value, RtValue::Float(_)),
             IrType::Bool => matches!(value, RtValue::Bool(_)),
             IrType::String => matches!(value, RtValue::String(_)),
+            IrType::Bytes => matches!(value, RtValue::Bytes(_)),
             IrType::Void => matches!(value, RtValue::Unit),
             IrType::Named(_) => matches!(value, RtValue::Struct(_)),
             IrType::Opaque(_) => matches!(value, RtValue::Handle(_)),

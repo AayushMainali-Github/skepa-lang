@@ -40,6 +40,7 @@ fn display_value(value: &RtValue) -> String {
         RtValue::Float(value) => value.to_string(),
         RtValue::Bool(value) => value.to_string(),
         RtValue::String(value) => value.as_str().to_owned(),
+        RtValue::Bytes(value) => format!("[bytes len={}]", value.len()),
         RtValue::Array(_) => "[array]".to_owned(),
         RtValue::Vec(_) => "[vec]".to_owned(),
         RtValue::Function(_) => "[function]".to_owned(),

@@ -61,6 +61,10 @@ const RUNTIME_DECLS: &[(&str, &str)] = &[
         "declare ptr @skp_rt_value_from_string(ptr)",
     ),
     (
+        "skp_rt_value_from_bytes",
+        "declare ptr @skp_rt_value_from_bytes(ptr)",
+    ),
+    (
         "skp_rt_value_from_array",
         "declare ptr @skp_rt_value_from_array(ptr)",
     ),
@@ -96,6 +100,10 @@ const RUNTIME_DECLS: &[(&str, &str)] = &[
     (
         "skp_rt_value_to_string",
         "declare ptr @skp_rt_value_to_string(ptr)",
+    ),
+    (
+        "skp_rt_value_to_bytes",
+        "declare ptr @skp_rt_value_to_bytes(ptr)",
     ),
     (
         "skp_rt_value_to_array",

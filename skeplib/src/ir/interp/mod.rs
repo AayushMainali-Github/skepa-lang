@@ -178,6 +178,7 @@ fn runtime_type_name(ty: &IrType) -> &'static str {
         IrType::Float => "Float",
         IrType::Bool => "Bool",
         IrType::String => "String",
+        IrType::Bytes => "Bytes",
         IrType::Array { .. } => "Array",
         IrType::Vec { .. } => "Vec",
         IrType::Fn { .. } => "Function",

@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::{RtArray, RtError, RtResult, RtString, RtVec};
+use crate::{RtArray, RtBytes, RtError, RtResult, RtString, RtVec};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RtFunctionRef(pub usize);
@@ -45,6 +45,7 @@ pub enum RtValue {
     Float(f64),
     Bool(bool),
     String(RtString),
+    Bytes(RtBytes),
     Array(RtArray),
     Vec(RtVec),
     Function(RtFunctionRef),
@@ -60,6 +61,7 @@ impl RtValue {
             Self::Float(_) => "Float",
             Self::Bool(_) => "Bool",
             Self::String(_) => "String",
+            Self::Bytes(_) => "Bytes",
             Self::Array(_) => "Array",
             Self::Vec(_) => "Vec",
             Self::Function(_) => "Function",
@@ -104,6 +106,16 @@ impl RtValue {
             Self::String(value) => Ok(value.clone()),
             other => Err(RtError::type_mismatch(format!(
                 "expected String, got {}",
+                other.type_name()
+            ))),
+        }
+    }
+
+    pub fn expect_bytes(&self) -> RtResult<RtBytes> {
+        match self {
+            Self::Bytes(value) => Ok(value.clone()),
+            other => Err(RtError::type_mismatch(format!(
+                "expected Bytes, got {}",
                 other.type_name()
             ))),
         }

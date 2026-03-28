@@ -2,6 +2,7 @@ use std::ffi::c_void;
 use std::slice;
 
 use crate::array::RtArray;
+use crate::bytes::RtBytes;
 use crate::ffi_support::{
     boxed_array, boxed_string, boxed_struct, boxed_value, boxed_vec, clear_last_error, clone_value,
     ffi_try, invalid_argument, set_last_error,
@@ -155,6 +156,22 @@ pub extern "C" fn skp_rt_value_from_string(value: *mut RtString) -> *mut RtValue
 }
 
 #[no_mangle]
+pub extern "C" fn skp_rt_value_from_bytes(value: *mut RtBytes) -> *mut RtValue {
+    match ffi_try(|| {
+        if value.is_null() {
+            return Err(invalid_argument("bytes pointer must not be null"));
+        }
+        Ok(boxed_value(RtValue::Bytes(unsafe { (*value).clone() })))
+    }) {
+        Ok(value) => value,
+        Err(err) => {
+            set_last_error(err);
+            std::ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
 pub extern "C" fn skp_rt_value_from_array(value: *mut RtArray) -> *mut RtValue {
     match ffi_try(|| {
         if value.is_null() {
@@ -271,6 +288,22 @@ pub extern "C" fn skp_rt_value_to_float(value: *mut RtValue) -> f64 {
 #[no_mangle]
 pub extern "C" fn skp_rt_value_to_string(value: *mut RtValue) -> *mut RtString {
     match ffi_try(|| clone_value(value)?.expect_string().map(boxed_string)) {
+        Ok(value) => value,
+        Err(err) => {
+            set_last_error(err);
+            std::ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn skp_rt_value_to_bytes(value: *mut RtValue) -> *mut RtBytes {
+    match ffi_try(|| {
+        clone_value(value)?
+            .expect_bytes()
+            .map(Box::new)
+            .map(Box::into_raw)
+    }) {
         Ok(value) => value,
         Err(err) => {
             set_last_error(err);

@@ -226,6 +226,7 @@ pub enum TypeName {
     Float,
     Bool,
     String,
+    Bytes,
     Void,
     Named(String),
     Array {
@@ -668,6 +669,7 @@ impl TypeName {
             TypeName::Float => "Float".to_string(),
             TypeName::Bool => "Bool".to_string(),
             TypeName::String => "String".to_string(),
+            TypeName::Bytes => "Bytes".to_string(),
             TypeName::Void => "Void".to_string(),
             TypeName::Named(name) => name.clone(),
             TypeName::Array { elem, size } => format!("[{}; {}]", elem.as_str(), size),
