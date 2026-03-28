@@ -1459,6 +1459,40 @@ fn main() -> Int {{
 }
 
 #[test]
+fn codegen_reports_runtime_failure_for_non_utf8_net_reads() {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind loopback listener");
+    let addr = listener.local_addr().expect("listener addr");
+    let peer = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("accept client");
+        stream
+            .write_all(&[0xFF, 0xFE, 0xFD])
+            .expect("write invalid utf8");
+    });
+
+    let source = format!(
+        r#"
+import net;
+
+fn main() -> Int {{
+  let socket: net.Socket = net.connect("{addr}");
+  let _msg = net.read(socket);
+  net.close(socket);
+  return 0;
+}}
+"#
+    );
+
+    let result = common::native_run_structured(&source);
+    peer.join().expect("peer thread should finish");
+    assert_ne!(result.exit_code(), 0);
+    assert!(
+        result.stderr_lossy().contains("valid UTF-8"),
+        "expected utf8 runtime failure, got: {}",
+        result.stderr_lossy()
+    );
+}
+
+#[test]
 fn codegen_builds_native_project_entry_wrapper_executable() {
     let project = common::TempProject::new("project_native_runtime");
     project.file(
