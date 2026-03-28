@@ -2,8 +2,13 @@ use crate::builtins;
 use crate::ffi_support::{boxed_value, c_string, clone_value, ffi_try, set_last_error};
 use crate::host::NoopHost;
 use crate::value::RtValue;
+use std::cell::RefCell;
 use std::ffi::c_char;
 use std::slice;
+
+thread_local! {
+    static FFI_HOST: RefCell<NoopHost> = RefCell::new(NoopHost::default());
+}
 
 #[no_mangle]
 pub extern "C" fn skp_rt_call_builtin(
@@ -41,8 +46,10 @@ pub extern "C" fn skp_rt_call_builtin(
                 .map(|arg| clone_value(*arg))
                 .collect::<Result<Vec<_>, _>>()?
         };
-        let mut host = NoopHost::default();
-        builtins::call_with_host(&mut host, &package, &name, &args).map(boxed_value)
+        FFI_HOST.with(|host| {
+            builtins::call_with_host(&mut *host.borrow_mut(), &package, &name, &args)
+                .map(boxed_value)
+        })
     }) {
         Ok(value) => value,
         Err(err) => {

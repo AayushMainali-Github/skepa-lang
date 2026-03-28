@@ -76,6 +76,10 @@ const RUNTIME_DECLS: &[(&str, &str)] = &[
         "skp_rt_value_from_function",
         "declare ptr @skp_rt_value_from_function(ptr)",
     ),
+    (
+        "skp_rt_value_from_handle",
+        "declare ptr @skp_rt_value_from_handle(ptr)",
+    ),
     ("skp_rt_value_free", "declare void @skp_rt_value_free(ptr)"),
     (
         "skp_rt_value_to_int",
@@ -108,6 +112,10 @@ const RUNTIME_DECLS: &[(&str, &str)] = &[
     (
         "skp_rt_value_to_function",
         "declare ptr @skp_rt_value_to_function(ptr)",
+    ),
+    (
+        "skp_rt_value_to_handle",
+        "declare ptr @skp_rt_value_to_handle(ptr)",
     ),
     ("skp_rt_array_new", "declare ptr @skp_rt_array_new(i64)"),
     (

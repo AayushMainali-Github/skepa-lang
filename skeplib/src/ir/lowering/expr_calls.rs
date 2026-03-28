@@ -353,6 +353,15 @@ impl IrLowerer {
     }
 
     fn builtin_return_type(&self, package: &str, name: &str) -> Option<IrType> {
+        match (package, name) {
+            ("net", "__testSocket") | ("net", "connect") | ("net", "accept") => {
+                return Some(IrType::Opaque("net.Socket".to_string()));
+            }
+            ("net", "listen") => {
+                return Some(IrType::Opaque("net.Listener".to_string()));
+            }
+            _ => {}
+        }
         let spec = find_builtin_spec(package, name)?;
         Some(IrType::from(&spec.sig.ret))
     }

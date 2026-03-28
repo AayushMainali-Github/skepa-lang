@@ -32,7 +32,7 @@ pub(super) const SIGS: &[BuiltinSig] = &[
     BuiltinSig {
         package: "net",
         name: "accept",
-        params: STRING_PARAM,
+        params: OPAQUE_PARAM_SENTINEL,
         ret: TypeInfo::Unknown,
         kind: BuiltinKind::FixedArity,
     },

@@ -1,5 +1,8 @@
 use std::fs;
+use std::io::Read;
+use std::net::TcpListener;
 use std::process::Command;
+use std::thread;
 
 mod common;
 
@@ -261,6 +264,45 @@ fn main() -> Int {
         .expect("run skepac run");
 
     assert_eq!(output.status.code(), Some(55), "{:?}", output);
+}
+
+#[test]
+fn run_executes_net_client_program_on_loopback() {
+    let tmp = make_temp_dir("skepac_run_net_client");
+    let source = tmp.join("main.sk");
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind loopback listener");
+    let addr = listener.local_addr().expect("loopback addr");
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("accept client");
+        let mut buf = [0u8; 4];
+        stream.read_exact(&mut buf).expect("read client payload");
+        buf
+    });
+    fs::write(
+        &source,
+        format!(
+            r#"
+import net;
+
+fn main() -> Int {{
+  let client: net.Socket = net.connect("{addr}");
+  net.write(client, "ping");
+  net.close(client);
+  return 0;
+}}
+"#
+        ),
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("run")
+        .arg(&source)
+        .output()
+        .expect("run skepac run");
+
+    assert_eq!(output.status.code(), Some(0), "{:?}", output);
+    assert_eq!(server.join().expect("join server"), *b"ping");
 }
 
 #[test]

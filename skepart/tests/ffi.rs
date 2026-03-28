@@ -1,6 +1,6 @@
 use std::ffi::c_void;
 
-use skepart::{RtFunctionRef, RtValue};
+use skepart::{RtFunctionRef, RtHandle, RtHandleKind, RtValue};
 
 unsafe extern "C" {
     fn skp_rt_string_from_utf8(data: *const u8, len: i64) -> *mut c_void;
@@ -12,6 +12,8 @@ unsafe extern "C" {
     fn skp_rt_value_to_int(value: *mut c_void) -> i64;
     fn skp_rt_value_from_function(value: *mut c_void) -> *mut c_void;
     fn skp_rt_value_to_function(value: *mut c_void) -> *mut c_void;
+    fn skp_rt_value_from_handle(value: *mut c_void) -> *mut c_void;
+    fn skp_rt_value_to_handle(value: *mut c_void) -> *mut c_void;
     fn skp_rt_array_repeat(value: *mut c_void, size: i64) -> *mut c_void;
     fn skp_rt_array_get(array: *mut c_void, index: i64) -> *mut c_void;
     fn skp_rt_vec_new() -> *mut c_void;
@@ -81,6 +83,35 @@ fn ffi_function_and_container_surfaces_work() {
         unsafe { (*(got as *mut RtValue)).expect_int().expect("int") },
         5
     );
+
+    let raw_handle = Box::into_raw(Box::new(RtHandle {
+        id: 7,
+        kind: RtHandleKind::Socket,
+    })) as *mut c_void;
+    let handle_value = unsafe { skp_rt_value_from_handle(raw_handle) };
+    let roundtrip = unsafe { skp_rt_value_to_handle(handle_value) } as *mut RtHandle;
+    assert_eq!(
+        unsafe {
+            (*(handle_value as *mut RtValue))
+                .expect_handle()
+                .expect("handle")
+        },
+        RtHandle {
+            id: 7,
+            kind: RtHandleKind::Socket
+        }
+    );
+    assert_eq!(
+        unsafe { *roundtrip },
+        RtHandle {
+            id: 7,
+            kind: RtHandleKind::Socket
+        }
+    );
+    unsafe {
+        drop(Box::from_raw(raw_handle as *mut RtHandle));
+        drop(Box::from_raw(roundtrip));
+    }
 }
 
 #[test]
@@ -116,6 +147,29 @@ fn ffi_records_runtime_error_after_failed_builtin() {
     let _ = unsafe { skp_rt_call_builtin(pkg.as_ptr(), name.as_ptr(), 1, argv.as_ptr()) };
     assert_eq!(unsafe { skp_rt_last_error_kind() }, 3);
     unsafe { skp_rt_value_free(bad_arg) };
+}
+
+#[test]
+fn ffi_builtin_host_state_persists_for_net_handles() {
+    let pkg = c"net";
+    let make = c"__testSocket";
+    let close = c"close";
+    let socket = unsafe { skp_rt_call_builtin(pkg.as_ptr(), make.as_ptr(), 0, std::ptr::null()) };
+    assert!(matches!(
+        unsafe { (*(socket as *mut RtValue)).clone() },
+        RtValue::Handle(_)
+    ));
+    let argv = [socket];
+    let result = unsafe { skp_rt_call_builtin(pkg.as_ptr(), close.as_ptr(), 1, argv.as_ptr()) };
+    assert!(matches!(
+        unsafe { (*(result as *mut RtValue)).clone() },
+        RtValue::Unit
+    ));
+    assert_eq!(unsafe { skp_rt_last_error_kind() }, 0);
+    unsafe {
+        skp_rt_value_free(socket);
+        skp_rt_value_free(result);
+    }
 }
 
 #[test]

@@ -7,7 +7,7 @@ use crate::ffi_support::{
     ffi_try, invalid_argument, set_last_error,
 };
 use crate::string::RtString;
-use crate::value::{RtFunctionRef, RtStruct, RtValue};
+use crate::value::{RtFunctionRef, RtHandle, RtStruct, RtValue};
 use crate::vec::RtVec;
 
 #[no_mangle]
@@ -218,6 +218,24 @@ pub extern "C" fn skp_rt_value_from_function(value: *mut c_void) -> *mut RtValue
 }
 
 #[no_mangle]
+pub extern "C" fn skp_rt_value_from_handle(value: *mut c_void) -> *mut RtValue {
+    match ffi_try(|| {
+        if value.is_null() {
+            return Err(invalid_argument("handle pointer must not be null"));
+        }
+        Ok(boxed_value(RtValue::Handle(unsafe {
+            *(value as *mut RtHandle)
+        })))
+    }) {
+        Ok(value) => value,
+        Err(err) => {
+            set_last_error(err);
+            std::ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
 pub extern "C" fn skp_rt_value_to_int(value: *mut RtValue) -> i64 {
     match ffi_try(|| clone_value(value)?.expect_int()) {
         Ok(value) => value,
@@ -300,6 +318,21 @@ pub extern "C" fn skp_rt_value_to_function(value: *mut RtValue) -> *mut c_void {
         clone_value(value)?
             .expect_function()
             .map(|value| value.0 as *mut c_void)
+    }) {
+        Ok(value) => value,
+        Err(err) => {
+            set_last_error(err);
+            std::ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn skp_rt_value_to_handle(value: *mut RtValue) -> *mut c_void {
+    match ffi_try(|| {
+        clone_value(value)?
+            .expect_handle()
+            .map(|value| Box::into_raw(Box::new(value)) as *mut c_void)
     }) {
         Ok(value) => value,
         Err(err) => {
