@@ -219,6 +219,124 @@ fn builtins_enforce_net_close_lifetime_rules() {
 }
 
 #[test]
+fn builtins_surface_net_runtime_errors_consistently() {
+    let mut failing_listen = RecordingHostBuilder::seeded()
+        .net_listen_error("bad listen address")
+        .build();
+    assert_eq!(
+        builtins::call_with_host(
+            &mut failing_listen,
+            "net",
+            "listen",
+            &[RtValue::String(RtString::from("bad"))],
+        )
+        .expect_err("listen failure should surface")
+        .kind,
+        RtErrorKind::Io
+    );
+
+    let mut failing_connect = RecordingHostBuilder::seeded()
+        .net_connect_error("connect failed")
+        .build();
+    assert_eq!(
+        builtins::call_with_host(
+            &mut failing_connect,
+            "net",
+            "connect",
+            &[RtValue::String(RtString::from("127.0.0.1:1"))],
+        )
+        .expect_err("connect failure should surface")
+        .kind,
+        RtErrorKind::Io
+    );
+
+    let mut failing_read = RecordingHostBuilder::seeded()
+        .net_read_error("read failed")
+        .build();
+    let socket = builtins::call_with_host(&mut failing_read, "net", "__testSocket", &[])
+        .expect("allocate socket");
+    assert_eq!(
+        builtins::call_with_host(
+            &mut failing_read,
+            "net",
+            "read",
+            std::slice::from_ref(&socket)
+        )
+        .expect_err("read failure should surface")
+        .kind,
+        RtErrorKind::Io
+    );
+
+    let mut failing_write = RecordingHostBuilder::seeded()
+        .net_write_error("write failed")
+        .build();
+    let socket = builtins::call_with_host(&mut failing_write, "net", "__testSocket", &[])
+        .expect("allocate socket");
+    assert_eq!(
+        builtins::call_with_host(
+            &mut failing_write,
+            "net",
+            "write",
+            &[socket, RtValue::String(RtString::from("ping"))],
+        )
+        .expect_err("write failure should surface")
+        .kind,
+        RtErrorKind::Io
+    );
+}
+
+#[test]
+fn builtins_reject_wrong_or_closed_net_handles_for_io() {
+    let mut host = RecordingHostBuilder::seeded().build();
+    let listener = builtins::call_with_host(
+        &mut host,
+        "net",
+        "listen",
+        &[RtValue::String(RtString::from("127.0.0.1:0"))],
+    )
+    .expect("listener");
+    let socket = builtins::call_with_host(&mut host, "net", "__testSocket", &[]).expect("socket");
+
+    assert_eq!(
+        builtins::call_with_host(&mut host, "net", "read", std::slice::from_ref(&listener))
+            .expect_err("listener passed to read should fail")
+            .kind,
+        RtErrorKind::InvalidArgument
+    );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "net",
+            "write",
+            &[listener.clone(), RtValue::String(RtString::from("ping"))],
+        )
+        .expect_err("listener passed to write should fail")
+        .kind,
+        RtErrorKind::InvalidArgument
+    );
+
+    builtins::call_with_host(&mut host, "net", "close", std::slice::from_ref(&socket))
+        .expect("close socket");
+    assert_eq!(
+        builtins::call_with_host(&mut host, "net", "read", std::slice::from_ref(&socket))
+            .expect_err("closed socket read should fail")
+            .kind,
+        RtErrorKind::InvalidArgument
+    );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "net",
+            "write",
+            &[socket, RtValue::String(RtString::from("ping"))],
+        )
+        .expect_err("closed socket write should fail")
+        .kind,
+        RtErrorKind::InvalidArgument
+    );
+}
+
+#[test]
 fn builtins_cover_more_io_arr_and_vec_edge_shapes() {
     let mut host = RecordingHostBuilder::seeded().build();
     assert_eq!(

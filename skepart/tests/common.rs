@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use skepart::{RtHandle, RtHandleKind, RtHost, RtResult, RtString};
+use skepart::{RtError, RtHandle, RtHandleKind, RtHost, RtResult, RtString};
 
 #[derive(Default)]
 pub struct RecordingHost {
@@ -19,6 +19,11 @@ pub struct RecordingHost {
     pub exec_out: String,
     pub exec_argv: Vec<String>,
     pub net_read_value: String,
+    pub net_listen_error: Option<String>,
+    pub net_connect_error: Option<String>,
+    pub net_accept_error: Option<String>,
+    pub net_read_error: Option<String>,
+    pub net_write_error: Option<String>,
     pub next_handle_id: usize,
     pub net_handles: HashMap<usize, RtHandleKind>,
     pub env: HashMap<String, String>,
@@ -124,6 +129,31 @@ impl RecordingHostBuilder {
 
     pub fn net_read_value(mut self, value: impl Into<String>) -> Self {
         self.host.net_read_value = value.into();
+        self
+    }
+
+    pub fn net_listen_error(mut self, value: impl Into<String>) -> Self {
+        self.host.net_listen_error = Some(value.into());
+        self
+    }
+
+    pub fn net_connect_error(mut self, value: impl Into<String>) -> Self {
+        self.host.net_connect_error = Some(value.into());
+        self
+    }
+
+    pub fn net_accept_error(mut self, value: impl Into<String>) -> Self {
+        self.host.net_accept_error = Some(value.into());
+        self
+    }
+
+    pub fn net_read_error(mut self, value: impl Into<String>) -> Self {
+        self.host.net_read_error = Some(value.into());
+        self
+    }
+
+    pub fn net_write_error(mut self, value: impl Into<String>) -> Self {
+        self.host.net_write_error = Some(value.into());
         self
     }
 
@@ -377,25 +407,40 @@ impl RtHost for RecordingHost {
     }
 
     fn net_listen(&mut self, _address: &str) -> RtResult<RtHandle> {
+        if let Some(message) = &self.net_listen_error {
+            return Err(RtError::io(message.clone()));
+        }
         self.net_alloc_handle(RtHandleKind::Listener)
     }
 
     fn net_connect(&mut self, _address: &str) -> RtResult<RtHandle> {
+        if let Some(message) = &self.net_connect_error {
+            return Err(RtError::io(message.clone()));
+        }
         self.net_alloc_handle(RtHandleKind::Socket)
     }
 
     fn net_accept(&mut self, listener: RtHandle) -> RtResult<RtHandle> {
+        if let Some(message) = &self.net_accept_error {
+            return Err(RtError::io(message.clone()));
+        }
         self.net_lookup_handle_kind(listener)?;
         self.net_alloc_handle(RtHandleKind::Socket)
     }
 
     fn net_read(&mut self, socket: RtHandle) -> RtResult<RtString> {
+        if let Some(message) = &self.net_read_error {
+            return Err(RtError::io(message.clone()));
+        }
         self.net_lookup_handle_kind(socket)?;
         self.output.push_str(&format!("[netread {}]", socket.id));
         Ok(RtString::from(self.net_read_value.clone()))
     }
 
     fn net_write(&mut self, socket: RtHandle, data: &str) -> RtResult<()> {
+        if let Some(message) = &self.net_write_error {
+            return Err(RtError::io(message.clone()));
+        }
         self.net_lookup_handle_kind(socket)?;
         self.output
             .push_str(&format!("[netwrite {}={data}]", socket.id));

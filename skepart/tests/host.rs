@@ -234,3 +234,59 @@ fn noop_host_rejects_using_socket_handle_as_listener_handle() {
         skepart::RtErrorKind::InvalidArgument
     );
 }
+
+#[test]
+fn noop_host_supports_loopback_connect_accept_write_and_read() {
+    let mut host = NoopHost::default();
+    let listener = host.net_listen("127.0.0.1:0").expect("listen");
+    let addr = host
+        .net_tcp_listener(listener)
+        .expect("listener lookup")
+        .local_addr()
+        .expect("listener addr");
+
+    let client = host
+        .net_connect(&addr.to_string())
+        .expect("connect client socket");
+    let server = host.net_accept(listener).expect("accept server socket");
+
+    host.net_write(server, "ping")
+        .expect("write server->client");
+    assert_eq!(
+        host.net_read(client).expect("read client"),
+        RtString::from("ping")
+    );
+
+    host.net_close_handle(server).expect("close server");
+    host.net_close_handle(client).expect("close client");
+    host.net_close_handle(listener).expect("close listener");
+}
+
+#[test]
+fn noop_host_surfaces_invalid_address_and_closed_socket_errors() {
+    let mut host = NoopHost::default();
+    assert_eq!(
+        host.net_connect("not-a-valid-address")
+            .expect_err("invalid address should fail")
+            .kind,
+        skepart::RtErrorKind::Io
+    );
+
+    let socket = host
+        .net_alloc_handle(RtHandleKind::Socket)
+        .expect("allocate placeholder socket");
+    host.net_close_handle(socket)
+        .expect("close placeholder socket");
+    assert_eq!(
+        host.net_read(socket)
+            .expect_err("closed socket read should fail")
+            .kind,
+        skepart::RtErrorKind::InvalidArgument
+    );
+    assert_eq!(
+        host.net_write(socket, "ping")
+            .expect_err("closed socket write should fail")
+            .kind,
+        skepart::RtErrorKind::InvalidArgument
+    );
+}
