@@ -188,6 +188,49 @@ fn builtins_map_host_backed_results_consistently() {
 }
 
 #[test]
+fn builtins_preserve_net_handle_kinds_across_connect_listen_and_accept() {
+    let mut host = RecordingHostBuilder::seeded().build();
+
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "net",
+            "connect",
+            &[RtValue::String(RtString::from("127.0.0.1:8080"))],
+        )
+        .expect("connect should return socket"),
+        RtValue::Handle(skepart::RtHandle {
+            id: 0,
+            kind: skepart::RtHandleKind::Socket,
+        })
+    );
+
+    let listener = builtins::call_with_host(
+        &mut host,
+        "net",
+        "listen",
+        &[RtValue::String(RtString::from("127.0.0.1:0"))],
+    )
+    .expect("listen should return listener");
+    assert_eq!(
+        listener,
+        RtValue::Handle(skepart::RtHandle {
+            id: 1,
+            kind: skepart::RtHandleKind::Listener,
+        })
+    );
+
+    assert_eq!(
+        builtins::call_with_host(&mut host, "net", "accept", &[listener])
+            .expect("accept should return socket"),
+        RtValue::Handle(skepart::RtHandle {
+            id: 2,
+            kind: skepart::RtHandleKind::Socket,
+        })
+    );
+}
+
+#[test]
 fn builtins_enforce_net_close_lifetime_rules() {
     let mut host = RecordingHostBuilder::seeded().build();
     let socket = builtins::call_with_host(&mut host, "net", "__testSocket", &[])
@@ -332,6 +375,40 @@ fn builtins_reject_wrong_or_closed_net_handles_for_io() {
         )
         .expect_err("closed socket write should fail")
         .kind,
+        RtErrorKind::InvalidArgument
+    );
+}
+
+#[test]
+fn builtins_reject_wrong_or_closed_net_handles_for_accept() {
+    let mut host = RecordingHostBuilder::seeded().build();
+    let socket = builtins::call_with_host(&mut host, "net", "__testSocket", &[]).expect("socket");
+    let listener = builtins::call_with_host(
+        &mut host,
+        "net",
+        "listen",
+        &[RtValue::String(RtString::from("127.0.0.1:0"))],
+    )
+    .expect("listener");
+
+    assert_eq!(
+        builtins::call_with_host(&mut host, "net", "accept", std::slice::from_ref(&socket))
+            .expect_err("socket passed to accept should fail")
+            .kind,
+        RtErrorKind::InvalidArgument
+    );
+
+    builtins::call_with_host(
+        &mut host,
+        "net",
+        "closeListener",
+        std::slice::from_ref(&listener),
+    )
+    .expect("close listener");
+    assert_eq!(
+        builtins::call_with_host(&mut host, "net", "accept", std::slice::from_ref(&listener))
+            .expect_err("closed listener passed to accept should fail")
+            .kind,
         RtErrorKind::InvalidArgument
     );
 }
