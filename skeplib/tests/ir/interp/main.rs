@@ -141,6 +141,16 @@ impl RtHost for TestHost {
         self.net_lookup_handle_kind(listener)?;
         self.net_alloc_handle(RtHandleKind::Socket)
     }
+
+    fn net_read(&mut self, socket: skepart::RtHandle) -> RtResult<RtString> {
+        self.net_lookup_handle_kind(socket)?;
+        Ok(RtString::from("net-read"))
+    }
+
+    fn net_write(&mut self, socket: skepart::RtHandle, _data: &str) -> RtResult<()> {
+        self.net_lookup_handle_kind(socket)?;
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -757,6 +767,8 @@ fn main() -> Int {
   let listener: net.Listener = net.listen("127.0.0.1:0");
   let server: net.Socket = net.accept(listener);
   let client: net.Socket = net.connect("127.0.0.1:8080");
+  let msg = net.read(server);
+  net.write(client, msg);
   net.close(server);
   net.close(client);
   net.closeListener(listener);

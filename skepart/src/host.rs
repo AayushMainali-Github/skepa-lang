@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::fs;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::process::Command;
@@ -276,6 +276,14 @@ pub trait RtHost {
 
     fn net_accept(&mut self, _listener: RtHandle) -> RtResult<RtHandle> {
         Err(RtError::unsupported_builtin("net.accept"))
+    }
+
+    fn net_read(&mut self, _socket: RtHandle) -> RtResult<RtString> {
+        Err(RtError::unsupported_builtin("net.read"))
+    }
+
+    fn net_write(&mut self, _socket: RtHandle, _data: &str) -> RtResult<()> {
+        Err(RtError::unsupported_builtin("net.write"))
     }
 }
 
@@ -569,6 +577,28 @@ impl RtHost for NoopHost {
             stream
         };
         self.net_store_tcp_stream(stream)
+    }
+
+    fn net_read(&mut self, socket: RtHandle) -> RtResult<RtString> {
+        let mut buf = [0_u8; 4096];
+        let bytes = self
+            .net_tcp_stream(socket)?
+            .read(&mut buf)
+            .map_err(|err| RtError::io(err.to_string()))?;
+        String::from_utf8(buf[..bytes].to_vec())
+            .map(RtString::from)
+            .map_err(|_| {
+                RtError::new(
+                    RtErrorKind::InvalidArgument,
+                    "net.read expected valid UTF-8 data",
+                )
+            })
+    }
+
+    fn net_write(&mut self, socket: RtHandle, data: &str) -> RtResult<()> {
+        self.net_tcp_stream(socket)?
+            .write_all(data.as_bytes())
+            .map_err(|err| RtError::io(err.to_string()))
     }
 }
 

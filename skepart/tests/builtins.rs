@@ -115,6 +115,35 @@ fn builtins_map_host_backed_results_consistently() {
         builtins::call_with_host(
             &mut host,
             "net",
+            "read",
+            &[RtValue::Handle(skepart::RtHandle {
+                id: 0,
+                kind: skepart::RtHandleKind::Socket,
+            })],
+        )
+        .expect("net read"),
+        RtValue::String(RtString::from("net-read"))
+    );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "net",
+            "write",
+            &[
+                RtValue::Handle(skepart::RtHandle {
+                    id: 0,
+                    kind: skepart::RtHandleKind::Socket,
+                }),
+                RtValue::String(RtString::from("ping")),
+            ],
+        )
+        .expect("net write"),
+        RtValue::Unit
+    );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "net",
             "close",
             &[RtValue::Handle(skepart::RtHandle {
                 id: 0,
@@ -150,6 +179,11 @@ fn builtins_map_host_backed_results_consistently() {
         .expect_err("double close should fail")
         .kind,
         RtErrorKind::InvalidArgument
+    );
+    assert!(
+        host.output.contains("[netread 0]") && host.output.contains("[netwrite 0=ping]"),
+        "unexpected host output: {}",
+        host.output
     );
 }
 

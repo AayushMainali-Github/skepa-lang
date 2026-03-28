@@ -18,6 +18,7 @@ pub struct RecordingHost {
     pub exec_status: i64,
     pub exec_out: String,
     pub exec_argv: Vec<String>,
+    pub net_read_value: String,
     pub next_handle_id: usize,
     pub net_handles: HashMap<usize, RtHandleKind>,
     pub env: HashMap<String, String>,
@@ -39,6 +40,7 @@ impl RecordingHost {
             exec_status: 9,
             exec_out: "exec-out".into(),
             exec_argv: Vec::new(),
+            net_read_value: "net-read".into(),
             next_handle_id: 0,
             net_handles: HashMap::new(),
             env: HashMap::from([(String::from("HOME"), String::from("/tmp/home"))]),
@@ -117,6 +119,11 @@ impl RecordingHostBuilder {
 
     pub fn exec_argv(mut self, values: impl IntoIterator<Item = impl Into<String>>) -> Self {
         self.host.exec_argv = values.into_iter().map(Into::into).collect();
+        self
+    }
+
+    pub fn net_read_value(mut self, value: impl Into<String>) -> Self {
+        self.host.net_read_value = value.into();
         self
     }
 
@@ -380,5 +387,18 @@ impl RtHost for RecordingHost {
     fn net_accept(&mut self, listener: RtHandle) -> RtResult<RtHandle> {
         self.net_lookup_handle_kind(listener)?;
         self.net_alloc_handle(RtHandleKind::Socket)
+    }
+
+    fn net_read(&mut self, socket: RtHandle) -> RtResult<RtString> {
+        self.net_lookup_handle_kind(socket)?;
+        self.output.push_str(&format!("[netread {}]", socket.id));
+        Ok(RtString::from(self.net_read_value.clone()))
+    }
+
+    fn net_write(&mut self, socket: RtHandle, data: &str) -> RtResult<()> {
+        self.net_lookup_handle_kind(socket)?;
+        self.output
+            .push_str(&format!("[netwrite {}={data}]", socket.id));
+        Ok(())
     }
 }

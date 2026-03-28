@@ -18,6 +18,15 @@ pub fn accept(host: &mut dyn RtHost, listener: crate::RtHandle) -> RtResult<RtVa
     Ok(RtValue::Handle(host.net_accept(listener)?))
 }
 
+pub fn read(host: &mut dyn RtHost, socket: crate::RtHandle) -> RtResult<RtValue> {
+    Ok(RtValue::String(host.net_read(socket)?))
+}
+
+pub fn write(host: &mut dyn RtHost, socket: crate::RtHandle, data: &str) -> RtResult<RtValue> {
+    host.net_write(socket, data)?;
+    Ok(RtValue::Unit)
+}
+
 pub fn close(host: &mut dyn RtHost, socket: crate::RtHandle) -> RtResult<RtValue> {
     host.net_close_handle(socket)?;
     Ok(RtValue::Unit)

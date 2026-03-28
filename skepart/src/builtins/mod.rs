@@ -142,6 +142,15 @@ pub fn call_with_host(
             host,
             listener.expect_handle_kind(crate::RtHandleKind::Listener)?,
         ),
+        ("net", "read", [socket]) => net::read(
+            host,
+            socket.expect_handle_kind(crate::RtHandleKind::Socket)?,
+        ),
+        ("net", "write", [socket, data]) => net::write(
+            host,
+            socket.expect_handle_kind(crate::RtHandleKind::Socket)?,
+            data.expect_string()?.as_str(),
+        ),
         ("net", "close", [socket]) => net::close(
             host,
             socket.expect_handle_kind(crate::RtHandleKind::Socket)?,
