@@ -1,3 +1,5 @@
+use std::sync::{Arc, Mutex};
+
 use skepart::{RtHandleKind, RtHost, RtResult, RtString};
 use skeplib::ir::{
     self, BasicBlock, BlockId, FunctionId, Instr, IrFunction, IrInterpError, IrInterpreter,
@@ -9,12 +11,13 @@ mod common;
 
 #[derive(Default)]
 struct TestHost {
-    out: String,
+    out: Arc<Mutex<String>>,
+    next_handle_id: usize,
 }
 
 impl RtHost for TestHost {
     fn io_print(&mut self, text: &str) -> RtResult<()> {
-        self.out.push_str(text);
+        self.out.lock().expect("lock trace").push_str(text);
         Ok(())
     }
 
@@ -130,26 +133,74 @@ impl RtHost for TestHost {
     }
 
     fn net_listen(&mut self, _address: &str) -> RtResult<skepart::RtHandle> {
-        self.net_alloc_handle(RtHandleKind::Listener)
+        let handle = self.net_alloc_handle(RtHandleKind::Listener)?;
+        self.out
+            .lock()
+            .expect("lock trace")
+            .push_str(&format!("[listen {}]", handle.id));
+        Ok(handle)
     }
 
     fn net_connect(&mut self, _address: &str) -> RtResult<skepart::RtHandle> {
-        self.net_alloc_handle(RtHandleKind::Socket)
+        let handle = self.net_alloc_handle(RtHandleKind::Socket)?;
+        self.out
+            .lock()
+            .expect("lock trace")
+            .push_str(&format!("[connect {}]", handle.id));
+        Ok(handle)
     }
 
     fn net_accept(&mut self, listener: skepart::RtHandle) -> RtResult<skepart::RtHandle> {
         self.net_lookup_handle_kind(listener)?;
-        self.net_alloc_handle(RtHandleKind::Socket)
+        let handle = self.net_alloc_handle(RtHandleKind::Socket)?;
+        self.out
+            .lock()
+            .expect("lock trace")
+            .push_str(&format!("[accept {}->{}]", listener.id, handle.id));
+        Ok(handle)
     }
 
     fn net_read(&mut self, socket: skepart::RtHandle) -> RtResult<RtString> {
         self.net_lookup_handle_kind(socket)?;
+        self.out
+            .lock()
+            .expect("lock trace")
+            .push_str(&format!("[read {}]", socket.id));
         Ok(RtString::from("net-read"))
     }
 
-    fn net_write(&mut self, socket: skepart::RtHandle, _data: &str) -> RtResult<()> {
+    fn net_write(&mut self, socket: skepart::RtHandle, data: &str) -> RtResult<()> {
         self.net_lookup_handle_kind(socket)?;
+        self.out
+            .lock()
+            .expect("lock trace")
+            .push_str(&format!("[write {}={data}]", socket.id));
         Ok(())
+    }
+
+    fn net_close_handle(&mut self, handle: skepart::RtHandle) -> RtResult<()> {
+        self.net_lookup_handle_kind(handle)?;
+        self.out
+            .lock()
+            .expect("lock trace")
+            .push_str(&format!("[close {}]", handle.id));
+        Ok(())
+    }
+
+    fn net_alloc_handle(&mut self, kind: RtHandleKind) -> RtResult<skepart::RtHandle> {
+        let handle = skepart::RtHandle {
+            id: self.next_handle_id,
+            kind,
+        };
+        self.next_handle_id += 1;
+        Ok(handle)
+    }
+
+    fn net_lookup_handle_kind(
+        &mut self,
+        handle: skepart::RtHandle,
+    ) -> RtResult<skepart::RtHandleKind> {
+        Ok(handle.kind)
     }
 }
 
@@ -777,10 +828,19 @@ fn main() -> Int {
 "#;
 
     let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
-    let value = IrInterpreter::with_host(&program, Box::new(TestHost::default()))
+    let trace = Arc::new(Mutex::new(String::new()));
+    let host = TestHost {
+        out: Arc::clone(&trace),
+        next_handle_id: 0,
+    };
+    let value = IrInterpreter::with_host(&program, Box::new(host))
         .run_main()
         .expect("IR interpreter should run source with net handles");
     assert_eq!(value, IrValue::Int(0));
+    assert_eq!(
+        trace.lock().expect("lock trace").as_str(),
+        "[listen 0][accept 0->1][connect 2][read 1][write 2=net-read][close 1][close 2][close 0]"
+    );
 }
 
 #[test]
