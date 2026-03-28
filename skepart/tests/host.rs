@@ -236,6 +236,21 @@ fn noop_host_rejects_using_socket_handle_as_listener_handle() {
 }
 
 #[test]
+fn noop_host_rejects_using_listener_handle_as_socket_handle() {
+    let mut host = NoopHost::default();
+    let listener = host
+        .net_alloc_handle(RtHandleKind::Listener)
+        .expect("allocate listener");
+
+    assert_eq!(
+        host.net_tcp_stream(listener)
+            .expect_err("wrong handle kind should fail")
+            .kind,
+        skepart::RtErrorKind::InvalidArgument
+    );
+}
+
+#[test]
 fn noop_host_supports_loopback_connect_accept_write_and_read() {
     let mut host = NoopHost::default();
     let listener = host.net_listen("127.0.0.1:0").expect("listen");
