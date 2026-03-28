@@ -993,6 +993,24 @@ fn main() -> Void {
 }
 
 #[test]
+fn sema_rejects_net_connect_argument_type_mismatch() {
+    let src = r#"
+import net;
+
+fn main() -> Void {
+  let _x = net.connect(1);
+  return;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("net.connect argument 1 expects String")
+    }));
+}
+
+#[test]
 fn sema_rejects_net_close_type_mismatch() {
     let src = r#"
 import net;
@@ -1071,6 +1089,71 @@ fn main() -> Void {
         d.message
             .contains("net.closeListener argument 1 expects Opaque(\"net.Listener\")")
     }));
+}
+
+#[test]
+fn sema_rejects_net_usage_without_import() {
+    let src = r#"
+fn main() -> Void {
+  let _x = net.connect("127.0.0.1:1");
+  return;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("`net.*` used without `import net;`"))
+    );
+}
+
+#[test]
+fn sema_rejects_net_connect_assignment_type_mismatch() {
+    let src = r#"
+import net;
+
+fn main() -> Void {
+  let l: net.Listener = net.connect("127.0.0.1:1");
+  return;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Type mismatch in let `l`"))
+    );
+}
+
+#[test]
+fn sema_rejects_unknown_net_builtin_names() {
+    let src = r#"
+import net;
+
+fn main() -> Void {
+  let _a = net.socket();
+  let _b = net.exec("127.0.0.1:1");
+  return;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Unknown builtin `net.socket`"))
+    );
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Unknown builtin `net.exec`"))
+    );
 }
 
 #[test]
