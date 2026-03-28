@@ -32,6 +32,42 @@ pub(super) fn check_net_builtin(
             }
             TypeInfo::Opaque("net.Socket".to_string())
         }
+        "close" => {
+            if args.len() != 1 {
+                checker.error(format!(
+                    "net.close expects 1 argument(s), got {}",
+                    args.len()
+                ));
+                return TypeInfo::Unknown;
+            }
+            let got = checker.check_expr(&args[0], scopes);
+            let expected = TypeInfo::Opaque("net.Socket".to_string());
+            if got != TypeInfo::Unknown && got != expected {
+                checker.error(format!(
+                    "net.close argument 1 expects {:?}, got {:?}",
+                    expected, got
+                ));
+            }
+            TypeInfo::Void
+        }
+        "closeListener" => {
+            if args.len() != 1 {
+                checker.error(format!(
+                    "net.closeListener expects 1 argument(s), got {}",
+                    args.len()
+                ));
+                return TypeInfo::Unknown;
+            }
+            let got = checker.check_expr(&args[0], scopes);
+            let expected = TypeInfo::Opaque("net.Listener".to_string());
+            if got != TypeInfo::Unknown && got != expected {
+                checker.error(format!(
+                    "net.closeListener argument 1 expects {:?}, got {:?}",
+                    expected, got
+                ));
+            }
+            TypeInfo::Void
+        }
         "__testSocket" | "listen" | "connect" => {
             checker.check_fixed_arity_builtin("net", method, args, scopes, sig);
             match method {

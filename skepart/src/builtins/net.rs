@@ -17,3 +17,13 @@ pub fn connect(host: &mut dyn RtHost, address: &str) -> RtResult<RtValue> {
 pub fn accept(host: &mut dyn RtHost, listener: crate::RtHandle) -> RtResult<RtValue> {
     Ok(RtValue::Handle(host.net_accept(listener)?))
 }
+
+pub fn close(host: &mut dyn RtHost, socket: crate::RtHandle) -> RtResult<RtValue> {
+    host.net_close_handle(socket)?;
+    Ok(RtValue::Unit)
+}
+
+pub fn close_listener(host: &mut dyn RtHost, listener: crate::RtHandle) -> RtResult<RtValue> {
+    host.net_close_handle(listener)?;
+    Ok(RtValue::Unit)
+}

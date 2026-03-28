@@ -757,6 +757,9 @@ fn main() -> Int {
   let listener: net.Listener = net.listen("127.0.0.1:0");
   let server: net.Socket = net.accept(listener);
   let client: net.Socket = net.connect("127.0.0.1:8080");
+  net.close(server);
+  net.close(client);
+  net.closeListener(listener);
   return 0;
 }
 "#;

@@ -111,6 +111,32 @@ fn builtins_map_host_backed_results_consistently() {
             kind: skepart::RtHandleKind::Listener,
         })
     );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "net",
+            "close",
+            &[RtValue::Handle(skepart::RtHandle {
+                id: 0,
+                kind: skepart::RtHandleKind::Socket,
+            })],
+        )
+        .expect("net close"),
+        RtValue::Unit
+    );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "net",
+            "closeListener",
+            &[RtValue::Handle(skepart::RtHandle {
+                id: 1,
+                kind: skepart::RtHandleKind::Listener,
+            })],
+        )
+        .expect("net closeListener"),
+        RtValue::Unit
+    );
 }
 
 #[test]
