@@ -585,6 +585,7 @@ impl RtHost for NoopHost {
             .net_tcp_stream(socket)?
             .read(&mut buf)
             .map_err(|err| RtError::io(err.to_string()))?;
+        // `net` is intentionally text-first for now; binary payloads will need a future bytes API.
         String::from_utf8(buf[..bytes].to_vec())
             .map(RtString::from)
             .map_err(|_| {

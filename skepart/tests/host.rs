@@ -290,3 +290,30 @@ fn noop_host_surfaces_invalid_address_and_closed_socket_errors() {
         skepart::RtErrorKind::InvalidArgument
     );
 }
+
+#[test]
+fn noop_host_rejects_non_utf8_net_reads() {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind loopback listener");
+    let addr = listener.local_addr().expect("listener addr");
+    let peer = std::thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("accept client");
+        stream
+            .write_all(&[0xFF, 0xFE, 0xFD])
+            .expect("write invalid utf8");
+    });
+
+    let mut host = NoopHost::default();
+    let client = host
+        .net_connect(&addr.to_string())
+        .expect("connect client socket");
+
+    let err = host.net_read(client).expect_err("invalid utf8 should fail");
+    assert_eq!(err.kind, skepart::RtErrorKind::InvalidArgument);
+    assert!(
+        err.message.contains("valid UTF-8"),
+        "unexpected error: {err:?}"
+    );
+
+    peer.join().expect("peer thread should finish");
+    host.net_close_handle(client).expect("close client");
+}
