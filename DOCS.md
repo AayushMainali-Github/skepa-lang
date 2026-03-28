@@ -221,7 +221,7 @@ These are available through namespace paths (`string.case.up(...)`).
 - Wildcard imports can conflict with prior bindings; conflict is an error.
 - Export target names collide after aliasing, not before.
 - If same target name appears from multiple export blocks, it is an error.
-- Builtin package names (`io`, `str`, `arr`, `datetime`, `random`, `os`, `fs`, `vec`) are reserved package roots.
+- Builtin package names (`io`, `str`, `arr`, `datetime`, `random`, `os`, `fs`, `net`, `vec`) are reserved package roots.
 - `import ns; ns.f(...)` works only when `f` is exported exactly under that namespace level. Example: `import string; string.toUpper(...)` is invalid if only `string.case.toUpper` exists.
 
 ## 5. Operators
@@ -350,6 +350,7 @@ Behavior:
 - `random`: deterministic seed + random int/float
 - `os`: host/process helpers (`platform`, `arch`, `arg`, `envHas`, `envGet`, `envSet`, `envRemove`, `sleep`, `exit`, `exec`, `execOut`)
 - `fs`: basic filesystem helpers (`exists`, `readText`, `writeText`, `appendText`, `mkdirAll`, `removeFile`, `removeDirAll`, `join`)
+- `net`: blocking TCP helpers with opaque handle types (`net.Socket`, `net.Listener`)
 - `vec`: runtime-sized vector helpers (`new`, `len`, `push`, `get`, `set`, `delete`)
 
 ### 8.1 General Rules
@@ -527,7 +528,77 @@ Notes:
 - `fs.readText` raises a runtime error on read failure or invalid UTF-8.
 - `fs.removeFile` / `fs.removeDirAll` raise runtime errors for missing paths.
 
-### 8.9 `vec`
+### 8.9 `net`
+
+Opaque types:
+- `net.Socket`
+- `net.Listener`
+
+Signatures:
+- `net.connect(address: String) -> net.Socket`
+- `net.listen(address: String) -> net.Listener`
+- `net.accept(listener: net.Listener) -> net.Socket`
+- `net.read(socket: net.Socket) -> String`
+- `net.write(socket: net.Socket, data: String) -> Void`
+- `net.close(socket: net.Socket) -> Void`
+- `net.closeListener(listener: net.Listener) -> Void`
+
+Behavior:
+- All `net` functions are synchronous/blocking.
+- `net.connect(address)` opens a blocking TCP client connection.
+- `net.listen(address)` binds a blocking TCP listener. Using port `0` lets the OS choose an ephemeral port.
+- `net.accept(listener)` blocks until a client connects, then returns a new `net.Socket`.
+- `net.read(socket)` performs a single blocking read of up to 4096 bytes and returns a `String`.
+- `net.write(socket, data)` writes the UTF-8 bytes of `data` to the socket.
+- `net.close(socket)` closes a socket handle.
+- `net.closeListener(listener)` closes a listener handle.
+
+Handle semantics:
+- `net.Socket` and `net.Listener` are opaque builtin handle types, not structs.
+- Users cannot construct or inspect these types directly.
+- Handle assignment/pass/return aliases the same underlying resource; it does not duplicate the socket/listener.
+- Closing one alias closes the shared underlying resource for all aliases.
+
+Notes:
+- `net` v1 is text-oriented, not byte-oriented.
+- `net.read` requires valid UTF-8. Non-UTF-8 payloads raise a runtime error.
+- `net.read` is not a read-to-EOF helper; it returns one chunk from a single read call.
+- Passing the wrong handle kind to a builtin raises a runtime error.
+- Using a closed handle raises a runtime error.
+- Double-close raises a runtime error.
+- Address parse/bind/connect/read/write failures raise runtime errors.
+- Resources are also cleaned up when the process/runtime exits, but explicit close is still the intended ownership model.
+
+Examples:
+
+Client:
+```sk
+import net;
+
+fn main() -> Int {
+  let socket: net.Socket = net.connect("127.0.0.1:8080");
+  net.write(socket, "ping");
+  net.close(socket);
+  return 0;
+}
+```
+
+Server:
+```sk
+import net;
+
+fn main() -> Int {
+  let listener: net.Listener = net.listen("127.0.0.1:8080");
+  let socket: net.Socket = net.accept(listener);
+  let req = net.read(socket);
+  net.write(socket, "ok");
+  net.close(socket);
+  net.closeListener(listener);
+  return 0;
+}
+```
+
+### 8.10 `vec`
 
 Signatures:
 - `vec.new() -> Vec[T]` (typed context required)
