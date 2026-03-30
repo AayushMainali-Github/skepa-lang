@@ -196,6 +196,24 @@ impl RtHost for TestHost {
         Ok(())
     }
 
+    fn net_local_addr(&mut self, socket: skepart::RtHandle) -> RtResult<RtString> {
+        self.net_lookup_handle_kind(socket)?;
+        self.out
+            .lock()
+            .expect("lock trace")
+            .push_str(&format!("[localaddr {}]", socket.id));
+        Ok(RtString::from("127.0.0.1:3000"))
+    }
+
+    fn net_peer_addr(&mut self, socket: skepart::RtHandle) -> RtResult<RtString> {
+        self.net_lookup_handle_kind(socket)?;
+        self.out
+            .lock()
+            .expect("lock trace")
+            .push_str(&format!("[peeraddr {}]", socket.id));
+        Ok(RtString::from("127.0.0.1:4000"))
+    }
+
     fn net_close_handle(&mut self, handle: skepart::RtHandle) -> RtResult<()> {
         self.net_lookup_handle_kind(handle)?;
         self.out
@@ -862,12 +880,17 @@ fn main() -> Int {
   let client: net.Socket = net.connect("127.0.0.1:8080");
   let msg = net.read(server);
   let raw: Bytes = net.readBytes(server);
+  let local = net.localAddr(client);
+  let peer = net.peerAddr(client);
   net.write(client, msg);
   net.writeBytes(client, raw);
   net.close(server);
   net.close(client);
   net.closeListener(listener);
-  return 0;
+  if (local != peer) {
+    return 0;
+  }
+  return 1;
 }
 "#;
 
@@ -883,7 +906,7 @@ fn main() -> Int {
     assert_eq!(value, IrValue::Int(0));
     assert_eq!(
         trace.lock().expect("lock trace").as_str(),
-        "[listen 0][accept 0->1][connect 2][read 1][readbytes 1][write 2=net-read][writebytes 2 len=3][close 1][close 2][close 0]"
+        "[listen 0][accept 0->1][connect 2][read 1][readbytes 1][localaddr 2][peeraddr 2][write 2=net-read][writebytes 2 len=3][close 1][close 2][close 0]"
     );
 }
 

@@ -67,6 +67,20 @@ pub(super) const SIGS: &[BuiltinSig] = &[
     },
     BuiltinSig {
         package: "net",
+        name: "localAddr",
+        params: OPAQUE_PARAM_SENTINEL,
+        ret: TypeInfo::String,
+        kind: BuiltinKind::FixedArity,
+    },
+    BuiltinSig {
+        package: "net",
+        name: "peerAddr",
+        params: OPAQUE_PARAM_SENTINEL,
+        ret: TypeInfo::String,
+        kind: BuiltinKind::FixedArity,
+    },
+    BuiltinSig {
+        package: "net",
         name: "close",
         params: OPAQUE_PARAM_SENTINEL,
         ret: TypeInfo::Void,

@@ -523,12 +523,17 @@ fn main() -> Int {
   let client: net.Socket = net.connect("127.0.0.1:8080");
   let msg: String = net.read(socket);
   let raw: Bytes = net.readBytes(socket);
+  let local: String = net.localAddr(client);
+  let peer: String = net.peerAddr(client);
   net.write(client, msg);
   net.writeBytes(client, raw);
   net.close(socket);
   net.close(client);
   net.closeListener(listener);
-  return 0;
+  if (local != peer) {
+    return 0;
+  }
+  return 1;
 }
 "#,
     )

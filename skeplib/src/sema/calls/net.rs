@@ -120,6 +120,24 @@ pub(super) fn check_net_builtin(
             }
             TypeInfo::Void
         }
+        "localAddr" | "peerAddr" => {
+            if args.len() != 1 {
+                checker.error(format!(
+                    "net.{method} expects 1 argument(s), got {}",
+                    args.len()
+                ));
+                return TypeInfo::Unknown;
+            }
+            let got = checker.check_expr(&args[0], scopes);
+            let expected = TypeInfo::Opaque("net.Socket".to_string());
+            if got != TypeInfo::Unknown && got != expected {
+                checker.error(format!(
+                    "net.{method} argument 1 expects {:?}, got {:?}",
+                    expected, got
+                ));
+            }
+            TypeInfo::String
+        }
         "close" => {
             if args.len() != 1 {
                 checker.error(format!(

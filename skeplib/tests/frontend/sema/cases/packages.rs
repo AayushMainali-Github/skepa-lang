@@ -1174,8 +1174,13 @@ fn main() -> Void {
   let client: net.Socket = net.connect("127.0.0.1:8080");
   let msg: String = net.read(socket);
   let raw: Bytes = net.readBytes(socket);
+  let local: String = net.localAddr(client);
+  let peer: String = net.peerAddr(client);
   net.write(client, msg);
   net.writeBytes(client, raw);
+  if (local == peer) {
+    return;
+  }
   net.close(socket);
   net.close(client);
   net.closeListener(listener);
@@ -1194,6 +1199,30 @@ fn main() -> Void {
   let _x = net.readBytes(listener);
   net.writeBytes(socket, "bad");
   return;
+}
+
+#[test]
+fn sema_rejects_net_localaddr_and_peeraddr_type_mismatches() {
+    let src = r#"
+import net;
+
+fn main() -> Void {
+  let listener: net.Listener = net.listen("127.0.0.1:0");
+  let _a = net.localAddr(listener);
+  let _b = net.peerAddr(listener);
+  return;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("net.localAddr argument 1 expects Opaque(\"net.Socket\")")
+    }));
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("net.peerAddr argument 1 expects Opaque(\"net.Socket\")")
+    }));
 }
 "#;
     let (result, diags) = analyze_source(src);

@@ -231,6 +231,32 @@ fn builtins_cover_net_bytes_roundtrip_and_errors() {
 }
 
 #[test]
+fn builtins_cover_net_address_queries() {
+    let mut host = RecordingHostBuilder::seeded()
+        .net_local_addr_value("127.0.0.1:7000")
+        .net_peer_addr_value("127.0.0.1:8000")
+        .build();
+    let socket =
+        builtins::call_with_host(&mut host, "net", "__testSocket", &[]).expect("allocate socket");
+
+    assert_eq!(
+        builtins::call_with_host(&mut host, "net", "localAddr", std::slice::from_ref(&socket))
+            .expect("net.localAddr"),
+        RtValue::String(RtString::from("127.0.0.1:7000"))
+    );
+    assert_eq!(
+        builtins::call_with_host(&mut host, "net", "peerAddr", std::slice::from_ref(&socket))
+            .expect("net.peerAddr"),
+        RtValue::String(RtString::from("127.0.0.1:8000"))
+    );
+    assert!(
+        host.output.contains("[netlocaladdr 0]") && host.output.contains("[netpeeraddr 0]"),
+        "unexpected host output: {}",
+        host.output
+    );
+}
+
+#[test]
 fn builtins_report_unknown_family_arity_and_type_errors() {
     let mut host = UnsupportedHost;
     assert_eq!(

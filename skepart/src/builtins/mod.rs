@@ -177,6 +177,14 @@ pub fn call_with_host(
             socket.expect_handle_kind(crate::RtHandleKind::Socket)?,
             &data.expect_bytes()?,
         ),
+        ("net", "localAddr", [socket]) => net::local_addr(
+            host,
+            socket.expect_handle_kind(crate::RtHandleKind::Socket)?,
+        ),
+        ("net", "peerAddr", [socket]) => net::peer_addr(
+            host,
+            socket.expect_handle_kind(crate::RtHandleKind::Socket)?,
+        ),
         ("net", "close", [socket]) => net::close(
             host,
             socket.expect_handle_kind(crate::RtHandleKind::Socket)?,

@@ -20,6 +20,8 @@ pub struct RecordingHost {
     pub exec_argv: Vec<String>,
     pub net_read_value: String,
     pub net_read_bytes_value: Vec<u8>,
+    pub net_local_addr_value: String,
+    pub net_peer_addr_value: String,
     pub net_listen_error: Option<String>,
     pub net_connect_error: Option<String>,
     pub net_accept_error: Option<String>,
@@ -48,6 +50,8 @@ impl RecordingHost {
             exec_argv: Vec::new(),
             net_read_value: "net-read".into(),
             net_read_bytes_value: b"net-bytes".to_vec(),
+            net_local_addr_value: "127.0.0.1:1111".into(),
+            net_peer_addr_value: "127.0.0.1:2222".into(),
             next_handle_id: 0,
             net_handles: HashMap::new(),
             env: HashMap::from([(String::from("HOME"), String::from("/tmp/home"))]),
@@ -136,6 +140,16 @@ impl RecordingHostBuilder {
 
     pub fn net_read_bytes_value(mut self, value: impl Into<Vec<u8>>) -> Self {
         self.host.net_read_bytes_value = value.into();
+        self
+    }
+
+    pub fn net_local_addr_value(mut self, value: impl Into<String>) -> Self {
+        self.host.net_local_addr_value = value.into();
+        self
+    }
+
+    pub fn net_peer_addr_value(mut self, value: impl Into<String>) -> Self {
+        self.host.net_peer_addr_value = value.into();
         self
     }
 
@@ -472,5 +486,19 @@ impl RtHost for RecordingHost {
         self.output
             .push_str(&format!("[netwritebytes {} len={}]", socket.id, data.len()));
         Ok(())
+    }
+
+    fn net_local_addr(&mut self, socket: RtHandle) -> RtResult<RtString> {
+        self.net_lookup_handle_kind(socket)?;
+        self.output
+            .push_str(&format!("[netlocaladdr {}]", socket.id));
+        Ok(RtString::from(self.net_local_addr_value.clone()))
+    }
+
+    fn net_peer_addr(&mut self, socket: RtHandle) -> RtResult<RtString> {
+        self.net_lookup_handle_kind(socket)?;
+        self.output
+            .push_str(&format!("[netpeeraddr {}]", socket.id));
+        Ok(RtString::from(self.net_peer_addr_value.clone()))
     }
 }

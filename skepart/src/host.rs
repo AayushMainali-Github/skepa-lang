@@ -293,6 +293,14 @@ pub trait RtHost {
     fn net_write_bytes(&mut self, _socket: RtHandle, _data: &RtBytes) -> RtResult<()> {
         Err(RtError::unsupported_builtin("net.writeBytes"))
     }
+
+    fn net_local_addr(&mut self, _socket: RtHandle) -> RtResult<RtString> {
+        Err(RtError::unsupported_builtin("net.localAddr"))
+    }
+
+    fn net_peer_addr(&mut self, _socket: RtHandle) -> RtResult<RtString> {
+        Err(RtError::unsupported_builtin("net.peerAddr"))
+    }
 }
 
 pub struct NoopHost {
@@ -623,6 +631,22 @@ impl RtHost for NoopHost {
         self.net_tcp_stream(socket)?
             .write_all(data.as_slice())
             .map_err(|err| RtError::io(err.to_string()))
+    }
+
+    fn net_local_addr(&mut self, socket: RtHandle) -> RtResult<RtString> {
+        let addr = self
+            .net_tcp_stream(socket)?
+            .local_addr()
+            .map_err(|err| RtError::io(err.to_string()))?;
+        Ok(RtString::from(addr.to_string()))
+    }
+
+    fn net_peer_addr(&mut self, socket: RtHandle) -> RtResult<RtString> {
+        let addr = self
+            .net_tcp_stream(socket)?
+            .peer_addr()
+            .map_err(|err| RtError::io(err.to_string()))?;
+        Ok(RtString::from(addr.to_string()))
     }
 }
 

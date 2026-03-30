@@ -305,6 +305,35 @@ fn noop_host_supports_loopback_connect_accept_write_and_read_bytes() {
 }
 
 #[test]
+fn noop_host_reports_local_and_peer_addrs_for_connected_socket() {
+    let mut host = NoopHost::default();
+    let listener = host.net_listen("127.0.0.1:0").expect("listen");
+    let listener_addr = host
+        .net_tcp_listener(listener)
+        .expect("listener lookup")
+        .local_addr()
+        .expect("listener addr");
+
+    let client = host
+        .net_connect(&listener_addr.to_string())
+        .expect("connect client socket");
+    let server = host.net_accept(listener).expect("accept server socket");
+
+    let client_local = host.net_local_addr(client).expect("client local");
+    let client_peer = host.net_peer_addr(client).expect("client peer");
+    let server_local = host.net_local_addr(server).expect("server local");
+    let server_peer = host.net_peer_addr(server).expect("server peer");
+
+    assert_eq!(client_peer.as_str(), listener_addr.to_string());
+    assert_eq!(server_local.as_str(), listener_addr.to_string());
+    assert_eq!(client_local.as_str(), server_peer.as_str());
+
+    host.net_close_handle(server).expect("close server");
+    host.net_close_handle(client).expect("close client");
+    host.net_close_handle(listener).expect("close listener");
+}
+
+#[test]
 fn noop_host_surfaces_invalid_address_and_closed_socket_errors() {
     let mut host = NoopHost::default();
     assert_eq!(
