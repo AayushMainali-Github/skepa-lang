@@ -296,6 +296,11 @@ pub fn call_with_context(
             symbol.expect_handle_kind(crate::RtHandleKind::Symbol)?,
             value.expect_string()?.as_str(),
         ),
+        ("ffi", "call1BytesInt", [symbol, value]) => ffi::call_1_bytes_int(
+            ctx.host(),
+            symbol.expect_handle_kind(crate::RtHandleKind::Symbol)?,
+            &value.expect_bytes()?,
+        ),
         ("net", "__testSocket", []) => net::test_socket(ctx.host()),
         ("net", "listen", [address]) => net::listen(ctx.host(), address.expect_string()?.as_str()),
         ("net", "connect", [address]) => {

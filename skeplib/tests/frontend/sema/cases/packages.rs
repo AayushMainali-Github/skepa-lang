@@ -1351,6 +1351,7 @@ fn main() -> Void {
 fn sema_accepts_ffi_integer_calls() {
     let src = r#"
 import ffi;
+import bytes;
 
 fn main() -> Int {
   let lib: ffi.Library = ffi.open("test-lib");
@@ -1358,9 +1359,11 @@ fn main() -> Int {
   let x: Int = ffi.call0Int(sym);
   let y: Int = ffi.call1Int(sym, 7);
   let z: Int = ffi.call1StringInt(sym, "hello");
+  let raw: Bytes = bytes.fromString("abc");
+  let w: Int = ffi.call1BytesInt(sym, raw);
   ffi.closeSymbol(sym);
   ffi.closeLibrary(lib);
-  return x + y + z;
+  return x + y + z + w;
 }
 "#;
     let (result, diags) = analyze_source(src);
@@ -1408,6 +1411,7 @@ fn main() -> Void {
 fn sema_rejects_ffi_call_type_mismatches() {
     let src = r#"
 import ffi;
+import bytes;
 
 fn main() -> Int {
   let lib: ffi.Library = ffi.open("x");
@@ -1415,7 +1419,9 @@ fn main() -> Int {
   let a: Int = ffi.call0Int(lib);
   let b: Int = ffi.call1Int(sym, false);
   let c: Int = ffi.call1StringInt(sym, 7);
-  return a + b + c;
+  let raw: Bytes = bytes.fromString("x");
+  let d: Int = ffi.call1BytesInt(sym, 7);
+  return a + b + c + d + bytes.len(raw);
 }
 "#;
     let (result, diags) = analyze_source(src);
@@ -1432,6 +1438,10 @@ fn main() -> Int {
         .as_slice()
         .iter()
         .any(|d| d.message.contains("ffi.call1StringInt argument 2 expects String")));
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("ffi.call1BytesInt argument 2 expects Bytes")));
 }
 
 #[test]

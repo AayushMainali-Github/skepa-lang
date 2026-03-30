@@ -125,6 +125,19 @@ impl RtHost for TestHost {
         Ok(value.len() as i64)
     }
 
+    fn ffi_call_1_bytes_int(
+        &mut self,
+        symbol: skepart::RtHandle,
+        value: &RtBytes,
+    ) -> RtResult<i64> {
+        self.net_lookup_handle_kind(symbol)?;
+        self.out
+            .lock()
+            .expect("lock trace")
+            .push_str(&format!("[fficall1bytesint {} len={}]", symbol.id, value.len()));
+        Ok(value.len() as i64)
+    }
+
     fn os_platform(&mut self) -> RtResult<RtString> {
         Ok(RtString::from("test-os"))
     }
@@ -1172,6 +1185,36 @@ fn main() -> Int {
     assert_eq!(result.expect("program should run"), IrValue::Int(5));
     let trace = trace.lock().expect("lock trace").clone();
     assert!(trace.contains("[fficall1stringint 1=hello]"), "trace was: {trace}");
+}
+
+#[test]
+fn interpreter_carries_ffi_borrowed_bytes_calls() {
+    let source = r#"
+import bytes;
+import ffi;
+
+fn main() -> Int {
+  let lib: ffi.Library = ffi.open("test-lib");
+  let sym: ffi.Symbol = ffi.bind(lib, "strlen");
+  let raw: Bytes = bytes.fromString("hello");
+  let value: Int = ffi.call1BytesInt(sym, raw);
+  ffi.closeSymbol(sym);
+  ffi.closeLibrary(lib);
+  return value;
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let trace = Arc::new(Mutex::new(String::new()));
+    let host = TestHost {
+        out: Arc::clone(&trace),
+        next_handle_id: 0,
+    };
+    let interp = IrInterpreter::new(program, host);
+    let result = interp.run_main();
+    assert_eq!(result.expect("program should run"), IrValue::Int(5));
+    let trace = trace.lock().expect("lock trace").clone();
+    assert!(trace.contains("[fficall1bytesint 1 len=5]"), "trace was: {trace}");
 }
 
 #[test]

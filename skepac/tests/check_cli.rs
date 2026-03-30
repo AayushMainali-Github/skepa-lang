@@ -703,6 +703,7 @@ fn check_accepts_minimal_ffi_builtins_program() {
         &file,
         r#"
 import ffi;
+import bytes;
 
 fn main() -> Int {
   let lib: ffi.Library = ffi.open("test-lib");
@@ -710,6 +711,8 @@ fn main() -> Int {
   let _ = ffi.call0Int(sym);
   let _ = ffi.call1Int(sym, 1);
   let _ = ffi.call1StringInt(sym, "hello");
+  let raw: Bytes = bytes.fromString("abc");
+  let _ = ffi.call1BytesInt(sym, raw);
   ffi.closeSymbol(sym);
   ffi.closeLibrary(lib);
   return 0;

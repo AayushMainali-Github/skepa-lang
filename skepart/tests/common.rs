@@ -39,6 +39,7 @@ pub struct RecordingHost {
     pub ffi_call0_int_value: i64,
     pub ffi_call1_int_offset: i64,
     pub ffi_call1_string_offset: i64,
+    pub ffi_call1_bytes_offset: i64,
     pub ffi_call_error: Option<String>,
     pub net_flush_error: Option<String>,
     pub net_set_read_timeout_error: Option<String>,
@@ -94,6 +95,7 @@ impl RecordingHost {
             ffi_call0_int_value: 41,
             ffi_call1_int_offset: 1,
             ffi_call1_string_offset: 0,
+            ffi_call1_bytes_offset: 0,
             next_handle_id: 0,
             net_handles: HashMap::new(),
             ffi_symbol_pointers: HashMap::new(),
@@ -258,6 +260,11 @@ impl RecordingHostBuilder {
 
     pub fn ffi_call1_string_offset(mut self, value: i64) -> Self {
         self.host.ffi_call1_string_offset = value;
+        self
+    }
+
+    pub fn ffi_call1_bytes_offset(mut self, value: i64) -> Self {
+        self.host.ffi_call1_bytes_offset = value;
         self
     }
 
@@ -528,6 +535,27 @@ impl RtHost for RecordingHost {
         self.output
             .push_str(&format!("[fficall1stringint {}={value}]", symbol.id));
         Ok(value.len() as i64 + self.ffi_call1_string_offset)
+    }
+
+    fn ffi_call_1_bytes_int(&mut self, symbol: RtHandle, value: &RtBytes) -> RtResult<i64> {
+        if let Some(message) = &self.ffi_call_error {
+            return Err(RtError::io(message.clone()));
+        }
+        match self.net_lookup_handle_kind(symbol)? {
+            RtHandleKind::Symbol => {}
+            other => {
+                return Err(RtError::invalid_handle_kind(
+                    RtHandleKind::Symbol.type_name(),
+                    other.type_name(),
+                ))
+            }
+        }
+        self.output.push_str(&format!(
+            "[fficall1bytesint {} len={}]",
+            symbol.id,
+            value.len()
+        ));
+        Ok(value.len() as i64 + self.ffi_call1_bytes_offset)
     }
 
     fn os_platform(&mut self) -> RtResult<RtString> {

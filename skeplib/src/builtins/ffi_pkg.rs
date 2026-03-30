@@ -6,6 +6,7 @@ const STRING_PARAM: &[TypeInfo] = &[TypeInfo::String];
 const OPAQUE_PARAM_SENTINEL: &[TypeInfo] = &[TypeInfo::Unknown];
 const OPAQUE_AND_STRING_PARAM: &[TypeInfo] = &[TypeInfo::Unknown, TypeInfo::String];
 const OPAQUE_AND_INT_PARAM: &[TypeInfo] = &[TypeInfo::Unknown, TypeInfo::Int];
+const OPAQUE_AND_BYTES_PARAM: &[TypeInfo] = &[TypeInfo::Unknown, TypeInfo::Bytes];
 
 pub(super) const SIGS: &[BuiltinSig] = &[
     BuiltinSig {
@@ -54,6 +55,13 @@ pub(super) const SIGS: &[BuiltinSig] = &[
         package: "ffi",
         name: "call1StringInt",
         params: OPAQUE_AND_STRING_PARAM,
+        ret: TypeInfo::Int,
+        kind: BuiltinKind::FixedArity,
+    },
+    BuiltinSig {
+        package: "ffi",
+        name: "call1BytesInt",
+        params: OPAQUE_AND_BYTES_PARAM,
         ret: TypeInfo::Int,
         kind: BuiltinKind::FixedArity,
     },

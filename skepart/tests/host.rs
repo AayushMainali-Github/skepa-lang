@@ -319,6 +319,26 @@ fn noop_host_calls_borrowed_string_ffi_symbols() {
 }
 
 #[test]
+fn noop_host_calls_borrowed_bytes_ffi_symbols() {
+    let mut host = NoopHost::default();
+    let library = host
+        .ffi_open_library(ffi_test_library_path())
+        .expect("open shared library");
+    let symbol = host
+        .ffi_bind_symbol(library, ffi_test_call1_string_int_symbol_name())
+        .expect("bind one-bytes int symbol");
+
+    assert_eq!(
+        host.ffi_call_1_bytes_int(symbol, &RtBytes::from(b"hello".to_vec()))
+            .expect("call1BytesInt"),
+        ffi_test_call1_string_int_expected()
+    );
+
+    host.net_close_handle(symbol).expect("close symbol");
+    host.net_close_handle(library).expect("close library");
+}
+
+#[test]
 fn noop_host_tracks_placeholder_net_handle_lifetimes() {
     let mut host = NoopHost::default();
     let socket = host

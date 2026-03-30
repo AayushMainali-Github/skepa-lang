@@ -146,6 +146,32 @@ pub(super) fn check_ffi_builtin(
             }
             TypeInfo::Int
         }
+        "call1BytesInt" => {
+            if args.len() != 2 {
+                checker.error(format!(
+                    "ffi.call1BytesInt expects 2 argument(s), got {}",
+                    args.len()
+                ));
+                return TypeInfo::Unknown;
+            }
+            let symbol_ty = checker.check_expr(&args[0], scopes);
+            let symbol_expected = TypeInfo::Opaque("ffi.Symbol".to_string());
+            if symbol_ty != TypeInfo::Unknown && symbol_ty != symbol_expected {
+                checker.error(format!(
+                    "ffi.call1BytesInt argument 1 expects {:?}, got {:?}",
+                    symbol_expected, symbol_ty
+                ));
+            }
+            let value_ty = checker.check_expr(&args[1], scopes);
+            if value_ty != TypeInfo::Unknown && value_ty != TypeInfo::Bytes {
+                checker.error(format!(
+                    "ffi.call1BytesInt argument 2 expects {:?}, got {:?}",
+                    TypeInfo::Bytes,
+                    value_ty
+                ));
+            }
+            TypeInfo::Int
+        }
         "open" => {
             checker.check_fixed_arity_builtin("ffi", method, args, scopes, sig);
             TypeInfo::Opaque("ffi.Library".to_string())

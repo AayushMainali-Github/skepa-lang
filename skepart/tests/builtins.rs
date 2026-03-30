@@ -989,6 +989,7 @@ fn builtins_cover_ffi_integer_calls_and_errors() {
         .ffi_call0_int_value(77)
         .ffi_call1_int_offset(5)
         .ffi_call1_string_offset(2)
+        .ffi_call1_bytes_offset(3)
         .build();
     let library = builtins::call_with_host(
         &mut host,
@@ -1030,10 +1031,28 @@ fn builtins_cover_ffi_integer_calls_and_errors() {
         .expect("ffi.call1StringInt"),
         RtValue::Int(7)
     );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "ffi",
+            "call1BytesInt",
+            &[
+                symbol.clone(),
+                RtValue::Bytes(RtBytes::from(b"abc".to_vec()))
+            ],
+        )
+        .expect("ffi.call1BytesInt"),
+        RtValue::Int(6)
+    );
     assert!(
         host.output.contains("[fficall0int 1]")
             && host.output.contains("[fficall1int 1=9]")
             && host.output.contains("[fficall1stringint 1=hello]"),
+        "unexpected host output: {}",
+        host.output
+    );
+    assert!(
+        host.output.contains("[fficall1bytesint 1 len=3]"),
         "unexpected host output: {}",
         host.output
     );
@@ -1059,10 +1078,10 @@ fn builtins_cover_ffi_integer_calls_and_errors() {
         builtins::call_with_host(
             &mut failing_host,
             "ffi",
-            "call1StringInt",
-            &[symbol, RtValue::String(RtString::from("boom"))],
+            "call1BytesInt",
+            &[symbol, RtValue::Bytes(RtBytes::from(b"boom".to_vec()))],
         )
-        .expect_err("ffi.call1StringInt failure should surface")
+        .expect_err("ffi.call1BytesInt failure should surface")
         .kind,
         RtErrorKind::Io
     );

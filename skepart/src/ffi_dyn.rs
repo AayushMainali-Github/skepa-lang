@@ -114,6 +114,23 @@ impl RtForeignSymbol {
             Ok(unsafe { function(c_value.as_ptr()) as i64 })
         }
     }
+
+    pub fn call_1_bytes_int(&self, value: &[u8]) -> i64 {
+        #[cfg(windows)]
+        {
+            // SAFETY: caller guarantees the symbol uses the expected ABI/signature.
+            let function: unsafe extern "system" fn(*const u8, i64) -> i32 =
+                unsafe { std::mem::transmute(self.ptr) };
+            unsafe { function(value.as_ptr(), value.len() as i64) as i64 }
+        }
+        #[cfg(unix)]
+        {
+            // SAFETY: caller guarantees the symbol uses the expected ABI/signature.
+            let function: unsafe extern "C" fn(*const u8, usize) -> usize =
+                unsafe { std::mem::transmute(self.ptr) };
+            unsafe { function(value.as_ptr(), value.len()) as i64 }
+        }
+    }
 }
 
 #[cfg(unix)]
