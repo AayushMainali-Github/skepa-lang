@@ -281,6 +281,7 @@ pub fn call_with_context(
             net::resolve(ctx.host(), host_name.expect_string()?.as_str())
         }
         ("net", "parseUrl", [url]) => net::parse_url(ctx.host(), url.expect_string()?.as_str()),
+        ("net", "httpGet", [url]) => net::http_get(ctx.host(), url.expect_string()?.as_str()),
         ("net", "accept", [listener]) => net::accept(
             ctx.host(),
             listener.expect_handle_kind(crate::RtHandleKind::Listener)?,

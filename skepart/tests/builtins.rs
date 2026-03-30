@@ -896,6 +896,44 @@ fn builtins_cover_net_parse_url_and_errors() {
 }
 
 #[test]
+fn builtins_cover_net_http_get_and_errors() {
+    let mut host = RecordingHostBuilder::seeded()
+        .net_http_get_value("hello-body")
+        .build();
+
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "net",
+            "httpGet",
+            &[RtValue::String(RtString::from("http://example.com/"))],
+        )
+        .expect("httpGet should return body"),
+        RtValue::String(RtString::from("hello-body"))
+    );
+    assert!(
+        host.output.contains("[nethttpget http://example.com/]"),
+        "unexpected host output: {}",
+        host.output
+    );
+
+    let mut failing_host = RecordingHostBuilder::seeded()
+        .net_http_get_error("http failed")
+        .build();
+    assert_eq!(
+        builtins::call_with_host(
+            &mut failing_host,
+            "net",
+            "httpGet",
+            &[RtValue::String(RtString::from("http://bad/"))],
+        )
+        .expect_err("httpGet failure should surface")
+        .kind,
+        RtErrorKind::Io
+    );
+}
+
+#[test]
 fn builtins_enforce_net_close_lifetime_rules() {
     let mut host = RecordingHostBuilder::seeded().build();
     let socket = builtins::call_with_host(&mut host, "net", "__testSocket", &[])

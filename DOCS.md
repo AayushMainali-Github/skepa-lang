@@ -589,6 +589,7 @@ Signatures:
 - `net.tlsConnect(host: String, port: Int) -> net.Socket`
 - `net.resolve(host: String) -> String`
 - `net.parseUrl(url: String) -> Map[String, String]`
+- `net.httpGet(url: String) -> String`
 - `net.listen(address: String) -> net.Listener`
 - `net.accept(listener: net.Listener) -> net.Socket`
 - `net.read(socket: net.Socket) -> String`
@@ -610,6 +611,7 @@ Behavior:
 - `net.tlsConnect(host, port)` opens a blocking TLS client connection with certificate and hostname verification.
 - `net.resolve(host)` resolves the host name and returns the first resolved IP address as text.
 - `net.parseUrl(url)` parses a URL and returns a `Map[String, String]` with keys: `scheme`, `host`, `port`, `path`, `query`, and `fragment`.
+- `net.httpGet(url)` performs a blocking HTTP GET request and returns the response body as `String`.
 - `net.listen(address)` binds a blocking TCP listener. Using port `0` lets the OS choose an ephemeral port.
 - `net.accept(listener)` blocks until a client connects, then returns a new `net.Socket`.
 - `net.read(socket)` performs a single blocking read of up to 4096 bytes and returns a `String`.
@@ -639,6 +641,9 @@ Notes:
 - `net.tlsConnect` is client-side only in the current surface. There is no TLS listener/accept API yet.
 - `net.resolve` returns the first resolved address only. It is a convenience helper, not a full DNS result-set API.
 - `net.parseUrl` is a convenience parser for common URLs. Missing optional parts are returned as empty strings.
+- `net.httpGet` currently supports `http://` and `https://` URLs only.
+- `net.httpGet` returns only the response body. It does not expose status code or headers yet.
+- `net.httpGet` expects a valid UTF-8 response body and a basic well-formed HTTP response.
 - `net.tlsConnect` validates the peer certificate chain and hostname through the host TLS implementation.
 - Timeout setters require non-negative millisecond values. `0` means no timeout.
 - Passing the wrong handle kind to a builtin raises a runtime error.
@@ -701,6 +706,20 @@ fn main() -> Int {
   let host: String = map.get(parts, "host");
   let path: String = map.get(parts, "path");
   if ((host == "example.com") && (path == "/api")) {
+    return 0;
+  }
+  return 1;
+}
+```
+
+HTTP GET:
+```sk
+import net;
+import str;
+
+fn main() -> Int {
+  let body: String = net.httpGet("https://example.com/");
+  if (str.len(body) > 0) {
     return 0;
   }
   return 1;

@@ -26,6 +26,10 @@ pub fn parse_url(host: &mut dyn RtHost, url: &str) -> RtResult<RtValue> {
     Ok(RtValue::Map(host.net_parse_url(url)?))
 }
 
+pub fn http_get(host: &mut dyn RtHost, url: &str) -> RtResult<RtValue> {
+    Ok(RtValue::String(host.net_http_get(url)?))
+}
+
 pub fn accept(host: &mut dyn RtHost, listener: crate::RtHandle) -> RtResult<RtValue> {
     Ok(RtValue::Handle(host.net_accept(listener)?))
 }

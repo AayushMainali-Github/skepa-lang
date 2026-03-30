@@ -55,6 +55,13 @@ pub(super) const SIGS: &[BuiltinSig] = &[
     },
     BuiltinSig {
         package: "net",
+        name: "httpGet",
+        params: STRING_PARAM,
+        ret: TypeInfo::String,
+        kind: BuiltinKind::FixedArity,
+    },
+    BuiltinSig {
+        package: "net",
         name: "accept",
         params: OPAQUE_PARAM_SENTINEL,
         ret: TypeInfo::Unknown,

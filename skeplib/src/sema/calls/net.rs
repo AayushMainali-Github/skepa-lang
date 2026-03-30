@@ -258,6 +258,10 @@ pub(super) fn check_net_builtin(
                 value: Box::new(TypeInfo::String),
             }
         }
+        "httpGet" => {
+            checker.check_fixed_arity_builtin("net", method, args, scopes, sig);
+            TypeInfo::String
+        }
         "__testSocket" | "listen" | "connect" => {
             checker.check_fixed_arity_builtin("net", method, args, scopes, sig);
             match method {

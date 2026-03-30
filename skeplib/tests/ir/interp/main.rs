@@ -182,6 +182,14 @@ impl RtHost for TestHost {
         Ok(map)
     }
 
+    fn net_http_get(&mut self, url: &str) -> RtResult<RtString> {
+        self.out
+            .lock()
+            .expect("lock trace")
+            .push_str(&format!("[httpget {url}]"));
+        Ok(RtString::from("http-body"))
+    }
+
     fn net_accept(&mut self, listener: skepart::RtHandle) -> RtResult<skepart::RtHandle> {
         self.net_lookup_handle_kind(listener)?;
         let handle = self.net_alloc_handle(RtHandleKind::Socket)?;
@@ -967,6 +975,7 @@ import map;
 
 fn main() -> Int {
   let parts: Map[String, String] = net.parseUrl("https://example.com:443/a?x=1#frag");
+  let body: String = net.httpGet("http://example.com/");
   let listener: net.Listener = net.listen("127.0.0.1:0");
   let server: net.Socket = net.accept(listener);
   let client: net.Socket = net.connect("127.0.0.1:8080");
@@ -987,7 +996,7 @@ fn main() -> Int {
   net.close(server);
   net.close(client);
   net.closeListener(listener);
-  if ((local != peer) && (resolved != "") && (host == "example.com")) {
+  if ((local != peer) && (resolved != "") && (host == "example.com") && (body == "http-body")) {
     return 0;
   }
   return 1;

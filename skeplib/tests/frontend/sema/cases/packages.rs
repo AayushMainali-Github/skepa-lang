@@ -1240,6 +1240,7 @@ import map;
 
 fn main() -> Void {
   let parts: Map[String, String] = net.parseUrl("https://example.com:443/a?x=1#frag");
+  let body: String = net.httpGet("http://example.com/");
   let listener: net.Listener = net.listen("127.0.0.1:0");
   let socket: net.Socket = net.accept(listener);
   let client: net.Socket = net.connect("127.0.0.1:8080");
@@ -1257,7 +1258,7 @@ fn main() -> Void {
   net.flush(client);
   net.setReadTimeout(client, 25);
   net.setWriteTimeout(client, 50);
-  if ((local == peer) && (host != "")) {
+  if ((local == peer) && (host != "") && (body != "")) {
     let _ = resolved;
     return;
   }
@@ -1291,6 +1292,25 @@ fn main() -> Void {
   let parts: Map[String, String] = net.parseUrl(false);
   let _ = parts;
   return;
+}
+
+#[test]
+fn sema_rejects_net_http_get_wrong_arg_type() {
+    let src = r#"
+import net;
+
+fn main() -> Void {
+  let body: String = net.httpGet(5);
+  let _ = body;
+  return;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("net.httpGet argument 1 expects String")));
 }
 "#;
     let (result, diags) = analyze_source(src);

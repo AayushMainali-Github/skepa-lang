@@ -584,6 +584,7 @@ import map;
 
 fn main() -> Int {
   let parts: Map[String, String] = net.parseUrl("https://example.com:443/a?x=1#frag");
+  let body: String = net.httpGet("http://example.com/");
   let listener: net.Listener = net.listen("127.0.0.1:0");
   let socket: net.Socket = net.accept(listener);
   let client: net.Socket = net.connect("127.0.0.1:8080");
@@ -604,7 +605,7 @@ fn main() -> Int {
   net.close(socket);
   net.close(client);
   net.closeListener(listener);
-  if ((local != peer) && (resolved != "") && (host == "example.com")) {
+  if ((local != peer) && (resolved != "") && (host == "example.com") && (body != "")) {
     return 0;
   }
   return 1;
