@@ -1580,6 +1580,48 @@ fn main() -> Int {{
 }
 
 #[test]
+fn codegen_builds_native_executable_for_net_listen_accept_byte_roundtrip() {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind loopback listener");
+    let addr = listener.local_addr().expect("listener addr");
+    drop(listener);
+
+    let source = format!(
+        r#"
+import net;
+import bytes;
+
+fn main() -> Int {{
+  let listener: net.Listener = net.listen("{addr}");
+  let socket: net.Socket = net.accept(listener);
+  let raw: Bytes = net.readBytes(socket);
+  let out0: Bytes = bytes.fromString("");
+  let out1: Bytes = bytes.push(out0, 9);
+  let out2: Bytes = bytes.push(out1, 8);
+  net.writeBytes(socket, out2);
+  net.close(socket);
+  net.closeListener(listener);
+  if (bytes.len(raw) == 4 && bytes.get(raw, 0) == 1 && bytes.get(raw, 3) == 4) {{
+    return 0;
+  }}
+  return 1;
+}}
+"#
+    );
+
+    let peer = thread::spawn(move || {
+        let mut stream = TcpStream::connect(addr).expect("connect server");
+        stream.write_all(&[1_u8, 2, 3, 4]).expect("write bytes");
+        let mut buf = [0_u8; 2];
+        stream.read_exact(&mut buf).expect("read response bytes");
+        assert_eq!(&buf, &[9_u8, 8]);
+    });
+
+    let result = common::native_run_structured(&source);
+    peer.join().expect("peer thread should finish");
+    assert_eq!(result.exit_code(), 0, "stderr: {}", result.stderr_lossy());
+}
+
+#[test]
 fn codegen_reports_runtime_failure_for_non_utf8_net_reads() {
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind loopback listener");
     let addr = listener.local_addr().expect("listener addr");

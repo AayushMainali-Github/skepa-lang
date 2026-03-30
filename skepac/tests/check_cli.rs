@@ -306,6 +306,51 @@ fn main() -> Int {{
 }
 
 #[test]
+fn run_executes_net_byte_client_program_on_loopback() {
+    let tmp = make_temp_dir("skepac_run_net_byte_client");
+    let source = tmp.join("main.sk");
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind loopback listener");
+    let addr = listener.local_addr().expect("loopback addr");
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("accept client");
+        let mut buf = [0u8; 4];
+        stream.read_exact(&mut buf).expect("read client payload");
+        buf
+    });
+    fs::write(
+        &source,
+        format!(
+            r#"
+import net;
+import bytes;
+
+fn main() -> Int {{
+  let raw0: Bytes = bytes.fromString("");
+  let raw1: Bytes = bytes.push(raw0, 1);
+  let raw2: Bytes = bytes.push(raw1, 2);
+  let raw3: Bytes = bytes.push(raw2, 3);
+  let raw4: Bytes = bytes.push(raw3, 4);
+  let client: net.Socket = net.connect("{addr}");
+  net.writeBytes(client, raw4);
+  net.close(client);
+  return 0;
+}}
+"#
+        ),
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("run")
+        .arg(&source)
+        .output()
+        .expect("run skepac run");
+
+    assert_eq!(output.status.code(), Some(0), "{:?}", output);
+    assert_eq!(server.join().expect("join server"), [1_u8, 2, 3, 4]);
+}
+
+#[test]
 fn build_llvm_ir_writes_ir_artifact() {
     let tmp = make_temp_dir("skepac_build_ll");
     let source = tmp.join("main.sk");
