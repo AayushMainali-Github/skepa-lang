@@ -284,6 +284,7 @@ pub fn resolve_project(entry: &Path) -> Result<ModuleGraph, Vec<ResolveError>> {
                         | "str"
                         | "arr"
                         | "datetime"
+                        | "ffi"
                         | "random"
                         | "net"
                         | "os"

@@ -9,6 +9,36 @@ use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::Arc;
 
+#[cfg(windows)]
+fn ffi_test_library_path() -> &'static str {
+    "kernel32.dll"
+}
+
+#[cfg(windows)]
+fn ffi_test_symbol_name() -> &'static str {
+    "GetCurrentProcessId"
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn ffi_test_library_path() -> &'static str {
+    "libc.so.6"
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn ffi_test_symbol_name() -> &'static str {
+    "puts"
+}
+
+#[cfg(target_os = "macos")]
+fn ffi_test_library_path() -> &'static str {
+    "/usr/lib/libSystem.B.dylib"
+}
+
+#[cfg(target_os = "macos")]
+fn ffi_test_symbol_name() -> &'static str {
+    "puts"
+}
+
 #[test]
 fn noop_host_supports_print_and_time_defaults() {
     let mut host = NoopHost::default();
@@ -110,6 +140,29 @@ fn hosts_can_construct_typed_placeholder_net_handles() {
             kind: RtHandleKind::Listener,
         }
     );
+}
+
+#[test]
+fn noop_host_opens_and_binds_real_shared_library_symbols() {
+    let mut host = NoopHost::default();
+    let library = host
+        .ffi_open_library(ffi_test_library_path())
+        .expect("open shared library");
+    assert_eq!(library.kind, RtHandleKind::Library);
+    let symbol = host
+        .ffi_bind_symbol(library, ffi_test_symbol_name())
+        .expect("bind symbol");
+    assert_eq!(symbol.kind, RtHandleKind::Symbol);
+    assert_eq!(
+        host.net_lookup_handle_kind(library).expect("library kind"),
+        RtHandleKind::Library
+    );
+    assert_eq!(
+        host.net_lookup_handle_kind(symbol).expect("symbol kind"),
+        RtHandleKind::Symbol
+    );
+    host.net_close_handle(symbol).expect("close symbol");
+    host.net_close_handle(library).expect("close library");
 }
 
 #[test]

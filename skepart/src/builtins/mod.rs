@@ -1,6 +1,7 @@
 pub mod arr;
 pub mod bytes;
 pub mod datetime;
+pub mod ffi;
 pub mod fs;
 pub mod io;
 pub mod map;
@@ -266,6 +267,20 @@ pub fn call_with_context(
             ctx.host(),
             left.expect_string()?.as_str(),
             right.expect_string()?.as_str(),
+        ),
+        ("ffi", "open", [path]) => ffi::open(ctx.host(), path.expect_string()?.as_str()),
+        ("ffi", "bind", [library, symbol]) => ffi::bind(
+            ctx.host(),
+            library.expect_handle_kind(crate::RtHandleKind::Library)?,
+            symbol.expect_string()?.as_str(),
+        ),
+        ("ffi", "closeLibrary", [library]) => ffi::close_library(
+            ctx.host(),
+            library.expect_handle_kind(crate::RtHandleKind::Library)?,
+        ),
+        ("ffi", "closeSymbol", [symbol]) => ffi::close_symbol(
+            ctx.host(),
+            symbol.expect_handle_kind(crate::RtHandleKind::Symbol)?,
         ),
         ("net", "__testSocket", []) => net::test_socket(ctx.host()),
         ("net", "listen", [address]) => net::listen(ctx.host(), address.expect_string()?.as_str()),

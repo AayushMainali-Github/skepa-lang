@@ -1331,6 +1331,76 @@ fn main() -> Void {
 }
 
 #[test]
+fn sema_accepts_ffi_builtin_handles() {
+    let src = r#"
+import ffi;
+
+fn main() -> Void {
+  let lib: ffi.Library = ffi.open("test-lib");
+  let sym: ffi.Symbol = ffi.bind(lib, "puts");
+  ffi.closeSymbol(sym);
+  ffi.closeLibrary(lib);
+  return;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
+
+#[test]
+fn sema_rejects_ffi_type_mismatches() {
+    let src = r#"
+import ffi;
+
+fn main() -> Void {
+  let lib: ffi.Library = ffi.open(false);
+  let sym: ffi.Symbol = ffi.bind("bad", 1);
+  ffi.closeLibrary(sym);
+  ffi.closeSymbol(lib);
+  return;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("ffi.open argument 1 expects String")));
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("ffi.bind argument 1 expects Opaque(\"ffi.Library\")")));
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("ffi.bind argument 2 expects String")));
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("ffi.closeLibrary argument 1 expects Opaque(\"ffi.Library\")")));
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("ffi.closeSymbol argument 1 expects Opaque(\"ffi.Symbol\")")));
+}
+
+#[test]
+fn sema_rejects_ffi_without_import() {
+    let src = r#"
+fn main() -> Void {
+  let _ = ffi.open("x");
+  return;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("`ffi.*` used without `import ffi;`")));
+}
+
+#[test]
 fn sema_rejects_net_resolve_wrong_arg_type() {
     let src = r#"
 import net;

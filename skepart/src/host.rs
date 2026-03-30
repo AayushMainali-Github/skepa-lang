@@ -15,6 +15,7 @@ use rustls::pki_types::{CertificateDer, ServerName};
 use rustls::{ClientConfig, ClientConnection, RootCertStore, StreamOwned};
 
 use crate::{
+    ffi_dyn::{RtForeignLibrary, RtForeignSymbol},
     RtBytes, RtError, RtErrorKind, RtHandle, RtHandleKind, RtMap, RtResult, RtString, RtValue,
 };
 
@@ -22,6 +23,8 @@ pub enum RtNetResource {
     Placeholder(RtHandleKind),
     Task(Arc<Mutex<RtTaskState>>),
     Channel(Arc<Mutex<VecDeque<crate::RtValue>>>),
+    ForeignLibrary(RtForeignLibrary),
+    ForeignSymbol(RtForeignSymbol),
     TcpStream(TcpStream),
     TlsStream(Box<StreamOwned<ClientConnection, TcpStream>>),
     TcpListener(TcpListener),
@@ -38,6 +41,8 @@ impl RtNetResource {
             Self::Placeholder(kind) => *kind,
             Self::Task(_) => RtHandleKind::Task,
             Self::Channel(_) => RtHandleKind::Channel,
+            Self::ForeignLibrary(_) => RtHandleKind::Library,
+            Self::ForeignSymbol(_) => RtHandleKind::Symbol,
             Self::TcpStream(_) | Self::TlsStream(_) => RtHandleKind::Socket,
             Self::TcpListener(_) => RtHandleKind::Listener,
         }
@@ -74,6 +79,14 @@ impl RtNetResourceTable {
         self.insert(RtNetResource::Channel(Arc::new(
             Mutex::new(VecDeque::new()),
         )))
+    }
+
+    pub fn insert_library(&mut self, library: RtForeignLibrary) -> RtHandle {
+        self.insert(RtNetResource::ForeignLibrary(library))
+    }
+
+    pub fn insert_symbol(&mut self, symbol: RtForeignSymbol) -> RtHandle {
+        self.insert(RtNetResource::ForeignSymbol(symbol))
     }
 
     pub fn insert_task(&mut self, value: crate::RtValue) -> RtHandle {
@@ -173,6 +186,36 @@ impl RtNetResourceTable {
         }
     }
 
+    pub fn foreign_library(&self, handle: RtHandle) -> RtResult<&RtForeignLibrary> {
+        self.kind_of(handle)?;
+        match self.resources.get(&handle.id) {
+            Some(RtNetResource::ForeignLibrary(value)) => Ok(value),
+            Some(other) => Err(RtError::invalid_handle_kind(
+                RtHandleKind::Library.type_name(),
+                other.kind().type_name(),
+            )),
+            None => Err(RtError::invalid_handle(format!(
+                "unknown handle id {}",
+                handle.id
+            ))),
+        }
+    }
+
+    pub fn foreign_symbol(&self, handle: RtHandle) -> RtResult<&RtForeignSymbol> {
+        self.kind_of(handle)?;
+        match self.resources.get(&handle.id) {
+            Some(RtNetResource::ForeignSymbol(value)) => Ok(value),
+            Some(other) => Err(RtError::invalid_handle_kind(
+                RtHandleKind::Symbol.type_name(),
+                other.kind().type_name(),
+            )),
+            None => Err(RtError::invalid_handle(format!(
+                "unknown handle id {}",
+                handle.id
+            ))),
+        }
+    }
+
     fn insert(&mut self, resource: RtNetResource) -> RtHandle {
         let handle = RtHandle {
             id: self.next_handle_id,
@@ -262,6 +305,14 @@ pub trait RtHost {
 
     fn fs_join(&mut self, _left: &str, _right: &str) -> RtResult<RtString> {
         Err(RtError::unsupported_builtin("fs.join"))
+    }
+
+    fn ffi_open_library(&mut self, _path: &str) -> RtResult<RtHandle> {
+        Err(RtError::unsupported_builtin("ffi.open"))
+    }
+
+    fn ffi_bind_symbol(&mut self, _library: RtHandle, _symbol: &str) -> RtResult<RtHandle> {
+        Err(RtError::unsupported_builtin("ffi.bind"))
     }
 
     fn os_platform(&mut self) -> RtResult<RtString> {
@@ -592,6 +643,23 @@ impl RtHost for NoopHost {
                 .to_string_lossy()
                 .into_owned(),
         ))
+    }
+
+    fn ffi_open_library(&mut self, path: &str) -> RtResult<RtHandle> {
+        let library = RtForeignLibrary::open(path).map_err(RtError::io)?;
+        Ok(self.net_resources.insert_library(library))
+    }
+
+    fn ffi_bind_symbol(&mut self, library: RtHandle, symbol: &str) -> RtResult<RtHandle> {
+        let library_id = library.id;
+        let ptr = {
+            let library = self.net_resources.foreign_library(library)?;
+            library.bind(symbol).map_err(RtError::io)?
+        };
+        Ok(self.net_resources.insert_symbol(RtForeignSymbol {
+            library_handle: library_id,
+            ptr,
+        }))
     }
 
     fn os_platform(&mut self) -> RtResult<RtString> {

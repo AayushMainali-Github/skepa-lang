@@ -147,6 +147,7 @@ impl Checker {
                             "io" | "str"
                                 | "arr"
                                 | "datetime"
+                                | "ffi"
                                 | "random"
                                 | "bytes"
                                 | "map"

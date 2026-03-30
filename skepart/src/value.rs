@@ -11,6 +11,8 @@ pub enum RtHandleKind {
     Listener,
     Task,
     Channel,
+    Library,
+    Symbol,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -216,6 +218,8 @@ impl RtHandleKind {
             Self::Listener => "Listener",
             Self::Task => "Task",
             Self::Channel => "Channel",
+            Self::Library => "Library",
+            Self::Symbol => "Symbol",
         }
     }
 }

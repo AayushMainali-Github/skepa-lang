@@ -3,6 +3,7 @@ use crate::types::TypeInfo;
 mod arr;
 mod bytes_pkg;
 mod datetime;
+mod ffi_pkg;
 mod fs;
 mod io;
 mod map_pkg;
@@ -65,6 +66,7 @@ pub fn find_builtin_sig(package: &str, name: &str) -> Option<&'static BuiltinSig
         .chain(str_pkg::SIGS.iter())
         .chain(arr::SIGS.iter())
         .chain(datetime::SIGS.iter())
+        .chain(ffi_pkg::SIGS.iter())
         .chain(fs::SIGS.iter())
         .chain(net::SIGS.iter())
         .chain(os::SIGS.iter())
@@ -97,6 +99,7 @@ fn all_builtin_sigs() -> Vec<&'static BuiltinSig> {
         .chain(str_pkg::SIGS.iter())
         .chain(arr::SIGS.iter())
         .chain(datetime::SIGS.iter())
+        .chain(ffi_pkg::SIGS.iter())
         .chain(fs::SIGS.iter())
         .chain(net::SIGS.iter())
         .chain(os::SIGS.iter())
@@ -190,14 +193,18 @@ fn builtin_meta(package: &str, name: &str) -> BuiltinMeta {
             can_const_fold: false,
             runtime_helper: None,
         },
-        ("datetime", _) | ("fs", _) | ("net", _) | ("os", _) | ("random", _) | ("task", _) => {
-            BuiltinMeta {
-                purity: BuiltinPurity::HostEffectful,
-                lowering: BuiltinLowering::GenericDispatch,
-                can_const_fold: false,
-                runtime_helper: None,
-            }
-        }
+        ("datetime", _)
+        | ("ffi", _)
+        | ("fs", _)
+        | ("net", _)
+        | ("os", _)
+        | ("random", _)
+        | ("task", _) => BuiltinMeta {
+            purity: BuiltinPurity::HostEffectful,
+            lowering: BuiltinLowering::GenericDispatch,
+            can_const_fold: false,
+            runtime_helper: None,
+        },
         ("bytes", "len") | ("map", "len") | ("map", "has") => BuiltinMeta {
             purity: BuiltinPurity::Pure,
             lowering: BuiltinLowering::GenericDispatch,
@@ -246,6 +253,7 @@ mod tests {
             super::str_pkg::SIGS.len(),
             super::arr::SIGS.len(),
             super::datetime::SIGS.len(),
+            super::ffi_pkg::SIGS.len(),
             super::fs::SIGS.len(),
             super::net::SIGS.len(),
             super::os::SIGS.len(),

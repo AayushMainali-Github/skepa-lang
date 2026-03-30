@@ -147,7 +147,7 @@ fn parse_display_type(value: &str) -> Option<TypeInfo> {
 pub fn is_builtin_opaque_type(name: &str) -> bool {
     matches!(
         name,
-        "net.Socket" | "net.Listener" | "task.Task" | "task.Channel"
+        "net.Socket" | "net.Listener" | "task.Task" | "task.Channel" | "ffi.Library" | "ffi.Symbol"
     ) || ((name.starts_with("task.Channel[") || name.starts_with("task.Task["))
         && name.ends_with(']'))
 }

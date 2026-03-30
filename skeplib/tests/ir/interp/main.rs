@@ -73,6 +73,31 @@ impl RtHost for TestHost {
         Ok(RtString::from(format!("{left}/{right}")))
     }
 
+    fn ffi_open_library(&mut self, path: &str) -> RtResult<skepart::RtHandle> {
+        let handle = self.net_alloc_handle(RtHandleKind::Library)?;
+        self.out
+            .lock()
+            .expect("lock trace")
+            .push_str(&format!("[ffiopen {path}={}]",
+                handle.id
+            ));
+        Ok(handle)
+    }
+
+    fn ffi_bind_symbol(
+        &mut self,
+        library: skepart::RtHandle,
+        symbol: &str,
+    ) -> RtResult<skepart::RtHandle> {
+        self.net_lookup_handle_kind(library)?;
+        let handle = self.net_alloc_handle(RtHandleKind::Symbol)?;
+        self.out
+            .lock()
+            .expect("lock trace")
+            .push_str(&format!("[ffibind {}:{symbol}={}]", library.id, handle.id));
+        Ok(handle)
+    }
+
     fn os_platform(&mut self) -> RtResult<RtString> {
         Ok(RtString::from("test-os"))
     }
@@ -1018,6 +1043,34 @@ fn main() -> Int {
     return 0;
   }
   return 1;
+}
+
+#[test]
+fn interpreter_carries_ffi_library_and_symbol_handles() {
+    let source = r#"
+import ffi;
+
+fn main() -> Int {
+  let lib: ffi.Library = ffi.open("test-lib");
+  let sym: ffi.Symbol = ffi.bind(lib, "puts");
+  ffi.closeSymbol(sym);
+  ffi.closeLibrary(lib);
+  return 0;
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let trace = Arc::new(Mutex::new(String::new()));
+    let host = TestHost {
+        out: Arc::clone(&trace),
+        next_handle_id: 0,
+    };
+    let interp = IrInterpreter::new(program, host);
+    let result = interp.run_main();
+    assert_eq!(result.expect("program should run"), IrValue::Int(0));
+    let trace = trace.lock().expect("lock trace").clone();
+    assert!(trace.contains("[ffiopen test-lib=0]"), "trace was: {trace}");
+    assert!(trace.contains("[ffibind 0:puts=1]"), "trace was: {trace}");
 }
 "#;
 

@@ -8,6 +8,7 @@ use super::Checker;
 mod arr;
 mod bytes;
 mod datetime;
+mod ffi_pkg;
 mod fs;
 mod io;
 mod map;
@@ -65,6 +66,7 @@ impl Checker {
                 || parts[0] == "map"
                 || parts[0] == "arr"
                 || parts[0] == "datetime"
+                || parts[0] == "ffi"
                 || parts[0] == "random"
                 || parts[0] == "net"
                 || parts[0] == "os"
@@ -305,6 +307,7 @@ impl Checker {
             "datetime" => {
                 return datetime::check_datetime_builtin(self, method, args, scopes, sig);
             }
+            "ffi" => return ffi_pkg::check_ffi_builtin(self, method, args, scopes, sig),
             "random" => {
                 return random::check_random_builtin(self, method, args, scopes, sig);
             }

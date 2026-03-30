@@ -696,6 +696,34 @@ fn main() -> Int {
 }
 
 #[test]
+fn check_accepts_minimal_ffi_builtins_program() {
+    let tmp = make_temp_dir("skepac_check_ffi_minimal");
+    let file = tmp.join("ffi_minimal.sk");
+    fs::write(
+        &file,
+        r#"
+import ffi;
+
+fn main() -> Int {
+  let lib: ffi.Library = ffi.open("test-lib");
+  let sym: ffi.Symbol = ffi.bind(lib, "puts");
+  ffi.closeSymbol(sym);
+  ffi.closeLibrary(lib);
+  return 0;
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("check")
+        .arg(&file)
+        .output()
+        .expect("run check");
+    assert_eq!(output.status.code(), Some(0), "{:?}", output);
+}
+
+#[test]
 fn check_accepts_minimal_task_builtins_program() {
     let tmp = make_temp_dir("skepac_check_task_minimal");
     let file = tmp.join("task_minimal.sk");

@@ -11,6 +11,36 @@ use skeplib::ir;
 #[path = "../../common.rs"]
 mod common;
 
+#[cfg(windows)]
+fn ffi_test_library_path() -> &'static str {
+    "kernel32.dll"
+}
+
+#[cfg(windows)]
+fn ffi_test_symbol_name() -> &'static str {
+    "GetCurrentProcessId"
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn ffi_test_library_path() -> &'static str {
+    "libc.so.6"
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn ffi_test_symbol_name() -> &'static str {
+    "puts"
+}
+
+#[cfg(target_os = "macos")]
+fn ffi_test_library_path() -> &'static str {
+    "/usr/lib/libSystem.B.dylib"
+}
+
+#[cfg(target_os = "macos")]
+fn ffi_test_symbol_name() -> &'static str {
+    "puts"
+}
+
 fn temp_file(name: &str, ext: &str) -> std::path::PathBuf {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -1788,6 +1818,28 @@ fn main() -> Int {{
 
     let result = common::native_run_structured(&source);
     server.join().expect("server thread");
+    assert_eq!(result.exit_code(), 0, "stderr: {}", result.stderr_lossy());
+}
+
+#[test]
+fn codegen_builds_native_executable_for_ffi_open_and_bind() {
+    let source = format!(
+        r#"
+import ffi;
+
+fn main() -> Int {{
+  let lib: ffi.Library = ffi.open("{library}");
+  let sym: ffi.Symbol = ffi.bind(lib, "{symbol}");
+  ffi.closeSymbol(sym);
+  ffi.closeLibrary(lib);
+  return 0;
+}}
+"#,
+        library = ffi_test_library_path(),
+        symbol = ffi_test_symbol_name(),
+    );
+
+    let result = common::native_run_structured(&source);
     assert_eq!(result.exit_code(), 0, "stderr: {}", result.stderr_lossy());
 }
 

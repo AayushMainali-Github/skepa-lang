@@ -34,6 +34,8 @@ pub struct RecordingHost {
     pub net_fetch_status: String,
     pub net_fetch_body: String,
     pub net_fetch_content_type: String,
+    pub ffi_open_error: Option<String>,
+    pub ffi_bind_error: Option<String>,
     pub net_flush_error: Option<String>,
     pub net_set_read_timeout_error: Option<String>,
     pub net_set_write_timeout_error: Option<String>,
@@ -48,6 +50,7 @@ pub struct RecordingHost {
     pub net_fetch_error: Option<String>,
     pub next_handle_id: usize,
     pub net_handles: HashMap<usize, RtHandleKind>,
+    pub ffi_symbol_pointers: HashMap<usize, usize>,
     pub task_results: HashMap<usize, RtValue>,
     pub task_channels: HashMap<usize, VecDeque<RtValue>>,
     pub env: HashMap<String, String>,
@@ -86,6 +89,7 @@ impl RecordingHost {
             net_fetch_content_type: "text/plain".into(),
             next_handle_id: 0,
             net_handles: HashMap::new(),
+            ffi_symbol_pointers: HashMap::new(),
             env: HashMap::from([(String::from("HOME"), String::from("/tmp/home"))]),
             files: HashMap::from([(String::from("exists.txt"), String::from("seeded"))]),
             existing_paths: HashMap::from([(String::from("exists.txt"), true)]),
@@ -222,6 +226,16 @@ impl RecordingHostBuilder {
         self.host.net_fetch_status = status.into();
         self.host.net_fetch_body = body.into();
         self.host.net_fetch_content_type = content_type.into();
+        self
+    }
+
+    pub fn ffi_open_error(mut self, value: impl Into<String>) -> Self {
+        self.host.ffi_open_error = Some(value.into());
+        self
+    }
+
+    pub fn ffi_bind_error(mut self, value: impl Into<String>) -> Self {
+        self.host.ffi_bind_error = Some(value.into());
         self
     }
 
@@ -404,6 +418,35 @@ impl RtHost for RecordingHost {
 
     fn fs_join(&mut self, left: &str, right: &str) -> RtResult<RtString> {
         Ok(RtString::from(format!("{left}/{right}")))
+    }
+
+    fn ffi_open_library(&mut self, path: &str) -> RtResult<RtHandle> {
+        if let Some(message) = &self.ffi_open_error {
+            return Err(RtError::io(message.clone()));
+        }
+        let handle = self.net_alloc_handle(RtHandleKind::Library)?;
+        self.output.push_str(&format!("[ffiopen {path}]"));
+        Ok(handle)
+    }
+
+    fn ffi_bind_symbol(&mut self, library: RtHandle, symbol: &str) -> RtResult<RtHandle> {
+        if let Some(message) = &self.ffi_bind_error {
+            return Err(RtError::io(message.clone()));
+        }
+        match self.net_lookup_handle_kind(library)? {
+            RtHandleKind::Library => {}
+            other => {
+                return Err(RtError::invalid_handle_kind(
+                    RtHandleKind::Library.type_name(),
+                    other.type_name(),
+                ))
+            }
+        }
+        let handle = self.net_alloc_handle(RtHandleKind::Symbol)?;
+        self.ffi_symbol_pointers.insert(handle.id, library.id);
+        self.output
+            .push_str(&format!("[ffibind {}:{}]", library.id, symbol));
+        Ok(handle)
     }
 
     fn os_platform(&mut self) -> RtResult<RtString> {

@@ -896,6 +896,94 @@ fn builtins_cover_net_parse_url_and_errors() {
 }
 
 #[test]
+fn builtins_cover_ffi_open_bind_and_errors() {
+    let mut host = RecordingHostBuilder::seeded().build();
+    let library = builtins::call_with_host(
+        &mut host,
+        "ffi",
+        "open",
+        &[RtValue::String(RtString::from("test-lib"))],
+    )
+    .expect("ffi.open should return handle");
+    let RtValue::Handle(library) = library.clone() else {
+        panic!("ffi.open should return a handle");
+    };
+    assert_eq!(library.kind, skepart::RtHandleKind::Library);
+
+    let symbol = builtins::call_with_host(
+        &mut host,
+        "ffi",
+        "bind",
+        &[
+            RtValue::Handle(library),
+            RtValue::String(RtString::from("puts")),
+        ],
+    )
+    .expect("ffi.bind should return handle");
+    let RtValue::Handle(symbol) = symbol.clone() else {
+        panic!("ffi.bind should return a handle");
+    };
+    assert_eq!(symbol.kind, skepart::RtHandleKind::Symbol);
+    assert!(
+        host.output.contains("[ffiopen test-lib]") && host.output.contains("[ffibind 0:puts]"),
+        "unexpected host output: {}",
+        host.output
+    );
+    assert_eq!(
+        builtins::call_with_host(&mut host, "ffi", "closeSymbol", &[RtValue::Handle(symbol)])
+            .expect("close symbol"),
+        RtValue::Unit
+    );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "ffi",
+            "closeLibrary",
+            &[RtValue::Handle(library)]
+        )
+        .expect("close library"),
+        RtValue::Unit
+    );
+
+    let mut failing_open = RecordingHostBuilder::seeded()
+        .ffi_open_error("open failed")
+        .build();
+    assert_eq!(
+        builtins::call_with_host(
+            &mut failing_open,
+            "ffi",
+            "open",
+            &[RtValue::String(RtString::from("bad-lib"))],
+        )
+        .expect_err("ffi.open failure should surface")
+        .kind,
+        RtErrorKind::Io
+    );
+
+    let mut failing_bind = RecordingHostBuilder::seeded()
+        .ffi_bind_error("bind failed")
+        .build();
+    let library = builtins::call_with_host(
+        &mut failing_bind,
+        "ffi",
+        "open",
+        &[RtValue::String(RtString::from("test-lib"))],
+    )
+    .expect("ffi.open");
+    assert_eq!(
+        builtins::call_with_host(
+            &mut failing_bind,
+            "ffi",
+            "bind",
+            &[library, RtValue::String(RtString::from("puts"))],
+        )
+        .expect_err("ffi.bind failure should surface")
+        .kind,
+        RtErrorKind::Io
+    );
+}
+
+#[test]
 fn builtins_cover_net_fetch_and_errors() {
     let mut host = RecordingHostBuilder::seeded()
         .net_fetch_response("201", "fetch-ok", "application/json")

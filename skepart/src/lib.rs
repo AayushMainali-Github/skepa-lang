@@ -4,6 +4,7 @@ pub mod bytes;
 pub mod error;
 mod ffi_builtins;
 mod ffi_containers;
+pub mod ffi_dyn;
 mod ffi_function;
 mod ffi_support;
 mod ffi_values;

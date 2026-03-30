@@ -477,6 +477,12 @@ impl IrLowerer {
                     value: Box::new(IrType::String),
                 });
             }
+            ("ffi", "open") => {
+                return Some(IrType::Opaque("ffi.Library".to_string()));
+            }
+            ("ffi", "bind") => {
+                return Some(IrType::Opaque("ffi.Symbol".to_string()));
+            }
             ("net", "fetch") => {
                 return Some(IrType::Map {
                     value: Box::new(IrType::String),
