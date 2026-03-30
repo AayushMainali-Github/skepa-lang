@@ -14,6 +14,10 @@ pub fn connect(host: &mut dyn RtHost, address: &str) -> RtResult<RtValue> {
     Ok(RtValue::Handle(host.net_connect(address)?))
 }
 
+pub fn tls_connect(host: &mut dyn RtHost, host_name: &str, port: i64) -> RtResult<RtValue> {
+    Ok(RtValue::Handle(host.net_tls_connect(host_name, port)?))
+}
+
 pub fn accept(host: &mut dyn RtHost, listener: crate::RtHandle) -> RtResult<RtValue> {
     Ok(RtValue::Handle(host.net_accept(listener)?))
 }

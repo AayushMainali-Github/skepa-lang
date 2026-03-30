@@ -1172,11 +1172,12 @@ fn main() -> Void {
   let listener: net.Listener = net.listen("127.0.0.1:0");
   let socket: net.Socket = net.accept(listener);
   let client: net.Socket = net.connect("127.0.0.1:8080");
+  let secure: net.Socket = net.tlsConnect("example.com", 443);
   let msg: String = net.read(socket);
   let raw: Bytes = net.readBytes(socket);
   let exact: Bytes = net.readN(socket, 4);
   let local: String = net.localAddr(client);
-  let peer: String = net.peerAddr(client);
+  let peer: String = net.peerAddr(secure);
   net.write(client, msg);
   net.writeBytes(client, raw);
   net.writeBytes(client, exact);
@@ -1329,6 +1330,28 @@ fn main() -> Void {
     assert!(diags.as_slice().iter().any(|d| {
         d.message
             .contains("net.accept argument 1 expects Opaque(\"net.Listener\")")
+    }));
+}
+
+#[test]
+fn sema_rejects_net_tls_connect_type_mismatch() {
+    let src = r#"
+import net;
+
+fn main() -> Void {
+  let _x = net.tlsConnect(1, false);
+  return;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("net.tlsConnect argument 1 expects String")
+    }));
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("net.tlsConnect argument 2 expects Int")
     }));
 }
 

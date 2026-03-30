@@ -534,6 +534,23 @@ fn builtins_preserve_net_handle_kinds_across_connect_listen_and_accept() {
         })
     );
 
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "net",
+            "tlsConnect",
+            &[
+                RtValue::String(RtString::from("example.com")),
+                RtValue::Int(443)
+            ],
+        )
+        .expect("tlsConnect should return socket"),
+        RtValue::Handle(skepart::RtHandle {
+            id: 1,
+            kind: skepart::RtHandleKind::Socket,
+        })
+    );
+
     let listener = builtins::call_with_host(
         &mut host,
         "net",
@@ -544,7 +561,7 @@ fn builtins_preserve_net_handle_kinds_across_connect_listen_and_accept() {
     assert_eq!(
         listener,
         RtValue::Handle(skepart::RtHandle {
-            id: 1,
+            id: 2,
             kind: skepart::RtHandleKind::Listener,
         })
     );
@@ -553,7 +570,7 @@ fn builtins_preserve_net_handle_kinds_across_connect_listen_and_accept() {
         builtins::call_with_host(&mut host, "net", "accept", &[listener])
             .expect("accept should return socket"),
         RtValue::Handle(skepart::RtHandle {
-            id: 2,
+            id: 3,
             kind: skepart::RtHandleKind::Socket,
         })
     );
@@ -618,6 +635,24 @@ fn builtins_surface_net_runtime_errors_consistently() {
             &[RtValue::String(RtString::from("127.0.0.1:1"))],
         )
         .expect_err("connect failure should surface")
+        .kind,
+        RtErrorKind::Io
+    );
+
+    let mut failing_tls_connect = RecordingHostBuilder::seeded()
+        .net_tls_connect_error("tls connect failed")
+        .build();
+    assert_eq!(
+        builtins::call_with_host(
+            &mut failing_tls_connect,
+            "net",
+            "tlsConnect",
+            &[
+                RtValue::String(RtString::from("example.com")),
+                RtValue::Int(443)
+            ],
+        )
+        .expect_err("tlsConnect failure should surface")
         .kind,
         RtErrorKind::Io
     );

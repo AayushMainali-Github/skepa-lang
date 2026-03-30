@@ -155,6 +155,11 @@ pub fn call_with_host(
         ("net", "__testSocket", []) => net::test_socket(host),
         ("net", "listen", [address]) => net::listen(host, address.expect_string()?.as_str()),
         ("net", "connect", [address]) => net::connect(host, address.expect_string()?.as_str()),
+        ("net", "tlsConnect", [host_name, port]) => net::tls_connect(
+            host,
+            host_name.expect_string()?.as_str(),
+            port.expect_int()?,
+        ),
         ("net", "accept", [listener]) => net::accept(
             host,
             listener.expect_handle_kind(crate::RtHandleKind::Listener)?,

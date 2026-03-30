@@ -28,6 +28,7 @@ pub struct RecordingHost {
     pub net_set_write_timeout_error: Option<String>,
     pub net_listen_error: Option<String>,
     pub net_connect_error: Option<String>,
+    pub net_tls_connect_error: Option<String>,
     pub net_accept_error: Option<String>,
     pub net_read_error: Option<String>,
     pub net_write_error: Option<String>,
@@ -185,6 +186,11 @@ impl RecordingHostBuilder {
 
     pub fn net_connect_error(mut self, value: impl Into<String>) -> Self {
         self.host.net_connect_error = Some(value.into());
+        self
+    }
+
+    pub fn net_tls_connect_error(mut self, value: impl Into<String>) -> Self {
+        self.host.net_tls_connect_error = Some(value.into());
         self
     }
 
@@ -464,6 +470,22 @@ impl RtHost for RecordingHost {
             return Err(RtError::io(message.clone()));
         }
         self.net_alloc_handle(RtHandleKind::Socket)
+    }
+
+    fn net_tls_connect(&mut self, host: &str, port: i64) -> RtResult<RtHandle> {
+        if let Some(message) = &self.net_tls_connect_error {
+            return Err(RtError::io(message.clone()));
+        }
+        if port < 0 {
+            return Err(RtError::new(
+                skepart::RtErrorKind::InvalidArgument,
+                "net.tlsConnect port must be non-negative",
+            ));
+        }
+        let handle = self.net_alloc_handle(RtHandleKind::Socket)?;
+        self.output
+            .push_str(&format!("[nettlsconnect {}={host}:{port}]", handle.id));
+        Ok(handle)
     }
 
     fn net_accept(&mut self, listener: RtHandle) -> RtResult<RtHandle> {

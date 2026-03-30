@@ -275,6 +275,10 @@ pub trait RtHost {
         Err(RtError::unsupported_builtin("net.connect"))
     }
 
+    fn net_tls_connect(&mut self, _host: &str, _port: i64) -> RtResult<RtHandle> {
+        Err(RtError::unsupported_builtin("net.tlsConnect"))
+    }
+
     fn net_accept(&mut self, _listener: RtHandle) -> RtResult<RtHandle> {
         Err(RtError::unsupported_builtin("net.accept"))
     }

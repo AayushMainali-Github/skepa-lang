@@ -150,6 +150,15 @@ impl RtHost for TestHost {
         Ok(handle)
     }
 
+    fn net_tls_connect(&mut self, host: &str, port: i64) -> RtResult<skepart::RtHandle> {
+        let handle = self.net_alloc_handle(RtHandleKind::Socket)?;
+        self.out
+            .lock()
+            .expect("lock trace")
+            .push_str(&format!("[tlsconnect {}={host}:{port}]", handle.id));
+        Ok(handle)
+    }
+
     fn net_accept(&mut self, listener: skepart::RtHandle) -> RtResult<skepart::RtHandle> {
         self.net_lookup_handle_kind(listener)?;
         let handle = self.net_alloc_handle(RtHandleKind::Socket)?;
@@ -914,11 +923,12 @@ fn main() -> Int {
   let listener: net.Listener = net.listen("127.0.0.1:0");
   let server: net.Socket = net.accept(listener);
   let client: net.Socket = net.connect("127.0.0.1:8080");
+  let secure: net.Socket = net.tlsConnect("example.com", 443);
   let msg = net.read(server);
   let raw: Bytes = net.readBytes(server);
   let exact: Bytes = net.readN(server, 3);
   let local = net.localAddr(client);
-  let peer = net.peerAddr(client);
+  let peer = net.peerAddr(secure);
   net.write(client, msg);
   net.writeBytes(client, raw);
   net.writeBytes(client, exact);
@@ -947,7 +957,7 @@ fn main() -> Int {
     assert_eq!(value, IrValue::Int(0));
     assert_eq!(
         trace.lock().expect("lock trace").as_str(),
-        "[listen 0][accept 0->1][connect 2][read 1][readbytes 1][readn 1 count=3][localaddr 2][peeraddr 2][write 2=net-read][writebytes 2 len=3][writebytes 2 len=3][flush 2][setreadtimeout 2=25][setwritetimeout 2=50][close 1][close 2][close 0]"
+        "[listen 0][accept 0->1][connect 2][tlsconnect 3=example.com:443][read 1][readbytes 1][readn 1 count=3][localaddr 2][peeraddr 3][write 2=net-read][writebytes 2 len=3][writebytes 2 len=3][flush 2][setreadtimeout 2=25][setwritetimeout 2=50][close 1][close 2][close 0]"
     );
 }
 

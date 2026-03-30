@@ -4,6 +4,7 @@ use super::{BuiltinKind, BuiltinSig};
 
 const NO_PARAMS: &[TypeInfo] = &[];
 const STRING_PARAM: &[TypeInfo] = &[TypeInfo::String];
+const STRING_AND_INT_PARAM: &[TypeInfo] = &[TypeInfo::String, TypeInfo::Int];
 const OPAQUE_PARAM_SENTINEL: &[TypeInfo] = &[TypeInfo::Unknown];
 const OPAQUE_AND_STRING_PARAM: &[TypeInfo] = &[TypeInfo::Unknown, TypeInfo::String];
 const OPAQUE_AND_BYTES_PARAM: &[TypeInfo] = &[TypeInfo::Unknown, TypeInfo::Bytes];
@@ -28,6 +29,13 @@ pub(super) const SIGS: &[BuiltinSig] = &[
         package: "net",
         name: "connect",
         params: STRING_PARAM,
+        ret: TypeInfo::Unknown,
+        kind: BuiltinKind::FixedArity,
+    },
+    BuiltinSig {
+        package: "net",
+        name: "tlsConnect",
+        params: STRING_AND_INT_PARAM,
         ret: TypeInfo::Unknown,
         kind: BuiltinKind::FixedArity,
     },

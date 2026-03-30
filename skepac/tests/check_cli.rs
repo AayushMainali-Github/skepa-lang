@@ -521,11 +521,12 @@ fn main() -> Int {
   let listener: net.Listener = net.listen("127.0.0.1:0");
   let socket: net.Socket = net.accept(listener);
   let client: net.Socket = net.connect("127.0.0.1:8080");
+  let secure: net.Socket = net.tlsConnect("example.com", 443);
   let msg: String = net.read(socket);
   let raw: Bytes = net.readBytes(socket);
   let exact: Bytes = net.readN(socket, 4);
   let local: String = net.localAddr(client);
-  let peer: String = net.peerAddr(client);
+  let peer: String = net.peerAddr(secure);
   net.write(client, msg);
   net.writeBytes(client, raw);
   net.writeBytes(client, exact);

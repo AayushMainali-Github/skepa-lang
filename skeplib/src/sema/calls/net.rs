@@ -244,6 +244,10 @@ pub(super) fn check_net_builtin(
             }
             TypeInfo::Void
         }
+        "tlsConnect" => {
+            checker.check_fixed_arity_builtin("net", method, args, scopes, sig);
+            TypeInfo::Opaque("net.Socket".to_string())
+        }
         "__testSocket" | "listen" | "connect" => {
             checker.check_fixed_arity_builtin("net", method, args, scopes, sig);
             match method {
