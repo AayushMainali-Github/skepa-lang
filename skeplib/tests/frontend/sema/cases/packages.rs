@@ -1236,14 +1236,17 @@ fn sema_accepts_minimal_net_listener_and_socket_builtins() {
     let src = r#"
 import net;
 import bytes;
+import map;
 
 fn main() -> Void {
+  let parts: Map[String, String] = net.parseUrl("https://example.com:443/a?x=1#frag");
   let listener: net.Listener = net.listen("127.0.0.1:0");
   let socket: net.Socket = net.accept(listener);
   let client: net.Socket = net.connect("127.0.0.1:8080");
   let secure: net.Socket = net.tlsConnect("example.com", 443);
   let resolved: String = net.resolve("localhost");
   let msg: String = net.read(socket);
+  let host: String = map.get(parts, "host");
   let raw: Bytes = net.readBytes(socket);
   let exact: Bytes = net.readN(socket, 4);
   let local: String = net.localAddr(client);
@@ -1254,7 +1257,7 @@ fn main() -> Void {
   net.flush(client);
   net.setReadTimeout(client, 25);
   net.setWriteTimeout(client, 50);
-  if (local == peer) {
+  if ((local == peer) && (host != "")) {
     let _ = resolved;
     return;
   }
@@ -1277,6 +1280,25 @@ fn main() -> Void {
   let ip: String = net.resolve(1);
   let _ = ip;
   return;
+}
+
+#[test]
+fn sema_rejects_net_parse_url_wrong_arg_type() {
+    let src = r#"
+import net;
+
+fn main() -> Void {
+  let parts: Map[String, String] = net.parseUrl(false);
+  let _ = parts;
+  return;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("net.parseUrl argument 1 expects String")));
 }
 "#;
     let (result, diags) = analyze_source(src);

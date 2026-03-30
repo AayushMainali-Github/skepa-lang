@@ -512,6 +512,50 @@ fn noop_host_resolves_hostnames_to_ip_text() {
 }
 
 #[test]
+fn noop_host_parses_urls_into_string_maps() {
+    let mut host = NoopHost::default();
+    let parsed = host
+        .net_parse_url("https://example.com:8443/api/v1?q=ok#frag")
+        .expect("parse url");
+
+    assert_eq!(
+        parsed.get("scheme").expect("scheme"),
+        skepart::RtValue::String(RtString::from("https"))
+    );
+    assert_eq!(
+        parsed.get("host").expect("host"),
+        skepart::RtValue::String(RtString::from("example.com"))
+    );
+    assert_eq!(
+        parsed.get("port").expect("port"),
+        skepart::RtValue::String(RtString::from("8443"))
+    );
+    assert_eq!(
+        parsed.get("path").expect("path"),
+        skepart::RtValue::String(RtString::from("/api/v1"))
+    );
+    assert_eq!(
+        parsed.get("query").expect("query"),
+        skepart::RtValue::String(RtString::from("q=ok"))
+    );
+    assert_eq!(
+        parsed.get("fragment").expect("fragment"),
+        skepart::RtValue::String(RtString::from("frag"))
+    );
+}
+
+#[test]
+fn noop_host_rejects_invalid_urls() {
+    let mut host = NoopHost::default();
+    assert_eq!(
+        host.net_parse_url("not-a-url")
+            .expect_err("invalid url should fail")
+            .kind,
+        skepart::RtErrorKind::InvalidArgument
+    );
+}
+
+#[test]
 fn noop_host_rejects_tls_connect_with_untrusted_certificate() {
     let cert = generate_simple_self_signed(vec!["localhost".to_string()]).expect("generate cert");
     let cert_der = cert.cert.der().clone();

@@ -580,14 +580,17 @@ fn check_accepts_minimal_net_builtins_program() {
         r#"
 import net;
 import bytes;
+import map;
 
 fn main() -> Int {
+  let parts: Map[String, String] = net.parseUrl("https://example.com:443/a?x=1#frag");
   let listener: net.Listener = net.listen("127.0.0.1:0");
   let socket: net.Socket = net.accept(listener);
   let client: net.Socket = net.connect("127.0.0.1:8080");
   let secure: net.Socket = net.tlsConnect("example.com", 443);
   let resolved: String = net.resolve("localhost");
   let msg: String = net.read(socket);
+  let host: String = map.get(parts, "host");
   let raw: Bytes = net.readBytes(socket);
   let exact: Bytes = net.readN(socket, 4);
   let local: String = net.localAddr(client);
@@ -601,7 +604,7 @@ fn main() -> Int {
   net.close(socket);
   net.close(client);
   net.closeListener(listener);
-  if ((local != peer) && (resolved != "")) {
+  if ((local != peer) && (resolved != "") && (host == "example.com")) {
     return 0;
   }
   return 1;

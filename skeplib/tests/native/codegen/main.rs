@@ -1713,6 +1713,38 @@ fn main() -> Int {
 }
 
 #[test]
+fn codegen_builds_native_executable_for_net_parse_url() {
+    let source = r#"
+import net;
+import map;
+import str;
+
+fn main() -> Int {
+  let parts: Map[String, String] = net.parseUrl("https://example.com:8443/api?q=1#frag");
+  let scheme: String = map.get(parts, "scheme");
+  let host: String = map.get(parts, "host");
+  let port: String = map.get(parts, "port");
+  let path: String = map.get(parts, "path");
+  let query: String = map.get(parts, "query");
+  let fragment: String = map.get(parts, "fragment");
+  if ((scheme == "https")
+      && (host == "example.com")
+      && (port == "8443")
+      && (path == "/api")
+      && (query == "q=1")
+      && (fragment == "frag")
+      && (str.len(host) == 11)) {
+    return 0;
+  }
+  return 1;
+}
+"#;
+
+    let result = common::native_run_structured(source);
+    assert_eq!(result.exit_code(), 0, "stderr: {}", result.stderr_lossy());
+}
+
+#[test]
 fn codegen_builds_native_executable_for_net_flush() {
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind loopback listener");
     let addr = listener.local_addr().expect("listener addr");

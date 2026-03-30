@@ -25,6 +25,12 @@ pub struct RecordingHost {
     pub net_local_addr_value: String,
     pub net_peer_addr_value: String,
     pub net_resolve_value: String,
+    pub net_parse_url_scheme: String,
+    pub net_parse_url_host: String,
+    pub net_parse_url_port: String,
+    pub net_parse_url_path: String,
+    pub net_parse_url_query: String,
+    pub net_parse_url_fragment: String,
     pub net_flush_error: Option<String>,
     pub net_set_read_timeout_error: Option<String>,
     pub net_set_write_timeout_error: Option<String>,
@@ -35,6 +41,7 @@ pub struct RecordingHost {
     pub net_read_error: Option<String>,
     pub net_write_error: Option<String>,
     pub net_resolve_error: Option<String>,
+    pub net_parse_url_error: Option<String>,
     pub next_handle_id: usize,
     pub net_handles: HashMap<usize, RtHandleKind>,
     pub task_results: HashMap<usize, RtValue>,
@@ -64,6 +71,12 @@ impl RecordingHost {
             net_local_addr_value: "127.0.0.1:1111".into(),
             net_peer_addr_value: "127.0.0.1:2222".into(),
             net_resolve_value: "127.0.0.1".into(),
+            net_parse_url_scheme: "https".into(),
+            net_parse_url_host: "example.com".into(),
+            net_parse_url_port: "443".into(),
+            net_parse_url_path: "/x".into(),
+            net_parse_url_query: "a=1".into(),
+            net_parse_url_fragment: "frag".into(),
             next_handle_id: 0,
             net_handles: HashMap::new(),
             env: HashMap::from([(String::from("HOME"), String::from("/tmp/home"))]),
@@ -175,6 +188,24 @@ impl RecordingHostBuilder {
         self
     }
 
+    pub fn net_parse_url_parts(
+        mut self,
+        scheme: impl Into<String>,
+        host: impl Into<String>,
+        port: impl Into<String>,
+        path: impl Into<String>,
+        query: impl Into<String>,
+        fragment: impl Into<String>,
+    ) -> Self {
+        self.host.net_parse_url_scheme = scheme.into();
+        self.host.net_parse_url_host = host.into();
+        self.host.net_parse_url_port = port.into();
+        self.host.net_parse_url_path = path.into();
+        self.host.net_parse_url_query = query.into();
+        self.host.net_parse_url_fragment = fragment.into();
+        self
+    }
+
     pub fn net_flush_error(mut self, value: impl Into<String>) -> Self {
         self.host.net_flush_error = Some(value.into());
         self
@@ -222,6 +253,11 @@ impl RecordingHostBuilder {
 
     pub fn net_resolve_error(mut self, value: impl Into<String>) -> Self {
         self.host.net_resolve_error = Some(value.into());
+        self
+    }
+
+    pub fn net_parse_url_error(mut self, value: impl Into<String>) -> Self {
+        self.host.net_parse_url_error = Some(value.into());
         self
     }
 
@@ -588,6 +624,42 @@ impl RtHost for RecordingHost {
         }
         self.output.push_str(&format!("[netresolve {host}]"));
         Ok(RtString::from(self.net_resolve_value.clone()))
+    }
+
+    fn net_parse_url(&mut self, url: &str) -> RtResult<skepart::RtMap> {
+        if let Some(message) = &self.net_parse_url_error {
+            return Err(RtError::new(
+                skepart::RtErrorKind::InvalidArgument,
+                message.clone(),
+            ));
+        }
+        self.output.push_str(&format!("[netparseurl {url}]"));
+        let map = skepart::RtMap::new();
+        map.insert(
+            "scheme",
+            RtValue::String(RtString::from(self.net_parse_url_scheme.clone())),
+        );
+        map.insert(
+            "host",
+            RtValue::String(RtString::from(self.net_parse_url_host.clone())),
+        );
+        map.insert(
+            "port",
+            RtValue::String(RtString::from(self.net_parse_url_port.clone())),
+        );
+        map.insert(
+            "path",
+            RtValue::String(RtString::from(self.net_parse_url_path.clone())),
+        );
+        map.insert(
+            "query",
+            RtValue::String(RtString::from(self.net_parse_url_query.clone())),
+        );
+        map.insert(
+            "fragment",
+            RtValue::String(RtString::from(self.net_parse_url_fragment.clone())),
+        );
+        Ok(map)
     }
 
     fn net_accept(&mut self, listener: RtHandle) -> RtResult<RtHandle> {

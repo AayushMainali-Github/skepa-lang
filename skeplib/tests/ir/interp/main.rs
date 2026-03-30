@@ -167,6 +167,21 @@ impl RtHost for TestHost {
         Ok(RtString::from("127.0.0.1"))
     }
 
+    fn net_parse_url(&mut self, url: &str) -> RtResult<skepart::RtMap> {
+        self.out
+            .lock()
+            .expect("lock trace")
+            .push_str(&format!("[parseurl {url}]"));
+        let map = skepart::RtMap::new();
+        map.insert("scheme", skepart::RtValue::String(RtString::from("https")));
+        map.insert("host", skepart::RtValue::String(RtString::from("example.com")));
+        map.insert("port", skepart::RtValue::String(RtString::from("443")));
+        map.insert("path", skepart::RtValue::String(RtString::from("/a")));
+        map.insert("query", skepart::RtValue::String(RtString::from("x=1")));
+        map.insert("fragment", skepart::RtValue::String(RtString::from("frag")));
+        Ok(map)
+    }
+
     fn net_accept(&mut self, listener: skepart::RtHandle) -> RtResult<skepart::RtHandle> {
         self.net_lookup_handle_kind(listener)?;
         let handle = self.net_alloc_handle(RtHandleKind::Socket)?;
@@ -948,14 +963,17 @@ fn interpreter_carries_real_net_builtin_handles_through_calls() {
     let source = r#"
 import net;
 import bytes;
+import map;
 
 fn main() -> Int {
+  let parts: Map[String, String] = net.parseUrl("https://example.com:443/a?x=1#frag");
   let listener: net.Listener = net.listen("127.0.0.1:0");
   let server: net.Socket = net.accept(listener);
   let client: net.Socket = net.connect("127.0.0.1:8080");
   let secure: net.Socket = net.tlsConnect("example.com", 443);
   let resolved: String = net.resolve("localhost");
   let msg = net.read(server);
+  let host = map.get(parts, "host");
   let raw: Bytes = net.readBytes(server);
   let exact: Bytes = net.readN(server, 3);
   let local = net.localAddr(client);
@@ -969,7 +987,7 @@ fn main() -> Int {
   net.close(server);
   net.close(client);
   net.closeListener(listener);
-  if ((local != peer) && (resolved != "")) {
+  if ((local != peer) && (resolved != "") && (host == "example.com")) {
     return 0;
   }
   return 1;

@@ -588,6 +588,7 @@ Signatures:
 - `net.connect(address: String) -> net.Socket`
 - `net.tlsConnect(host: String, port: Int) -> net.Socket`
 - `net.resolve(host: String) -> String`
+- `net.parseUrl(url: String) -> Map[String, String]`
 - `net.listen(address: String) -> net.Listener`
 - `net.accept(listener: net.Listener) -> net.Socket`
 - `net.read(socket: net.Socket) -> String`
@@ -608,6 +609,7 @@ Behavior:
 - `net.connect(address)` opens a blocking TCP client connection.
 - `net.tlsConnect(host, port)` opens a blocking TLS client connection with certificate and hostname verification.
 - `net.resolve(host)` resolves the host name and returns the first resolved IP address as text.
+- `net.parseUrl(url)` parses a URL and returns a `Map[String, String]` with keys: `scheme`, `host`, `port`, `path`, `query`, and `fragment`.
 - `net.listen(address)` binds a blocking TCP listener. Using port `0` lets the OS choose an ephemeral port.
 - `net.accept(listener)` blocks until a client connects, then returns a new `net.Socket`.
 - `net.read(socket)` performs a single blocking read of up to 4096 bytes and returns a `String`.
@@ -636,6 +638,7 @@ Notes:
 - `net.read` is not a read-to-EOF helper; it returns one chunk from a single read call.
 - `net.tlsConnect` is client-side only in the current surface. There is no TLS listener/accept API yet.
 - `net.resolve` returns the first resolved address only. It is a convenience helper, not a full DNS result-set API.
+- `net.parseUrl` is a convenience parser for common URLs. Missing optional parts are returned as empty strings.
 - `net.tlsConnect` validates the peer certificate chain and hostname through the host TLS implementation.
 - Timeout setters require non-negative millisecond values. `0` means no timeout.
 - Passing the wrong handle kind to a builtin raises a runtime error.
@@ -682,6 +685,22 @@ import net;
 fn main() -> Int {
   let ip: String = net.resolve("example.com");
   if (ip != "") {
+    return 0;
+  }
+  return 1;
+}
+```
+
+Parse URL:
+```sk
+import map;
+import net;
+
+fn main() -> Int {
+  let parts: Map[String, String] = net.parseUrl("https://example.com:8443/api?q=1#frag");
+  let host: String = map.get(parts, "host");
+  let path: String = map.get(parts, "path");
+  if ((host == "example.com") && (path == "/api")) {
     return 0;
   }
   return 1;

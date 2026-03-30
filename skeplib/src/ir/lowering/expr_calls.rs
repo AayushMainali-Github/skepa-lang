@@ -472,6 +472,11 @@ impl IrLowerer {
             ("net", "listen") => {
                 return Some(IrType::Opaque("net.Listener".to_string()));
             }
+            ("net", "parseUrl") => {
+                return Some(IrType::Map {
+                    value: Box::new(IrType::String),
+                });
+            }
             ("task", "__testTask") => {
                 let value = args.first()?;
                 return Some(IrType::Opaque(format!(

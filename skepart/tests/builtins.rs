@@ -842,6 +842,60 @@ fn builtins_cover_net_resolve_and_errors() {
 }
 
 #[test]
+fn builtins_cover_net_parse_url_and_errors() {
+    let mut host = RecordingHostBuilder::seeded()
+        .net_parse_url_parts("https", "example.com", "8443", "/api", "x=1", "frag")
+        .build();
+
+    let parsed = builtins::call_with_host(
+        &mut host,
+        "net",
+        "parseUrl",
+        &[RtValue::String(RtString::from(
+            "https://example.com:8443/api?x=1#frag",
+        ))],
+    )
+    .expect("parseUrl should return map");
+
+    let RtValue::Map(parsed) = parsed else {
+        panic!("net.parseUrl should return a map");
+    };
+    assert_eq!(
+        parsed.get("scheme").expect("scheme"),
+        RtValue::String(RtString::from("https"))
+    );
+    assert_eq!(
+        parsed.get("host").expect("host"),
+        RtValue::String(RtString::from("example.com"))
+    );
+    assert_eq!(
+        parsed.get("port").expect("port"),
+        RtValue::String(RtString::from("8443"))
+    );
+    assert!(
+        host.output
+            .contains("[netparseurl https://example.com:8443/api?x=1#frag]"),
+        "unexpected host output: {}",
+        host.output
+    );
+
+    let mut failing_host = RecordingHostBuilder::seeded()
+        .net_parse_url_error("bad url")
+        .build();
+    assert_eq!(
+        builtins::call_with_host(
+            &mut failing_host,
+            "net",
+            "parseUrl",
+            &[RtValue::String(RtString::from("bad"))],
+        )
+        .expect_err("parseUrl failure should surface")
+        .kind,
+        RtErrorKind::InvalidArgument
+    );
+}
+
+#[test]
 fn builtins_enforce_net_close_lifetime_rules() {
     let mut host = RecordingHostBuilder::seeded().build();
     let socket = builtins::call_with_host(&mut host, "net", "__testSocket", &[])

@@ -14,7 +14,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use rustls::pki_types::{CertificateDer, ServerName};
 use rustls::{ClientConfig, ClientConnection, RootCertStore, StreamOwned};
 
-use crate::{RtBytes, RtError, RtErrorKind, RtHandle, RtHandleKind, RtResult, RtString};
+use crate::{
+    RtBytes, RtError, RtErrorKind, RtHandle, RtHandleKind, RtMap, RtResult, RtString, RtValue,
+};
 
 pub enum RtNetResource {
     Placeholder(RtHandleKind),
@@ -391,6 +393,10 @@ pub trait RtHost {
 
     fn net_resolve(&mut self, _host: &str) -> RtResult<RtString> {
         Err(RtError::unsupported_builtin("net.resolve"))
+    }
+
+    fn net_parse_url(&mut self, _url: &str) -> RtResult<RtMap> {
+        Err(RtError::unsupported_builtin("net.parseUrl"))
     }
 
     fn net_accept(&mut self, _listener: RtHandle) -> RtResult<RtHandle> {
@@ -855,6 +861,18 @@ impl RtHost for NoopHost {
         Ok(RtString::from(addr.ip().to_string()))
     }
 
+    fn net_parse_url(&mut self, url: &str) -> RtResult<RtMap> {
+        let parts = parse_url_parts(url)?;
+        let map = RtMap::new();
+        map.insert("scheme", RtValue::String(RtString::from(parts.scheme)));
+        map.insert("host", RtValue::String(RtString::from(parts.host)));
+        map.insert("port", RtValue::String(RtString::from(parts.port)));
+        map.insert("path", RtValue::String(RtString::from(parts.path)));
+        map.insert("query", RtValue::String(RtString::from(parts.query)));
+        map.insert("fragment", RtValue::String(RtString::from(parts.fragment)));
+        Ok(map)
+    }
+
     fn net_accept(&mut self, listener: RtHandle) -> RtResult<RtHandle> {
         let stream = {
             let listener_ref = self.net_tcp_listener(listener)?;
@@ -1073,6 +1091,94 @@ fn duration_from_timeout_millis(name: &str, millis: i64) -> RtResult<Option<Dura
     } else {
         Ok(Some(Duration::from_millis(millis as u64)))
     }
+}
+
+struct ParsedUrlParts {
+    scheme: String,
+    host: String,
+    port: String,
+    path: String,
+    query: String,
+    fragment: String,
+}
+
+fn parse_url_parts(url: &str) -> RtResult<ParsedUrlParts> {
+    let (scheme, rest) = url.split_once("://").ok_or_else(|| {
+        RtError::new(
+            RtErrorKind::InvalidArgument,
+            format!("net.parseUrl expected scheme://host in `{url}`"),
+        )
+    })?;
+    if scheme.is_empty() {
+        return Err(RtError::new(
+            RtErrorKind::InvalidArgument,
+            "net.parseUrl URL scheme must not be empty",
+        ));
+    }
+
+    let authority_end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
+    let authority = &rest[..authority_end];
+    let mut tail = &rest[authority_end..];
+    if authority.is_empty() {
+        return Err(RtError::new(
+            RtErrorKind::InvalidArgument,
+            "net.parseUrl URL host must not be empty",
+        ));
+    }
+
+    let (host, port) = if authority.starts_with('[') {
+        let end = authority.find(']').ok_or_else(|| {
+            RtError::new(
+                RtErrorKind::InvalidArgument,
+                "net.parseUrl invalid IPv6 host syntax",
+            )
+        })?;
+        let host = authority[..=end].to_string();
+        let remainder = &authority[end + 1..];
+        if remainder.is_empty() {
+            (host, String::new())
+        } else if let Some(port) = remainder.strip_prefix(':') {
+            (host, port.to_string())
+        } else {
+            return Err(RtError::new(
+                RtErrorKind::InvalidArgument,
+                "net.parseUrl invalid authority suffix",
+            ));
+        }
+    } else if let Some((host, port)) = authority.rsplit_once(':') {
+        if host.is_empty() || port.is_empty() || host.contains(':') {
+            (authority.to_string(), String::new())
+        } else {
+            (host.to_string(), port.to_string())
+        }
+    } else {
+        (authority.to_string(), String::new())
+    };
+
+    let mut path = "/".to_string();
+    let mut query = String::new();
+    let mut fragment = String::new();
+
+    if let Some(fragment_start) = tail.find('#') {
+        fragment = tail[fragment_start + 1..].to_string();
+        tail = &tail[..fragment_start];
+    }
+    if let Some(query_start) = tail.find('?') {
+        query = tail[query_start + 1..].to_string();
+        tail = &tail[..query_start];
+    }
+    if !tail.is_empty() {
+        path = tail.to_string();
+    }
+
+    Ok(ParsedUrlParts {
+        scheme: scheme.to_string(),
+        host,
+        port,
+        path,
+        query,
+        fragment,
+    })
 }
 
 fn tls_client_config(extra_roots: &[CertificateDer<'static>]) -> RtResult<Arc<ClientConfig>> {

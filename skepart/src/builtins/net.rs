@@ -22,6 +22,10 @@ pub fn resolve(host: &mut dyn RtHost, host_name: &str) -> RtResult<RtValue> {
     Ok(RtValue::String(host.net_resolve(host_name)?))
 }
 
+pub fn parse_url(host: &mut dyn RtHost, url: &str) -> RtResult<RtValue> {
+    Ok(RtValue::Map(host.net_parse_url(url)?))
+}
+
 pub fn accept(host: &mut dyn RtHost, listener: crate::RtHandle) -> RtResult<RtValue> {
     Ok(RtValue::Handle(host.net_accept(listener)?))
 }
