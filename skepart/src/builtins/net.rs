@@ -40,12 +40,21 @@ pub fn write_bytes(
     Ok(RtValue::Unit)
 }
 
+pub fn read_n(host: &mut dyn RtHost, socket: crate::RtHandle, count: i64) -> RtResult<RtValue> {
+    Ok(RtValue::Bytes(host.net_read_n(socket, count)?))
+}
+
 pub fn local_addr(host: &mut dyn RtHost, socket: crate::RtHandle) -> RtResult<RtValue> {
     Ok(RtValue::String(host.net_local_addr(socket)?))
 }
 
 pub fn peer_addr(host: &mut dyn RtHost, socket: crate::RtHandle) -> RtResult<RtValue> {
     Ok(RtValue::String(host.net_peer_addr(socket)?))
+}
+
+pub fn flush(host: &mut dyn RtHost, socket: crate::RtHandle) -> RtResult<RtValue> {
+    host.net_flush(socket)?;
+    Ok(RtValue::Unit)
 }
 
 pub fn close(host: &mut dyn RtHost, socket: crate::RtHandle) -> RtResult<RtValue> {

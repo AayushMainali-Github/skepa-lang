@@ -1622,6 +1622,67 @@ fn main() -> Int {{
 }
 
 #[test]
+fn codegen_builds_native_executable_for_net_read_n() {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind loopback listener");
+    let addr = listener.local_addr().expect("listener addr");
+    let peer = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("accept client");
+        stream.write_all(&[4_u8, 5, 6, 7]).expect("write bytes");
+    });
+
+    let source = format!(
+        r#"
+import net;
+import bytes;
+
+fn main() -> Int {{
+  let socket: net.Socket = net.connect("{addr}");
+  let raw: Bytes = net.readN(socket, 3);
+  net.close(socket);
+  if (bytes.len(raw) == 3 && bytes.get(raw, 0) == 4 && bytes.get(raw, 2) == 6) {{
+    return 0;
+  }}
+  return 1;
+}}
+"#
+    );
+
+    let result = common::native_run_structured(&source);
+    peer.join().expect("peer thread should finish");
+    assert_eq!(result.exit_code(), 0, "stderr: {}", result.stderr_lossy());
+}
+
+#[test]
+fn codegen_builds_native_executable_for_net_flush() {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind loopback listener");
+    let addr = listener.local_addr().expect("listener addr");
+    let peer = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("accept client");
+        let mut buf = [0_u8; 4];
+        stream.read_exact(&mut buf).expect("read ping");
+        assert_eq!(&buf, b"ping");
+    });
+
+    let source = format!(
+        r#"
+import net;
+
+fn main() -> Int {{
+  let socket: net.Socket = net.connect("{addr}");
+  net.write(socket, "ping");
+  net.flush(socket);
+  net.close(socket);
+  return 0;
+}}
+"#
+    );
+
+    let result = common::native_run_structured(&source);
+    peer.join().expect("peer thread should finish");
+    assert_eq!(result.exit_code(), 0, "stderr: {}", result.stderr_lossy());
+}
+
+#[test]
 fn codegen_reports_runtime_failure_for_non_utf8_net_reads() {
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind loopback listener");
     let addr = listener.local_addr().expect("listener addr");

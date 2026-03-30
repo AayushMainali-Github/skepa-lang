@@ -1174,10 +1174,13 @@ fn main() -> Void {
   let client: net.Socket = net.connect("127.0.0.1:8080");
   let msg: String = net.read(socket);
   let raw: Bytes = net.readBytes(socket);
+  let exact: Bytes = net.readN(socket, 4);
   let local: String = net.localAddr(client);
   let peer: String = net.peerAddr(client);
   net.write(client, msg);
   net.writeBytes(client, raw);
+  net.writeBytes(client, exact);
+  net.flush(client);
   if (local == peer) {
     return;
   }
@@ -1185,6 +1188,10 @@ fn main() -> Void {
   net.close(client);
   net.closeListener(listener);
   return;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
 }
 
 #[test]
@@ -1199,6 +1206,18 @@ fn main() -> Void {
   let _x = net.readBytes(listener);
   net.writeBytes(socket, "bad");
   return;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("net.readBytes argument 1 expects Opaque(\"net.Socket\")")
+    }));
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("net.writeBytes argument 2 expects Bytes")
+    }));
 }
 
 #[test]
@@ -1224,21 +1243,48 @@ fn main() -> Void {
             .contains("net.peerAddr argument 1 expects Opaque(\"net.Socket\")")
     }));
 }
+
+#[test]
+fn sema_rejects_net_readn_type_mismatches() {
+    let src = r#"
+import net;
+
+fn main() -> Void {
+  let listener: net.Listener = net.listen("127.0.0.1:0");
+  let socket: net.Socket = net.__testSocket();
+  let _a = net.readN(listener, 4);
+  let _b = net.readN(socket, false);
+  return;
+}
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
     assert!(diags.as_slice().iter().any(|d| {
         d.message
-            .contains("net.readBytes argument 1 expects Opaque(\"net.Socket\")")
+            .contains("net.readN argument 1 expects Opaque(\"net.Socket\")")
     }));
     assert!(diags.as_slice().iter().any(|d| {
-        d.message
-            .contains("net.writeBytes argument 2 expects Bytes")
+        d.message.contains("net.readN argument 2 expects Int")
     }));
+}
+
+#[test]
+fn sema_rejects_net_flush_type_mismatch() {
+    let src = r#"
+import net;
+
+fn main() -> Void {
+  let listener: net.Listener = net.listen("127.0.0.1:0");
+  net.flush(listener);
+  return;
 }
 "#;
     let (result, diags) = analyze_source(src);
-    assert_sema_success(&result, &diags);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("net.flush argument 1 expects Opaque(\"net.Socket\")")
+    }));
 }
 
 #[test]

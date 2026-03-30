@@ -20,8 +20,10 @@ pub struct RecordingHost {
     pub exec_argv: Vec<String>,
     pub net_read_value: String,
     pub net_read_bytes_value: Vec<u8>,
+    pub net_read_n_value: Vec<u8>,
     pub net_local_addr_value: String,
     pub net_peer_addr_value: String,
+    pub net_flush_error: Option<String>,
     pub net_listen_error: Option<String>,
     pub net_connect_error: Option<String>,
     pub net_accept_error: Option<String>,
@@ -50,6 +52,7 @@ impl RecordingHost {
             exec_argv: Vec::new(),
             net_read_value: "net-read".into(),
             net_read_bytes_value: b"net-bytes".to_vec(),
+            net_read_n_value: b"net-read-n".to_vec(),
             net_local_addr_value: "127.0.0.1:1111".into(),
             net_peer_addr_value: "127.0.0.1:2222".into(),
             next_handle_id: 0,
@@ -143,6 +146,11 @@ impl RecordingHostBuilder {
         self
     }
 
+    pub fn net_read_n_value(mut self, value: impl Into<Vec<u8>>) -> Self {
+        self.host.net_read_n_value = value.into();
+        self
+    }
+
     pub fn net_local_addr_value(mut self, value: impl Into<String>) -> Self {
         self.host.net_local_addr_value = value.into();
         self
@@ -150,6 +158,11 @@ impl RecordingHostBuilder {
 
     pub fn net_peer_addr_value(mut self, value: impl Into<String>) -> Self {
         self.host.net_peer_addr_value = value.into();
+        self
+    }
+
+    pub fn net_flush_error(mut self, value: impl Into<String>) -> Self {
+        self.host.net_flush_error = Some(value.into());
         self
     }
 
@@ -488,6 +501,25 @@ impl RtHost for RecordingHost {
         Ok(())
     }
 
+    fn net_read_n(&mut self, socket: RtHandle, count: i64) -> RtResult<RtBytes> {
+        if let Some(message) = &self.net_read_error {
+            return Err(RtError::io(message.clone()));
+        }
+        let count = usize::try_from(count).map_err(|_| {
+            RtError::new(
+                skepart::RtErrorKind::InvalidArgument,
+                "net.readN count must be non-negative",
+            )
+        })?;
+        self.net_lookup_handle_kind(socket)?;
+        self.output
+            .push_str(&format!("[netreadn {} count={}]", socket.id, count));
+        if self.net_read_n_value.len() < count {
+            return Err(RtError::io("not enough bytes available".to_string()));
+        }
+        Ok(RtBytes::from(self.net_read_n_value[..count].to_vec()))
+    }
+
     fn net_local_addr(&mut self, socket: RtHandle) -> RtResult<RtString> {
         self.net_lookup_handle_kind(socket)?;
         self.output
@@ -500,5 +532,14 @@ impl RtHost for RecordingHost {
         self.output
             .push_str(&format!("[netpeeraddr {}]", socket.id));
         Ok(RtString::from(self.net_peer_addr_value.clone()))
+    }
+
+    fn net_flush(&mut self, socket: RtHandle) -> RtResult<()> {
+        if let Some(message) = &self.net_flush_error {
+            return Err(RtError::io(message.clone()));
+        }
+        self.net_lookup_handle_kind(socket)?;
+        self.output.push_str(&format!("[netflush {}]", socket.id));
+        Ok(())
     }
 }

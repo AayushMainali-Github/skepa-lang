@@ -294,12 +294,20 @@ pub trait RtHost {
         Err(RtError::unsupported_builtin("net.writeBytes"))
     }
 
+    fn net_read_n(&mut self, _socket: RtHandle, _count: i64) -> RtResult<RtBytes> {
+        Err(RtError::unsupported_builtin("net.readN"))
+    }
+
     fn net_local_addr(&mut self, _socket: RtHandle) -> RtResult<RtString> {
         Err(RtError::unsupported_builtin("net.localAddr"))
     }
 
     fn net_peer_addr(&mut self, _socket: RtHandle) -> RtResult<RtString> {
         Err(RtError::unsupported_builtin("net.peerAddr"))
+    }
+
+    fn net_flush(&mut self, _socket: RtHandle) -> RtResult<()> {
+        Err(RtError::unsupported_builtin("net.flush"))
     }
 }
 
@@ -633,6 +641,20 @@ impl RtHost for NoopHost {
             .map_err(|err| RtError::io(err.to_string()))
     }
 
+    fn net_read_n(&mut self, socket: RtHandle, count: i64) -> RtResult<RtBytes> {
+        let count = usize::try_from(count).map_err(|_| {
+            RtError::new(
+                RtErrorKind::InvalidArgument,
+                "net.readN count must be non-negative",
+            )
+        })?;
+        let mut buf = vec![0_u8; count];
+        self.net_tcp_stream(socket)?
+            .read_exact(&mut buf)
+            .map_err(|err| RtError::io(err.to_string()))?;
+        Ok(RtBytes::from(buf))
+    }
+
     fn net_local_addr(&mut self, socket: RtHandle) -> RtResult<RtString> {
         let addr = self
             .net_tcp_stream(socket)?
@@ -647,6 +669,12 @@ impl RtHost for NoopHost {
             .peer_addr()
             .map_err(|err| RtError::io(err.to_string()))?;
         Ok(RtString::from(addr.to_string()))
+    }
+
+    fn net_flush(&mut self, socket: RtHandle) -> RtResult<()> {
+        self.net_tcp_stream(socket)?
+            .flush()
+            .map_err(|err| RtError::io(err.to_string()))
     }
 }
 

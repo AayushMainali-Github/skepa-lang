@@ -7,6 +7,7 @@ const STRING_PARAM: &[TypeInfo] = &[TypeInfo::String];
 const OPAQUE_PARAM_SENTINEL: &[TypeInfo] = &[TypeInfo::Unknown];
 const OPAQUE_AND_STRING_PARAM: &[TypeInfo] = &[TypeInfo::Unknown, TypeInfo::String];
 const OPAQUE_AND_BYTES_PARAM: &[TypeInfo] = &[TypeInfo::Unknown, TypeInfo::Bytes];
+const OPAQUE_AND_INT_PARAM: &[TypeInfo] = &[TypeInfo::Unknown, TypeInfo::Int];
 
 pub(super) const SIGS: &[BuiltinSig] = &[
     BuiltinSig {
@@ -67,6 +68,13 @@ pub(super) const SIGS: &[BuiltinSig] = &[
     },
     BuiltinSig {
         package: "net",
+        name: "readN",
+        params: OPAQUE_AND_INT_PARAM,
+        ret: TypeInfo::Bytes,
+        kind: BuiltinKind::FixedArity,
+    },
+    BuiltinSig {
+        package: "net",
         name: "localAddr",
         params: OPAQUE_PARAM_SENTINEL,
         ret: TypeInfo::String,
@@ -77,6 +85,13 @@ pub(super) const SIGS: &[BuiltinSig] = &[
         name: "peerAddr",
         params: OPAQUE_PARAM_SENTINEL,
         ret: TypeInfo::String,
+        kind: BuiltinKind::FixedArity,
+    },
+    BuiltinSig {
+        package: "net",
+        name: "flush",
+        params: OPAQUE_PARAM_SENTINEL,
+        ret: TypeInfo::Void,
         kind: BuiltinKind::FixedArity,
     },
     BuiltinSig {

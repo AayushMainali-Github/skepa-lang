@@ -334,6 +334,56 @@ fn noop_host_reports_local_and_peer_addrs_for_connected_socket() {
 }
 
 #[test]
+fn noop_host_supports_exact_byte_reads_with_read_n() {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind loopback listener");
+    let addr = listener.local_addr().expect("listener addr");
+    let peer = std::thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("accept client");
+        stream.write_all(&[7_u8, 8, 9, 10]).expect("write bytes");
+    });
+
+    let mut host = NoopHost::default();
+    let client = host
+        .net_connect(&addr.to_string())
+        .expect("connect client socket");
+
+    assert_eq!(
+        host.net_read_n(client, 3).expect("read exact bytes"),
+        RtBytes::from(vec![7_u8, 8, 9])
+    );
+    peer.join().expect("join peer");
+    host.net_close_handle(client).expect("close client");
+}
+
+#[test]
+fn noop_host_supports_flushing_connected_socket() {
+    let mut host = NoopHost::default();
+    let listener = host.net_listen("127.0.0.1:0").expect("listen");
+    let addr = host
+        .net_tcp_listener(listener)
+        .expect("listener lookup")
+        .local_addr()
+        .expect("listener addr");
+
+    let client = host
+        .net_connect(&addr.to_string())
+        .expect("connect client socket");
+    let server = host.net_accept(listener).expect("accept server socket");
+
+    host.net_write(server, "ping")
+        .expect("write server->client");
+    host.net_flush(server).expect("flush server");
+    assert_eq!(
+        host.net_read(client).expect("read client"),
+        RtString::from("ping")
+    );
+
+    host.net_close_handle(server).expect("close server");
+    host.net_close_handle(client).expect("close client");
+    host.net_close_handle(listener).expect("close listener");
+}
+
+#[test]
 fn noop_host_surfaces_invalid_address_and_closed_socket_errors() {
     let mut host = NoopHost::default();
     assert_eq!(
@@ -357,6 +407,12 @@ fn noop_host_surfaces_invalid_address_and_closed_socket_errors() {
     assert_eq!(
         host.net_write(socket, "ping")
             .expect_err("closed socket write should fail")
+            .kind,
+        skepart::RtErrorKind::InvalidArgument
+    );
+    assert_eq!(
+        host.net_flush(socket)
+            .expect_err("closed socket flush should fail")
             .kind,
         skepart::RtErrorKind::InvalidArgument
     );

@@ -177,11 +177,20 @@ pub fn call_with_host(
             socket.expect_handle_kind(crate::RtHandleKind::Socket)?,
             &data.expect_bytes()?,
         ),
+        ("net", "readN", [socket, count]) => net::read_n(
+            host,
+            socket.expect_handle_kind(crate::RtHandleKind::Socket)?,
+            count.expect_int()?,
+        ),
         ("net", "localAddr", [socket]) => net::local_addr(
             host,
             socket.expect_handle_kind(crate::RtHandleKind::Socket)?,
         ),
         ("net", "peerAddr", [socket]) => net::peer_addr(
+            host,
+            socket.expect_handle_kind(crate::RtHandleKind::Socket)?,
+        ),
+        ("net", "flush", [socket]) => net::flush(
             host,
             socket.expect_handle_kind(crate::RtHandleKind::Socket)?,
         ),

@@ -120,6 +120,32 @@ pub(super) fn check_net_builtin(
             }
             TypeInfo::Void
         }
+        "readN" => {
+            if args.len() != 2 {
+                checker.error(format!(
+                    "net.readN expects 2 argument(s), got {}",
+                    args.len()
+                ));
+                return TypeInfo::Unknown;
+            }
+            let socket_ty = checker.check_expr(&args[0], scopes);
+            let socket_expected = TypeInfo::Opaque("net.Socket".to_string());
+            if socket_ty != TypeInfo::Unknown && socket_ty != socket_expected {
+                checker.error(format!(
+                    "net.readN argument 1 expects {:?}, got {:?}",
+                    socket_expected, socket_ty
+                ));
+            }
+            let count_ty = checker.check_expr(&args[1], scopes);
+            if count_ty != TypeInfo::Unknown && count_ty != TypeInfo::Int {
+                checker.error(format!(
+                    "net.readN argument 2 expects {:?}, got {:?}",
+                    TypeInfo::Int,
+                    count_ty
+                ));
+            }
+            TypeInfo::Bytes
+        }
         "localAddr" | "peerAddr" => {
             if args.len() != 1 {
                 checker.error(format!(
@@ -137,6 +163,24 @@ pub(super) fn check_net_builtin(
                 ));
             }
             TypeInfo::String
+        }
+        "flush" => {
+            if args.len() != 1 {
+                checker.error(format!(
+                    "net.flush expects 1 argument(s), got {}",
+                    args.len()
+                ));
+                return TypeInfo::Unknown;
+            }
+            let got = checker.check_expr(&args[0], scopes);
+            let expected = TypeInfo::Opaque("net.Socket".to_string());
+            if got != TypeInfo::Unknown && got != expected {
+                checker.error(format!(
+                    "net.flush argument 1 expects {:?}, got {:?}",
+                    expected, got
+                ));
+            }
+            TypeInfo::Void
         }
         "close" => {
             if args.len() != 1 {

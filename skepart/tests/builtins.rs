@@ -257,6 +257,61 @@ fn builtins_cover_net_address_queries() {
 }
 
 #[test]
+fn builtins_cover_net_flush() {
+    let mut host = RecordingHostBuilder::seeded().build();
+    let socket =
+        builtins::call_with_host(&mut host, "net", "__testSocket", &[]).expect("allocate socket");
+
+    assert_eq!(
+        builtins::call_with_host(&mut host, "net", "flush", std::slice::from_ref(&socket))
+            .expect("net.flush"),
+        RtValue::Unit
+    );
+    assert!(
+        host.output.contains("[netflush 0]"),
+        "unexpected host output: {}",
+        host.output
+    );
+    assert_eq!(
+        builtins::call_with_host(&mut host, "net", "flush", &[RtValue::Int(1)])
+            .expect_err("net.flush type mismatch")
+            .kind,
+        RtErrorKind::TypeMismatch
+    );
+}
+
+#[test]
+fn builtins_cover_net_read_n() {
+    let mut host = RecordingHostBuilder::seeded()
+        .net_read_n_value(vec![9_u8, 8, 7, 6])
+        .build();
+    let socket =
+        builtins::call_with_host(&mut host, "net", "__testSocket", &[]).expect("allocate socket");
+
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "net",
+            "readN",
+            &[socket.clone(), RtValue::Int(3)],
+        )
+        .expect("net.readN"),
+        RtValue::Bytes(RtBytes::from(vec![9_u8, 8, 7]))
+    );
+    assert!(
+        host.output.contains("[netreadn 0 count=3]"),
+        "unexpected host output: {}",
+        host.output
+    );
+    assert_eq!(
+        builtins::call_with_host(&mut host, "net", "readN", &[socket, RtValue::Int(-1)])
+            .expect_err("negative readN count")
+            .kind,
+        RtErrorKind::InvalidArgument
+    );
+}
+
+#[test]
 fn builtins_report_unknown_family_arity_and_type_errors() {
     let mut host = UnsupportedHost;
     assert_eq!(
@@ -544,6 +599,23 @@ fn builtins_surface_net_runtime_errors_consistently() {
         .kind,
         RtErrorKind::Io
     );
+
+    let mut failing_flush = RecordingHostBuilder::seeded()
+        .net_flush_error("flush failed")
+        .build();
+    let socket = builtins::call_with_host(&mut failing_flush, "net", "__testSocket", &[])
+        .expect("allocate socket");
+    assert_eq!(
+        builtins::call_with_host(
+            &mut failing_flush,
+            "net",
+            "flush",
+            std::slice::from_ref(&socket),
+        )
+        .expect_err("flush failure should surface")
+        .kind,
+        RtErrorKind::Io
+    );
 }
 
 #[test]
@@ -589,10 +661,22 @@ fn builtins_reject_wrong_or_closed_net_handles_for_io() {
             &mut host,
             "net",
             "write",
-            &[socket, RtValue::String(RtString::from("ping"))],
+            &[socket.clone(), RtValue::String(RtString::from("ping"))],
         )
         .expect_err("closed socket write should fail")
         .kind,
+        RtErrorKind::InvalidArgument
+    );
+    assert_eq!(
+        builtins::call_with_host(&mut host, "net", "flush", std::slice::from_ref(&listener))
+            .expect_err("listener passed to flush should fail")
+            .kind,
+        RtErrorKind::InvalidArgument
+    );
+    assert_eq!(
+        builtins::call_with_host(&mut host, "net", "flush", std::slice::from_ref(&socket))
+            .expect_err("closed socket flush should fail")
+            .kind,
         RtErrorKind::InvalidArgument
     );
 }
