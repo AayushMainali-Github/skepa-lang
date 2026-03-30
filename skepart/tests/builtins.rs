@@ -1,13 +1,27 @@
 mod common;
 
 use common::RecordingHostBuilder;
-use skepart::{builtins, RtBytes, RtErrorKind, RtHost, RtResult, RtString, RtValue};
+use skepart::{builtins, RtBytes, RtErrorKind, RtFunctionRef, RtHost, RtResult, RtString, RtValue};
 
 struct UnsupportedHost;
 
 impl RtHost for UnsupportedHost {
     fn io_print(&mut self, _text: &str) -> RtResult<()> {
         Ok(())
+    }
+}
+
+struct ImmediateRuntime;
+
+impl builtins::BuiltinRuntime for ImmediateRuntime {
+    fn call_function(&mut self, function: RtFunctionRef, _args: &[RtValue]) -> RtResult<RtValue> {
+        match function.0 {
+            7 => Ok(RtValue::Int(99)),
+            _ => Err(skepart::RtError::new(
+                skepart::RtErrorKind::InvalidArgument,
+                format!("unknown runtime function id {}", function.0),
+            )),
+        }
     }
 }
 
@@ -367,8 +381,7 @@ fn builtins_cover_dummy_task_handles() {
     assert_eq!(task_handle.kind, skepart::RtHandleKind::Task);
     assert_eq!(channel_handle.kind, skepart::RtHandleKind::Channel);
     assert_eq!(
-        builtins::call_with_host(&mut host, "task", "join", &[task])
-            .expect("task.join"),
+        builtins::call_with_host(&mut host, "task", "join", &[task]).expect("task.join"),
         RtValue::Int(7)
     );
 }
@@ -399,6 +412,25 @@ fn builtins_cover_typed_task_channel_roundtrip() {
             .expect_err("empty channel")
             .kind,
         RtErrorKind::InvalidArgument
+    );
+}
+
+#[test]
+fn builtins_cover_spawn_and_join_roundtrip() {
+    let mut host = RecordingHostBuilder::seeded().build();
+    let mut runtime = ImmediateRuntime;
+    let task = builtins::call_with_host_runtime(
+        &mut host,
+        &mut runtime,
+        "task",
+        "spawn",
+        &[RtValue::Function(RtFunctionRef(7))],
+    )
+    .expect("task.spawn");
+
+    assert_eq!(
+        builtins::call_with_host(&mut host, "task", "join", &[task]).expect("task.join"),
+        RtValue::Int(99)
     );
 }
 

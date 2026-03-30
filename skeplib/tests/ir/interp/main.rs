@@ -1028,6 +1028,25 @@ fn main() -> Int {
 }
 
 #[test]
+fn interpreter_supports_task_spawn_and_join_roundtrip() {
+    let source = r#"
+import task;
+
+fn job() -> Int {
+  return 33;
+}
+
+fn main() -> Int {
+  let t: task.Task[Int] = task.spawn(job);
+  return task.join(t);
+}
+"#;
+
+    let value = common::ir_run_ok(source);
+    assert_eq!(value, IrValue::Int(33));
+}
+
+#[test]
 fn interpreter_supports_float_and_string_compare_shapes() {
     let float_src = r#"
 fn main() -> Int {

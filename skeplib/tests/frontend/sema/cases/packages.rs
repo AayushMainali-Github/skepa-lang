@@ -1347,6 +1347,53 @@ fn main() -> Int {
   task.send(jobs, "bad");
   return task.recv(jobs);
 }
+
+#[test]
+fn sema_accepts_task_spawn_and_join_flow() {
+    let src = r#"
+import task;
+
+fn job() -> Int {
+  return 21;
+}
+
+fn main() -> Int {
+  let t: task.Task[Int] = task.spawn(job);
+  let value: Int = task.join(t);
+  return value;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
+
+#[test]
+fn sema_rejects_task_spawn_and_join_type_mismatches() {
+    let src = r#"
+import task;
+
+fn job(x: Int) -> Int {
+  return x;
+}
+
+fn main() -> Int {
+  let bad: task.Task[Int] = task.spawn(job);
+  let other: task.Channel[Int] = task.channel();
+  let value: Int = task.join(other);
+  return value;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("task.spawn argument 1 expects Fn() -> T")));
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("task.join argument 1 expects Task")));
+}
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);

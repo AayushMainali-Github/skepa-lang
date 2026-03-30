@@ -384,7 +384,61 @@ impl<'a> IrInterpreter<'a> {
         builtin: &crate::ir::BuiltinCall,
         args: &[RtValue],
     ) -> Result<RtValue, IrInterpError> {
-        builtins::call_with_host(self.host.as_mut(), &builtin.package, &builtin.name, args)
+        struct InterpContext<'a, 'b> {
+            interp: &'a mut IrInterpreter<'b>,
+        }
+
+        impl builtins::BuiltinContext for InterpContext<'_, '_> {
+            fn host(&mut self) -> &mut dyn skepart::RtHost {
+                self.interp.host.as_mut()
+            }
+
+            fn call_function(
+                &mut self,
+                function: RtFunctionRef,
+                args: &[RtValue],
+            ) -> skepart::RtResult<RtValue> {
+                self.interp
+                    .run_function(FunctionId(function.0), args.to_vec())
+                    .map_err(|err| match err {
+                        IrInterpError::DivisionByZero => skepart::RtError::new(
+                            skepart::RtErrorKind::DivisionByZero,
+                            "division by zero",
+                        ),
+                        IrInterpError::IndexOutOfBounds => skepart::RtError::new(
+                            skepart::RtErrorKind::IndexOutOfBounds,
+                            "index out of bounds",
+                        ),
+                        IrInterpError::TypeMismatch(msg) => {
+                            skepart::RtError::type_mismatch(msg.to_string())
+                        }
+                        IrInterpError::InvalidField(msg) => {
+                            skepart::RtError::new(skepart::RtErrorKind::MissingField, msg)
+                        }
+                        IrInterpError::UnsupportedBuiltin(msg) => {
+                            skepart::RtError::unsupported_builtin(msg)
+                        }
+                        IrInterpError::InvalidOperand(msg) => {
+                            skepart::RtError::new(skepart::RtErrorKind::InvalidArgument, msg)
+                        }
+                        IrInterpError::MissingMain => skepart::RtError::new(
+                            skepart::RtErrorKind::InvalidArgument,
+                            "IR program has no main function",
+                        ),
+                        IrInterpError::MissingFunction(id) => skepart::RtError::new(
+                            skepart::RtErrorKind::InvalidArgument,
+                            format!("IR program is missing function {:?}", id),
+                        ),
+                        IrInterpError::MissingBlock(id) => skepart::RtError::new(
+                            skepart::RtErrorKind::InvalidArgument,
+                            format!("IR function is missing block {:?}", id),
+                        ),
+                    })
+            }
+        }
+
+        let mut ctx = InterpContext { interp: self };
+        builtins::call_with_context(&mut ctx, &builtin.package, &builtin.name, args)
             .map_err(IrInterpError::from_runtime)
     }
 

@@ -2,7 +2,9 @@ use std::collections::HashMap;
 
 use crate::ast::Expr;
 use crate::builtins::BuiltinSig;
-use crate::types::{TypeInfo, task_channel_type, task_channel_value_type, task_task_value_type};
+use crate::types::{
+    TypeInfo, task_channel_type, task_channel_value_type, task_task_type, task_task_value_type,
+};
 
 use super::Checker;
 
@@ -51,6 +53,33 @@ pub(super) fn check_task_builtin(
                 )),
             }
             TypeInfo::Void
+        }
+        "spawn" => {
+            if args.len() != 1 {
+                checker.error(format!(
+                    "task.spawn expects 1 argument(s), got {}",
+                    args.len()
+                ));
+                return TypeInfo::Unknown;
+            }
+            match checker.check_expr(&args[0], scopes) {
+                TypeInfo::Fn { params, ret } => {
+                    if !params.is_empty() {
+                        checker.error("task.spawn argument 1 expects Fn() -> T".to_string());
+                        TypeInfo::Unknown
+                    } else {
+                        task_task_type(&ret)
+                    }
+                }
+                TypeInfo::Unknown => TypeInfo::Unknown,
+                got => {
+                    checker.error(format!(
+                        "task.spawn argument 1 expects Fn() -> T, got {:?}",
+                        got
+                    ));
+                    TypeInfo::Unknown
+                }
+            }
         }
         "recv" => {
             if args.len() != 1 {

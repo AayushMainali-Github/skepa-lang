@@ -17,11 +17,31 @@ pub trait BuiltinRuntime {
     fn call_function(&mut self, function: RtFunctionRef, args: &[RtValue]) -> RtResult<RtValue>;
 }
 
+pub trait BuiltinContext {
+    fn host(&mut self) -> &mut dyn RtHost;
+    fn call_function(&mut self, function: RtFunctionRef, args: &[RtValue]) -> RtResult<RtValue>;
+}
+
 struct NoopRuntime;
 
 impl BuiltinRuntime for NoopRuntime {
     fn call_function(&mut self, _function: RtFunctionRef, _args: &[RtValue]) -> RtResult<RtValue> {
         Err(RtError::unsupported_builtin("task.spawn"))
+    }
+}
+
+struct SplitContext<'a> {
+    host: &'a mut dyn RtHost,
+    runtime: &'a mut dyn BuiltinRuntime,
+}
+
+impl BuiltinContext for SplitContext<'_> {
+    fn host(&mut self) -> &mut dyn RtHost {
+        self.host
+    }
+
+    fn call_function(&mut self, function: RtFunctionRef, args: &[RtValue]) -> RtResult<RtValue> {
+        self.runtime.call_function(function, args)
     }
 }
 
@@ -43,7 +63,17 @@ pub fn call_with_host(
 
 pub fn call_with_host_runtime(
     host: &mut dyn RtHost,
-    _runtime: &mut dyn BuiltinRuntime,
+    runtime: &mut dyn BuiltinRuntime,
+    package: &str,
+    name: &str,
+    args: &[RtValue],
+) -> RtResult<RtValue> {
+    let mut ctx = SplitContext { host, runtime };
+    call_with_context(&mut ctx, package, name, args)
+}
+
+pub fn call_with_context(
+    ctx: &mut dyn BuiltinContext,
     package: &str,
     name: &str,
     args: &[RtValue],
@@ -136,168 +166,188 @@ pub fn call_with_host_runtime(
                 .map_err(|_| RtError::new(RtErrorKind::IndexOutOfBounds, "negative vec index"))?,
         ),
         ("io", "print", [value]) => {
-            io::print(host, value)?;
+            io::print(ctx.host(), value)?;
             Ok(RtValue::Unit)
         }
         ("io", "println", [value]) => {
-            io::println(host, value)?;
+            io::println(ctx.host(), value)?;
             Ok(RtValue::Unit)
         }
         ("io", "printInt", [value]) => {
-            io::print(host, &RtValue::Int(value.expect_int()?))?;
+            io::print(ctx.host(), &RtValue::Int(value.expect_int()?))?;
             Ok(RtValue::Unit)
         }
         ("io", "printFloat", [value]) => {
-            io::print(host, &RtValue::Float(value.expect_float()?))?;
+            io::print(ctx.host(), &RtValue::Float(value.expect_float()?))?;
             Ok(RtValue::Unit)
         }
         ("io", "printBool", [value]) => {
-            io::print(host, &RtValue::Bool(value.expect_bool()?))?;
+            io::print(ctx.host(), &RtValue::Bool(value.expect_bool()?))?;
             Ok(RtValue::Unit)
         }
         ("io", "printString", [value]) => {
-            io::print(host, &RtValue::String(value.expect_string()?))?;
+            io::print(ctx.host(), &RtValue::String(value.expect_string()?))?;
             Ok(RtValue::Unit)
         }
         ("io", "format", args) => io::format(args),
-        ("io", "printf", args) => io::printf(host, args),
-        ("io", "readLine", []) => io::read_line(host),
-        ("datetime", "nowUnix", []) => datetime::now_unix(host),
-        ("datetime", "nowMillis", []) => datetime::now_millis(host),
-        ("datetime", "fromUnix", [value]) => datetime::from_unix(host, value.expect_int()?),
-        ("datetime", "fromMillis", [value]) => datetime::from_millis(host, value.expect_int()?),
-        ("datetime", "parseUnix", [value]) => {
-            datetime::parse_unix(host, value.expect_string()?.as_str())
+        ("io", "printf", args) => io::printf(ctx.host(), args),
+        ("io", "readLine", []) => io::read_line(ctx.host()),
+        ("datetime", "nowUnix", []) => datetime::now_unix(ctx.host()),
+        ("datetime", "nowMillis", []) => datetime::now_millis(ctx.host()),
+        ("datetime", "fromUnix", [value]) => datetime::from_unix(ctx.host(), value.expect_int()?),
+        ("datetime", "fromMillis", [value]) => {
+            datetime::from_millis(ctx.host(), value.expect_int()?)
         }
-        ("datetime", "year", [value]) => datetime::component(host, "year", value.expect_int()?),
-        ("datetime", "month", [value]) => datetime::component(host, "month", value.expect_int()?),
-        ("datetime", "day", [value]) => datetime::component(host, "day", value.expect_int()?),
-        ("datetime", "hour", [value]) => datetime::component(host, "hour", value.expect_int()?),
-        ("datetime", "minute", [value]) => datetime::component(host, "minute", value.expect_int()?),
-        ("datetime", "second", [value]) => datetime::component(host, "second", value.expect_int()?),
-        ("random", "seed", [value]) => random::seed(host, value.expect_int()?),
-        ("random", "int", [min, max]) => random::int(host, min.expect_int()?, max.expect_int()?),
-        ("random", "float", []) => random::float(host),
-        ("fs", "exists", [path]) => fs::exists(host, path.expect_string()?.as_str()),
-        ("fs", "readText", [path]) => fs::read_text(host, path.expect_string()?.as_str()),
+        ("datetime", "parseUnix", [value]) => {
+            datetime::parse_unix(ctx.host(), value.expect_string()?.as_str())
+        }
+        ("datetime", "year", [value]) => {
+            datetime::component(ctx.host(), "year", value.expect_int()?)
+        }
+        ("datetime", "month", [value]) => {
+            datetime::component(ctx.host(), "month", value.expect_int()?)
+        }
+        ("datetime", "day", [value]) => datetime::component(ctx.host(), "day", value.expect_int()?),
+        ("datetime", "hour", [value]) => {
+            datetime::component(ctx.host(), "hour", value.expect_int()?)
+        }
+        ("datetime", "minute", [value]) => {
+            datetime::component(ctx.host(), "minute", value.expect_int()?)
+        }
+        ("datetime", "second", [value]) => {
+            datetime::component(ctx.host(), "second", value.expect_int()?)
+        }
+        ("random", "seed", [value]) => random::seed(ctx.host(), value.expect_int()?),
+        ("random", "int", [min, max]) => {
+            random::int(ctx.host(), min.expect_int()?, max.expect_int()?)
+        }
+        ("random", "float", []) => random::float(ctx.host()),
+        ("fs", "exists", [path]) => fs::exists(ctx.host(), path.expect_string()?.as_str()),
+        ("fs", "readText", [path]) => fs::read_text(ctx.host(), path.expect_string()?.as_str()),
         ("fs", "writeText", [path, text]) => fs::write_text(
-            host,
+            ctx.host(),
             path.expect_string()?.as_str(),
             text.expect_string()?.as_str(),
         ),
         ("fs", "appendText", [path, text]) => fs::append_text(
-            host,
+            ctx.host(),
             path.expect_string()?.as_str(),
             text.expect_string()?.as_str(),
         ),
-        ("fs", "mkdirAll", [path]) => fs::mkdir_all(host, path.expect_string()?.as_str()),
-        ("fs", "removeFile", [path]) => fs::remove_file(host, path.expect_string()?.as_str()),
-        ("fs", "removeDirAll", [path]) => fs::remove_dir_all(host, path.expect_string()?.as_str()),
+        ("fs", "mkdirAll", [path]) => fs::mkdir_all(ctx.host(), path.expect_string()?.as_str()),
+        ("fs", "removeFile", [path]) => fs::remove_file(ctx.host(), path.expect_string()?.as_str()),
+        ("fs", "removeDirAll", [path]) => {
+            fs::remove_dir_all(ctx.host(), path.expect_string()?.as_str())
+        }
         ("fs", "join", [left, right]) => fs::join(
-            host,
+            ctx.host(),
             left.expect_string()?.as_str(),
             right.expect_string()?.as_str(),
         ),
-        ("net", "__testSocket", []) => net::test_socket(host),
-        ("net", "listen", [address]) => net::listen(host, address.expect_string()?.as_str()),
-        ("net", "connect", [address]) => net::connect(host, address.expect_string()?.as_str()),
+        ("net", "__testSocket", []) => net::test_socket(ctx.host()),
+        ("net", "listen", [address]) => net::listen(ctx.host(), address.expect_string()?.as_str()),
+        ("net", "connect", [address]) => {
+            net::connect(ctx.host(), address.expect_string()?.as_str())
+        }
         ("net", "tlsConnect", [host_name, port]) => net::tls_connect(
-            host,
+            ctx.host(),
             host_name.expect_string()?.as_str(),
             port.expect_int()?,
         ),
         ("net", "accept", [listener]) => net::accept(
-            host,
+            ctx.host(),
             listener.expect_handle_kind(crate::RtHandleKind::Listener)?,
         ),
         ("net", "read", [socket]) => net::read(
-            host,
+            ctx.host(),
             socket.expect_handle_kind(crate::RtHandleKind::Socket)?,
         ),
         ("net", "write", [socket, data]) => net::write(
-            host,
+            ctx.host(),
             socket.expect_handle_kind(crate::RtHandleKind::Socket)?,
             data.expect_string()?.as_str(),
         ),
         ("net", "readBytes", [socket]) => net::read_bytes(
-            host,
+            ctx.host(),
             socket.expect_handle_kind(crate::RtHandleKind::Socket)?,
         ),
         ("net", "writeBytes", [socket, data]) => net::write_bytes(
-            host,
+            ctx.host(),
             socket.expect_handle_kind(crate::RtHandleKind::Socket)?,
             &data.expect_bytes()?,
         ),
         ("net", "readN", [socket, count]) => net::read_n(
-            host,
+            ctx.host(),
             socket.expect_handle_kind(crate::RtHandleKind::Socket)?,
             count.expect_int()?,
         ),
         ("net", "localAddr", [socket]) => net::local_addr(
-            host,
+            ctx.host(),
             socket.expect_handle_kind(crate::RtHandleKind::Socket)?,
         ),
         ("net", "peerAddr", [socket]) => net::peer_addr(
-            host,
+            ctx.host(),
             socket.expect_handle_kind(crate::RtHandleKind::Socket)?,
         ),
         ("net", "flush", [socket]) => net::flush(
-            host,
+            ctx.host(),
             socket.expect_handle_kind(crate::RtHandleKind::Socket)?,
         ),
         ("net", "setReadTimeout", [socket, millis]) => net::set_read_timeout(
-            host,
+            ctx.host(),
             socket.expect_handle_kind(crate::RtHandleKind::Socket)?,
             millis.expect_int()?,
         ),
         ("net", "setWriteTimeout", [socket, millis]) => net::set_write_timeout(
-            host,
+            ctx.host(),
             socket.expect_handle_kind(crate::RtHandleKind::Socket)?,
             millis.expect_int()?,
         ),
         ("net", "close", [socket]) => net::close(
-            host,
+            ctx.host(),
             socket.expect_handle_kind(crate::RtHandleKind::Socket)?,
         ),
         ("net", "closeListener", [listener]) => net::close_listener(
-            host,
+            ctx.host(),
             listener.expect_handle_kind(crate::RtHandleKind::Listener)?,
         ),
-        ("task", "__testTask", [value]) => task::test_task(host, value),
-        ("task", "__testChannel", []) => task::test_channel(host),
-        ("task", "channel", []) => task::channel(host),
+        ("task", "__testTask", [value]) => task::test_task(ctx.host(), value),
+        ("task", "__testChannel", []) => task::test_channel(ctx.host()),
+        ("task", "channel", []) => task::channel(ctx.host()),
         ("task", "send", [channel, value]) => task::send(
-            host,
+            ctx.host(),
             channel.expect_handle_kind(crate::RtHandleKind::Channel)?,
             value,
         ),
         ("task", "recv", [channel]) => task::recv(
-            host,
+            ctx.host(),
             channel.expect_handle_kind(crate::RtHandleKind::Channel)?,
         ),
-        ("task", "join", [task]) => {
-            task::join(host, task.expect_handle_kind(crate::RtHandleKind::Task)?)
-        }
-        ("os", "platform", []) => os::platform(host),
-        ("os", "arch", []) => os::arch(host),
-        ("os", "arg", [value]) => os::arg(host, value.expect_int()?),
-        ("os", "envHas", [value]) => os::env_has(host, value.expect_string()?.as_str()),
-        ("os", "envGet", [value]) => os::env_get(host, value.expect_string()?.as_str()),
+        ("task", "spawn", [function]) => task::spawn(ctx, function.expect_function()?),
+        ("task", "join", [task]) => task::join(
+            ctx.host(),
+            task.expect_handle_kind(crate::RtHandleKind::Task)?,
+        ),
+        ("os", "platform", []) => os::platform(ctx.host()),
+        ("os", "arch", []) => os::arch(ctx.host()),
+        ("os", "arg", [value]) => os::arg(ctx.host(), value.expect_int()?),
+        ("os", "envHas", [value]) => os::env_has(ctx.host(), value.expect_string()?.as_str()),
+        ("os", "envGet", [value]) => os::env_get(ctx.host(), value.expect_string()?.as_str()),
         ("os", "envSet", [name, value]) => os::env_set(
-            host,
+            ctx.host(),
             name.expect_string()?.as_str(),
             value.expect_string()?.as_str(),
         ),
-        ("os", "envRemove", [value]) => os::env_remove(host, value.expect_string()?.as_str()),
-        ("os", "sleep", [value]) => os::sleep(host, value.expect_int()?),
-        ("os", "exit", [value]) => os::exit(host, value.expect_int()?),
+        ("os", "envRemove", [value]) => os::env_remove(ctx.host(), value.expect_string()?.as_str()),
+        ("os", "sleep", [value]) => os::sleep(ctx.host(), value.expect_int()?),
+        ("os", "exit", [value]) => os::exit(ctx.host(), value.expect_int()?),
         ("os", "exec", [program, args]) => os::exec(
-            host,
+            ctx.host(),
             program.expect_string()?.as_str(),
             &args.expect_string_vec()?,
         ),
         ("os", "execOut", [program, args]) => os::exec_out(
-            host,
+            ctx.host(),
             program.expect_string()?.as_str(),
             &args.expect_string_vec()?,
         ),

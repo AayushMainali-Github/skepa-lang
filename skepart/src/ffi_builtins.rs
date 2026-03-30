@@ -4,6 +4,7 @@ use crate::host::NoopHost;
 use crate::value::RtValue;
 use std::cell::RefCell;
 use std::ffi::c_char;
+use std::ffi::c_void;
 use std::slice;
 
 thread_local! {
@@ -71,9 +72,28 @@ struct FfiBuiltinRuntime;
 impl builtins::BuiltinRuntime for FfiBuiltinRuntime {
     fn call_function(
         &mut self,
-        _function: crate::RtFunctionRef,
-        _args: &[RtValue],
+        function: crate::RtFunctionRef,
+        args: &[RtValue],
     ) -> crate::RtResult<RtValue> {
-        Err(crate::RtError::unsupported_builtin("task.spawn"))
+        let boxed_args = args
+            .iter()
+            .cloned()
+            .map(crate::ffi_support::boxed_value)
+            .collect::<Vec<_>>();
+        let result = crate::ffi_function::skp_rt_call_function(
+            function.0 as *mut c_void,
+            boxed_args.len() as i64,
+            if boxed_args.is_empty() {
+                std::ptr::null()
+            } else {
+                boxed_args.as_ptr()
+            },
+        );
+        let value = clone_value(result)?;
+        for arg in boxed_args {
+            unsafe { drop(Box::from_raw(arg)) };
+        }
+        unsafe { drop(Box::from_raw(result)) };
+        Ok(value)
     }
 }

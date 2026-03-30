@@ -143,7 +143,16 @@ impl IrLowerer {
         block: BlockId,
         name: &str,
     ) -> Option<Operand> {
-        let sig = self.functions.get(name).cloned()?;
+        let target_name = self
+            .direct_import_calls
+            .get(name)
+            .cloned()
+            .unwrap_or_else(|| self.qualify_name(name));
+        let sig = self
+            .functions
+            .get(name)
+            .or_else(|| self.functions.get(&target_name))
+            .cloned()?;
         let dst = self.builder.push_temp(
             func,
             IrType::Fn {

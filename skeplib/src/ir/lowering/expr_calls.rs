@@ -482,6 +482,17 @@ impl IrLowerer {
             ("task", "__testChannel") => {
                 return Some(IrType::Opaque("task.Channel".to_string()));
             }
+            ("task", "spawn") => {
+                let function = args.first()?;
+                if let IrType::Fn { params, ret } = self.infer_operand_type(func, function)
+                    && params.is_empty()
+                {
+                    return Some(IrType::Opaque(format!(
+                        "task.Task[{}]",
+                        self.display_ir_type(&ret)
+                    )));
+                }
+            }
             ("task", "join") => {
                 let task = args.first()?;
                 if let IrType::Opaque(name) = self.infer_operand_type(func, task) {

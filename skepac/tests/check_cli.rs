@@ -742,6 +742,65 @@ fn main() -> Int {
 }
 
 #[test]
+fn check_accepts_minimal_task_spawn_program() {
+    let tmp = make_temp_dir("skepac_check_task_spawn");
+    let file = tmp.join("task_spawn.sk");
+    fs::write(
+        &file,
+        r#"
+import task;
+
+fn job() -> Int {
+  return 8;
+}
+
+fn main() -> Int {
+  let t: task.Task[Int] = task.spawn(job);
+  return task.join(t) - 8;
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("check")
+        .arg(&file)
+        .output()
+        .expect("run check");
+    assert_eq!(output.status.code(), Some(0), "{:?}", output);
+}
+
+#[test]
+fn run_executes_task_spawn_program_end_to_end() {
+    let tmp = make_temp_dir("skepac_run_task_spawn");
+    let source = tmp.join("main.sk");
+    fs::write(
+        &source,
+        r#"
+import task;
+
+fn job() -> Int {
+  return 14;
+}
+
+fn main() -> Int {
+  let t: task.Task[Int] = task.spawn(job);
+  return task.join(t);
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("run")
+        .arg(&source)
+        .output()
+        .expect("run skepac run");
+
+    assert_eq!(output.status.code(), Some(14), "{:?}", output);
+}
+
+#[test]
 fn check_accepts_match_statement_program() {
     let tmp = make_temp_dir("skepac_check_match");
     let file = tmp.join("match_ok.sk");

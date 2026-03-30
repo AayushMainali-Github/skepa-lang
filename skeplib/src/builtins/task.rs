@@ -35,6 +35,13 @@ pub(super) const SIGS: &[BuiltinSig] = &[
     },
     BuiltinSig {
         package: "task",
+        name: "spawn",
+        params: &[TypeInfo::Unknown],
+        ret: TypeInfo::Unknown,
+        kind: BuiltinKind::FixedArity,
+    },
+    BuiltinSig {
+        package: "task",
         name: "recv",
         params: &[TypeInfo::Unknown],
         ret: TypeInfo::Unknown,
