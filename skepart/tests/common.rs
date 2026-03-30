@@ -24,6 +24,8 @@ pub struct RecordingHost {
     pub net_local_addr_value: String,
     pub net_peer_addr_value: String,
     pub net_flush_error: Option<String>,
+    pub net_set_read_timeout_error: Option<String>,
+    pub net_set_write_timeout_error: Option<String>,
     pub net_listen_error: Option<String>,
     pub net_connect_error: Option<String>,
     pub net_accept_error: Option<String>,
@@ -163,6 +165,16 @@ impl RecordingHostBuilder {
 
     pub fn net_flush_error(mut self, value: impl Into<String>) -> Self {
         self.host.net_flush_error = Some(value.into());
+        self
+    }
+
+    pub fn net_set_read_timeout_error(mut self, value: impl Into<String>) -> Self {
+        self.host.net_set_read_timeout_error = Some(value.into());
+        self
+    }
+
+    pub fn net_set_write_timeout_error(mut self, value: impl Into<String>) -> Self {
+        self.host.net_set_write_timeout_error = Some(value.into());
         self
     }
 
@@ -540,6 +552,38 @@ impl RtHost for RecordingHost {
         }
         self.net_lookup_handle_kind(socket)?;
         self.output.push_str(&format!("[netflush {}]", socket.id));
+        Ok(())
+    }
+
+    fn net_set_read_timeout(&mut self, socket: RtHandle, millis: i64) -> RtResult<()> {
+        if let Some(message) = &self.net_set_read_timeout_error {
+            return Err(RtError::io(message.clone()));
+        }
+        if millis < 0 {
+            return Err(RtError::new(
+                skepart::RtErrorKind::InvalidArgument,
+                "net.setReadTimeout millis must be non-negative",
+            ));
+        }
+        self.net_lookup_handle_kind(socket)?;
+        self.output
+            .push_str(&format!("[netsetreadtimeout {}={}]", socket.id, millis));
+        Ok(())
+    }
+
+    fn net_set_write_timeout(&mut self, socket: RtHandle, millis: i64) -> RtResult<()> {
+        if let Some(message) = &self.net_set_write_timeout_error {
+            return Err(RtError::io(message.clone()));
+        }
+        if millis < 0 {
+            return Err(RtError::new(
+                skepart::RtErrorKind::InvalidArgument,
+                "net.setWriteTimeout millis must be non-negative",
+            ));
+        }
+        self.net_lookup_handle_kind(socket)?;
+        self.output
+            .push_str(&format!("[netsetwritetimeout {}={}]", socket.id, millis));
         Ok(())
     }
 }

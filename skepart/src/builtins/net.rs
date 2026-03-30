@@ -57,6 +57,24 @@ pub fn flush(host: &mut dyn RtHost, socket: crate::RtHandle) -> RtResult<RtValue
     Ok(RtValue::Unit)
 }
 
+pub fn set_read_timeout(
+    host: &mut dyn RtHost,
+    socket: crate::RtHandle,
+    millis: i64,
+) -> RtResult<RtValue> {
+    host.net_set_read_timeout(socket, millis)?;
+    Ok(RtValue::Unit)
+}
+
+pub fn set_write_timeout(
+    host: &mut dyn RtHost,
+    socket: crate::RtHandle,
+    millis: i64,
+) -> RtResult<RtValue> {
+    host.net_set_write_timeout(socket, millis)?;
+    Ok(RtValue::Unit)
+}
+
 pub fn close(host: &mut dyn RtHost, socket: crate::RtHandle) -> RtResult<RtValue> {
     host.net_close_handle(socket)?;
     Ok(RtValue::Unit)

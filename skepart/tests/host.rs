@@ -384,6 +384,64 @@ fn noop_host_supports_flushing_connected_socket() {
 }
 
 #[test]
+fn noop_host_supports_setting_socket_timeouts() {
+    let mut host = NoopHost::default();
+    let listener = host.net_listen("127.0.0.1:0").expect("listen");
+    let addr = host
+        .net_tcp_listener(listener)
+        .expect("listener lookup")
+        .local_addr()
+        .expect("listener addr");
+
+    let client = host
+        .net_connect(&addr.to_string())
+        .expect("connect client socket");
+    let server = host.net_accept(listener).expect("accept server socket");
+
+    host.net_set_read_timeout(client, 25)
+        .expect("set read timeout");
+    host.net_set_write_timeout(client, 50)
+        .expect("set write timeout");
+    assert_eq!(
+        host.net_tcp_stream(client)
+            .expect("socket lookup")
+            .read_timeout()
+            .expect("read timeout"),
+        Some(std::time::Duration::from_millis(25))
+    );
+    assert_eq!(
+        host.net_tcp_stream(client)
+            .expect("socket lookup")
+            .write_timeout()
+            .expect("write timeout"),
+        Some(std::time::Duration::from_millis(50))
+    );
+
+    host.net_set_read_timeout(client, 0)
+        .expect("clear read timeout");
+    host.net_set_write_timeout(client, 0)
+        .expect("clear write timeout");
+    assert_eq!(
+        host.net_tcp_stream(client)
+            .expect("socket lookup")
+            .read_timeout()
+            .expect("read timeout"),
+        None
+    );
+    assert_eq!(
+        host.net_tcp_stream(client)
+            .expect("socket lookup")
+            .write_timeout()
+            .expect("write timeout"),
+        None
+    );
+
+    host.net_close_handle(server).expect("close server");
+    host.net_close_handle(client).expect("close client");
+    host.net_close_handle(listener).expect("close listener");
+}
+
+#[test]
 fn noop_host_surfaces_invalid_address_and_closed_socket_errors() {
     let mut host = NoopHost::default();
     assert_eq!(
@@ -413,6 +471,18 @@ fn noop_host_surfaces_invalid_address_and_closed_socket_errors() {
     assert_eq!(
         host.net_flush(socket)
             .expect_err("closed socket flush should fail")
+            .kind,
+        skepart::RtErrorKind::InvalidArgument
+    );
+    assert_eq!(
+        host.net_set_read_timeout(socket, -1)
+            .expect_err("negative timeout should fail")
+            .kind,
+        skepart::RtErrorKind::InvalidArgument
+    );
+    assert_eq!(
+        host.net_set_write_timeout(socket, 5)
+            .expect_err("closed socket timeout should fail")
             .kind,
         skepart::RtErrorKind::InvalidArgument
     );

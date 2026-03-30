@@ -4,6 +4,7 @@ use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::process::Command;
+use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::{RtBytes, RtError, RtErrorKind, RtHandle, RtHandleKind, RtResult, RtString};
@@ -308,6 +309,14 @@ pub trait RtHost {
 
     fn net_flush(&mut self, _socket: RtHandle) -> RtResult<()> {
         Err(RtError::unsupported_builtin("net.flush"))
+    }
+
+    fn net_set_read_timeout(&mut self, _socket: RtHandle, _millis: i64) -> RtResult<()> {
+        Err(RtError::unsupported_builtin("net.setReadTimeout"))
+    }
+
+    fn net_set_write_timeout(&mut self, _socket: RtHandle, _millis: i64) -> RtResult<()> {
+        Err(RtError::unsupported_builtin("net.setWriteTimeout"))
     }
 }
 
@@ -675,6 +684,34 @@ impl RtHost for NoopHost {
         self.net_tcp_stream(socket)?
             .flush()
             .map_err(|err| RtError::io(err.to_string()))
+    }
+
+    fn net_set_read_timeout(&mut self, socket: RtHandle, millis: i64) -> RtResult<()> {
+        let timeout = duration_from_timeout_millis("net.setReadTimeout", millis)?;
+        self.net_tcp_stream(socket)?
+            .set_read_timeout(timeout)
+            .map_err(|err| RtError::io(err.to_string()))
+    }
+
+    fn net_set_write_timeout(&mut self, socket: RtHandle, millis: i64) -> RtResult<()> {
+        let timeout = duration_from_timeout_millis("net.setWriteTimeout", millis)?;
+        self.net_tcp_stream(socket)?
+            .set_write_timeout(timeout)
+            .map_err(|err| RtError::io(err.to_string()))
+    }
+}
+
+fn duration_from_timeout_millis(name: &str, millis: i64) -> RtResult<Option<Duration>> {
+    if millis < 0 {
+        return Err(RtError::new(
+            RtErrorKind::InvalidArgument,
+            format!("{name} millis must be non-negative"),
+        ));
+    }
+    if millis == 0 {
+        Ok(None)
+    } else {
+        Ok(Some(Duration::from_millis(millis as u64)))
     }
 }
 

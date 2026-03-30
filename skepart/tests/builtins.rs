@@ -281,6 +281,62 @@ fn builtins_cover_net_flush() {
 }
 
 #[test]
+fn builtins_cover_net_timeout_setters() {
+    let mut host = RecordingHostBuilder::seeded().build();
+    let socket =
+        builtins::call_with_host(&mut host, "net", "__testSocket", &[]).expect("allocate socket");
+
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "net",
+            "setReadTimeout",
+            &[socket.clone(), RtValue::Int(25)],
+        )
+        .expect("net.setReadTimeout"),
+        RtValue::Unit
+    );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "net",
+            "setWriteTimeout",
+            &[socket.clone(), RtValue::Int(0)],
+        )
+        .expect("net.setWriteTimeout"),
+        RtValue::Unit
+    );
+    assert!(
+        host.output.contains("[netsetreadtimeout 0=25]")
+            && host.output.contains("[netsetwritetimeout 0=0]"),
+        "unexpected host output: {}",
+        host.output
+    );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "net",
+            "setReadTimeout",
+            &[socket.clone(), RtValue::Int(-1)],
+        )
+        .expect_err("negative read timeout")
+        .kind,
+        RtErrorKind::InvalidArgument
+    );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "net",
+            "setWriteTimeout",
+            &[RtValue::Int(1), RtValue::Int(10)],
+        )
+        .expect_err("setWriteTimeout type mismatch")
+        .kind,
+        RtErrorKind::TypeMismatch
+    );
+}
+
+#[test]
 fn builtins_cover_net_read_n() {
     let mut host = RecordingHostBuilder::seeded()
         .net_read_n_value(vec![9_u8, 8, 7, 6])
@@ -616,6 +672,40 @@ fn builtins_surface_net_runtime_errors_consistently() {
         .kind,
         RtErrorKind::Io
     );
+
+    let mut failing_read_timeout = RecordingHostBuilder::seeded()
+        .net_set_read_timeout_error("set read timeout failed")
+        .build();
+    let socket = builtins::call_with_host(&mut failing_read_timeout, "net", "__testSocket", &[])
+        .expect("allocate socket");
+    assert_eq!(
+        builtins::call_with_host(
+            &mut failing_read_timeout,
+            "net",
+            "setReadTimeout",
+            &[socket, RtValue::Int(1)],
+        )
+        .expect_err("setReadTimeout failure should surface")
+        .kind,
+        RtErrorKind::Io
+    );
+
+    let mut failing_write_timeout = RecordingHostBuilder::seeded()
+        .net_set_write_timeout_error("set write timeout failed")
+        .build();
+    let socket = builtins::call_with_host(&mut failing_write_timeout, "net", "__testSocket", &[])
+        .expect("allocate socket");
+    assert_eq!(
+        builtins::call_with_host(
+            &mut failing_write_timeout,
+            "net",
+            "setWriteTimeout",
+            &[socket, RtValue::Int(1)],
+        )
+        .expect_err("setWriteTimeout failure should surface")
+        .kind,
+        RtErrorKind::Io
+    );
 }
 
 #[test]
@@ -677,6 +767,28 @@ fn builtins_reject_wrong_or_closed_net_handles_for_io() {
         builtins::call_with_host(&mut host, "net", "flush", std::slice::from_ref(&socket))
             .expect_err("closed socket flush should fail")
             .kind,
+        RtErrorKind::InvalidArgument
+    );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "net",
+            "setReadTimeout",
+            &[listener.clone(), RtValue::Int(5)],
+        )
+        .expect_err("listener passed to setReadTimeout should fail")
+        .kind,
+        RtErrorKind::InvalidArgument
+    );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "net",
+            "setWriteTimeout",
+            &[socket, RtValue::Int(5)],
+        )
+        .expect_err("closed socket setWriteTimeout should fail")
+        .kind,
         RtErrorKind::InvalidArgument
     );
 }

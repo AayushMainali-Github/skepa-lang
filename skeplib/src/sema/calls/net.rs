@@ -182,6 +182,32 @@ pub(super) fn check_net_builtin(
             }
             TypeInfo::Void
         }
+        "setReadTimeout" | "setWriteTimeout" => {
+            if args.len() != 2 {
+                checker.error(format!(
+                    "net.{method} expects 2 argument(s), got {}",
+                    args.len()
+                ));
+                return TypeInfo::Unknown;
+            }
+            let socket_ty = checker.check_expr(&args[0], scopes);
+            let socket_expected = TypeInfo::Opaque("net.Socket".to_string());
+            if socket_ty != TypeInfo::Unknown && socket_ty != socket_expected {
+                checker.error(format!(
+                    "net.{method} argument 1 expects {:?}, got {:?}",
+                    socket_expected, socket_ty
+                ));
+            }
+            let millis_ty = checker.check_expr(&args[1], scopes);
+            if millis_ty != TypeInfo::Unknown && millis_ty != TypeInfo::Int {
+                checker.error(format!(
+                    "net.{method} argument 2 expects {:?}, got {:?}",
+                    TypeInfo::Int,
+                    millis_ty
+                ));
+            }
+            TypeInfo::Void
+        }
         "close" => {
             if args.len() != 1 {
                 checker.error(format!(

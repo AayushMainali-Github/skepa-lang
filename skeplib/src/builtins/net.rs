@@ -96,6 +96,20 @@ pub(super) const SIGS: &[BuiltinSig] = &[
     },
     BuiltinSig {
         package: "net",
+        name: "setReadTimeout",
+        params: OPAQUE_AND_INT_PARAM,
+        ret: TypeInfo::Void,
+        kind: BuiltinKind::FixedArity,
+    },
+    BuiltinSig {
+        package: "net",
+        name: "setWriteTimeout",
+        params: OPAQUE_AND_INT_PARAM,
+        ret: TypeInfo::Void,
+        kind: BuiltinKind::FixedArity,
+    },
+    BuiltinSig {
+        package: "net",
         name: "close",
         params: OPAQUE_PARAM_SENTINEL,
         ret: TypeInfo::Void,

@@ -232,6 +232,24 @@ impl RtHost for TestHost {
         Ok(())
     }
 
+    fn net_set_read_timeout(&mut self, socket: skepart::RtHandle, millis: i64) -> RtResult<()> {
+        self.net_lookup_handle_kind(socket)?;
+        self.out
+            .lock()
+            .expect("lock trace")
+            .push_str(&format!("[setreadtimeout {}={}]", socket.id, millis));
+        Ok(())
+    }
+
+    fn net_set_write_timeout(&mut self, socket: skepart::RtHandle, millis: i64) -> RtResult<()> {
+        self.net_lookup_handle_kind(socket)?;
+        self.out
+            .lock()
+            .expect("lock trace")
+            .push_str(&format!("[setwritetimeout {}={}]", socket.id, millis));
+        Ok(())
+    }
+
     fn net_close_handle(&mut self, handle: skepart::RtHandle) -> RtResult<()> {
         self.net_lookup_handle_kind(handle)?;
         self.out
@@ -905,6 +923,8 @@ fn main() -> Int {
   net.writeBytes(client, raw);
   net.writeBytes(client, exact);
   net.flush(client);
+  net.setReadTimeout(client, 25);
+  net.setWriteTimeout(client, 50);
   net.close(server);
   net.close(client);
   net.closeListener(listener);
@@ -927,7 +947,7 @@ fn main() -> Int {
     assert_eq!(value, IrValue::Int(0));
     assert_eq!(
         trace.lock().expect("lock trace").as_str(),
-        "[listen 0][accept 0->1][connect 2][read 1][readbytes 1][readn 1 count=3][localaddr 2][peeraddr 2][write 2=net-read][writebytes 2 len=3][writebytes 2 len=3][flush 2][close 1][close 2][close 0]"
+        "[listen 0][accept 0->1][connect 2][read 1][readbytes 1][readn 1 count=3][localaddr 2][peeraddr 2][write 2=net-read][writebytes 2 len=3][writebytes 2 len=3][flush 2][setreadtimeout 2=25][setwritetimeout 2=50][close 1][close 2][close 0]"
     );
 }
 

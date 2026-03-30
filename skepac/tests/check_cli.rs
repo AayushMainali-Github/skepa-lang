@@ -530,6 +530,8 @@ fn main() -> Int {
   net.writeBytes(client, raw);
   net.writeBytes(client, exact);
   net.flush(client);
+  net.setReadTimeout(client, 25);
+  net.setWriteTimeout(client, 50);
   net.close(socket);
   net.close(client);
   net.closeListener(listener);

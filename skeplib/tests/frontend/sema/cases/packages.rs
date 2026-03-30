@@ -1181,6 +1181,8 @@ fn main() -> Void {
   net.writeBytes(client, raw);
   net.writeBytes(client, exact);
   net.flush(client);
+  net.setReadTimeout(client, 25);
+  net.setWriteTimeout(client, 50);
   if (local == peer) {
     return;
   }
@@ -1284,6 +1286,30 @@ fn main() -> Void {
     assert!(diags.as_slice().iter().any(|d| {
         d.message
             .contains("net.flush argument 1 expects Opaque(\"net.Socket\")")
+    }));
+}
+
+#[test]
+fn sema_rejects_net_timeout_type_mismatches() {
+    let src = r#"
+import net;
+
+fn main() -> Void {
+  let listener: net.Listener = net.listen("127.0.0.1:0");
+  let socket: net.Socket = net.__testSocket();
+  net.setReadTimeout(listener, 5);
+  net.setWriteTimeout(socket, false);
+  return;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("net.setReadTimeout argument 1 expects Opaque(\"net.Socket\")")
+    }));
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message.contains("net.setWriteTimeout argument 2 expects Int")
     }));
 }
 

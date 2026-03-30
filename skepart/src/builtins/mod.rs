@@ -194,6 +194,16 @@ pub fn call_with_host(
             host,
             socket.expect_handle_kind(crate::RtHandleKind::Socket)?,
         ),
+        ("net", "setReadTimeout", [socket, millis]) => net::set_read_timeout(
+            host,
+            socket.expect_handle_kind(crate::RtHandleKind::Socket)?,
+            millis.expect_int()?,
+        ),
+        ("net", "setWriteTimeout", [socket, millis]) => net::set_write_timeout(
+            host,
+            socket.expect_handle_kind(crate::RtHandleKind::Socket)?,
+            millis.expect_int()?,
+        ),
         ("net", "close", [socket]) => net::close(
             host,
             socket.expect_handle_kind(crate::RtHandleKind::Socket)?,
