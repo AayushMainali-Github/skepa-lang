@@ -1,5 +1,4 @@
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::{RtError, RtResult, RtString, RtValue};
 
@@ -13,15 +12,15 @@ enum RtVecRepr {
 }
 
 #[derive(Debug, Clone)]
-pub struct RtVec(Rc<RefCell<RtVecRepr>>);
+pub struct RtVec(Arc<Mutex<RtVecRepr>>);
 
 impl RtVec {
     pub fn new() -> Self {
-        Self(Rc::new(RefCell::new(RtVecRepr::Values(Vec::new()))))
+        Self(Arc::new(Mutex::new(RtVecRepr::Values(Vec::new()))))
     }
 
     pub fn len(&self) -> usize {
-        match &*self.0.borrow() {
+        match &*self.guard() {
             RtVecRepr::Values(items) => items.len(),
             RtVecRepr::Ints(items) => items.len(),
             RtVecRepr::Floats(items) => items.len(),
@@ -35,7 +34,7 @@ impl RtVec {
     }
 
     pub fn push(&self, value: RtValue) {
-        let mut repr = self.0.borrow_mut();
+        let mut repr = self.guard();
         match (&mut *repr, value) {
             (RtVecRepr::Values(items), RtValue::Int(value)) if items.is_empty() => {
                 *repr = RtVecRepr::Ints(vec![value]);
@@ -63,7 +62,7 @@ impl RtVec {
     }
 
     pub fn get(&self, index: usize) -> RtResult<RtValue> {
-        match &*self.0.borrow() {
+        match &*self.guard() {
             RtVecRepr::Values(items) => items
                 .get(index)
                 .cloned()
@@ -92,7 +91,7 @@ impl RtVec {
     }
 
     pub fn set(&self, index: usize, value: RtValue) -> RtResult<()> {
-        let mut repr = self.0.borrow_mut();
+        let mut repr = self.guard();
         match (&mut *repr, value) {
             (RtVecRepr::Values(items), value) => {
                 let len = items.len();
@@ -148,7 +147,7 @@ impl RtVec {
     }
 
     pub fn delete(&self, index: usize) -> RtResult<RtValue> {
-        let mut repr = self.0.borrow_mut();
+        let mut repr = self.guard();
         match &mut *repr {
             RtVecRepr::Values(items) => {
                 let len = items.len();
@@ -197,11 +196,17 @@ impl RtVec {
             RtVecRepr::Strings(items) => items.iter().cloned().map(RtValue::String).collect(),
         }
     }
+
+    fn guard(&self) -> MutexGuard<'_, RtVecRepr> {
+        self.0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
 }
 
 impl PartialEq for RtVec {
     fn eq(&self, other: &Self) -> bool {
-        *self.0.borrow() == *other.0.borrow()
+        *self.guard() == *other.guard()
     }
 }
 

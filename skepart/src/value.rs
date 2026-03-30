@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::{RtArray, RtBytes, RtError, RtMap, RtResult, RtString, RtVec};
 
@@ -37,7 +37,7 @@ enum RtStructFields {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct RtStruct {
-    pub layout: Rc<RtStructLayout>,
+    pub layout: Arc<RtStructLayout>,
     fields: RtStructFields,
 }
 
@@ -221,7 +221,7 @@ impl RtHandleKind {
 }
 
 impl RtStruct {
-    pub fn new(layout: Rc<RtStructLayout>, fields: Vec<RtValue>) -> RtResult<Self> {
+    pub fn new(layout: Arc<RtStructLayout>, fields: Vec<RtValue>) -> RtResult<Self> {
         if !layout.field_names.is_empty() && layout.field_names.len() != fields.len() {
             return Err(RtError::new(
                 crate::RtErrorKind::MissingField,
@@ -266,7 +266,7 @@ impl RtStruct {
 
     pub fn named(name: impl Into<String>, fields: Vec<RtValue>) -> RtResult<Self> {
         Self::new(
-            Rc::new(RtStructLayout {
+            Arc::new(RtStructLayout {
                 name: name.into(),
                 field_names: Vec::new(),
                 field_types: Vec::new(),

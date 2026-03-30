@@ -1,5 +1,5 @@
 use std::fmt;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::ir::{BranchTerminator, FunctionId, IrProgram, IrType, Terminator};
 use skepart::{NoopHost, RtError, RtErrorKind, RtHost, RtStructLayout, RtValue};
@@ -63,7 +63,7 @@ impl IrInterpError {
 pub struct IrInterpreter<'a> {
     program: &'a IrProgram,
     globals: Vec<RtValue>,
-    struct_layouts: Vec<Rc<RtStructLayout>>,
+    struct_layouts: Vec<Arc<RtStructLayout>>,
     host: Box<dyn RtHost>,
 }
 
@@ -80,7 +80,7 @@ impl<'a> IrInterpreter<'a> {
                 .structs
                 .iter()
                 .map(|strukt| {
-                    Rc::new(RtStructLayout {
+                    Arc::new(RtStructLayout {
                         name: strukt.name.clone(),
                         field_names: strukt
                             .fields

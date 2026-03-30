@@ -1,10 +1,10 @@
 use skepart::{RtErrorKind, RtFunctionRef, RtStruct, RtStructLayout, RtValue};
-use std::rc::Rc;
+use std::sync::Arc;
 
 #[test]
 fn structs_support_named_and_indexed_field_access() {
     let mut strukt = RtStruct::new(
-        Rc::new(RtStructLayout {
+        Arc::new(RtStructLayout {
             name: "Pair".into(),
             field_names: vec!["a".into(), "b".into()],
             field_types: vec![Some("Int"), Some("Function")],
@@ -26,7 +26,7 @@ fn structs_support_named_and_indexed_field_access() {
 #[test]
 fn structs_report_missing_field_and_layout_mismatches() {
     let strukt = RtStruct::new(
-        Rc::new(RtStructLayout {
+        Arc::new(RtStructLayout {
             name: "Only".into(),
             field_names: vec!["x".into()],
             field_types: vec![Some("Int")],
@@ -47,7 +47,7 @@ fn structs_report_missing_field_and_layout_mismatches() {
 #[test]
 fn structs_report_set_field_out_of_range_and_named_layout_mismatch() {
     let strukt = RtStruct::new(
-        Rc::new(RtStructLayout {
+        Arc::new(RtStructLayout {
             name: "Mismatch".into(),
             field_names: vec!["left".into(), "right".into()],
             field_types: vec![Some("Int"), Some("Int")],
@@ -61,7 +61,7 @@ fn structs_report_set_field_out_of_range_and_named_layout_mismatch() {
 #[test]
 fn structs_reject_layout_and_field_count_mismatch_at_construction() {
     let err = RtStruct::new(
-        Rc::new(RtStructLayout {
+        Arc::new(RtStructLayout {
             name: "Mismatch".into(),
             field_names: vec!["left".into(), "right".into()],
             field_types: vec![Some("Int"), Some("Int")],
@@ -101,7 +101,7 @@ fn structs_can_nest_other_struct_values() {
 #[test]
 fn structs_reject_wrong_field_type_when_layout_declares_runtime_types() {
     let mut strukt = RtStruct::new(
-        Rc::new(RtStructLayout {
+        Arc::new(RtStructLayout {
             name: "Typed".into(),
             field_names: vec!["a".into(), "b".into()],
             field_types: vec![Some("Int"), Some("Bool")],
@@ -119,7 +119,7 @@ fn structs_reject_wrong_field_type_when_layout_declares_runtime_types() {
 #[test]
 fn structs_keep_typed_storage_until_mixed_mutation() {
     let mut strukt = RtStruct::new(
-        Rc::new(RtStructLayout {
+        Arc::new(RtStructLayout {
             name: "Typed".into(),
             field_names: vec!["a".into(), "b".into()],
             field_types: vec![None, None],

@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::array::RtArray;
 use crate::ffi_support::{
@@ -205,7 +205,7 @@ pub extern "C" fn skp_rt_struct_new(struct_id: i64, field_count: i64) -> *mut Rt
         return std::ptr::null_mut();
     }
     match RtStruct::new(
-        Rc::new(RtStructLayout {
+        Arc::new(RtStructLayout {
             name: format!("Struct{struct_id}"),
             field_names: Vec::new(),
             field_types: Vec::new(),

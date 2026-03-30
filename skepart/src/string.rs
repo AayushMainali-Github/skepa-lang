@@ -1,5 +1,5 @@
 use std::ops::Range;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::{RtError, RtErrorKind, RtResult};
 
@@ -10,7 +10,7 @@ struct RtStringMeta {
 }
 
 #[derive(Debug, Clone)]
-struct RtStringStorage(Rc<str>);
+struct RtStringStorage(Arc<str>);
 
 #[derive(Debug, Clone)]
 struct RtStringView {
@@ -34,7 +34,7 @@ impl RtString {
     pub fn new(value: impl Into<String>) -> Self {
         let value = value.into();
         Self {
-            repr: RtStringRepr::RuntimeObject(RtStringStorage(Rc::<str>::from(value))),
+            repr: RtStringRepr::RuntimeObject(RtStringStorage(Arc::<str>::from(value))),
         }
     }
 

@@ -1,14 +1,14 @@
-use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::{RtError, RtResult, RtString, RtValue};
 
 #[derive(Debug, Clone, PartialEq)]
 enum RtArrayRepr {
-    Values(Rc<Vec<RtValue>>),
-    Ints(Rc<Vec<i64>>),
-    Floats(Rc<Vec<f64>>),
-    Bools(Rc<Vec<bool>>),
-    Strings(Rc<Vec<RtString>>),
+    Values(Arc<Vec<RtValue>>),
+    Ints(Arc<Vec<i64>>),
+    Floats(Arc<Vec<f64>>),
+    Bools(Arc<Vec<bool>>),
+    Strings(Arc<Vec<RtString>>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -21,10 +21,10 @@ impl RtArray {
 
     pub fn repeat(value: RtValue, size: usize) -> Self {
         match value {
-            RtValue::Int(v) => Self(RtArrayRepr::Ints(Rc::new(vec![v; size]))),
-            RtValue::Float(v) => Self(RtArrayRepr::Floats(Rc::new(vec![v; size]))),
-            RtValue::Bool(v) => Self(RtArrayRepr::Bools(Rc::new(vec![v; size]))),
-            RtValue::String(v) => Self(RtArrayRepr::Strings(Rc::new(vec![v; size]))),
+            RtValue::Int(v) => Self(RtArrayRepr::Ints(Arc::new(vec![v; size]))),
+            RtValue::Float(v) => Self(RtArrayRepr::Floats(Arc::new(vec![v; size]))),
+            RtValue::Bool(v) => Self(RtArrayRepr::Bools(Arc::new(vec![v; size]))),
+            RtValue::String(v) => Self(RtArrayRepr::Strings(Arc::new(vec![v; size]))),
             other => Self::new(vec![other; size]),
         }
     }
@@ -75,7 +75,7 @@ impl RtArray {
     pub fn set(&mut self, index: usize, value: RtValue) -> RtResult<()> {
         match (&mut self.0, value) {
             (RtArrayRepr::Values(items), value) => {
-                let items = Rc::make_mut(items);
+                let items = Arc::make_mut(items);
                 let len = items.len();
                 let slot = items
                     .get_mut(index)
@@ -84,7 +84,7 @@ impl RtArray {
                 Ok(())
             }
             (RtArrayRepr::Ints(items), RtValue::Int(value)) => {
-                let items = Rc::make_mut(items);
+                let items = Arc::make_mut(items);
                 let len = items.len();
                 let slot = items
                     .get_mut(index)
@@ -93,7 +93,7 @@ impl RtArray {
                 Ok(())
             }
             (RtArrayRepr::Floats(items), RtValue::Float(value)) => {
-                let items = Rc::make_mut(items);
+                let items = Arc::make_mut(items);
                 let len = items.len();
                 let slot = items
                     .get_mut(index)
@@ -102,7 +102,7 @@ impl RtArray {
                 Ok(())
             }
             (RtArrayRepr::Bools(items), RtValue::Bool(value)) => {
-                let items = Rc::make_mut(items);
+                let items = Arc::make_mut(items);
                 let len = items.len();
                 let slot = items
                     .get_mut(index)
@@ -111,7 +111,7 @@ impl RtArray {
                 Ok(())
             }
             (RtArrayRepr::Strings(items), RtValue::String(value)) => {
-                let items = Rc::make_mut(items);
+                let items = Arc::make_mut(items);
                 let len = items.len();
                 let slot = items
                     .get_mut(index)
@@ -126,7 +126,7 @@ impl RtArray {
                     .get_mut(index)
                     .ok_or_else(|| RtError::index_out_of_bounds(index, len))?;
                 *slot = value;
-                *repr = RtArrayRepr::Values(Rc::new(values));
+                *repr = RtArrayRepr::Values(Arc::new(values));
                 Ok(())
             }
         }
@@ -142,7 +142,7 @@ impl RtArray {
 
     fn infer_repr(items: Vec<RtValue>) -> RtArrayRepr {
         if items.iter().all(|item| matches!(item, RtValue::Int(_))) {
-            return RtArrayRepr::Ints(Rc::new(
+            return RtArrayRepr::Ints(Arc::new(
                 items
                     .into_iter()
                     .map(|item| match item {
@@ -153,7 +153,7 @@ impl RtArray {
             ));
         }
         if items.iter().all(|item| matches!(item, RtValue::Float(_))) {
-            return RtArrayRepr::Floats(Rc::new(
+            return RtArrayRepr::Floats(Arc::new(
                 items
                     .into_iter()
                     .map(|item| match item {
@@ -164,7 +164,7 @@ impl RtArray {
             ));
         }
         if items.iter().all(|item| matches!(item, RtValue::Bool(_))) {
-            return RtArrayRepr::Bools(Rc::new(
+            return RtArrayRepr::Bools(Arc::new(
                 items
                     .into_iter()
                     .map(|item| match item {
@@ -175,7 +175,7 @@ impl RtArray {
             ));
         }
         if items.iter().all(|item| matches!(item, RtValue::String(_))) {
-            return RtArrayRepr::Strings(Rc::new(
+            return RtArrayRepr::Strings(Arc::new(
                 items
                     .into_iter()
                     .map(|item| match item {
@@ -185,7 +185,7 @@ impl RtArray {
                     .collect(),
             ));
         }
-        RtArrayRepr::Values(Rc::new(items))
+        RtArrayRepr::Values(Arc::new(items))
     }
 
     fn repr_to_values(repr: &RtArrayRepr) -> Vec<RtValue> {

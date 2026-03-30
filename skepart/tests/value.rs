@@ -130,3 +130,12 @@ fn value_accessors_report_wrong_type() {
         RtErrorKind::InvalidArgument
     );
 }
+
+#[test]
+fn runtime_values_are_send_ready_for_future_task_runtime() {
+    fn assert_send<T: Send>() {}
+    fn assert_sync<T: Sync>() {}
+
+    assert_send::<RtValue>();
+    assert_sync::<RtValue>();
+}

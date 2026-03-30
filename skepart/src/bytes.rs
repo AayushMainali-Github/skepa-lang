@@ -1,11 +1,11 @@
-use std::rc::Rc;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RtBytes(Rc<[u8]>);
+pub struct RtBytes(Arc<[u8]>);
 
 impl RtBytes {
     pub fn new(value: impl Into<Vec<u8>>) -> Self {
-        Self(Rc::<[u8]>::from(value.into()))
+        Self(Arc::<[u8]>::from(value.into()))
     }
 
     pub fn as_slice(&self) -> &[u8] {
