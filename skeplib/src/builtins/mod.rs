@@ -10,6 +10,7 @@ mod net;
 mod os;
 mod random;
 mod str_pkg;
+mod task;
 mod vec_pkg;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -68,6 +69,7 @@ pub fn find_builtin_sig(package: &str, name: &str) -> Option<&'static BuiltinSig
         .chain(net::SIGS.iter())
         .chain(os::SIGS.iter())
         .chain(random::SIGS.iter())
+        .chain(task::SIGS.iter())
         .chain(vec_pkg::SIGS.iter())
         .find(|s| s.package == package && s.name == name)
 }
@@ -99,6 +101,7 @@ fn all_builtin_sigs() -> Vec<&'static BuiltinSig> {
         .chain(net::SIGS.iter())
         .chain(os::SIGS.iter())
         .chain(random::SIGS.iter())
+        .chain(task::SIGS.iter())
         .chain(vec_pkg::SIGS.iter())
         .collect()
 }
@@ -187,12 +190,14 @@ fn builtin_meta(package: &str, name: &str) -> BuiltinMeta {
             can_const_fold: false,
             runtime_helper: None,
         },
-        ("datetime", _) | ("fs", _) | ("net", _) | ("os", _) | ("random", _) => BuiltinMeta {
-            purity: BuiltinPurity::HostEffectful,
-            lowering: BuiltinLowering::GenericDispatch,
-            can_const_fold: false,
-            runtime_helper: None,
-        },
+        ("datetime", _) | ("fs", _) | ("net", _) | ("os", _) | ("random", _) | ("task", _) => {
+            BuiltinMeta {
+                purity: BuiltinPurity::HostEffectful,
+                lowering: BuiltinLowering::GenericDispatch,
+                can_const_fold: false,
+                runtime_helper: None,
+            }
+        }
         ("bytes", "len") | ("map", "len") | ("map", "has") => BuiltinMeta {
             purity: BuiltinPurity::Pure,
             lowering: BuiltinLowering::GenericDispatch,
@@ -245,6 +250,7 @@ mod tests {
             super::net::SIGS.len(),
             super::os::SIGS.len(),
             super::random::SIGS.len(),
+            super::task::SIGS.len(),
             super::vec_pkg::SIGS.len(),
         ]
         .into_iter()
@@ -254,6 +260,7 @@ mod tests {
         assert!(find_builtin_spec("vec", "push").is_some());
         assert!(find_builtin_spec("bytes", "fromString").is_some());
         assert!(find_builtin_spec("map", "new").is_some());
+        assert!(find_builtin_spec("task", "__testTask").is_some());
         assert!(find_builtin_spec("missing", "name").is_none());
     }
 }

@@ -420,6 +420,12 @@ impl IrLowerer {
             ("net", "listen") => {
                 return Some(IrType::Opaque("net.Listener".to_string()));
             }
+            ("task", "__testTask") => {
+                return Some(IrType::Opaque("task.Task".to_string()));
+            }
+            ("task", "__testChannel") => {
+                return Some(IrType::Opaque("task.Channel".to_string()));
+            }
             ("map", "get") | ("map", "remove") => {
                 let map = args.first()?;
                 if let IrType::Map { value } = self.infer_operand_type(func, map) {

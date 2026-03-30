@@ -984,6 +984,34 @@ fn main() -> Int {
 }
 
 #[test]
+fn interpreter_carries_dummy_task_handles_through_calls() {
+    let source = r#"
+import task;
+
+fn make_task() -> task.Task {
+  return task.__testTask();
+}
+
+fn make_channel() -> task.Channel {
+  return task.__testChannel();
+}
+
+fn main() -> Int {
+  let t: task.Task = make_task();
+  let c: task.Channel = make_channel();
+  let t2: task.Task = t;
+  let c2: task.Channel = c;
+  let _ = t2;
+  let _ = c2;
+  return 0;
+}
+"#;
+
+    let value = common::ir_run_ok(source);
+    assert_eq!(value, IrValue::Int(0));
+}
+
+#[test]
 fn interpreter_supports_float_and_string_compare_shapes() {
     let float_src = r#"
 fn main() -> Int {

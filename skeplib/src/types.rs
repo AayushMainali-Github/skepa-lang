@@ -62,7 +62,10 @@ impl TypeInfo {
 }
 
 pub fn is_builtin_opaque_type(name: &str) -> bool {
-    matches!(name, "net.Socket" | "net.Listener")
+    matches!(
+        name,
+        "net.Socket" | "net.Listener" | "task.Task" | "task.Channel"
+    )
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

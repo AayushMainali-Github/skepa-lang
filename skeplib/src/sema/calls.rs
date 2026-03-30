@@ -15,6 +15,7 @@ mod net;
 mod os;
 mod random;
 mod str_pkg;
+mod task;
 mod vec;
 
 impl Checker {
@@ -68,6 +69,7 @@ impl Checker {
                 || parts[0] == "net"
                 || parts[0] == "os"
                 || parts[0] == "fs"
+                || parts[0] == "task"
                 || parts[0] == "vec")
         {
             return self.check_builtin_call(&parts[0], &parts[1], args, scopes);
@@ -309,6 +311,7 @@ impl Checker {
             "net" => return net::check_net_builtin(self, method, args, scopes, sig),
             "fs" => return fs::check_fs_builtin(self, method, args, scopes, sig),
             "os" => return os::check_os_builtin(self, method, args, scopes, sig),
+            "task" => return task::check_task_builtin(self, method, args, scopes, sig),
             _ => {}
         }
 

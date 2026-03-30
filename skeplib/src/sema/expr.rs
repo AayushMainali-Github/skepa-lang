@@ -36,6 +36,7 @@ impl Checker {
                     | "net"
                     | "os"
                     | "fs"
+                    | "task"
                     | "vec"
             )
         {
@@ -236,6 +237,7 @@ impl Checker {
                                 | "net"
                                 | "os"
                                 | "fs"
+                                | "task"
                                 | "vec"
                         ))
                 {

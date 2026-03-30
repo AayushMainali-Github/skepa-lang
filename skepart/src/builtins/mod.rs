@@ -8,6 +8,7 @@ pub mod net;
 pub mod os;
 pub mod random;
 pub mod str;
+pub mod task;
 pub mod vec;
 
 use crate::{NoopHost, RtError, RtErrorKind, RtHost, RtResult, RtValue};
@@ -238,6 +239,8 @@ pub fn call_with_host(
             host,
             listener.expect_handle_kind(crate::RtHandleKind::Listener)?,
         ),
+        ("task", "__testTask", []) => task::test_task(host),
+        ("task", "__testChannel", []) => task::test_channel(host),
         ("os", "platform", []) => os::platform(host),
         ("os", "arch", []) => os::arch(host),
         ("os", "arg", [value]) => os::arg(host, value.expect_int()?),

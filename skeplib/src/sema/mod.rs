@@ -153,6 +153,7 @@ impl Checker {
                                 | "net"
                                 | "os"
                                 | "fs"
+                                | "task"
                                 | "vec"
                         )
                     {

@@ -251,6 +251,14 @@ pub trait RtHost {
         Err(RtError::unsupported_builtin("net.Listener"))
     }
 
+    fn task_make_task_handle(&mut self, _id: usize) -> RtResult<RtHandle> {
+        Err(RtError::unsupported_builtin("task.Task"))
+    }
+
+    fn task_make_channel_handle(&mut self, _id: usize) -> RtResult<RtHandle> {
+        Err(RtError::unsupported_builtin("task.Channel"))
+    }
+
     fn net_alloc_handle(&mut self, _kind: RtHandleKind) -> RtResult<RtHandle> {
         Err(RtError::unsupported_builtin("net.Handle"))
     }
@@ -583,6 +591,28 @@ impl RtHost for NoopHost {
         self.net_resources
             .resources
             .insert(id, RtNetResource::Placeholder(RtHandleKind::Listener));
+        Ok(handle)
+    }
+
+    fn task_make_task_handle(&mut self, id: usize) -> RtResult<RtHandle> {
+        let handle = RtHandle {
+            id,
+            kind: RtHandleKind::Task,
+        };
+        self.net_resources
+            .resources
+            .insert(id, RtNetResource::Placeholder(RtHandleKind::Task));
+        Ok(handle)
+    }
+
+    fn task_make_channel_handle(&mut self, id: usize) -> RtResult<RtHandle> {
+        let handle = RtHandle {
+            id,
+            kind: RtHandleKind::Channel,
+        };
+        self.net_resources
+            .resources
+            .insert(id, RtNetResource::Placeholder(RtHandleKind::Channel));
         Ok(handle)
     }
 

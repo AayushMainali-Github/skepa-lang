@@ -1267,6 +1267,60 @@ fn main() -> Void {
 }
 
 #[test]
+fn sema_accepts_builtin_opaque_task_types_and_dummy_builtins() {
+    let src = r#"
+import task;
+
+fn main() -> Int {
+  let t: task.Task = task.__testTask();
+  let c: task.Channel = task.__testChannel();
+  let also_t: task.Task = t;
+  let also_c: task.Channel = c;
+  let _ = also_t;
+  let _ = also_c;
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
+
+#[test]
+fn sema_rejects_task_without_import() {
+    let src = r#"
+fn main() -> Int {
+  let t: task.Task = task.__testTask();
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("`task.*` used without `import task;`"))
+    );
+}
+
+#[test]
+fn sema_rejects_unknown_builtin_opaque_task_type_name() {
+    let src = r#"
+fn main(x: task.Mutex) -> Void {
+  return;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Unknown type in function `main` parameter `x`: `task.Mutex`"))
+    );
+}
+
+#[test]
 fn sema_rejects_net_readbytes_and_writebytes_type_mismatches() {
     let src = r#"
 import net;

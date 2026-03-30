@@ -9,6 +9,8 @@ pub struct RtFunctionRef(pub usize);
 pub enum RtHandleKind {
     Socket,
     Listener,
+    Task,
+    Channel,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -212,6 +214,8 @@ impl RtHandleKind {
         match self {
             Self::Socket => "Socket",
             Self::Listener => "Listener",
+            Self::Task => "Task",
+            Self::Channel => "Channel",
         }
     }
 }

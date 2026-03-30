@@ -429,6 +429,22 @@ impl RtHost for RecordingHost {
         })
     }
 
+    fn task_make_task_handle(&mut self, id: usize) -> RtResult<RtHandle> {
+        self.net_handles.insert(id, RtHandleKind::Task);
+        Ok(RtHandle {
+            id,
+            kind: RtHandleKind::Task,
+        })
+    }
+
+    fn task_make_channel_handle(&mut self, id: usize) -> RtResult<RtHandle> {
+        self.net_handles.insert(id, RtHandleKind::Channel);
+        Ok(RtHandle {
+            id,
+            kind: RtHandleKind::Channel,
+        })
+    }
+
     fn net_alloc_handle(&mut self, kind: RtHandleKind) -> RtResult<RtHandle> {
         let handle = RtHandle {
             id: self.next_handle_id,

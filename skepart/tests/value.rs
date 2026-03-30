@@ -53,6 +53,28 @@ fn value_accessors_return_expected_values() {
             kind: RtHandleKind::Listener,
         })
     );
+    assert_eq!(
+        RtValue::Handle(RtHandle {
+            id: 9,
+            kind: RtHandleKind::Task,
+        })
+        .expect_handle_kind(RtHandleKind::Task),
+        Ok(RtHandle {
+            id: 9,
+            kind: RtHandleKind::Task,
+        })
+    );
+    assert_eq!(
+        RtValue::Handle(RtHandle {
+            id: 10,
+            kind: RtHandleKind::Channel,
+        })
+        .expect_handle_kind(RtHandleKind::Channel),
+        Ok(RtHandle {
+            id: 10,
+            kind: RtHandleKind::Channel,
+        })
+    );
 }
 
 #[test]

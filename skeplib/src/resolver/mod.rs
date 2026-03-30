@@ -288,6 +288,7 @@ pub fn resolve_project(entry: &Path) -> Result<ModuleGraph, Vec<ResolveError>> {
                         | "net"
                         | "os"
                         | "fs"
+                        | "task"
                         | "vec"
                 )
             {
