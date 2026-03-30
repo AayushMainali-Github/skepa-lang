@@ -41,6 +41,13 @@ unsafe extern "C" {
     fn skp_rt_struct_free(ptr: *mut c_void);
 }
 
+unsafe extern "C" fn ffi_add_one(argc: i64, argv: *const *mut c_void) -> *mut c_void {
+    assert_eq!(argc, 1);
+    let arg = unsafe { *argv };
+    let value = unsafe { skp_rt_value_to_int(arg) };
+    unsafe { skp_rt_value_from_int(value + 1) }
+}
+
 #[test]
 fn ffi_string_and_value_roundtrip_surfaces_work() {
     let bytes = "🙂ok".as_bytes();
@@ -203,8 +210,22 @@ fn ffi_exports_free_helpers_for_boxed_runtime_values() {
 }
 
 #[test]
-fn ffi_call_function_stub_fails_as_invalid_external_abi_use() {
-    let result = unsafe { skp_rt_call_function(7usize as *mut c_void, 0, std::ptr::null()) };
+fn ffi_call_function_dispatches_wrapped_runtime_functions() {
+    let arg = unsafe { skp_rt_value_from_int(41) };
+    let argv = [arg];
+    let result = unsafe { skp_rt_call_function(ffi_add_one as *mut c_void, 1, argv.as_ptr()) };
+    let value = unsafe { (*(result as *mut RtValue)).clone() };
+    assert_eq!(value.expect_int().expect("int"), 42);
+    assert_eq!(unsafe { skp_rt_last_error_kind() }, 0);
+    unsafe {
+        skp_rt_value_free(arg);
+        skp_rt_value_free(result);
+    }
+}
+
+#[test]
+fn ffi_call_function_rejects_invalid_external_abi_use() {
+    let result = unsafe { skp_rt_call_function(std::ptr::null_mut(), 0, std::ptr::null()) };
     let value = unsafe { (*(result as *mut RtValue)).clone() };
     assert!(matches!(value, RtValue::Unit));
     assert_eq!(unsafe { skp_rt_last_error_kind() }, 5);
