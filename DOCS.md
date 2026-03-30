@@ -31,7 +31,7 @@ Literals:
 - `true`, `false`
 
 Primitive types:
-- `Int`, `Float`, `Bool`, `String`, `Void`
+- `Int`, `Float`, `Bool`, `String`, `Bytes`, `Void`
 
 Comments:
 - line: `// ...`
@@ -86,12 +86,14 @@ type             = primitive_type
                  | named_type
                  | array_type
                  | vec_type
+                 | map_type
                  | fn_type ;
 
-primitive_type   = "Int" | "Float" | "Bool" | "String" | "Void" ;
+primitive_type   = "Int" | "Float" | "Bool" | "String" | "Bytes" | "Void" ;
 named_type       = ident { "." ident } ;
 array_type       = "[" type ";" int_lit "]" ;
 vec_type         = "Vec" "[" type "]" ;
+map_type         = "Map" "[" "String" "," type "]" ;
 fn_type          = "Fn" "(" [ type_list ] ")" "->" type ;
 type_list        = type { "," type } ;
 
@@ -221,7 +223,7 @@ These are available through namespace paths (`string.case.up(...)`).
 - Wildcard imports can conflict with prior bindings; conflict is an error.
 - Export target names collide after aliasing, not before.
 - If same target name appears from multiple export blocks, it is an error.
-- Builtin package names (`io`, `str`, `arr`, `datetime`, `random`, `os`, `fs`, `net`, `vec`) are reserved package roots.
+- Builtin package names (`io`, `str`, `bytes`, `map`, `arr`, `datetime`, `random`, `os`, `fs`, `net`, `vec`) are reserved package roots.
 - `import ns; ns.f(...)` works only when `f` is exported exactly under that namespace level. Example: `import string; string.toUpper(...)` is invalid if only `string.case.toUpper` exists.
 
 ## 5. Operators
@@ -338,6 +340,7 @@ Behavior:
 - `%` is `Int % Int` only.
 - Arrays are static-size in type syntax (`[T; N]`, `N` literal).
 - Vectors are runtime-sized in type syntax (`Vec[T]`).
+- Maps are runtime-sized in type syntax (`Map[String, T]`).
 - Struct methods: first parameter must be `self: StructName`.
 - Function literals are non-capturing.
 
@@ -345,6 +348,8 @@ Behavior:
 
 - `io`: print/read and formatting helpers
 - `str`: string utilities (`len`, `contains`, `startsWith`, `endsWith`, `trim`, `toLower`, `toUpper`, `indexOf`, `lastIndexOf`, `slice`, `replace`, `repeat`, `isEmpty`)
+- `bytes`: byte-string helpers (`fromString`, `toString`, `len`, `get`, `slice`, `concat`, `push`, `append`)
+- `map`: string-keyed map helpers (`new`, `len`, `has`, `get`, `insert`, `remove`)
 - `arr`: static-array helpers (`len`, `isEmpty`, `contains`, `indexOf`, `count`, `first`, `last`, `join`)
 - `datetime`: unix timestamp/time component helpers
 - `random`: deterministic seed + random int/float
@@ -528,7 +533,52 @@ Notes:
 - `fs.readText` raises a runtime error on read failure or invalid UTF-8.
 - `fs.removeFile` / `fs.removeDirAll` raise runtime errors for missing paths.
 
-### 8.9 `net`
+### 8.9 `bytes`
+
+Signatures:
+- `bytes.fromString(s: String) -> Bytes`
+- `bytes.toString(b: Bytes) -> String`
+- `bytes.len(b: Bytes) -> Int`
+- `bytes.get(b: Bytes, i: Int) -> Int`
+- `bytes.slice(b: Bytes, start: Int, end: Int) -> Bytes`
+- `bytes.concat(a: Bytes, b: Bytes) -> Bytes`
+- `bytes.push(b: Bytes, x: Int) -> Bytes`
+- `bytes.append(a: Bytes, b: Bytes) -> Bytes`
+
+Behavior:
+- `Bytes` is an immutable runtime-managed byte container.
+- All `bytes` helpers are non-mutating and return derived values.
+- `bytes.fromString` encodes UTF-8 bytes from a `String`.
+- `bytes.toString` decodes UTF-8 and raises a runtime error on invalid data.
+
+Notes:
+- `bytes.get` returns the byte value as `Int` in `0..=255`.
+- `bytes.push` requires the appended byte value to be in `0..=255`.
+- `bytes.slice` requires valid non-negative bounds with `start <= end`.
+- `Bytes` supports language-level `==` / `!=` by content.
+
+### 8.10 `map`
+
+Signatures:
+- `map.new() -> Map[String, T]` (typed context required)
+- `map.len(m: Map[String, T]) -> Int`
+- `map.has(m: Map[String, T], key: String) -> Bool`
+- `map.get(m: Map[String, T], key: String) -> T`
+- `map.insert(m: Map[String, T], key: String, value: T) -> Void`
+- `map.remove(m: Map[String, T], key: String) -> T`
+
+Behavior:
+- Maps are runtime-sized, mutable, and keyed by `String`.
+- `map.insert` mutates the map in place, replacing any existing value for the key.
+- `map.remove` removes the key and returns the removed value.
+
+Notes:
+- `map.new()` currently requires typed context (for example `let headers: Map[String, Int] = map.new();`).
+- Map values use shared handle semantics: assignment/pass/return aliases the same underlying map.
+- `map.get` and `map.remove` raise a runtime error for missing keys.
+- `Map` values cannot currently be compared with `==` or `!=`.
+
+### 8.11 `net`
 
 Opaque types:
 - `net.Socket`
@@ -637,7 +687,7 @@ fn main() -> Int {
 }
 ```
 
-### 8.10 `vec`
+### 8.12 `vec`
 
 Signatures:
 - `vec.new() -> Vec[T]` (typed context required)

@@ -15,6 +15,9 @@ impl IrLowerer {
                 if let Some(done) = self.try_compile_vec_new_let(func, lowering, name, ty, value) {
                     return done;
                 }
+                if let Some(done) = self.try_compile_map_new_let(func, lowering, name, ty, value) {
+                    return done;
+                }
                 if let Some(done) =
                     self.try_compile_typed_empty_array_let(func, lowering, name, ty, value)
                 {

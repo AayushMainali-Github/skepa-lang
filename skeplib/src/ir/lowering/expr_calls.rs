@@ -119,7 +119,7 @@ impl IrLowerer {
                     }
                     if !is_value_receiver {
                         let ret_ty = self
-                            .builtin_return_type(package, field)
+                            .builtin_return_type(func, package, field, &lowered_args)
                             .unwrap_or(IrType::Unknown);
                         let dst = if ret_ty.is_void() {
                             None
@@ -253,6 +253,60 @@ impl IrLowerer {
         Some(true)
     }
 
+    pub(super) fn try_compile_map_new_let(
+        &mut self,
+        func: &mut crate::ir::IrFunction,
+        lowering: &mut FunctionLowering,
+        name: &str,
+        ty: &Option<crate::ast::TypeName>,
+        value: &Expr,
+    ) -> Option<bool> {
+        let Some(crate::ast::TypeName::Map { value: map_value }) = ty else {
+            return None;
+        };
+        let Expr::Call { callee, args } = value else {
+            return None;
+        };
+        if !args.is_empty()
+            || !matches!(&**callee, Expr::Field { base, field } if field == "new" && matches!(&**base, Expr::Ident(pkg) if pkg == "map"))
+        {
+            return None;
+        }
+
+        let value_ty = IrType::from(&crate::types::TypeInfo::from_ast(map_value));
+        let local_ty = IrType::Map {
+            value: Box::new(value_ty),
+        };
+        let local = self
+            .builder
+            .push_local(func, name.to_string(), local_ty.clone());
+        lowering.locals.insert(name.to_string(), local);
+        let dst = self.builder.push_temp(func, local_ty.clone());
+        self.builder.push_instr(
+            func,
+            lowering.current_block,
+            Instr::CallBuiltin {
+                dst: Some(dst),
+                ret_ty: local_ty.clone(),
+                builtin: crate::ir::BuiltinCall {
+                    package: "map".to_string(),
+                    name: "new".to_string(),
+                },
+                args: Vec::new(),
+            },
+        );
+        self.builder.push_instr(
+            func,
+            lowering.current_block,
+            Instr::StoreLocal {
+                local,
+                ty: local_ty,
+                value: Operand::Temp(dst),
+            },
+        );
+        Some(true)
+    }
+
     fn compile_vec_call(
         &mut self,
         func: &mut crate::ir::IrFunction,
@@ -352,13 +406,25 @@ impl IrLowerer {
         }
     }
 
-    fn builtin_return_type(&self, package: &str, name: &str) -> Option<IrType> {
+    fn builtin_return_type(
+        &self,
+        func: &crate::ir::IrFunction,
+        package: &str,
+        name: &str,
+        args: &[Operand],
+    ) -> Option<IrType> {
         match (package, name) {
             ("net", "__testSocket") | ("net", "connect") | ("net", "accept") => {
                 return Some(IrType::Opaque("net.Socket".to_string()));
             }
             ("net", "listen") => {
                 return Some(IrType::Opaque("net.Listener".to_string()));
+            }
+            ("map", "get") | ("map", "remove") => {
+                let map = args.first()?;
+                if let IrType::Map { value } = self.infer_operand_type(func, map) {
+                    return Some(*value);
+                }
             }
             _ => {}
         }

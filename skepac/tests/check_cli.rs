@@ -351,6 +351,70 @@ fn main() -> Int {{
 }
 
 #[test]
+fn run_executes_map_program_end_to_end() {
+    let tmp = make_temp_dir("skepac_run_map");
+    let source = tmp.join("main.sk");
+    fs::write(
+        &source,
+        r#"
+import map;
+
+fn main() -> Int {
+  let headers: Map[String, Int] = map.new();
+  let same = headers;
+  map.insert(headers, "content-length", 12);
+  let value = map.get(same, "content-length");
+  let removed = map.remove(headers, "content-length");
+  if (!map.has(same, "content-length") && map.len(headers) == 0) {
+    return value + removed;
+  }
+  return 1;
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("run")
+        .arg(&source)
+        .output()
+        .expect("run skepac run");
+
+    assert_eq!(output.status.code(), Some(24), "{:?}", output);
+}
+
+#[test]
+fn run_reports_runtime_failure_for_missing_map_key() {
+    let tmp = make_temp_dir("skepac_run_map_missing_key");
+    let source = tmp.join("main.sk");
+    fs::write(
+        &source,
+        r#"
+import map;
+
+fn main() -> Int {
+  let headers: Map[String, Int] = map.new();
+  return map.get(headers, "missing");
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("run")
+        .arg(&source)
+        .output()
+        .expect("run skepac run");
+
+    assert_ne!(output.status.code(), Some(0), "{:?}", output);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("missing map key") || stderr.contains("MissingField"),
+        "stderr was: {stderr}"
+    );
+}
+
+#[test]
 fn build_llvm_ir_writes_ir_artifact() {
     let tmp = make_temp_dir("skepac_build_ll");
     let source = tmp.join("main.sk");

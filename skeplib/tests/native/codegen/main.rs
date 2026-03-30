@@ -1375,6 +1375,26 @@ fn main() -> Int {
 }
 
 #[test]
+fn codegen_reports_runtime_failure_for_missing_map_key() {
+    let source = r#"
+import map;
+
+fn main() -> Int {
+  let headers: Map[String, Int] = map.new();
+  return map.get(headers, "missing");
+}
+"#;
+
+    let output = common::native_run_structured(source);
+    assert_ne!(output.exit_code(), 0);
+    assert!(
+        output.stderr_lossy().contains("missing map key"),
+        "expected missing-key runtime failure, got: {}",
+        output.stderr_lossy()
+    );
+}
+
+#[test]
 fn codegen_builds_native_executable_for_new_os_builtins() {
     let (exec_name, exec_arg) = if cfg!(windows) {
         ("where.exe", "cmd")
