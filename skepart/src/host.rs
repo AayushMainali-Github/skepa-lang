@@ -4,14 +4,19 @@ use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::process::Command;
+use std::sync::Arc;
 use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+use rustls::pki_types::{CertificateDer, ServerName};
+use rustls::{ClientConfig, ClientConnection, RootCertStore, StreamOwned};
 
 use crate::{RtBytes, RtError, RtErrorKind, RtHandle, RtHandleKind, RtResult, RtString};
 
 pub enum RtNetResource {
     Placeholder(RtHandleKind),
     TcpStream(TcpStream),
+    TlsStream(Box<StreamOwned<ClientConnection, TcpStream>>),
     TcpListener(TcpListener),
 }
 
@@ -19,7 +24,7 @@ impl RtNetResource {
     pub fn kind(&self) -> RtHandleKind {
         match self {
             Self::Placeholder(kind) => *kind,
-            Self::TcpStream(_) => RtHandleKind::Socket,
+            Self::TcpStream(_) | Self::TlsStream(_) => RtHandleKind::Socket,
             Self::TcpListener(_) => RtHandleKind::Listener,
         }
     }
@@ -38,6 +43,13 @@ impl RtNetResourceTable {
 
     pub fn insert_socket(&mut self, stream: TcpStream) -> RtHandle {
         self.insert(RtNetResource::TcpStream(stream))
+    }
+
+    pub fn insert_tls_socket(
+        &mut self,
+        stream: StreamOwned<ClientConnection, TcpStream>,
+    ) -> RtHandle {
+        self.insert(RtNetResource::TlsStream(Box::new(stream)))
     }
 
     pub fn insert_listener(&mut self, listener: TcpListener) -> RtHandle {
@@ -327,6 +339,7 @@ pub trait RtHost {
 pub struct NoopHost {
     random_state: u64,
     net_resources: RtNetResourceTable,
+    tls_root_certs: Vec<CertificateDer<'static>>,
 }
 
 impl Default for NoopHost {
@@ -334,7 +347,14 @@ impl Default for NoopHost {
         Self {
             random_state: 0x1234_5678_9ABC_DEF0,
             net_resources: RtNetResourceTable::default(),
+            tls_root_certs: Vec::new(),
         }
+    }
+}
+
+impl NoopHost {
+    pub fn add_tls_root_certificate(&mut self, cert: CertificateDer<'static>) {
+        self.tls_root_certs.push(cert);
     }
 }
 
@@ -605,6 +625,33 @@ impl RtHost for NoopHost {
         self.net_store_tcp_stream(stream)
     }
 
+    fn net_tls_connect(&mut self, host: &str, port: i64) -> RtResult<RtHandle> {
+        let port = u16::try_from(port).map_err(|_| {
+            RtError::new(
+                RtErrorKind::InvalidArgument,
+                "net.tlsConnect port must fit in 0..65535",
+            )
+        })?;
+        let addr = format!("{host}:{port}");
+        let tcp = TcpStream::connect(&addr).map_err(|err| RtError::io(err.to_string()))?;
+        let server_name = ServerName::try_from(host.to_string()).map_err(|_| {
+            RtError::new(
+                RtErrorKind::InvalidArgument,
+                format!("net.tlsConnect invalid hostname `{host}`"),
+            )
+        })?;
+        let config = tls_client_config(&self.tls_root_certs)?;
+        let mut tls = StreamOwned::new(
+            ClientConnection::new(config, server_name)
+                .map_err(|err| RtError::process(err.to_string()))?,
+            tcp,
+        );
+        tls.conn
+            .complete_io(&mut tls.sock)
+            .map_err(|err| RtError::io(err.to_string()))?;
+        Ok(self.net_resources.insert_tls_socket(tls))
+    }
+
     fn net_accept(&mut self, listener: RtHandle) -> RtResult<RtHandle> {
         let stream = {
             let listener_ref = self.net_tcp_listener(listener)?;
@@ -618,10 +665,7 @@ impl RtHost for NoopHost {
 
     fn net_read(&mut self, socket: RtHandle) -> RtResult<RtString> {
         let mut buf = [0_u8; 4096];
-        let bytes = self
-            .net_tcp_stream(socket)?
-            .read(&mut buf)
-            .map_err(|err| RtError::io(err.to_string()))?;
+        let bytes = self.socket_read(socket, &mut buf)?;
         // `net` is intentionally text-first for now; binary payloads will need a future bytes API.
         String::from_utf8(buf[..bytes].to_vec())
             .map(RtString::from)
@@ -634,24 +678,17 @@ impl RtHost for NoopHost {
     }
 
     fn net_write(&mut self, socket: RtHandle, data: &str) -> RtResult<()> {
-        self.net_tcp_stream(socket)?
-            .write_all(data.as_bytes())
-            .map_err(|err| RtError::io(err.to_string()))
+        self.socket_write_all(socket, data.as_bytes())
     }
 
     fn net_read_bytes(&mut self, socket: RtHandle) -> RtResult<RtBytes> {
         let mut buf = [0_u8; 4096];
-        let bytes = self
-            .net_tcp_stream(socket)?
-            .read(&mut buf)
-            .map_err(|err| RtError::io(err.to_string()))?;
+        let bytes = self.socket_read(socket, &mut buf)?;
         Ok(RtBytes::from(buf[..bytes].to_vec()))
     }
 
     fn net_write_bytes(&mut self, socket: RtHandle, data: &RtBytes) -> RtResult<()> {
-        self.net_tcp_stream(socket)?
-            .write_all(data.as_slice())
-            .map_err(|err| RtError::io(err.to_string()))
+        self.socket_write_all(socket, data.as_slice())
     }
 
     fn net_read_n(&mut self, socket: RtHandle, count: i64) -> RtResult<RtBytes> {
@@ -662,46 +699,162 @@ impl RtHost for NoopHost {
             )
         })?;
         let mut buf = vec![0_u8; count];
-        self.net_tcp_stream(socket)?
-            .read_exact(&mut buf)
-            .map_err(|err| RtError::io(err.to_string()))?;
+        self.socket_read_exact(socket, &mut buf)?;
         Ok(RtBytes::from(buf))
     }
 
     fn net_local_addr(&mut self, socket: RtHandle) -> RtResult<RtString> {
-        let addr = self
-            .net_tcp_stream(socket)?
-            .local_addr()
-            .map_err(|err| RtError::io(err.to_string()))?;
+        let addr = self.socket_local_addr(socket)?;
         Ok(RtString::from(addr.to_string()))
     }
 
     fn net_peer_addr(&mut self, socket: RtHandle) -> RtResult<RtString> {
-        let addr = self
-            .net_tcp_stream(socket)?
-            .peer_addr()
-            .map_err(|err| RtError::io(err.to_string()))?;
+        let addr = self.socket_peer_addr(socket)?;
         Ok(RtString::from(addr.to_string()))
     }
 
     fn net_flush(&mut self, socket: RtHandle) -> RtResult<()> {
-        self.net_tcp_stream(socket)?
-            .flush()
-            .map_err(|err| RtError::io(err.to_string()))
+        self.socket_flush(socket)
     }
 
     fn net_set_read_timeout(&mut self, socket: RtHandle, millis: i64) -> RtResult<()> {
         let timeout = duration_from_timeout_millis("net.setReadTimeout", millis)?;
-        self.net_tcp_stream(socket)?
-            .set_read_timeout(timeout)
-            .map_err(|err| RtError::io(err.to_string()))
+        self.socket_set_read_timeout(socket, timeout)
     }
 
     fn net_set_write_timeout(&mut self, socket: RtHandle, millis: i64) -> RtResult<()> {
         let timeout = duration_from_timeout_millis("net.setWriteTimeout", millis)?;
-        self.net_tcp_stream(socket)?
-            .set_write_timeout(timeout)
-            .map_err(|err| RtError::io(err.to_string()))
+        self.socket_set_write_timeout(socket, timeout)
+    }
+}
+
+impl NoopHost {
+    fn socket_resource_mut(&mut self, handle: RtHandle) -> RtResult<&mut RtNetResource> {
+        self.net_resources.kind_of(handle)?;
+        self.net_resources
+            .resources
+            .get_mut(&handle.id)
+            .ok_or_else(|| RtError::invalid_handle(format!("unknown handle id {}", handle.id)))
+    }
+
+    fn socket_read(&mut self, handle: RtHandle, buf: &mut [u8]) -> RtResult<usize> {
+        match self.socket_resource_mut(handle)? {
+            RtNetResource::TcpStream(stream) => stream.read(buf),
+            RtNetResource::TlsStream(stream) => stream.read(buf),
+            other => {
+                return Err(RtError::invalid_handle_kind(
+                    RtHandleKind::Socket.type_name(),
+                    other.kind().type_name(),
+                ))
+            }
+        }
+        .map_err(|err| RtError::io(err.to_string()))
+    }
+
+    fn socket_read_exact(&mut self, handle: RtHandle, buf: &mut [u8]) -> RtResult<()> {
+        match self.socket_resource_mut(handle)? {
+            RtNetResource::TcpStream(stream) => stream.read_exact(buf),
+            RtNetResource::TlsStream(stream) => stream.read_exact(buf),
+            other => {
+                return Err(RtError::invalid_handle_kind(
+                    RtHandleKind::Socket.type_name(),
+                    other.kind().type_name(),
+                ))
+            }
+        }
+        .map_err(|err| RtError::io(err.to_string()))
+    }
+
+    fn socket_write_all(&mut self, handle: RtHandle, data: &[u8]) -> RtResult<()> {
+        match self.socket_resource_mut(handle)? {
+            RtNetResource::TcpStream(stream) => stream.write_all(data),
+            RtNetResource::TlsStream(stream) => stream.write_all(data),
+            other => {
+                return Err(RtError::invalid_handle_kind(
+                    RtHandleKind::Socket.type_name(),
+                    other.kind().type_name(),
+                ))
+            }
+        }
+        .map_err(|err| RtError::io(err.to_string()))
+    }
+
+    fn socket_flush(&mut self, handle: RtHandle) -> RtResult<()> {
+        match self.socket_resource_mut(handle)? {
+            RtNetResource::TcpStream(stream) => stream.flush(),
+            RtNetResource::TlsStream(stream) => stream.flush(),
+            other => {
+                return Err(RtError::invalid_handle_kind(
+                    RtHandleKind::Socket.type_name(),
+                    other.kind().type_name(),
+                ))
+            }
+        }
+        .map_err(|err| RtError::io(err.to_string()))
+    }
+
+    fn socket_local_addr(&mut self, handle: RtHandle) -> RtResult<std::net::SocketAddr> {
+        match self.socket_resource_mut(handle)? {
+            RtNetResource::TcpStream(stream) => stream.local_addr(),
+            RtNetResource::TlsStream(stream) => stream.sock.local_addr(),
+            other => {
+                return Err(RtError::invalid_handle_kind(
+                    RtHandleKind::Socket.type_name(),
+                    other.kind().type_name(),
+                ))
+            }
+        }
+        .map_err(|err| RtError::io(err.to_string()))
+    }
+
+    fn socket_peer_addr(&mut self, handle: RtHandle) -> RtResult<std::net::SocketAddr> {
+        match self.socket_resource_mut(handle)? {
+            RtNetResource::TcpStream(stream) => stream.peer_addr(),
+            RtNetResource::TlsStream(stream) => stream.sock.peer_addr(),
+            other => {
+                return Err(RtError::invalid_handle_kind(
+                    RtHandleKind::Socket.type_name(),
+                    other.kind().type_name(),
+                ))
+            }
+        }
+        .map_err(|err| RtError::io(err.to_string()))
+    }
+
+    fn socket_set_read_timeout(
+        &mut self,
+        handle: RtHandle,
+        timeout: Option<Duration>,
+    ) -> RtResult<()> {
+        match self.socket_resource_mut(handle)? {
+            RtNetResource::TcpStream(stream) => stream.set_read_timeout(timeout),
+            RtNetResource::TlsStream(stream) => stream.sock.set_read_timeout(timeout),
+            other => {
+                return Err(RtError::invalid_handle_kind(
+                    RtHandleKind::Socket.type_name(),
+                    other.kind().type_name(),
+                ))
+            }
+        }
+        .map_err(|err| RtError::io(err.to_string()))
+    }
+
+    fn socket_set_write_timeout(
+        &mut self,
+        handle: RtHandle,
+        timeout: Option<Duration>,
+    ) -> RtResult<()> {
+        match self.socket_resource_mut(handle)? {
+            RtNetResource::TcpStream(stream) => stream.set_write_timeout(timeout),
+            RtNetResource::TlsStream(stream) => stream.sock.set_write_timeout(timeout),
+            other => {
+                return Err(RtError::invalid_handle_kind(
+                    RtHandleKind::Socket.type_name(),
+                    other.kind().type_name(),
+                ))
+            }
+        }
+        .map_err(|err| RtError::io(err.to_string()))
     }
 }
 
@@ -717,6 +870,33 @@ fn duration_from_timeout_millis(name: &str, millis: i64) -> RtResult<Option<Dura
     } else {
         Ok(Some(Duration::from_millis(millis as u64)))
     }
+}
+
+fn tls_client_config(extra_roots: &[CertificateDer<'static>]) -> RtResult<Arc<ClientConfig>> {
+    let mut roots = RootCertStore::empty();
+    let cert_result = rustls_native_certs::load_native_certs();
+    let rustls_native_certs::CertificateResult { certs, errors, .. } = cert_result;
+    if certs.is_empty() && errors.is_empty() && extra_roots.is_empty() {
+        return Err(RtError::io(
+            "no native root CA certificates found".to_string(),
+        ));
+    }
+    let _ = errors;
+    for cert in certs {
+        roots
+            .add(cert)
+            .map_err(|err| RtError::process(err.to_string()))?;
+    }
+    for cert in extra_roots.iter().cloned() {
+        roots
+            .add(cert)
+            .map_err(|err| RtError::process(err.to_string()))?;
+    }
+    Ok(Arc::new(
+        ClientConfig::builder()
+            .with_root_certificates(roots)
+            .with_no_client_auth(),
+    ))
 }
 
 fn format_unix_timestamp(seconds: i64, millis: u32) -> RtResult<RtString> {

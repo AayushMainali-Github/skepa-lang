@@ -1,9 +1,13 @@
 mod common;
 
 use common::RecordingHostBuilder;
+use rcgen::generate_simple_self_signed;
+use rustls::pki_types::PrivatePkcs8KeyDer;
+use rustls::{ServerConfig, ServerConnection, StreamOwned};
 use skepart::{NoopHost, RtBytes, RtHandle, RtHandleKind, RtHost, RtString};
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
+use std::sync::Arc;
 
 #[test]
 fn noop_host_supports_print_and_time_defaults() {
@@ -439,6 +443,73 @@ fn noop_host_supports_setting_socket_timeouts() {
     host.net_close_handle(server).expect("close server");
     host.net_close_handle(client).expect("close client");
     host.net_close_handle(listener).expect("close listener");
+}
+
+#[test]
+fn noop_host_supports_tls_connect_with_trusted_local_root() {
+    let cert = generate_simple_self_signed(vec!["localhost".to_string()]).expect("generate cert");
+    let cert_der = cert.cert.der().clone();
+    let key_der = PrivatePkcs8KeyDer::from(cert.key_pair.serialize_der());
+    let server_config = ServerConfig::builder()
+        .with_no_client_auth()
+        .with_single_cert(vec![cert_der.clone()], key_der.into())
+        .expect("server config");
+
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind tls listener");
+    let addr = listener.local_addr().expect("listener addr");
+    let server = std::thread::spawn(move || {
+        let (stream, _) = listener.accept().expect("accept tls client");
+        let conn = ServerConnection::new(Arc::new(server_config)).expect("server connection");
+        let mut tls = StreamOwned::new(conn, stream);
+        let mut buf = [0_u8; 4];
+        tls.read_exact(&mut buf).expect("read tls payload");
+        assert_eq!(&buf, b"ping");
+        tls.write_all(b"pong").expect("write tls response");
+        tls.flush().expect("flush tls response");
+    });
+
+    let mut host = NoopHost::default();
+    host.add_tls_root_certificate(cert_der);
+    let socket = host
+        .net_tls_connect("localhost", addr.port() as i64)
+        .expect("tls connect");
+    host.net_write(socket, "ping").expect("write tls");
+    host.net_flush(socket).expect("flush tls");
+    assert_eq!(
+        host.net_read(socket).expect("read tls"),
+        RtString::from("pong")
+    );
+    host.net_close_handle(socket).expect("close tls socket");
+    server.join().expect("join tls server");
+}
+
+#[test]
+fn noop_host_rejects_tls_connect_with_untrusted_certificate() {
+    let cert = generate_simple_self_signed(vec!["localhost".to_string()]).expect("generate cert");
+    let cert_der = cert.cert.der().clone();
+    let key_der = PrivatePkcs8KeyDer::from(cert.key_pair.serialize_der());
+    let server_config = ServerConfig::builder()
+        .with_no_client_auth()
+        .with_single_cert(vec![cert_der], key_der.into())
+        .expect("server config");
+
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind tls listener");
+    let addr = listener.local_addr().expect("listener addr");
+    let server = std::thread::spawn(move || {
+        let (stream, _) = listener.accept().expect("accept tls client");
+        let conn = ServerConnection::new(Arc::new(server_config)).expect("server connection");
+        let mut tls = StreamOwned::new(conn, stream);
+        let _ = tls.flush();
+    });
+
+    let mut host = NoopHost::default();
+    assert_eq!(
+        host.net_tls_connect("localhost", addr.port() as i64)
+            .expect_err("untrusted tls cert should fail")
+            .kind,
+        skepart::RtErrorKind::Io
+    );
+    server.join().expect("join tls server");
 }
 
 #[test]

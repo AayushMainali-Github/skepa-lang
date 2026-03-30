@@ -7,3 +7,8 @@ edition = "2021"
 crate-type = ["rlib", "staticlib"]
 
 [dependencies]
+rustls = "0.23"
+rustls-native-certs = "0.8"
+
+[dev-dependencies]
+rcgen = "0.13"
