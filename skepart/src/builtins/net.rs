@@ -30,6 +30,10 @@ pub fn http_get(host: &mut dyn RtHost, url: &str) -> RtResult<RtValue> {
     Ok(RtValue::String(host.net_http_get(url)?))
 }
 
+pub fn http_post(host: &mut dyn RtHost, url: &str, body: &str) -> RtResult<RtValue> {
+    Ok(RtValue::String(host.net_http_post(url, body)?))
+}
+
 pub fn accept(host: &mut dyn RtHost, listener: crate::RtHandle) -> RtResult<RtValue> {
     Ok(RtValue::Handle(host.net_accept(listener)?))
 }

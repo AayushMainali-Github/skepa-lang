@@ -1780,6 +1780,43 @@ fn main() -> Int {{
 }
 
 #[test]
+fn codegen_builds_native_executable_for_net_http_post() {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind http listener");
+    let addr = listener.local_addr().expect("listener addr");
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("accept client");
+        let mut buf = [0_u8; 512];
+        let read = stream.read(&mut buf).expect("read request");
+        let request = String::from_utf8_lossy(&buf[..read]);
+        assert!(request.contains("POST /submit HTTP/1.0"));
+        assert!(request.contains("Content-Length: 7"));
+        assert!(request.ends_with("\r\n\r\npayload"));
+        stream
+            .write_all(b"HTTP/1.0 200 OK\r\nContent-Length: 2\r\n\r\nok")
+            .expect("write response");
+    });
+
+    let source = format!(
+        r#"
+import net;
+import str;
+
+fn main() -> Int {{
+  let body: String = net.httpPost("http://{addr}/submit", "payload");
+  if ((body == "ok") && (str.len(body) == 2)) {{
+    return 0;
+  }}
+  return 1;
+}}
+"#
+    );
+
+    let result = common::native_run_structured(&source);
+    server.join().expect("server thread");
+    assert_eq!(result.exit_code(), 0, "stderr: {}", result.stderr_lossy());
+}
+
+#[test]
 fn codegen_builds_native_executable_for_net_flush() {
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind loopback listener");
     let addr = listener.local_addr().expect("listener addr");

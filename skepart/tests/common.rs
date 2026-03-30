@@ -32,6 +32,7 @@ pub struct RecordingHost {
     pub net_parse_url_query: String,
     pub net_parse_url_fragment: String,
     pub net_http_get_value: String,
+    pub net_http_post_value: String,
     pub net_flush_error: Option<String>,
     pub net_set_read_timeout_error: Option<String>,
     pub net_set_write_timeout_error: Option<String>,
@@ -44,6 +45,7 @@ pub struct RecordingHost {
     pub net_resolve_error: Option<String>,
     pub net_parse_url_error: Option<String>,
     pub net_http_get_error: Option<String>,
+    pub net_http_post_error: Option<String>,
     pub next_handle_id: usize,
     pub net_handles: HashMap<usize, RtHandleKind>,
     pub task_results: HashMap<usize, RtValue>,
@@ -80,6 +82,7 @@ impl RecordingHost {
             net_parse_url_query: "a=1".into(),
             net_parse_url_fragment: "frag".into(),
             net_http_get_value: "http-body".into(),
+            net_http_post_value: "http-post-body".into(),
             next_handle_id: 0,
             net_handles: HashMap::new(),
             env: HashMap::from([(String::from("HOME"), String::from("/tmp/home"))]),
@@ -214,6 +217,11 @@ impl RecordingHostBuilder {
         self
     }
 
+    pub fn net_http_post_value(mut self, value: impl Into<String>) -> Self {
+        self.host.net_http_post_value = value.into();
+        self
+    }
+
     pub fn net_flush_error(mut self, value: impl Into<String>) -> Self {
         self.host.net_flush_error = Some(value.into());
         self
@@ -271,6 +279,11 @@ impl RecordingHostBuilder {
 
     pub fn net_http_get_error(mut self, value: impl Into<String>) -> Self {
         self.host.net_http_get_error = Some(value.into());
+        self
+    }
+
+    pub fn net_http_post_error(mut self, value: impl Into<String>) -> Self {
+        self.host.net_http_post_error = Some(value.into());
         self
     }
 
@@ -681,6 +694,15 @@ impl RtHost for RecordingHost {
         }
         self.output.push_str(&format!("[nethttpget {url}]"));
         Ok(RtString::from(self.net_http_get_value.clone()))
+    }
+
+    fn net_http_post(&mut self, url: &str, body: &str) -> RtResult<RtString> {
+        if let Some(message) = &self.net_http_post_error {
+            return Err(RtError::io(message.clone()));
+        }
+        self.output
+            .push_str(&format!("[nethttppost {url} len={}]", body.len()));
+        Ok(RtString::from(self.net_http_post_value.clone()))
     }
 
     fn net_accept(&mut self, listener: RtHandle) -> RtResult<RtHandle> {

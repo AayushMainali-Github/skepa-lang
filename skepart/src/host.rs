@@ -403,6 +403,10 @@ pub trait RtHost {
         Err(RtError::unsupported_builtin("net.httpGet"))
     }
 
+    fn net_http_post(&mut self, _url: &str, _body: &str) -> RtResult<RtString> {
+        Err(RtError::unsupported_builtin("net.httpPost"))
+    }
+
     fn net_accept(&mut self, _listener: RtHandle) -> RtResult<RtHandle> {
         Err(RtError::unsupported_builtin("net.accept"))
     }
@@ -878,68 +882,12 @@ impl RtHost for NoopHost {
     }
 
     fn net_http_get(&mut self, url: &str) -> RtResult<RtString> {
-        let parts = parse_url_parts(url)?;
-        let port = if parts.port.is_empty() {
-            match parts.scheme.as_str() {
-                "http" => "80",
-                "https" => "443",
-                other => {
-                    return Err(RtError::new(
-                        RtErrorKind::InvalidArgument,
-                        format!("net.httpGet unsupported URL scheme `{other}`"),
-                    ))
-                }
-            }
-        } else {
-            parts.port.as_str()
-        };
-        let request_path = if parts.query.is_empty() {
-            parts.path.clone()
-        } else {
-            format!("{}?{}", parts.path, parts.query)
-        };
-        let host_header = if parts.port.is_empty() {
-            parts.host.clone()
-        } else {
-            format!("{}:{}", parts.host, parts.port)
-        };
-        let request = format!(
-            "GET {request_path} HTTP/1.0\r\nHost: {host_header}\r\nConnection: close\r\n\r\n"
-        );
+        let response = self.http_request(url, "GET", "")?;
+        Ok(RtString::from(response))
+    }
 
-        let response = match parts.scheme.as_str() {
-            "http" => {
-                let mut stream = TcpStream::connect(format!("{}:{port}", parts.host))
-                    .map_err(|err| RtError::io(err.to_string()))?;
-                stream
-                    .write_all(request.as_bytes())
-                    .map_err(|err| RtError::io(err.to_string()))?;
-                read_http_response(stream)?
-            }
-            "https" => {
-                let tcp = TcpStream::connect(format!("{}:{port}", parts.host))
-                    .map_err(|err| RtError::io(err.to_string()))?;
-                let server_name = ServerName::try_from(parts.host.clone()).map_err(|_| {
-                    RtError::new(
-                        RtErrorKind::InvalidArgument,
-                        format!("net.httpGet invalid hostname `{}`", parts.host),
-                    )
-                })?;
-                let config = tls_client_config(&self.tls_root_certs)?;
-                let mut tls = StreamOwned::new(
-                    ClientConnection::new(config, server_name)
-                        .map_err(|err| RtError::process(err.to_string()))?,
-                    tcp,
-                );
-                tls.conn
-                    .complete_io(&mut tls.sock)
-                    .map_err(|err| RtError::io(err.to_string()))?;
-                tls.write_all(request.as_bytes())
-                    .map_err(|err| RtError::io(err.to_string()))?;
-                read_http_response(tls)?
-            }
-            _ => unreachable!(),
-        };
+    fn net_http_post(&mut self, url: &str, body: &str) -> RtResult<RtString> {
+        let response = self.http_request(url, "POST", body)?;
         Ok(RtString::from(response))
     }
 
@@ -1020,6 +968,86 @@ impl RtHost for NoopHost {
 }
 
 impl NoopHost {
+    fn http_request(&mut self, url: &str, method: &str, body: &str) -> RtResult<String> {
+        let parts = parse_url_parts(url)?;
+        let port = if parts.port.is_empty() {
+            match parts.scheme.as_str() {
+                "http" => "80",
+                "https" => "443",
+                other => {
+                    return Err(RtError::new(
+                        RtErrorKind::InvalidArgument,
+                        format!(
+                            "net.http{} unsupported URL scheme `{other}`",
+                            http_method_title(method)
+                        ),
+                    ))
+                }
+            }
+        } else {
+            parts.port.as_str()
+        };
+        let request_path = if parts.query.is_empty() {
+            parts.path.clone()
+        } else {
+            format!("{}?{}", parts.path, parts.query)
+        };
+        let host_header = if parts.port.is_empty() {
+            parts.host.clone()
+        } else {
+            format!("{}:{}", parts.host, parts.port)
+        };
+        let request = if method == "POST" {
+            format!(
+                "POST {request_path} HTTP/1.0\r\nHost: {host_header}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                body.len(),
+                body
+            )
+        } else {
+            format!(
+                "GET {request_path} HTTP/1.0\r\nHost: {host_header}\r\nConnection: close\r\n\r\n"
+            )
+        };
+
+        match parts.scheme.as_str() {
+            "http" => {
+                let mut stream = TcpStream::connect(format!("{}:{port}", parts.host))
+                    .map_err(|err| RtError::io(err.to_string()))?;
+                stream
+                    .write_all(request.as_bytes())
+                    .map_err(|err| RtError::io(err.to_string()))?;
+                read_http_response(stream, method)
+            }
+            "https" => {
+                let tcp = TcpStream::connect(format!("{}:{port}", parts.host))
+                    .map_err(|err| RtError::io(err.to_string()))?;
+                let server_name = ServerName::try_from(parts.host.clone()).map_err(|_| {
+                    RtError::new(
+                        RtErrorKind::InvalidArgument,
+                        format!(
+                            "net.http{} invalid hostname `{}`",
+                            http_method_title(method),
+                            parts.host
+                        ),
+                    )
+                })?;
+                let config = tls_client_config(&self.tls_root_certs)?;
+                let mut tls = StreamOwned::new(
+                    ClientConnection::new(config, server_name)
+                        .map_err(|err| RtError::process(err.to_string()))?,
+                    tcp,
+                );
+                tls.conn
+                    .complete_io(&mut tls.sock)
+                    .map_err(|err| RtError::io(err.to_string()))?;
+                tls.write_all(request.as_bytes())
+                    .map_err(|err| RtError::io(err.to_string()))?;
+                read_http_response(tls, method)
+            }
+            _ => unreachable!(),
+        }
+    }
+
     fn socket_resource_mut(&mut self, handle: RtHandle) -> RtResult<&mut RtNetResource> {
         self.net_resources.kind_of(handle)?;
         self.net_resources
@@ -1251,7 +1279,7 @@ fn parse_url_parts(url: &str) -> RtResult<ParsedUrlParts> {
     })
 }
 
-fn read_http_response(mut reader: impl Read) -> RtResult<String> {
+fn read_http_response(mut reader: impl Read, method: &str) -> RtResult<String> {
     let mut buf = Vec::new();
     reader
         .read_to_end(&mut buf)
@@ -1259,16 +1287,30 @@ fn read_http_response(mut reader: impl Read) -> RtResult<String> {
     let text = String::from_utf8(buf).map_err(|_| {
         RtError::new(
             RtErrorKind::InvalidArgument,
-            "net.httpGet expected valid UTF-8 response data",
+            format!(
+                "net.http{} expected valid UTF-8 response data",
+                http_method_title(method)
+            ),
         )
     })?;
     let (_, body) = text.split_once("\r\n\r\n").ok_or_else(|| {
         RtError::new(
             RtErrorKind::InvalidArgument,
-            "net.httpGet received malformed HTTP response",
+            format!(
+                "net.http{} received malformed HTTP response",
+                http_method_title(method)
+            ),
         )
     })?;
     Ok(body.to_string())
+}
+
+fn http_method_title(method: &str) -> &'static str {
+    match method {
+        "GET" => "Get",
+        "POST" => "Post",
+        _ => "",
+    }
 }
 
 fn tls_client_config(extra_roots: &[CertificateDer<'static>]) -> RtResult<Arc<ClientConfig>> {

@@ -934,6 +934,51 @@ fn builtins_cover_net_http_get_and_errors() {
 }
 
 #[test]
+fn builtins_cover_net_http_post_and_errors() {
+    let mut host = RecordingHostBuilder::seeded()
+        .net_http_post_value("posted-body")
+        .build();
+
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "net",
+            "httpPost",
+            &[
+                RtValue::String(RtString::from("http://example.com/post")),
+                RtValue::String(RtString::from("{\"ok\":true}")),
+            ],
+        )
+        .expect("httpPost should return body"),
+        RtValue::String(RtString::from("posted-body"))
+    );
+    assert!(
+        host.output
+            .contains("[nethttppost http://example.com/post len=11]"),
+        "unexpected host output: {}",
+        host.output
+    );
+
+    let mut failing_host = RecordingHostBuilder::seeded()
+        .net_http_post_error("post failed")
+        .build();
+    assert_eq!(
+        builtins::call_with_host(
+            &mut failing_host,
+            "net",
+            "httpPost",
+            &[
+                RtValue::String(RtString::from("http://bad/post")),
+                RtValue::String(RtString::from("payload")),
+            ],
+        )
+        .expect_err("httpPost failure should surface")
+        .kind,
+        RtErrorKind::Io
+    );
+}
+
+#[test]
 fn builtins_enforce_net_close_lifetime_rules() {
     let mut host = RecordingHostBuilder::seeded().build();
     let socket = builtins::call_with_host(&mut host, "net", "__testSocket", &[])

@@ -590,6 +590,7 @@ Signatures:
 - `net.resolve(host: String) -> String`
 - `net.parseUrl(url: String) -> Map[String, String]`
 - `net.httpGet(url: String) -> String`
+- `net.httpPost(url: String, body: String) -> String`
 - `net.listen(address: String) -> net.Listener`
 - `net.accept(listener: net.Listener) -> net.Socket`
 - `net.read(socket: net.Socket) -> String`
@@ -612,6 +613,7 @@ Behavior:
 - `net.resolve(host)` resolves the host name and returns the first resolved IP address as text.
 - `net.parseUrl(url)` parses a URL and returns a `Map[String, String]` with keys: `scheme`, `host`, `port`, `path`, `query`, and `fragment`.
 - `net.httpGet(url)` performs a blocking HTTP GET request and returns the response body as `String`.
+- `net.httpPost(url, body)` performs a blocking HTTP POST request and returns the response body as `String`.
 - `net.listen(address)` binds a blocking TCP listener. Using port `0` lets the OS choose an ephemeral port.
 - `net.accept(listener)` blocks until a client connects, then returns a new `net.Socket`.
 - `net.read(socket)` performs a single blocking read of up to 4096 bytes and returns a `String`.
@@ -644,6 +646,10 @@ Notes:
 - `net.httpGet` currently supports `http://` and `https://` URLs only.
 - `net.httpGet` returns only the response body. It does not expose status code or headers yet.
 - `net.httpGet` expects a valid UTF-8 response body and a basic well-formed HTTP response.
+- `net.httpPost` currently supports `http://` and `https://` URLs only.
+- `net.httpPost` returns only the response body. It does not expose status code or headers yet.
+- `net.httpPost` sends the request body as-is with a `Content-Length` header.
+- `net.httpPost` expects a valid UTF-8 response body and a basic well-formed HTTP response.
 - `net.tlsConnect` validates the peer certificate chain and hostname through the host TLS implementation.
 - Timeout setters require non-negative millisecond values. `0` means no timeout.
 - Passing the wrong handle kind to a builtin raises a runtime error.
@@ -720,6 +726,20 @@ import str;
 fn main() -> Int {
   let body: String = net.httpGet("https://example.com/");
   if (str.len(body) > 0) {
+    return 0;
+  }
+  return 1;
+}
+```
+
+HTTP POST:
+```sk
+import net;
+import str;
+
+fn main() -> Int {
+  let body: String = net.httpPost("https://example.com/api", "{\"ok\":true}");
+  if (str.len(body) >= 0) {
     return 0;
   }
   return 1;

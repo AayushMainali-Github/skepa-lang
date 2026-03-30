@@ -580,6 +580,31 @@ fn noop_host_supports_basic_http_get_over_loopback() {
 }
 
 #[test]
+fn noop_host_supports_basic_http_post_over_loopback() {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind http listener");
+    let addr = listener.local_addr().expect("listener addr");
+    let server = std::thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("accept http client");
+        let mut buf = [0_u8; 512];
+        let read = stream.read(&mut buf).expect("read request");
+        let request = String::from_utf8_lossy(&buf[..read]);
+        assert!(request.contains("POST /submit HTTP/1.0"));
+        assert!(request.contains("Content-Length: 7"));
+        assert!(request.ends_with("\r\n\r\npayload"));
+        stream
+            .write_all(b"HTTP/1.0 200 OK\r\nContent-Length: 2\r\n\r\nok")
+            .expect("write response");
+    });
+
+    let mut host = NoopHost::default();
+    let body = host
+        .net_http_post(&format!("http://{addr}/submit"), "payload")
+        .expect("http post");
+    server.join().expect("server thread");
+    assert_eq!(body, RtString::from("ok"));
+}
+
+#[test]
 fn noop_host_rejects_tls_connect_with_untrusted_certificate() {
     let cert = generate_simple_self_signed(vec!["localhost".to_string()]).expect("generate cert");
     let cert_der = cert.cert.der().clone();
