@@ -52,7 +52,8 @@ pub fn emit_globals(program: &IrProgram, out: &mut Vec<String>) -> Result<(), Co
                 | crate::ir::IrType::Named(_)
                 | crate::ir::IrType::Opaque(_)
                 | crate::ir::IrType::Array { .. }
-                | crate::ir::IrType::Vec { .. } => "null".into(),
+                | crate::ir::IrType::Vec { .. }
+                | crate::ir::IrType::Map { .. } => "null".into(),
                 _ => {
                     return Err(CodegenError::Unsupported(
                         "only scalar and runtime-backed pointer globals are supported in current LLVM lowering",

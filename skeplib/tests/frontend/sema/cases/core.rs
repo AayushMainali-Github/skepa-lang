@@ -25,6 +25,22 @@ fn main() -> Int {
     assert_sema_success(&result, &diags);
 }
 
+#[test]
+fn sema_accepts_map_type_in_signatures_and_locals() {
+    let src = r#"
+fn id(data: Map[String, Int]) -> Map[String, Int] {
+  let copy: Map[String, Int] = data;
+  return copy;
+}
+
+fn main() -> Int {
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
+
 fn main() -> Int {
   let x: Int = add(1, 2);
   if (x > 0) {

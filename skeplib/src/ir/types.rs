@@ -17,6 +17,9 @@ pub enum IrType {
     Vec {
         elem: Box<IrType>,
     },
+    Map {
+        value: Box<IrType>,
+    },
     Fn {
         params: Vec<IrType>,
         ret: Box<IrType>,
@@ -41,6 +44,9 @@ impl From<&TypeInfo> for IrType {
             },
             TypeInfo::Vec { elem } => Self::Vec {
                 elem: Box::new(Self::from(elem.as_ref())),
+            },
+            TypeInfo::Map { value } => Self::Map {
+                value: Box::new(Self::from(value.as_ref())),
             },
             TypeInfo::Fn { params, ret } => Self::Fn {
                 params: params.iter().map(Self::from).collect(),

@@ -418,6 +418,7 @@ impl<'a> IrInterpreter<'a> {
             IrType::Opaque(_) => matches!(value, RtValue::Handle(_)),
             IrType::Array { .. } => matches!(value, RtValue::Array(_)),
             IrType::Vec { .. } => matches!(value, RtValue::Vec(_)),
+            IrType::Map { .. } => matches!(value, RtValue::Map(_)),
             IrType::Fn { .. } => matches!(value, RtValue::Function(_)),
         }
     }

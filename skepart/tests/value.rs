@@ -1,6 +1,6 @@
 use skepart::{
-    RtArray, RtBytes, RtErrorKind, RtFunctionRef, RtHandle, RtHandleKind, RtString, RtStruct,
-    RtValue, RtVec,
+    RtArray, RtBytes, RtErrorKind, RtFunctionRef, RtHandle, RtHandleKind, RtMap, RtString,
+    RtStruct, RtValue, RtVec,
 };
 
 #[test]
@@ -23,6 +23,8 @@ fn value_accessors_return_expected_values() {
     let vec = RtVec::new();
     vec.push(RtValue::Int(9));
     assert_eq!(RtValue::Vec(vec.clone()).expect_vec(), Ok(vec));
+    let map = RtMap::new();
+    assert_eq!(RtValue::Map(map.clone()).expect_map(), Ok(map));
     let strukt = RtStruct::named("Pair", vec![RtValue::Int(1)]).expect("struct");
     assert_eq!(RtValue::Struct(strukt.clone()).expect_struct(), Ok(strukt));
     assert_eq!(
@@ -78,6 +80,10 @@ fn value_accessors_report_wrong_type() {
     );
     assert_eq!(
         RtValue::Unit.expect_vec().expect_err("wrong type").kind,
+        RtErrorKind::TypeMismatch
+    );
+    assert_eq!(
+        RtValue::Unit.expect_map().expect_err("wrong type").kind,
         RtErrorKind::TypeMismatch
     );
     assert_eq!(

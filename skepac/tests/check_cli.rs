@@ -590,6 +590,38 @@ fn main() -> Int {
 }
 
 #[test]
+fn check_accepts_minimal_map_builtins_program() {
+    let tmp = make_temp_dir("skepac_check_map_minimal");
+    let file = tmp.join("map_minimal.sk");
+    fs::write(
+        &file,
+        r#"
+import map;
+
+fn main() -> Int {
+  let headers: Map[String, Int] = map.new();
+  map.insert(headers, "content-length", 12);
+  let ok: Bool = map.has(headers, "content-length");
+  let n: Int = map.get(headers, "content-length");
+  let gone: Int = map.remove(headers, "content-length");
+  if (ok && n == gone && map.len(headers) == 0) {
+    return 0;
+  }
+  return 1;
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("check")
+        .arg(&file)
+        .output()
+        .expect("run check");
+    assert_eq!(output.status.code(), Some(0), "{:?}", output);
+}
+
+#[test]
 fn check_accepts_match_statement_program() {
     let tmp = make_temp_dir("skepac_check_match");
     let file = tmp.join("match_ok.sk");

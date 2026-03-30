@@ -10,6 +10,7 @@ mod bytes;
 mod datetime;
 mod fs;
 mod io;
+mod map;
 mod net;
 mod os;
 mod random;
@@ -60,6 +61,7 @@ impl Checker {
             && (parts[0] == "io"
                 || parts[0] == "str"
                 || parts[0] == "bytes"
+                || parts[0] == "map"
                 || parts[0] == "arr"
                 || parts[0] == "datetime"
                 || parts[0] == "random"
@@ -296,6 +298,7 @@ impl Checker {
             "io" => return io::check_io_builtin(self, method, args, scopes, sig),
             "str" => return str_pkg::check_str_builtin(self, method, args, scopes, sig),
             "bytes" => return bytes::check_bytes_builtin(self, method, args, scopes, sig),
+            "map" => return map::check_map_builtin(self, method, args, scopes),
             "arr" => return arr::check_arr_builtin(self, method, args, scopes),
             "datetime" => {
                 return datetime::check_datetime_builtin(self, method, args, scopes, sig);

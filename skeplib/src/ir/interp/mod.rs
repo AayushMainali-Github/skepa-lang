@@ -181,6 +181,7 @@ fn runtime_type_name(ty: &IrType) -> &'static str {
         IrType::Bytes => "Bytes",
         IrType::Array { .. } => "Array",
         IrType::Vec { .. } => "Vec",
+        IrType::Map { .. } => "Map",
         IrType::Fn { .. } => "Function",
         IrType::Named(_) => "Struct",
         IrType::Opaque(_) => "Handle",

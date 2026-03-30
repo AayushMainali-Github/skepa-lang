@@ -24,6 +24,24 @@ impl Checker {
         )
     }
 
+    pub(super) fn is_map_new_call(expr: &Expr) -> bool {
+        matches!(
+            expr,
+            Expr::Call { callee, args }
+                if args.is_empty()
+                    && matches!(
+                        &**callee,
+                        Expr::Path(parts) if parts.len() == 2 && parts[0] == "map" && parts[1] == "new"
+                    )
+                        || matches!(
+                            &**callee,
+                            Expr::Field { base, field }
+                                if field == "new"
+                                    && matches!(&**base, Expr::Ident(pkg) if pkg == "map")
+                        )
+        )
+    }
+
     fn match_pattern_literal_key_and_label(pat: &MatchPattern) -> Option<(String, String)> {
         match pat {
             MatchPattern::Literal(MatchLiteral::Int(v)) => {
@@ -175,6 +193,17 @@ impl Checker {
                                 }
                             }
                             declared
+                        } else if Self::is_map_new_call(value) {
+                            match &declared {
+                                TypeInfo::Map { .. } => {}
+                                _ => {
+                                    self.error(format!(
+                                        "Type mismatch in let `{name}`: declared {:?}, got map.new()",
+                                        declared
+                                    ));
+                                }
+                            }
+                            declared
                         } else {
                             if expr_ty != TypeInfo::Unknown && declared != expr_ty {
                                 self.error(format!(
@@ -189,6 +218,11 @@ impl Checker {
                         if Self::is_vec_new_call(value) {
                             self.error(format!(
                                 "Cannot infer vector element type for let `{name}`; annotate as `Vec[T]`"
+                            ));
+                            TypeInfo::Unknown
+                        } else if Self::is_map_new_call(value) {
+                            self.error(format!(
+                                "Cannot infer map value type for let `{name}`; annotate as `Map[String, T]`"
                             ));
                             TypeInfo::Unknown
                         } else {

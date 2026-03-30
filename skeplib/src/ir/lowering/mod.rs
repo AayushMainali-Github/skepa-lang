@@ -230,6 +230,9 @@ impl IrLowerer {
             crate::ast::TypeName::Vec { elem } => IrType::Vec {
                 elem: Box::new(self.lower_type_name(elem)),
             },
+            crate::ast::TypeName::Map { value } => IrType::Map {
+                value: Box::new(self.lower_type_name(value)),
+            },
             crate::ast::TypeName::Fn { params, ret } => IrType::Fn {
                 params: params.iter().map(|p| self.lower_type_name(p)).collect(),
                 ret: Box::new(self.lower_type_name(ret)),

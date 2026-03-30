@@ -773,6 +773,28 @@ fn main() -> Int {
 }
 
 #[test]
+fn interpreter_supports_map_builtins_through_runtime() {
+    let source = r#"
+import map;
+
+fn main() -> Int {
+  let headers: Map[String, Int] = map.new();
+  map.insert(headers, "content-length", 12);
+  let same = headers;
+  let value = map.get(same, "content-length");
+  let removed = map.remove(headers, "content-length");
+  if (map.has(same, "content-length") || map.len(headers) != 0) {
+    return 0;
+  }
+  return value + removed;
+}
+"#;
+
+    let value = common::ir_run_ok(source);
+    assert_eq!(value, IrValue::Int(24));
+}
+
+#[test]
 fn interpreter_builtin_matrix_covers_arr_vec_io_datetime() {
     let source = r#"
 import arr;

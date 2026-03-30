@@ -3,6 +3,7 @@ pub mod bytes;
 pub mod datetime;
 pub mod fs;
 pub mod io;
+pub mod map;
 pub mod net;
 pub mod os;
 pub mod random;
@@ -38,6 +39,26 @@ pub fn call_with_host(
         ("bytes", "push", [value, byte]) => bytes::push(&value.expect_bytes()?, byte.expect_int()?),
         ("bytes", "append", [left, right]) => {
             Ok(bytes::append(&left.expect_bytes()?, &right.expect_bytes()?))
+        }
+        ("map", "new", []) => Ok(RtValue::Map(map::new())),
+        ("map", "len", [value]) => Ok(map::len(&value.expect_map()?)),
+        ("map", "has", [value, key]) => Ok(map::has(
+            &value.expect_map()?,
+            key.expect_string()?.as_str(),
+        )),
+        ("map", "get", [value, key]) => {
+            map::get(&value.expect_map()?, key.expect_string()?.as_str())
+        }
+        ("map", "insert", [value, key, item]) => {
+            map::insert(
+                &value.expect_map()?,
+                key.expect_string()?.as_str(),
+                item.clone(),
+            );
+            Ok(RtValue::Unit)
+        }
+        ("map", "remove", [value, key]) => {
+            map::remove(&value.expect_map()?, key.expect_string()?.as_str())
         }
         ("str", "len", [value]) => Ok(RtValue::Int(str::len(&value.expect_string()?))),
         ("str", "contains", [haystack, needle]) => Ok(RtValue::Bool(str::contains(

@@ -58,6 +58,7 @@ pub fn emit_scalar_instr(
                     | crate::ir::IrType::Named(_)
                     | crate::ir::IrType::Array { .. }
                     | crate::ir::IrType::Vec { .. }
+                    | crate::ir::IrType::Map { .. }
                     | crate::ir::IrType::Fn { .. }
             ) {
                 lines.push(format!("  {dest} = bitcast ptr {value} to ptr"));

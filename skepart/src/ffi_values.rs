@@ -4,9 +4,10 @@ use std::slice;
 use crate::array::RtArray;
 use crate::bytes::RtBytes;
 use crate::ffi_support::{
-    boxed_array, boxed_string, boxed_struct, boxed_value, boxed_vec, clear_last_error, clone_value,
-    ffi_try, invalid_argument, set_last_error,
+    boxed_array, boxed_map, boxed_string, boxed_struct, boxed_value, boxed_vec, clear_last_error,
+    clone_value, ffi_try, invalid_argument, set_last_error,
 };
+use crate::map::RtMap;
 use crate::string::RtString;
 use crate::value::{RtFunctionRef, RtHandle, RtStruct, RtValue};
 use crate::vec::RtVec;
@@ -214,6 +215,22 @@ pub extern "C" fn skp_rt_value_from_vec(value: *mut RtVec) -> *mut RtValue {
 }
 
 #[no_mangle]
+pub extern "C" fn skp_rt_value_from_map(value: *mut RtMap) -> *mut RtValue {
+    match ffi_try(|| {
+        if value.is_null() {
+            return Err(invalid_argument("map pointer must not be null"));
+        }
+        Ok(boxed_value(RtValue::Map(unsafe { (*value).clone() })))
+    }) {
+        Ok(value) => value,
+        Err(err) => {
+            set_last_error(err);
+            std::ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
 pub extern "C" fn skp_rt_value_from_struct(value: *mut RtStruct) -> *mut RtValue {
     match ffi_try(|| {
         if value.is_null() {
@@ -336,6 +353,17 @@ pub extern "C" fn skp_rt_value_to_array(value: *mut RtValue) -> *mut RtArray {
 #[no_mangle]
 pub extern "C" fn skp_rt_value_to_vec(value: *mut RtValue) -> *mut RtVec {
     match ffi_try(|| clone_value(value)?.expect_vec().map(boxed_vec)) {
+        Ok(value) => value,
+        Err(err) => {
+            set_last_error(err);
+            std::ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn skp_rt_value_to_map(value: *mut RtValue) -> *mut RtMap {
+    match ffi_try(|| clone_value(value)?.expect_map().map(boxed_map)) {
         Ok(value) => value,
         Err(err) => {
             set_last_error(err);

@@ -158,6 +158,9 @@ fn emit_indirect_wrapper(func: &IrFunction) -> Result<Vec<String>, CodegenError>
             IrType::Vec { .. } => lines.push(format!(
                 "  %arg{index} = call ptr @skp_rt_value_to_vec(ptr %argraw{index})"
             )),
+            IrType::Map { .. } => lines.push(format!(
+                "  %arg{index} = call ptr @skp_rt_value_to_map(ptr %argraw{index})"
+            )),
             IrType::Named(_) => lines.push(format!(
                 "  %arg{index} = call ptr @skp_rt_value_to_struct(ptr %argraw{index})"
             )),
@@ -166,7 +169,7 @@ fn emit_indirect_wrapper(func: &IrFunction) -> Result<Vec<String>, CodegenError>
             )),
             _ => {
                 return Err(CodegenError::Unsupported(
-                    "indirect-call trampoline only supports Int/Float/Bool/String/Bytes/Named/Array/Vec/Fn/Void signatures",
+                    "indirect-call trampoline only supports Int/Float/Bool/String/Bytes/Named/Array/Vec/Map/Fn/Void signatures",
                 ));
             }
         }
@@ -200,11 +203,12 @@ fn emit_indirect_wrapper(func: &IrFunction) -> Result<Vec<String>, CodegenError>
             IrType::Bytes => "skp_rt_value_from_bytes",
             IrType::Array { .. } => "skp_rt_value_from_array",
             IrType::Vec { .. } => "skp_rt_value_from_vec",
+            IrType::Map { .. } => "skp_rt_value_from_map",
             IrType::Named(_) => "skp_rt_value_from_struct",
             IrType::Fn { .. } => "skp_rt_value_from_function",
             _ => {
                 return Err(CodegenError::Unsupported(
-                    "indirect-call trampoline only supports Int/Float/Bool/String/Bytes/Named/Array/Vec/Fn/Void signatures",
+                    "indirect-call trampoline only supports Int/Float/Bool/String/Bytes/Named/Array/Vec/Map/Fn/Void signatures",
                 ));
             }
         };

@@ -56,12 +56,13 @@ pub fn emit_boxed_operand(
         IrType::Bytes => "skp_rt_value_from_bytes",
         IrType::Array { .. } => "skp_rt_value_from_array",
         IrType::Vec { .. } => "skp_rt_value_from_vec",
+        IrType::Map { .. } => "skp_rt_value_from_map",
         IrType::Named(_) => "skp_rt_value_from_struct",
         IrType::Opaque(_) => "skp_rt_value_from_handle",
         IrType::Fn { .. } => "skp_rt_value_from_function",
         _ => {
             return Err(CodegenError::Unsupported(
-                "boxing is only implemented for Int/Float/Bool/String/Bytes/Array/Vec/Struct/Handle/Function",
+                "boxing is only implemented for Int/Float/Bool/String/Bytes/Array/Vec/Map/Struct/Handle/Function",
             ));
         }
     };
@@ -102,6 +103,9 @@ pub fn emit_unbox_value(
         IrType::Vec { .. } => lines.push(format!(
             "  {dest} = call ptr @skp_rt_value_to_vec(ptr {raw})"
         )),
+        IrType::Map { .. } => lines.push(format!(
+            "  {dest} = call ptr @skp_rt_value_to_map(ptr {raw})"
+        )),
         IrType::Named(_) => lines.push(format!(
             "  {dest} = call ptr @skp_rt_value_to_struct(ptr {raw})"
         )),
@@ -113,7 +117,7 @@ pub fn emit_unbox_value(
         )),
         _ => {
             return Err(CodegenError::Unsupported(
-                "unboxing is only implemented for Int/Float/Bool/String/Bytes/Array/Vec/Struct/Handle/Function",
+                "unboxing is only implemented for Int/Float/Bool/String/Bytes/Array/Vec/Map/Struct/Handle/Function",
             ));
         }
     }

@@ -1354,6 +1354,27 @@ fn main() -> Int {
 }
 
 #[test]
+fn codegen_builds_native_executable_for_map_builtins() {
+    let source = r#"
+import map;
+
+fn main() -> Int {
+  let headers: Map[String, Int] = map.new();
+  let same = headers;
+  map.insert(headers, "content-length", 12);
+  let value = map.get(same, "content-length");
+  let removed = map.remove(headers, "content-length");
+  if (!map.has(same, "content-length") && map.len(headers) == 0) {
+    return value + removed;
+  }
+  return 1;
+}
+"#;
+
+    assert_eq!(common::native_run_structured(source).exit_code(), 24);
+}
+
+#[test]
 fn codegen_builds_native_executable_for_new_os_builtins() {
     let (exec_name, exec_arg) = if cfg!(windows) {
         ("where.exe", "cmd")

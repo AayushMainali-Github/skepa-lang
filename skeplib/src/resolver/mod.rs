@@ -280,6 +280,7 @@ pub fn resolve_project(entry: &Path) -> Result<ModuleGraph, Vec<ResolveError>> {
                 && matches!(
                     import_path[0].as_str(),
                     "io" | "bytes"
+                        | "map"
                         | "str"
                         | "arr"
                         | "datetime"

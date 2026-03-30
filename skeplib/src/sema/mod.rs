@@ -149,6 +149,7 @@ impl Checker {
                                 | "datetime"
                                 | "random"
                                 | "bytes"
+                                | "map"
                                 | "net"
                                 | "os"
                                 | "fs"
@@ -339,6 +340,13 @@ impl Checker {
                                 g.name, declared
                             ));
                         }
+                    } else if Checker::is_map_new_call(&g.value) {
+                        if !matches!(declared, TypeInfo::Map { .. }) {
+                            self.error(format!(
+                                "Type mismatch in global let `{}`: declared {:?}, got map.new()",
+                                g.name, declared
+                            ));
+                        }
                     } else if expr_ty != TypeInfo::Unknown && expr_ty != declared {
                         self.error(format!(
                             "Type mismatch in global let `{}`: declared {:?}, got {:?}",
@@ -351,6 +359,12 @@ impl Checker {
                     if Checker::is_vec_new_call(&g.value) {
                         self.error(format!(
                             "Cannot infer vector element type for global let `{}`; annotate as `Vec[T]`",
+                            g.name
+                        ));
+                        TypeInfo::Unknown
+                    } else if Checker::is_map_new_call(&g.value) {
+                        self.error(format!(
+                            "Cannot infer map value type for global let `{}`; annotate as `Map[String, T]`",
                             g.name
                         ));
                         TypeInfo::Unknown
@@ -517,6 +531,7 @@ impl Checker {
             | TypeName::Void => {}
             TypeName::Array { elem, .. } => self.check_decl_type_exists(elem, err_prefix),
             TypeName::Vec { elem } => self.check_decl_type_exists(elem, err_prefix),
+            TypeName::Map { value } => self.check_decl_type_exists(value, err_prefix),
             TypeName::Fn { params, ret } => {
                 for p in params {
                     self.check_decl_type_exists(p, err_prefix.clone());

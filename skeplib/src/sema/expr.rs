@@ -27,7 +27,16 @@ impl Checker {
         if parts.len() == 2
             && matches!(
                 parts[0].as_str(),
-                "io" | "str" | "arr" | "datetime" | "random" | "os" | "fs" | "vec"
+                "io" | "str"
+                    | "bytes"
+                    | "map"
+                    | "arr"
+                    | "datetime"
+                    | "random"
+                    | "net"
+                    | "os"
+                    | "fs"
+                    | "vec"
             )
         {
             self.error(format!(
@@ -218,7 +227,16 @@ impl Checker {
                     && (self.module_namespaces.contains_key(&parts[0])
                         || matches!(
                             parts[0].as_str(),
-                            "io" | "str" | "arr" | "datetime" | "random" | "os" | "fs" | "vec"
+                            "io" | "str"
+                                | "bytes"
+                                | "map"
+                                | "arr"
+                                | "datetime"
+                                | "random"
+                                | "net"
+                                | "os"
+                                | "fs"
+                                | "vec"
                         ))
                 {
                     return self.check_path_expr(&parts, scopes);
@@ -413,6 +431,10 @@ impl Checker {
                 }
                 if matches!(lt, TypeInfo::Vec { .. }) || matches!(rt, TypeInfo::Vec { .. }) {
                     self.error("Vector values cannot be compared with `==` or `!=`".to_string());
+                    return TypeInfo::Unknown;
+                }
+                if matches!(lt, TypeInfo::Map { .. }) || matches!(rt, TypeInfo::Map { .. }) {
+                    self.error("Map values cannot be compared with `==` or `!=`".to_string());
                     return TypeInfo::Unknown;
                 }
                 if lt == rt || lt == TypeInfo::Unknown || rt == TypeInfo::Unknown {

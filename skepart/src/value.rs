@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::{RtArray, RtBytes, RtError, RtResult, RtString, RtVec};
+use crate::{RtArray, RtBytes, RtError, RtMap, RtResult, RtString, RtVec};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RtFunctionRef(pub usize);
@@ -48,6 +48,7 @@ pub enum RtValue {
     Bytes(RtBytes),
     Array(RtArray),
     Vec(RtVec),
+    Map(RtMap),
     Function(RtFunctionRef),
     Handle(RtHandle),
     Struct(RtStruct),
@@ -64,6 +65,7 @@ impl RtValue {
             Self::Bytes(_) => "Bytes",
             Self::Array(_) => "Array",
             Self::Vec(_) => "Vec",
+            Self::Map(_) => "Map",
             Self::Function(_) => "Function",
             Self::Handle(_) => "Handle",
             Self::Struct(_) => "Struct",
@@ -136,6 +138,16 @@ impl RtValue {
             Self::Vec(value) => Ok(value.clone()),
             other => Err(RtError::type_mismatch(format!(
                 "expected Vec, got {}",
+                other.type_name()
+            ))),
+        }
+    }
+
+    pub fn expect_map(&self) -> RtResult<RtMap> {
+        match self {
+            Self::Map(value) => Ok(value.clone()),
+            other => Err(RtError::type_mismatch(format!(
+                "expected Map, got {}",
                 other.type_name()
             ))),
         }

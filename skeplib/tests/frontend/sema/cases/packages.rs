@@ -164,6 +164,75 @@ fn main() -> Int {
 }
 
 #[test]
+fn sema_accepts_map_builtins() {
+    let src = r#"
+import map;
+
+fn main() -> Int {
+  let headers: Map[String, Int] = map.new();
+  map.insert(headers, "content-length", 12);
+  let has_len: Bool = map.has(headers, "content-length");
+  let value: Int = map.get(headers, "content-length");
+  let removed: Int = map.remove(headers, "content-length");
+  if (has_len && value == removed && map.len(headers) == 0) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
+
+#[test]
+fn sema_rejects_map_without_import() {
+    let src = r#"
+fn main() -> Int {
+  let values: Map[String, Int] = map.new();
+  return map.len(values);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("`map.*` used without `import map;`"))
+    );
+}
+
+#[test]
+fn sema_rejects_map_type_mismatches_and_inferred_new() {
+    let src = r#"
+import map;
+
+fn main() -> Int {
+  let inferred = map.new();
+  let values: Map[String, Int] = map.new();
+  map.insert(values, "ok", false);
+  let _x = map.get(values, 1);
+  let _same: Bool = values == values;
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message.contains("Cannot infer map value type for let `inferred`")
+    }));
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message.contains("map.insert argument 3 expects Int")
+    }));
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message.contains("map.get argument 2 expects String")
+    }));
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message.contains("Map values cannot be compared with `==` or `!=`")
+    }));
+}
+
+#[test]
 fn sema_rejects_bytes_without_import() {
     let src = r#"
 fn main() -> Int {

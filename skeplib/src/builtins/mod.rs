@@ -5,6 +5,7 @@ mod bytes_pkg;
 mod datetime;
 mod fs;
 mod io;
+mod map_pkg;
 mod net;
 mod os;
 mod random;
@@ -59,6 +60,7 @@ pub fn find_builtin_sig(package: &str, name: &str) -> Option<&'static BuiltinSig
     io::SIGS
         .iter()
         .chain(bytes_pkg::SIGS.iter())
+        .chain(map_pkg::SIGS.iter())
         .chain(str_pkg::SIGS.iter())
         .chain(arr::SIGS.iter())
         .chain(datetime::SIGS.iter())
@@ -89,6 +91,7 @@ fn all_builtin_sigs() -> Vec<&'static BuiltinSig> {
     io::SIGS
         .iter()
         .chain(bytes_pkg::SIGS.iter())
+        .chain(map_pkg::SIGS.iter())
         .chain(str_pkg::SIGS.iter())
         .chain(arr::SIGS.iter())
         .chain(datetime::SIGS.iter())
@@ -190,8 +193,14 @@ fn builtin_meta(package: &str, name: &str) -> BuiltinMeta {
             can_const_fold: false,
             runtime_helper: None,
         },
-        ("bytes", _) => BuiltinMeta {
+        ("bytes", "len") | ("map", "len") | ("map", "has") => BuiltinMeta {
             purity: BuiltinPurity::Pure,
+            lowering: BuiltinLowering::GenericDispatch,
+            can_const_fold: false,
+            runtime_helper: None,
+        },
+        ("map", "new") | ("map", "insert") | ("map", "remove") | ("map", "get") => BuiltinMeta {
+            purity: BuiltinPurity::HostEffectful,
             lowering: BuiltinLowering::GenericDispatch,
             can_const_fold: false,
             runtime_helper: None,
@@ -228,6 +237,7 @@ mod tests {
         let manual_count = [
             super::io::SIGS.len(),
             super::bytes_pkg::SIGS.len(),
+            super::map_pkg::SIGS.len(),
             super::str_pkg::SIGS.len(),
             super::arr::SIGS.len(),
             super::datetime::SIGS.len(),
@@ -243,6 +253,7 @@ mod tests {
         assert!(find_builtin_sig("datetime", "nowUnix").is_some());
         assert!(find_builtin_spec("vec", "push").is_some());
         assert!(find_builtin_spec("bytes", "fromString").is_some());
+        assert!(find_builtin_spec("map", "new").is_some());
         assert!(find_builtin_spec("missing", "name").is_none());
     }
 }

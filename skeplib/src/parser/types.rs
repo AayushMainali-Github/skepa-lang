@@ -53,6 +53,22 @@ impl Parser {
             });
         }
 
+        if self.at(TokenKind::Ident) && self.current().lexeme == "Map" {
+            self.bump();
+            self.expect(TokenKind::LBracket, "Expected `[` after `Map`")?;
+            let key = self.expect_type_name("Expected map key type in `Map[...]`")?;
+            self.expect(TokenKind::Comma, "Expected `,` after map key type")?;
+            let value = self.expect_type_name("Expected map value type in `Map[...]`")?;
+            self.expect(TokenKind::RBracket, "Expected `]` after map type")?;
+            if key != TypeName::String {
+                self.error_here_expected("`Map[...]` requires `String` keys");
+                return None;
+            }
+            return Some(TypeName::Map {
+                value: Box::new(value),
+            });
+        }
+
         if self.at(TokenKind::LBracket) {
             self.bump();
             let elem = self.expect_type_name("Expected element type in array type")?;

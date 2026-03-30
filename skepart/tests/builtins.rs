@@ -187,6 +187,98 @@ fn builtins_cover_bytes_roundtrip_and_type_errors() {
 }
 
 #[test]
+fn builtins_cover_map_roundtrip_and_errors() {
+    let value = builtins::call("map", "new", &[]).expect("map.new");
+    let RtValue::Map(raw) = value.clone() else {
+        panic!("map.new should return Map");
+    };
+    assert_eq!(raw.len(), 0);
+    assert_eq!(
+        builtins::call("map", "len", std::slice::from_ref(&value)).expect("map.len"),
+        RtValue::Int(0)
+    );
+    assert_eq!(
+        builtins::call(
+            "map",
+            "has",
+            &[value.clone(), RtValue::String(RtString::from("name"))],
+        )
+        .expect("map.has"),
+        RtValue::Bool(false)
+    );
+    assert_eq!(
+        builtins::call(
+            "map",
+            "insert",
+            &[
+                value.clone(),
+                RtValue::String(RtString::from("name")),
+                RtValue::Int(7),
+            ],
+        )
+        .expect("map.insert"),
+        RtValue::Unit
+    );
+    assert_eq!(
+        builtins::call("map", "len", std::slice::from_ref(&value)).expect("map.len"),
+        RtValue::Int(1)
+    );
+    assert_eq!(
+        builtins::call(
+            "map",
+            "has",
+            &[value.clone(), RtValue::String(RtString::from("name"))],
+        )
+        .expect("map.has"),
+        RtValue::Bool(true)
+    );
+    assert_eq!(
+        builtins::call(
+            "map",
+            "get",
+            &[value.clone(), RtValue::String(RtString::from("name"))],
+        )
+        .expect("map.get"),
+        RtValue::Int(7)
+    );
+    assert_eq!(
+        builtins::call(
+            "map",
+            "remove",
+            &[value.clone(), RtValue::String(RtString::from("name"))],
+        )
+        .expect("map.remove"),
+        RtValue::Int(7)
+    );
+    assert_eq!(
+        builtins::call("map", "len", std::slice::from_ref(&value)).expect("map.len"),
+        RtValue::Int(0)
+    );
+    assert_eq!(
+        builtins::call("map", "new", &[RtValue::Int(1)])
+            .expect_err("map.new arity")
+            .kind,
+        RtErrorKind::UnsupportedBuiltin
+    );
+    assert_eq!(
+        builtins::call("map", "len", &[RtValue::Int(1)])
+            .expect_err("map.len type mismatch")
+            .kind,
+        RtErrorKind::TypeMismatch
+    );
+    assert_eq!(
+        builtins::call(
+            "map",
+            "get",
+            &[value.clone(), RtValue::String(RtString::from("missing"))],
+        )
+        .expect_err("map.get missing key")
+        .kind,
+        RtErrorKind::MissingField
+    );
+}
+
+#[test]
 fn builtins_cover_net_bytes_roundtrip_and_errors() {
     let mut host = RecordingHostBuilder::seeded()
         .net_read_bytes_value(vec![0xDE, 0xAD, 0xBE, 0xEF])

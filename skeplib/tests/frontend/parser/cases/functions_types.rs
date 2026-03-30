@@ -30,6 +30,29 @@ fn take(data: Bytes) -> Bytes {
     assert_eq!(f.params[0].ty, TypeName::Bytes);
     assert_eq!(f.return_type, Some(TypeName::Bytes));
 }
+
+#[test]
+fn parses_map_type_annotations() {
+    let src = r#"
+fn take(data: Map[String, Int]) -> Map[String, Bytes] {
+  return data;
+}
+"#;
+    let program = parse_ok(src);
+    let f = &program.functions[0];
+    assert_eq!(
+        f.params[0].ty,
+        TypeName::Map {
+            value: Box::new(TypeName::Int),
+        }
+    );
+    assert_eq!(
+        f.return_type,
+        Some(TypeName::Map {
+            value: Box::new(TypeName::Bytes),
+        })
+    );
+}
 "#;
     let program = parse_ok(src);
     assert_eq!(program.functions.len(), 1);

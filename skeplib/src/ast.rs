@@ -236,6 +236,9 @@ pub enum TypeName {
     Vec {
         elem: Box<TypeName>,
     },
+    Map {
+        value: Box<TypeName>,
+    },
     Fn {
         params: Vec<TypeName>,
         ret: Box<TypeName>,
@@ -674,6 +677,7 @@ impl TypeName {
             TypeName::Named(name) => name.clone(),
             TypeName::Array { elem, size } => format!("[{}; {}]", elem.as_str(), size),
             TypeName::Vec { elem } => format!("Vec[{}]", elem.as_str()),
+            TypeName::Map { value } => format!("Map[String, {}]", value.as_str()),
             TypeName::Fn { params, ret } => {
                 let params = params
                     .iter()

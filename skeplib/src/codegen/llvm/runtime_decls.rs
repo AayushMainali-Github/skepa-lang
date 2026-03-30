@@ -74,6 +74,10 @@ const RUNTIME_DECLS: &[(&str, &str)] = &[
         "declare ptr @skp_rt_value_from_vec(ptr)",
     ),
     (
+        "skp_rt_value_from_map",
+        "declare ptr @skp_rt_value_from_map(ptr)",
+    ),
+    (
         "skp_rt_value_from_struct",
         "declare ptr @skp_rt_value_from_struct(ptr)",
     ),
@@ -113,6 +117,10 @@ const RUNTIME_DECLS: &[(&str, &str)] = &[
     (
         "skp_rt_value_to_vec",
         "declare ptr @skp_rt_value_to_vec(ptr)",
+    ),
+    (
+        "skp_rt_value_to_map",
+        "declare ptr @skp_rt_value_to_map(ptr)",
     ),
     (
         "skp_rt_value_to_struct",
