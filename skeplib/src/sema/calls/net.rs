@@ -258,14 +258,6 @@ pub(super) fn check_net_builtin(
                 value: Box::new(TypeInfo::String),
             }
         }
-        "httpGet" => {
-            checker.check_fixed_arity_builtin("net", method, args, scopes, sig);
-            TypeInfo::String
-        }
-        "httpPost" => {
-            checker.check_fixed_arity_builtin("net", method, args, scopes, sig);
-            TypeInfo::String
-        }
         "fetch" => {
             if args.len() != 2 {
                 checker.error(format!(

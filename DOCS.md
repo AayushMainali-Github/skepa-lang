@@ -589,8 +589,6 @@ Signatures:
 - `net.tlsConnect(host: String, port: Int) -> net.Socket`
 - `net.resolve(host: String) -> String`
 - `net.parseUrl(url: String) -> Map[String, String]`
-- `net.httpGet(url: String) -> String`
-- `net.httpPost(url: String, body: String) -> String`
 - `net.fetch(url: String, options: Map[String, String]) -> Map[String, String]`
 - `net.listen(address: String) -> net.Listener`
 - `net.accept(listener: net.Listener) -> net.Socket`
@@ -613,8 +611,6 @@ Behavior:
 - `net.tlsConnect(host, port)` opens a blocking TLS client connection with certificate and hostname verification.
 - `net.resolve(host)` resolves the host name and returns the first resolved IP address as text.
 - `net.parseUrl(url)` parses a URL and returns a `Map[String, String]` with keys: `scheme`, `host`, `port`, `path`, `query`, and `fragment`.
-- `net.httpGet(url)` performs a blocking HTTP GET request and returns the response body as `String`.
-- `net.httpPost(url, body)` performs a blocking HTTP POST request and returns the response body as `String`.
 - `net.fetch(url, options)` performs a blocking HTTP request and returns a response `Map[String, String]`.
 - `net.listen(address)` binds a blocking TCP listener. Using port `0` lets the OS choose an ephemeral port.
 - `net.accept(listener)` blocks until a client connects, then returns a new `net.Socket`.
@@ -645,13 +641,6 @@ Notes:
 - `net.tlsConnect` is client-side only in the current surface. There is no TLS listener/accept API yet.
 - `net.resolve` returns the first resolved address only. It is a convenience helper, not a full DNS result-set API.
 - `net.parseUrl` is a convenience parser for common URLs. Missing optional parts are returned as empty strings.
-- `net.httpGet` currently supports `http://` and `https://` URLs only.
-- `net.httpGet` returns only the response body. It does not expose status code or headers yet.
-- `net.httpGet` expects a valid UTF-8 response body and a basic well-formed HTTP response.
-- `net.httpPost` currently supports `http://` and `https://` URLs only.
-- `net.httpPost` returns only the response body. It does not expose status code or headers yet.
-- `net.httpPost` sends the request body as-is with a `Content-Length` header.
-- `net.httpPost` expects a valid UTF-8 response body and a basic well-formed HTTP response.
 - `net.fetch` currently supports `http://` and `https://` URLs only.
 - `net.fetch` reads these option keys when present:
   - `method`
@@ -662,7 +651,6 @@ Notes:
   - `body`
   - `contentType`
 - `net.fetch` defaults to `GET` when `method` is missing.
-- `net.fetch` is the more general HTTP helper; `net.httpGet` and `net.httpPost` are convenience wrappers.
 - `net.tlsConnect` validates the peer certificate chain and hostname through the host TLS implementation.
 - Timeout setters require non-negative millisecond values. `0` means no timeout.
 - Passing the wrong handle kind to a builtin raises a runtime error.
@@ -731,13 +719,16 @@ fn main() -> Int {
 }
 ```
 
-HTTP GET:
+Fetch GET:
 ```sk
+import map;
 import net;
 import str;
 
 fn main() -> Int {
-  let body: String = net.httpGet("https://example.com/");
+  let options: Map[String, String] = map.new();
+  let response: Map[String, String] = net.fetch("https://example.com/", options);
+  let body: String = map.get(response, "body");
   if (str.len(body) > 0) {
     return 0;
   }
@@ -745,13 +736,19 @@ fn main() -> Int {
 }
 ```
 
-HTTP POST:
+Fetch POST:
 ```sk
+import map;
 import net;
 import str;
 
 fn main() -> Int {
-  let body: String = net.httpPost("https://example.com/api", "{\"ok\":true}");
+  let options: Map[String, String] = map.new();
+  map.insert(options, "method", "POST");
+  map.insert(options, "body", "{\"ok\":true}");
+  map.insert(options, "contentType", "application/json");
+  let response: Map[String, String] = net.fetch("https://example.com/api", options);
+  let body: String = map.get(response, "body");
   if (str.len(body) >= 0) {
     return 0;
   }

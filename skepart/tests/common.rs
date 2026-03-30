@@ -31,8 +31,6 @@ pub struct RecordingHost {
     pub net_parse_url_path: String,
     pub net_parse_url_query: String,
     pub net_parse_url_fragment: String,
-    pub net_http_get_value: String,
-    pub net_http_post_value: String,
     pub net_fetch_status: String,
     pub net_fetch_body: String,
     pub net_fetch_content_type: String,
@@ -47,8 +45,6 @@ pub struct RecordingHost {
     pub net_write_error: Option<String>,
     pub net_resolve_error: Option<String>,
     pub net_parse_url_error: Option<String>,
-    pub net_http_get_error: Option<String>,
-    pub net_http_post_error: Option<String>,
     pub net_fetch_error: Option<String>,
     pub next_handle_id: usize,
     pub net_handles: HashMap<usize, RtHandleKind>,
@@ -85,8 +81,6 @@ impl RecordingHost {
             net_parse_url_path: "/x".into(),
             net_parse_url_query: "a=1".into(),
             net_parse_url_fragment: "frag".into(),
-            net_http_get_value: "http-body".into(),
-            net_http_post_value: "http-post-body".into(),
             net_fetch_status: "200".into(),
             net_fetch_body: "fetch-body".into(),
             net_fetch_content_type: "text/plain".into(),
@@ -219,16 +213,6 @@ impl RecordingHostBuilder {
         self
     }
 
-    pub fn net_http_get_value(mut self, value: impl Into<String>) -> Self {
-        self.host.net_http_get_value = value.into();
-        self
-    }
-
-    pub fn net_http_post_value(mut self, value: impl Into<String>) -> Self {
-        self.host.net_http_post_value = value.into();
-        self
-    }
-
     pub fn net_fetch_response(
         mut self,
         status: impl Into<String>,
@@ -293,16 +277,6 @@ impl RecordingHostBuilder {
 
     pub fn net_parse_url_error(mut self, value: impl Into<String>) -> Self {
         self.host.net_parse_url_error = Some(value.into());
-        self
-    }
-
-    pub fn net_http_get_error(mut self, value: impl Into<String>) -> Self {
-        self.host.net_http_get_error = Some(value.into());
-        self
-    }
-
-    pub fn net_http_post_error(mut self, value: impl Into<String>) -> Self {
-        self.host.net_http_post_error = Some(value.into());
         self
     }
 
@@ -710,23 +684,6 @@ impl RtHost for RecordingHost {
             RtValue::String(RtString::from(self.net_parse_url_fragment.clone())),
         );
         Ok(map)
-    }
-
-    fn net_http_get(&mut self, url: &str) -> RtResult<RtString> {
-        if let Some(message) = &self.net_http_get_error {
-            return Err(RtError::io(message.clone()));
-        }
-        self.output.push_str(&format!("[nethttpget {url}]"));
-        Ok(RtString::from(self.net_http_get_value.clone()))
-    }
-
-    fn net_http_post(&mut self, url: &str, body: &str) -> RtResult<RtString> {
-        if let Some(message) = &self.net_http_post_error {
-            return Err(RtError::io(message.clone()));
-        }
-        self.output
-            .push_str(&format!("[nethttppost {url} len={}]", body.len()));
-        Ok(RtString::from(self.net_http_post_value.clone()))
     }
 
     fn net_fetch(&mut self, url: &str, options: &skepart::RtMap) -> RtResult<skepart::RtMap> {

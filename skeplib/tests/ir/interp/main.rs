@@ -182,22 +182,6 @@ impl RtHost for TestHost {
         Ok(map)
     }
 
-    fn net_http_get(&mut self, url: &str) -> RtResult<RtString> {
-        self.out
-            .lock()
-            .expect("lock trace")
-            .push_str(&format!("[httpget {url}]"));
-        Ok(RtString::from("http-body"))
-    }
-
-    fn net_http_post(&mut self, url: &str, body: &str) -> RtResult<RtString> {
-        self.out
-            .lock()
-            .expect("lock trace")
-            .push_str(&format!("[httppost {url} len={}]", body.len()));
-        Ok(RtString::from("http-post-body"))
-    }
-
     fn net_fetch(&mut self, url: &str, options: &skepart::RtMap) -> RtResult<skepart::RtMap> {
         let method = options
             .get("method")
@@ -1004,8 +988,6 @@ import map;
 
 fn main() -> Int {
   let parts: Map[String, String] = net.parseUrl("https://example.com:443/a?x=1#frag");
-  let body: String = net.httpGet("http://example.com/");
-  let posted: String = net.httpPost("http://example.com/post", "{}");
   let fetchOptions: Map[String, String] = map.new();
   map.insert(fetchOptions, "method", "POST");
   map.insert(fetchOptions, "body", "{}");
@@ -1032,7 +1014,7 @@ fn main() -> Int {
   net.close(server);
   net.close(client);
   net.closeListener(listener);
-  if ((local != peer) && (resolved != "") && (host == "example.com") && (body == "http-body") && (posted == "http-post-body") && (status == "201")) {
+  if ((local != peer) && (resolved != "") && (host == "example.com") && (status == "201")) {
     return 0;
   }
   return 1;

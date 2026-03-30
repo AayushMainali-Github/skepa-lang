@@ -1240,8 +1240,6 @@ import map;
 
 fn main() -> Void {
   let parts: Map[String, String] = net.parseUrl("https://example.com:443/a?x=1#frag");
-  let body: String = net.httpGet("http://example.com/");
-  let posted: String = net.httpPost("http://example.com/post", "{}");
   let fetchOptions: Map[String, String] = map.new();
   map.insert(fetchOptions, "method", "POST");
   map.insert(fetchOptions, "body", "{}");
@@ -1265,7 +1263,7 @@ fn main() -> Void {
   net.flush(client);
   net.setReadTimeout(client, 25);
   net.setWriteTimeout(client, 50);
-  if ((local == peer) && (host != "") && (body != "") && (posted != "") && (status != "")) {
+  if ((local == peer) && (host != "") && (status != "")) {
     let _ = resolved;
     return;
   }
@@ -1300,27 +1298,13 @@ fn main() -> Void {
   let _ = parts;
   return;
 }
-
-#[test]
-fn sema_rejects_net_http_get_wrong_arg_type() {
-    let src = r#"
-import net;
-
-fn main() -> Void {
-  let body: String = net.httpGet(5);
-  let _ = body;
-  return;
-}
-
-#[test]
-fn sema_rejects_net_http_post_wrong_arg_types() {
-    let src = r#"
-import net;
-
-fn main() -> Void {
-  let body: String = net.httpPost(5, false);
-  let _ = body;
-  return;
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("net.parseUrl argument 1 expects String")));
 }
 
 #[test]
@@ -1345,33 +1329,16 @@ fn main() -> Void {
         .iter()
         .any(|d| d.message.contains("net.fetch argument 2 expects Map")));
 }
-"#;
-    let (result, diags) = analyze_source(src);
-    assert!(result.has_errors);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("net.httpPost argument 1 expects String")));
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("net.httpPost argument 2 expects String")));
-}
-"#;
-    let (result, diags) = analyze_source(src);
-    assert!(result.has_errors);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("net.httpGet argument 1 expects String")));
-}
-"#;
-    let (result, diags) = analyze_source(src);
-    assert!(result.has_errors);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("net.parseUrl argument 1 expects String")));
+
+#[test]
+fn sema_rejects_net_resolve_wrong_arg_type() {
+    let src = r#"
+import net;
+
+fn main() -> Void {
+  let ip: String = net.resolve(1);
+  let _ = ip;
+  return;
 }
 "#;
     let (result, diags) = analyze_source(src);

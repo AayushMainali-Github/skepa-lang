@@ -26,14 +26,6 @@ pub fn parse_url(host: &mut dyn RtHost, url: &str) -> RtResult<RtValue> {
     Ok(RtValue::Map(host.net_parse_url(url)?))
 }
 
-pub fn http_get(host: &mut dyn RtHost, url: &str) -> RtResult<RtValue> {
-    Ok(RtValue::String(host.net_http_get(url)?))
-}
-
-pub fn http_post(host: &mut dyn RtHost, url: &str, body: &str) -> RtResult<RtValue> {
-    Ok(RtValue::String(host.net_http_post(url, body)?))
-}
-
 pub fn fetch(host: &mut dyn RtHost, url: &str, options: &crate::RtMap) -> RtResult<RtValue> {
     Ok(RtValue::Map(host.net_fetch(url, options)?))
 }

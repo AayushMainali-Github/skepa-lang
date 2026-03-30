@@ -584,8 +584,6 @@ import map;
 
 fn main() -> Int {
   let parts: Map[String, String] = net.parseUrl("https://example.com:443/a?x=1#frag");
-  let body: String = net.httpGet("http://example.com/");
-  let posted: String = net.httpPost("http://example.com/post", "{}");
   let fetchOptions: Map[String, String] = map.new();
   map.insert(fetchOptions, "method", "POST");
   map.insert(fetchOptions, "body", "{}");
@@ -612,7 +610,7 @@ fn main() -> Int {
   net.close(socket);
   net.close(client);
   net.closeListener(listener);
-  if ((local != peer) && (resolved != "") && (host == "example.com") && (body != "") && (posted != "") && (status != "")) {
+  if ((local != peer) && (resolved != "") && (host == "example.com") && (status != "")) {
     return 0;
   }
   return 1;

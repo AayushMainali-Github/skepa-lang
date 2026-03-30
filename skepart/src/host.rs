@@ -399,14 +399,6 @@ pub trait RtHost {
         Err(RtError::unsupported_builtin("net.parseUrl"))
     }
 
-    fn net_http_get(&mut self, _url: &str) -> RtResult<RtString> {
-        Err(RtError::unsupported_builtin("net.httpGet"))
-    }
-
-    fn net_http_post(&mut self, _url: &str, _body: &str) -> RtResult<RtString> {
-        Err(RtError::unsupported_builtin("net.httpPost"))
-    }
-
     fn net_fetch(&mut self, _url: &str, _options: &RtMap) -> RtResult<RtMap> {
         Err(RtError::unsupported_builtin("net.fetch"))
     }
@@ -885,16 +877,6 @@ impl RtHost for NoopHost {
         Ok(map)
     }
 
-    fn net_http_get(&mut self, url: &str) -> RtResult<RtString> {
-        let response = self.http_request(url, "GET", "")?;
-        Ok(RtString::from(response))
-    }
-
-    fn net_http_post(&mut self, url: &str, body: &str) -> RtResult<RtString> {
-        let response = self.http_request(url, "POST", body)?;
-        Ok(RtString::from(response))
-    }
-
     fn net_fetch(&mut self, url: &str, options: &RtMap) -> RtResult<RtMap> {
         let method = match options.get("method") {
             Ok(value) => value.expect_string()?.as_str().to_owned(),
@@ -1001,11 +983,6 @@ impl RtHost for NoopHost {
 }
 
 impl NoopHost {
-    fn http_request(&mut self, url: &str, method: &str, body: &str) -> RtResult<String> {
-        self.http_request_with_content_type(url, method, body, "")
-            .map(|response| response.body)
-    }
-
     fn http_request_with_content_type(
         &mut self,
         url: &str,

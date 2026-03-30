@@ -5,7 +5,6 @@ use super::{BuiltinKind, BuiltinSig};
 const NO_PARAMS: &[TypeInfo] = &[];
 const STRING_PARAM: &[TypeInfo] = &[TypeInfo::String];
 const STRING_AND_INT_PARAM: &[TypeInfo] = &[TypeInfo::String, TypeInfo::Int];
-const STRING_AND_STRING_PARAM: &[TypeInfo] = &[TypeInfo::String, TypeInfo::String];
 const STRING_AND_UNKNOWN_PARAM: &[TypeInfo] = &[TypeInfo::String, TypeInfo::Unknown];
 const OPAQUE_PARAM_SENTINEL: &[TypeInfo] = &[TypeInfo::Unknown];
 const OPAQUE_AND_STRING_PARAM: &[TypeInfo] = &[TypeInfo::Unknown, TypeInfo::String];
@@ -53,20 +52,6 @@ pub(super) const SIGS: &[BuiltinSig] = &[
         name: "parseUrl",
         params: STRING_PARAM,
         ret: TypeInfo::Unknown,
-        kind: BuiltinKind::FixedArity,
-    },
-    BuiltinSig {
-        package: "net",
-        name: "httpGet",
-        params: STRING_PARAM,
-        ret: TypeInfo::String,
-        kind: BuiltinKind::FixedArity,
-    },
-    BuiltinSig {
-        package: "net",
-        name: "httpPost",
-        params: STRING_AND_STRING_PARAM,
-        ret: TypeInfo::String,
         kind: BuiltinKind::FixedArity,
     },
     BuiltinSig {
