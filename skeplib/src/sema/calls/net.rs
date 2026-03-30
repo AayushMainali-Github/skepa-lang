@@ -50,6 +50,24 @@ pub(super) fn check_net_builtin(
             }
             TypeInfo::String
         }
+        "readBytes" => {
+            if args.len() != 1 {
+                checker.error(format!(
+                    "net.readBytes expects 1 argument(s), got {}",
+                    args.len()
+                ));
+                return TypeInfo::Unknown;
+            }
+            let got = checker.check_expr(&args[0], scopes);
+            let expected = TypeInfo::Opaque("net.Socket".to_string());
+            if got != TypeInfo::Unknown && got != expected {
+                checker.error(format!(
+                    "net.readBytes argument 1 expects {:?}, got {:?}",
+                    expected, got
+                ));
+            }
+            TypeInfo::Bytes
+        }
         "write" => {
             if args.len() != 2 {
                 checker.error(format!(
@@ -71,6 +89,32 @@ pub(super) fn check_net_builtin(
                 checker.error(format!(
                     "net.write argument 2 expects {:?}, got {:?}",
                     TypeInfo::String,
+                    data_ty
+                ));
+            }
+            TypeInfo::Void
+        }
+        "writeBytes" => {
+            if args.len() != 2 {
+                checker.error(format!(
+                    "net.writeBytes expects 2 argument(s), got {}",
+                    args.len()
+                ));
+                return TypeInfo::Unknown;
+            }
+            let socket_ty = checker.check_expr(&args[0], scopes);
+            let socket_expected = TypeInfo::Opaque("net.Socket".to_string());
+            if socket_ty != TypeInfo::Unknown && socket_ty != socket_expected {
+                checker.error(format!(
+                    "net.writeBytes argument 1 expects {:?}, got {:?}",
+                    socket_expected, socket_ty
+                ));
+            }
+            let data_ty = checker.check_expr(&args[1], scopes);
+            if data_ty != TypeInfo::Unknown && data_ty != TypeInfo::Bytes {
+                checker.error(format!(
+                    "net.writeBytes argument 2 expects {:?}, got {:?}",
+                    TypeInfo::Bytes,
                     data_ty
                 ));
             }

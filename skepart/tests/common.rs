@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use skepart::{RtError, RtHandle, RtHandleKind, RtHost, RtResult, RtString};
+use skepart::{RtBytes, RtError, RtHandle, RtHandleKind, RtHost, RtResult, RtString};
 
 #[derive(Default)]
 pub struct RecordingHost {
@@ -19,6 +19,7 @@ pub struct RecordingHost {
     pub exec_out: String,
     pub exec_argv: Vec<String>,
     pub net_read_value: String,
+    pub net_read_bytes_value: Vec<u8>,
     pub net_listen_error: Option<String>,
     pub net_connect_error: Option<String>,
     pub net_accept_error: Option<String>,
@@ -46,6 +47,7 @@ impl RecordingHost {
             exec_out: "exec-out".into(),
             exec_argv: Vec::new(),
             net_read_value: "net-read".into(),
+            net_read_bytes_value: b"net-bytes".to_vec(),
             next_handle_id: 0,
             net_handles: HashMap::new(),
             env: HashMap::from([(String::from("HOME"), String::from("/tmp/home"))]),
@@ -129,6 +131,11 @@ impl RecordingHostBuilder {
 
     pub fn net_read_value(mut self, value: impl Into<String>) -> Self {
         self.host.net_read_value = value.into();
+        self
+    }
+
+    pub fn net_read_bytes_value(mut self, value: impl Into<Vec<u8>>) -> Self {
+        self.host.net_read_bytes_value = value.into();
         self
     }
 
@@ -444,6 +451,26 @@ impl RtHost for RecordingHost {
         self.net_lookup_handle_kind(socket)?;
         self.output
             .push_str(&format!("[netwrite {}={data}]", socket.id));
+        Ok(())
+    }
+
+    fn net_read_bytes(&mut self, socket: RtHandle) -> RtResult<RtBytes> {
+        if let Some(message) = &self.net_read_error {
+            return Err(RtError::io(message.clone()));
+        }
+        self.net_lookup_handle_kind(socket)?;
+        self.output
+            .push_str(&format!("[netreadbytes {}]", socket.id));
+        Ok(RtBytes::from(self.net_read_bytes_value.clone()))
+    }
+
+    fn net_write_bytes(&mut self, socket: RtHandle, data: &RtBytes) -> RtResult<()> {
+        if let Some(message) = &self.net_write_error {
+            return Err(RtError::io(message.clone()));
+        }
+        self.net_lookup_handle_kind(socket)?;
+        self.output
+            .push_str(&format!("[netwritebytes {} len={}]", socket.id, data.len()));
         Ok(())
     }
 }

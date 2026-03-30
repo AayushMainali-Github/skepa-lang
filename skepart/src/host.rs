@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::{RtError, RtErrorKind, RtHandle, RtHandleKind, RtResult, RtString};
+use crate::{RtBytes, RtError, RtErrorKind, RtHandle, RtHandleKind, RtResult, RtString};
 
 pub enum RtNetResource {
     Placeholder(RtHandleKind),
@@ -284,6 +284,14 @@ pub trait RtHost {
 
     fn net_write(&mut self, _socket: RtHandle, _data: &str) -> RtResult<()> {
         Err(RtError::unsupported_builtin("net.write"))
+    }
+
+    fn net_read_bytes(&mut self, _socket: RtHandle) -> RtResult<RtBytes> {
+        Err(RtError::unsupported_builtin("net.readBytes"))
+    }
+
+    fn net_write_bytes(&mut self, _socket: RtHandle, _data: &RtBytes) -> RtResult<()> {
+        Err(RtError::unsupported_builtin("net.writeBytes"))
     }
 }
 
@@ -599,6 +607,21 @@ impl RtHost for NoopHost {
     fn net_write(&mut self, socket: RtHandle, data: &str) -> RtResult<()> {
         self.net_tcp_stream(socket)?
             .write_all(data.as_bytes())
+            .map_err(|err| RtError::io(err.to_string()))
+    }
+
+    fn net_read_bytes(&mut self, socket: RtHandle) -> RtResult<RtBytes> {
+        let mut buf = [0_u8; 4096];
+        let bytes = self
+            .net_tcp_stream(socket)?
+            .read(&mut buf)
+            .map_err(|err| RtError::io(err.to_string()))?;
+        Ok(RtBytes::from(buf[..bytes].to_vec()))
+    }
+
+    fn net_write_bytes(&mut self, socket: RtHandle, data: &RtBytes) -> RtResult<()> {
+        self.net_tcp_stream(socket)?
+            .write_all(data.as_slice())
             .map_err(|err| RtError::io(err.to_string()))
     }
 }

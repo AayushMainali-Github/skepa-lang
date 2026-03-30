@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use skepart::{RtHandleKind, RtHost, RtResult, RtString};
+use skepart::{RtBytes, RtHandleKind, RtHost, RtResult, RtString};
 use skeplib::ir::{
     self, BasicBlock, BlockId, FunctionId, Instr, IrFunction, IrInterpError, IrInterpreter,
     IrProgram, IrType, IrValue, Terminator,
@@ -175,6 +175,24 @@ impl RtHost for TestHost {
             .lock()
             .expect("lock trace")
             .push_str(&format!("[write {}={data}]", socket.id));
+        Ok(())
+    }
+
+    fn net_read_bytes(&mut self, socket: skepart::RtHandle) -> RtResult<RtBytes> {
+        self.net_lookup_handle_kind(socket)?;
+        self.out
+            .lock()
+            .expect("lock trace")
+            .push_str(&format!("[readbytes {}]", socket.id));
+        Ok(RtBytes::from(vec![1_u8, 2, 3]))
+    }
+
+    fn net_write_bytes(&mut self, socket: skepart::RtHandle, data: &RtBytes) -> RtResult<()> {
+        self.net_lookup_handle_kind(socket)?;
+        self.out
+            .lock()
+            .expect("lock trace")
+            .push_str(&format!("[writebytes {} len={}]", socket.id, data.len()));
         Ok(())
     }
 
@@ -836,13 +854,16 @@ fn main() -> Int {
 fn interpreter_carries_real_net_builtin_handles_through_calls() {
     let source = r#"
 import net;
+import bytes;
 
 fn main() -> Int {
   let listener: net.Listener = net.listen("127.0.0.1:0");
   let server: net.Socket = net.accept(listener);
   let client: net.Socket = net.connect("127.0.0.1:8080");
   let msg = net.read(server);
+  let raw: Bytes = net.readBytes(server);
   net.write(client, msg);
+  net.writeBytes(client, raw);
   net.close(server);
   net.close(client);
   net.closeListener(listener);
@@ -862,7 +883,7 @@ fn main() -> Int {
     assert_eq!(value, IrValue::Int(0));
     assert_eq!(
         trace.lock().expect("lock trace").as_str(),
-        "[listen 0][accept 0->1][connect 2][read 1][write 2=net-read][close 1][close 2][close 0]"
+        "[listen 0][accept 0->1][connect 2][read 1][readbytes 1][write 2=net-read][writebytes 2 len=3][close 1][close 2][close 0]"
     );
 }
 

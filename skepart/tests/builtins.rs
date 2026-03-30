@@ -187,6 +187,50 @@ fn builtins_cover_bytes_roundtrip_and_type_errors() {
 }
 
 #[test]
+fn builtins_cover_net_bytes_roundtrip_and_errors() {
+    let mut host = RecordingHostBuilder::seeded()
+        .net_read_bytes_value(vec![0xDE, 0xAD, 0xBE, 0xEF])
+        .build();
+    let socket =
+        builtins::call_with_host(&mut host, "net", "__testSocket", &[]).expect("allocate socket");
+
+    assert_eq!(
+        builtins::call_with_host(&mut host, "net", "readBytes", std::slice::from_ref(&socket))
+            .expect("net.readBytes"),
+        RtValue::Bytes(RtBytes::from(vec![0xDE, 0xAD, 0xBE, 0xEF]))
+    );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "net",
+            "writeBytes",
+            &[
+                socket.clone(),
+                RtValue::Bytes(RtBytes::from(vec![1_u8, 2, 3]))
+            ],
+        )
+        .expect("net.writeBytes"),
+        RtValue::Unit
+    );
+    assert!(
+        host.output.contains("[netreadbytes 0]") && host.output.contains("[netwritebytes 0 len=3]"),
+        "unexpected host output: {}",
+        host.output
+    );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "net",
+            "writeBytes",
+            &[socket, RtValue::String(RtString::from("bad"))],
+        )
+        .expect_err("net.writeBytes type mismatch")
+        .kind,
+        RtErrorKind::TypeMismatch
+    );
+}
+
+#[test]
 fn builtins_report_unknown_family_arity_and_type_errors() {
     let mut host = UnsupportedHost;
     assert_eq!(

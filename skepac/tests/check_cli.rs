@@ -470,13 +470,16 @@ fn check_accepts_minimal_net_builtins_program() {
         &file,
         r#"
 import net;
+import bytes;
 
 fn main() -> Int {
   let listener: net.Listener = net.listen("127.0.0.1:0");
   let socket: net.Socket = net.accept(listener);
   let client: net.Socket = net.connect("127.0.0.1:8080");
   let msg: String = net.read(socket);
+  let raw: Bytes = net.readBytes(socket);
   net.write(client, msg);
+  net.writeBytes(client, raw);
   net.close(socket);
   net.close(client);
   net.closeListener(listener);

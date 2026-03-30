@@ -1,7 +1,7 @@
 mod common;
 
 use common::RecordingHostBuilder;
-use skepart::{NoopHost, RtHandle, RtHandleKind, RtHost, RtString};
+use skepart::{NoopHost, RtBytes, RtHandle, RtHandleKind, RtHost, RtString};
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 
@@ -270,6 +270,33 @@ fn noop_host_supports_loopback_connect_accept_write_and_read() {
     assert_eq!(
         host.net_read(client).expect("read client"),
         RtString::from("ping")
+    );
+
+    host.net_close_handle(server).expect("close server");
+    host.net_close_handle(client).expect("close client");
+    host.net_close_handle(listener).expect("close listener");
+}
+
+#[test]
+fn noop_host_supports_loopback_connect_accept_write_and_read_bytes() {
+    let mut host = NoopHost::default();
+    let listener = host.net_listen("127.0.0.1:0").expect("listen");
+    let addr = host
+        .net_tcp_listener(listener)
+        .expect("listener lookup")
+        .local_addr()
+        .expect("listener addr");
+
+    let client = host
+        .net_connect(&addr.to_string())
+        .expect("connect client socket");
+    let server = host.net_accept(listener).expect("accept server socket");
+
+    host.net_write_bytes(server, &RtBytes::from(vec![1_u8, 2, 3, 4]))
+        .expect("write bytes server->client");
+    assert_eq!(
+        host.net_read_bytes(client).expect("read client bytes"),
+        RtBytes::from(vec![1_u8, 2, 3, 4])
     );
 
     host.net_close_handle(server).expect("close server");

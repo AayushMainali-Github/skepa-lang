@@ -27,6 +27,19 @@ pub fn write(host: &mut dyn RtHost, socket: crate::RtHandle, data: &str) -> RtRe
     Ok(RtValue::Unit)
 }
 
+pub fn read_bytes(host: &mut dyn RtHost, socket: crate::RtHandle) -> RtResult<RtValue> {
+    Ok(RtValue::Bytes(host.net_read_bytes(socket)?))
+}
+
+pub fn write_bytes(
+    host: &mut dyn RtHost,
+    socket: crate::RtHandle,
+    data: &crate::RtBytes,
+) -> RtResult<RtValue> {
+    host.net_write_bytes(socket, data)?;
+    Ok(RtValue::Unit)
+}
+
 pub fn close(host: &mut dyn RtHost, socket: crate::RtHandle) -> RtResult<RtValue> {
     host.net_close_handle(socket)?;
     Ok(RtValue::Unit)

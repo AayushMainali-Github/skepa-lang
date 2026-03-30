@@ -1500,6 +1500,46 @@ fn main() -> Int {{
 }
 
 #[test]
+fn codegen_builds_native_executable_for_net_connect_readbytes_writebytes() {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind loopback listener");
+    let addr = listener.local_addr().expect("listener addr");
+    let peer = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("accept client");
+        let mut buf = [0_u8; 4];
+        stream.read_exact(&mut buf).expect("read bytes");
+        assert_eq!(&buf, &[1_u8, 2, 3, 4]);
+        stream.write_all(&[5_u8, 6, 7]).expect("write bytes");
+    });
+
+    let source = format!(
+        r#"
+import net;
+import bytes;
+
+fn main() -> Int {{
+  let socket: net.Socket = net.connect("{addr}");
+  let payload0: Bytes = bytes.fromString("");
+  let payload1: Bytes = bytes.push(payload0, 1);
+  let payload2: Bytes = bytes.push(payload1, 2);
+  let payload3: Bytes = bytes.push(payload2, 3);
+  let payload4: Bytes = bytes.push(payload3, 4);
+  net.writeBytes(socket, payload4);
+  let raw: Bytes = net.readBytes(socket);
+  net.close(socket);
+  if (bytes.len(raw) == 3 && bytes.get(raw, 0) == 5 && bytes.get(raw, 2) == 7) {{
+    return 0;
+  }}
+  return 1;
+}}
+"#
+    );
+
+    let result = common::native_run_structured(&source);
+    peer.join().expect("peer thread should finish");
+    assert_eq!(result.exit_code(), 0, "stderr: {}", result.stderr_lossy());
+}
+
+#[test]
 fn codegen_builds_native_executable_for_net_listen_accept_roundtrip() {
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind loopback listener");
     let addr = listener.local_addr().expect("listener addr");

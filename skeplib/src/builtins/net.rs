@@ -6,6 +6,7 @@ const NO_PARAMS: &[TypeInfo] = &[];
 const STRING_PARAM: &[TypeInfo] = &[TypeInfo::String];
 const OPAQUE_PARAM_SENTINEL: &[TypeInfo] = &[TypeInfo::Unknown];
 const OPAQUE_AND_STRING_PARAM: &[TypeInfo] = &[TypeInfo::Unknown, TypeInfo::String];
+const OPAQUE_AND_BYTES_PARAM: &[TypeInfo] = &[TypeInfo::Unknown, TypeInfo::Bytes];
 
 pub(super) const SIGS: &[BuiltinSig] = &[
     BuiltinSig {
@@ -47,6 +48,20 @@ pub(super) const SIGS: &[BuiltinSig] = &[
         package: "net",
         name: "write",
         params: OPAQUE_AND_STRING_PARAM,
+        ret: TypeInfo::Void,
+        kind: BuiltinKind::FixedArity,
+    },
+    BuiltinSig {
+        package: "net",
+        name: "readBytes",
+        params: OPAQUE_PARAM_SENTINEL,
+        ret: TypeInfo::Bytes,
+        kind: BuiltinKind::FixedArity,
+    },
+    BuiltinSig {
+        package: "net",
+        name: "writeBytes",
+        params: OPAQUE_AND_BYTES_PARAM,
         ret: TypeInfo::Void,
         kind: BuiltinKind::FixedArity,
     },

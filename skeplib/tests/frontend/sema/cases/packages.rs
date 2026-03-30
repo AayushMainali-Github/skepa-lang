@@ -1166,17 +1166,46 @@ fn main(x: net.Server) -> Void {
 fn sema_accepts_minimal_net_listener_and_socket_builtins() {
     let src = r#"
 import net;
+import bytes;
 
 fn main() -> Void {
   let listener: net.Listener = net.listen("127.0.0.1:0");
   let socket: net.Socket = net.accept(listener);
   let client: net.Socket = net.connect("127.0.0.1:8080");
   let msg: String = net.read(socket);
+  let raw: Bytes = net.readBytes(socket);
   net.write(client, msg);
+  net.writeBytes(client, raw);
   net.close(socket);
   net.close(client);
   net.closeListener(listener);
   return;
+}
+
+#[test]
+fn sema_rejects_net_readbytes_and_writebytes_type_mismatches() {
+    let src = r#"
+import net;
+import bytes;
+
+fn main() -> Void {
+  let listener: net.Listener = net.listen("127.0.0.1:0");
+  let socket: net.Socket = net.__testSocket();
+  let _x = net.readBytes(listener);
+  net.writeBytes(socket, "bad");
+  return;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("net.readBytes argument 1 expects Opaque(\"net.Socket\")")
+    }));
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("net.writeBytes argument 2 expects Bytes")
+    }));
 }
 "#;
     let (result, diags) = analyze_source(src);

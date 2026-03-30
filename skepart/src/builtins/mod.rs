@@ -168,6 +168,15 @@ pub fn call_with_host(
             socket.expect_handle_kind(crate::RtHandleKind::Socket)?,
             data.expect_string()?.as_str(),
         ),
+        ("net", "readBytes", [socket]) => net::read_bytes(
+            host,
+            socket.expect_handle_kind(crate::RtHandleKind::Socket)?,
+        ),
+        ("net", "writeBytes", [socket, data]) => net::write_bytes(
+            host,
+            socket.expect_handle_kind(crate::RtHandleKind::Socket)?,
+            &data.expect_bytes()?,
+        ),
         ("net", "close", [socket]) => net::close(
             host,
             socket.expect_handle_kind(crate::RtHandleKind::Socket)?,
