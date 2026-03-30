@@ -223,7 +223,7 @@ These are available through namespace paths (`string.case.up(...)`).
 - Wildcard imports can conflict with prior bindings; conflict is an error.
 - Export target names collide after aliasing, not before.
 - If same target name appears from multiple export blocks, it is an error.
-- Builtin package names (`io`, `str`, `bytes`, `map`, `arr`, `datetime`, `random`, `os`, `fs`, `net`, `vec`) are reserved package roots.
+- Builtin package names (`io`, `str`, `bytes`, `map`, `arr`, `datetime`, `random`, `os`, `fs`, `net`, `vec`, `task`, `ffi`) are reserved package roots.
 - `import ns; ns.f(...)` works only when `f` is exported exactly under that namespace level. Example: `import string; string.toUpper(...)` is invalid if only `string.case.toUpper` exists.
 
 ## 5. Operators
@@ -356,6 +356,8 @@ Behavior:
 - `os`: host/process helpers (`platform`, `arch`, `arg`, `envHas`, `envGet`, `envSet`, `envRemove`, `sleep`, `exit`, `exec`, `execOut`)
 - `fs`: basic filesystem helpers (`exists`, `readText`, `writeText`, `appendText`, `mkdirAll`, `removeFile`, `removeDirAll`, `join`)
 - `net`: blocking TCP/TLS helpers with opaque handle types (`net.Socket`, `net.Listener`)
+- `task`: typed task/channel helpers with opaque handle types (`task.Task[T]`, `task.Channel[T]`)
+- `ffi`: native-library helpers with opaque handle types (`ffi.Library`, `ffi.Symbol`)
 - `vec`: runtime-sized vector helpers (`new`, `len`, `push`, `get`, `set`, `delete`)
 
 ### 8.1 General Rules
@@ -793,7 +795,76 @@ fn main() -> Int {
 }
 ```
 
-### 8.12 `vec`
+### 8.12 `task`
+
+Opaque types:
+- `task.Task[T]`
+- `task.Channel[T]`
+
+Signatures:
+- `task.channel() -> task.Channel[T]` (typed context required)
+- `task.send(ch: task.Channel[T], value: T) -> Void`
+- `task.recv(ch: task.Channel[T]) -> T`
+- `task.spawn(f: Fn() -> T) -> task.Task[T]`
+- `task.join(task: task.Task[T]) -> T`
+
+Behavior:
+- `task.channel()` creates a typed runtime-managed channel.
+- `task.send` appends a value to the channel queue.
+- `task.recv` removes and returns the next queued value.
+- `task.spawn` starts a background task in native/CLI execution paths.
+- `task.join` waits for task completion and returns the task result exactly once.
+
+Notes:
+- `task.channel()` currently requires typed context (for example `let jobs: task.Channel[Int] = task.channel();`).
+- `task.recv` on an empty channel raises a runtime error.
+- `task.join` on the same task more than once raises a runtime error.
+- The interpreter keeps a deterministic inline fallback for task execution; native and CLI paths use real background threads.
+
+### 8.13 `ffi`
+
+Opaque types:
+- `ffi.Library`
+- `ffi.Symbol`
+
+Signatures:
+- `ffi.open(path: String) -> ffi.Library`
+- `ffi.bind(lib: ffi.Library, symbol: String) -> ffi.Symbol`
+- `ffi.closeLibrary(lib: ffi.Library) -> Void`
+- `ffi.closeSymbol(sym: ffi.Symbol) -> Void`
+- `ffi.call0Int(sym: ffi.Symbol) -> Int`
+- `ffi.call1Int(sym: ffi.Symbol, value: Int) -> Int`
+- `ffi.call1StringInt(sym: ffi.Symbol, value: String) -> Int`
+- `ffi.call1BytesInt(sym: ffi.Symbol, value: Bytes) -> Int`
+
+Behavior:
+- `ffi.open` loads a shared library from the host OS.
+- `ffi.bind` looks up a symbol within that library.
+- `ffi.closeLibrary` and `ffi.closeSymbol` close the corresponding handles.
+- `ffi.call0Int` calls a zero-argument foreign function returning an integer.
+- `ffi.call1Int` calls a one-argument integer foreign function.
+- `ffi.call1StringInt` calls a one-argument foreign function that receives a borrowed string and returns an integer.
+- `ffi.call1BytesInt` calls a one-argument foreign function that receives borrowed bytes and returns an integer.
+
+Borrowing and ownership rules:
+- `ffi.Library` and `ffi.Symbol` are opaque runtime-managed handles, not structs.
+- Closing a library or symbol invalidates that handle for all aliases.
+- `ffi.call1StringInt` passes a temporary borrowed NUL-terminated string pointer for the duration of the call only.
+- `ffi.call1BytesInt` passes a temporary borrowed `(ptr, len)` byte view for the duration of the call only.
+- Foreign code must not retain these borrowed string/byte pointers after the call returns.
+- No ownership transfer APIs exist yet for strings, bytes, or raw pointers.
+
+String and buffer rules:
+- `ffi.call1StringInt` rejects `String` values containing an embedded NUL byte at runtime.
+- `ffi.call1BytesInt` accepts arbitrary `Bytes`, including zero bytes.
+- These call helpers intentionally cover only narrow, explicit ABI shapes. General pointer-based FFI is not exposed yet.
+
+Notes:
+- Symbol ABI/signature correctness is the caller's responsibility.
+- Calling a symbol with the wrong ABI or signature is undefined behavior at the foreign boundary.
+- The current FFI surface is intentionally narrow while ownership rules remain explicit and testable.
+
+### 8.14 `vec`
 
 Signatures:
 - `vec.new() -> Vec[T]` (typed context required)
