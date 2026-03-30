@@ -1,8 +1,9 @@
 #![allow(dead_code)]
 
 use std::collections::HashMap;
+use std::collections::VecDeque;
 
-use skepart::{RtBytes, RtError, RtHandle, RtHandleKind, RtHost, RtResult, RtString};
+use skepart::{RtBytes, RtError, RtHandle, RtHandleKind, RtHost, RtResult, RtString, RtValue};
 
 #[derive(Default)]
 pub struct RecordingHost {
@@ -34,6 +35,7 @@ pub struct RecordingHost {
     pub net_write_error: Option<String>,
     pub next_handle_id: usize,
     pub net_handles: HashMap<usize, RtHandleKind>,
+    pub task_channels: HashMap<usize, VecDeque<RtValue>>,
     pub env: HashMap<String, String>,
     pub files: HashMap<String, String>,
     pub existing_paths: HashMap<String, bool>,
@@ -439,10 +441,42 @@ impl RtHost for RecordingHost {
 
     fn task_make_channel_handle(&mut self, id: usize) -> RtResult<RtHandle> {
         self.net_handles.insert(id, RtHandleKind::Channel);
+        self.task_channels.entry(id).or_default();
         Ok(RtHandle {
             id,
             kind: RtHandleKind::Channel,
         })
+    }
+
+    fn task_channel(&mut self) -> RtResult<RtHandle> {
+        let handle = self.net_alloc_handle(RtHandleKind::Channel)?;
+        self.task_channels.entry(handle.id).or_default();
+        Ok(handle)
+    }
+
+    fn task_send(&mut self, channel: RtHandle, value: RtValue) -> RtResult<()> {
+        self.net_lookup_handle_kind(channel)?;
+        self.task_channels
+            .entry(channel.id)
+            .or_default()
+            .push_back(value);
+        self.output.push_str(&format!("[tasksend {}]", channel.id));
+        Ok(())
+    }
+
+    fn task_recv(&mut self, channel: RtHandle) -> RtResult<RtValue> {
+        self.net_lookup_handle_kind(channel)?;
+        self.output.push_str(&format!("[taskrecv {}]", channel.id));
+        self.task_channels
+            .entry(channel.id)
+            .or_default()
+            .pop_front()
+            .ok_or_else(|| {
+                RtError::new(
+                    skepart::RtErrorKind::InvalidArgument,
+                    "cannot receive from empty channel",
+                )
+            })
     }
 
     fn net_alloc_handle(&mut self, kind: RtHandleKind) -> RtResult<RtHandle> {

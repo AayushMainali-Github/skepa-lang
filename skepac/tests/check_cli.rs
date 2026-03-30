@@ -716,6 +716,32 @@ fn main() -> Int {
 }
 
 #[test]
+fn check_accepts_minimal_typed_task_channel_program() {
+    let tmp = make_temp_dir("skepac_check_task_channel");
+    let file = tmp.join("task_channel.sk");
+    fs::write(
+        &file,
+        r#"
+import task;
+
+fn main() -> Int {
+  let jobs: task.Channel[Int] = task.channel();
+  task.send(jobs, 5);
+  return task.recv(jobs);
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("check")
+        .arg(&file)
+        .output()
+        .expect("run check");
+    assert_eq!(output.status.code(), Some(0), "{:?}", output);
+}
+
+#[test]
 fn check_accepts_match_statement_program() {
     let tmp = make_temp_dir("skepac_check_match");
     let file = tmp.join("match_ok.sk");

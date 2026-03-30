@@ -1,10 +1,12 @@
 use std::collections::HashMap;
+use std::collections::VecDeque;
 use std::fs;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -15,6 +17,7 @@ use crate::{RtBytes, RtError, RtErrorKind, RtHandle, RtHandleKind, RtResult, RtS
 
 pub enum RtNetResource {
     Placeholder(RtHandleKind),
+    Channel(Arc<Mutex<VecDeque<crate::RtValue>>>),
     TcpStream(TcpStream),
     TlsStream(Box<StreamOwned<ClientConnection, TcpStream>>),
     TcpListener(TcpListener),
@@ -24,6 +27,7 @@ impl RtNetResource {
     pub fn kind(&self) -> RtHandleKind {
         match self {
             Self::Placeholder(kind) => *kind,
+            Self::Channel(_) => RtHandleKind::Channel,
             Self::TcpStream(_) | Self::TlsStream(_) => RtHandleKind::Socket,
             Self::TcpListener(_) => RtHandleKind::Listener,
         }
@@ -54,6 +58,12 @@ impl RtNetResourceTable {
 
     pub fn insert_listener(&mut self, listener: TcpListener) -> RtHandle {
         self.insert(RtNetResource::TcpListener(listener))
+    }
+
+    pub fn insert_channel(&mut self) -> RtHandle {
+        self.insert(RtNetResource::Channel(Arc::new(
+            Mutex::new(VecDeque::new()),
+        )))
     }
 
     pub fn kind_of(&self, handle: RtHandle) -> RtResult<RtHandleKind> {
@@ -106,6 +116,21 @@ impl RtNetResourceTable {
         self.resources
             .remove(&handle.id)
             .ok_or_else(|| RtError::invalid_handle(format!("unknown handle id {}", handle.id)))
+    }
+
+    pub fn channel(&self, handle: RtHandle) -> RtResult<Arc<Mutex<VecDeque<crate::RtValue>>>> {
+        self.kind_of(handle)?;
+        match self.resources.get(&handle.id) {
+            Some(RtNetResource::Channel(queue)) => Ok(Arc::clone(queue)),
+            Some(other) => Err(RtError::invalid_handle_kind(
+                RtHandleKind::Channel.type_name(),
+                other.kind().type_name(),
+            )),
+            None => Err(RtError::invalid_handle(format!(
+                "unknown handle id {}",
+                handle.id
+            ))),
+        }
     }
 
     fn insert(&mut self, resource: RtNetResource) -> RtHandle {
@@ -257,6 +282,18 @@ pub trait RtHost {
 
     fn task_make_channel_handle(&mut self, _id: usize) -> RtResult<RtHandle> {
         Err(RtError::unsupported_builtin("task.Channel"))
+    }
+
+    fn task_channel(&mut self) -> RtResult<RtHandle> {
+        Err(RtError::unsupported_builtin("task.channel"))
+    }
+
+    fn task_send(&mut self, _channel: RtHandle, _value: crate::RtValue) -> RtResult<()> {
+        Err(RtError::unsupported_builtin("task.send"))
+    }
+
+    fn task_recv(&mut self, _channel: RtHandle) -> RtResult<crate::RtValue> {
+        Err(RtError::unsupported_builtin("task.recv"))
     }
 
     fn net_alloc_handle(&mut self, _kind: RtHandleKind) -> RtResult<RtHandle> {
@@ -614,6 +651,32 @@ impl RtHost for NoopHost {
             .resources
             .insert(id, RtNetResource::Placeholder(RtHandleKind::Channel));
         Ok(handle)
+    }
+
+    fn task_channel(&mut self) -> RtResult<RtHandle> {
+        Ok(self.net_resources.insert_channel())
+    }
+
+    fn task_send(&mut self, channel: RtHandle, value: crate::RtValue) -> RtResult<()> {
+        let queue = self.net_resources.channel(channel)?;
+        let mut queue = queue
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        queue.push_back(value);
+        Ok(())
+    }
+
+    fn task_recv(&mut self, channel: RtHandle) -> RtResult<crate::RtValue> {
+        let queue = self.net_resources.channel(channel)?;
+        let mut queue = queue
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        queue.pop_front().ok_or_else(|| {
+            RtError::new(
+                RtErrorKind::InvalidArgument,
+                "cannot receive from empty channel",
+            )
+        })
     }
 
     fn net_alloc_handle(&mut self, kind: RtHandleKind) -> RtResult<RtHandle> {

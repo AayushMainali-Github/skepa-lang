@@ -307,6 +307,58 @@ impl IrLowerer {
         Some(true)
     }
 
+    pub(super) fn try_compile_task_channel_let(
+        &mut self,
+        func: &mut crate::ir::IrFunction,
+        lowering: &mut FunctionLowering,
+        name: &str,
+        ty: &Option<crate::ast::TypeName>,
+        value: &Expr,
+    ) -> Option<bool> {
+        let Some(crate::ast::TypeName::Named(channel_name)) = ty else {
+            return None;
+        };
+        let _ = crate::types::task_channel_value_type(channel_name)?;
+        let Expr::Call { callee, args } = value else {
+            return None;
+        };
+        if !args.is_empty()
+            || !matches!(&**callee, Expr::Field { base, field } if field == "channel" && matches!(&**base, Expr::Ident(pkg) if pkg == "task"))
+        {
+            return None;
+        }
+
+        let local_ty = IrType::Opaque(channel_name.clone());
+        let local = self
+            .builder
+            .push_local(func, name.to_string(), local_ty.clone());
+        lowering.locals.insert(name.to_string(), local);
+        let dst = self.builder.push_temp(func, local_ty.clone());
+        self.builder.push_instr(
+            func,
+            lowering.current_block,
+            Instr::CallBuiltin {
+                dst: Some(dst),
+                ret_ty: local_ty.clone(),
+                builtin: crate::ir::BuiltinCall {
+                    package: "task".to_string(),
+                    name: "channel".to_string(),
+                },
+                args: Vec::new(),
+            },
+        );
+        self.builder.push_instr(
+            func,
+            lowering.current_block,
+            Instr::StoreLocal {
+                local,
+                ty: local_ty,
+                value: Operand::Temp(dst),
+            },
+        );
+        Some(true)
+    }
+
     fn compile_vec_call(
         &mut self,
         func: &mut crate::ir::IrFunction,
@@ -425,6 +477,13 @@ impl IrLowerer {
             }
             ("task", "__testChannel") => {
                 return Some(IrType::Opaque("task.Channel".to_string()));
+            }
+            ("task", "recv") => {
+                let channel = args.first()?;
+                if let IrType::Opaque(name) = self.infer_operand_type(func, channel) {
+                    return crate::types::task_channel_value_type(&name)
+                        .map(|value| IrType::from(&value));
+                }
             }
             ("map", "get") | ("map", "remove") => {
                 let map = args.first()?;

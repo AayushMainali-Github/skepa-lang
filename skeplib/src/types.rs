@@ -61,11 +61,79 @@ impl TypeInfo {
     }
 }
 
+pub fn task_channel_type_name(value: &TypeInfo) -> String {
+    format!("task.Channel[{}]", display_type(value))
+}
+
+pub fn task_channel_type(value: &TypeInfo) -> TypeInfo {
+    TypeInfo::Opaque(task_channel_type_name(value))
+}
+
+pub fn task_channel_value_type(name: &str) -> Option<TypeInfo> {
+    let inner = name.strip_prefix("task.Channel[")?.strip_suffix(']')?;
+    parse_display_type(inner)
+}
+
+fn display_type(value: &TypeInfo) -> String {
+    match value {
+        TypeInfo::Int => "Int".to_string(),
+        TypeInfo::Float => "Float".to_string(),
+        TypeInfo::Bool => "Bool".to_string(),
+        TypeInfo::String => "String".to_string(),
+        TypeInfo::Bytes => "Bytes".to_string(),
+        TypeInfo::Void => "Void".to_string(),
+        TypeInfo::Named(name) | TypeInfo::Opaque(name) => name.clone(),
+        TypeInfo::Array { elem, size } => format!("[{}; {}]", display_type(elem), size),
+        TypeInfo::Vec { elem } => format!("Vec[{}]", display_type(elem)),
+        TypeInfo::Map { value } => format!("Map[String, {}]", display_type(value)),
+        TypeInfo::Fn { params, ret } => format!(
+            "Fn({}) -> {}",
+            params
+                .iter()
+                .map(display_type)
+                .collect::<Vec<_>>()
+                .join(", "),
+            display_type(ret)
+        ),
+        TypeInfo::Unknown => "Unknown".to_string(),
+    }
+}
+
+fn parse_display_type(value: &str) -> Option<TypeInfo> {
+    match value {
+        "Int" => Some(TypeInfo::Int),
+        "Float" => Some(TypeInfo::Float),
+        "Bool" => Some(TypeInfo::Bool),
+        "String" => Some(TypeInfo::String),
+        "Bytes" => Some(TypeInfo::Bytes),
+        "Void" => Some(TypeInfo::Void),
+        _ => {
+            if let Some(inner) = value.strip_prefix("Vec[").and_then(|v| v.strip_suffix(']')) {
+                return Some(TypeInfo::Vec {
+                    elem: Box::new(parse_display_type(inner)?),
+                });
+            }
+            if let Some(inner) = value
+                .strip_prefix("Map[String, ")
+                .and_then(|v| v.strip_suffix(']'))
+            {
+                return Some(TypeInfo::Map {
+                    value: Box::new(parse_display_type(inner)?),
+                });
+            }
+            if value.starts_with("task.Channel[") && value.ends_with(']') {
+                return Some(TypeInfo::Opaque(value.to_string()));
+            }
+            Some(TypeInfo::Named(value.to_string()))
+        }
+    }
+}
+
 pub fn is_builtin_opaque_type(name: &str) -> bool {
     matches!(
         name,
         "net.Socket" | "net.Listener" | "task.Task" | "task.Channel"
-    )
+    ) || (name.starts_with("task.Channel[") && name.ends_with(']'))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

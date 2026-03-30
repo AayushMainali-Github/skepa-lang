@@ -241,6 +241,16 @@ pub fn call_with_host(
         ),
         ("task", "__testTask", []) => task::test_task(host),
         ("task", "__testChannel", []) => task::test_channel(host),
+        ("task", "channel", []) => task::channel(host),
+        ("task", "send", [channel, value]) => task::send(
+            host,
+            channel.expect_handle_kind(crate::RtHandleKind::Channel)?,
+            value,
+        ),
+        ("task", "recv", [channel]) => task::recv(
+            host,
+            channel.expect_handle_kind(crate::RtHandleKind::Channel)?,
+        ),
         ("os", "platform", []) => os::platform(host),
         ("os", "arch", []) => os::arch(host),
         ("os", "arg", [value]) => os::arg(host, value.expect_int()?),

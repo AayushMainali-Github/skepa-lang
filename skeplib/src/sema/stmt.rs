@@ -42,6 +42,24 @@ impl Checker {
         )
     }
 
+    pub(super) fn is_task_channel_call(expr: &Expr) -> bool {
+        matches!(
+            expr,
+            Expr::Call { callee, args }
+                if args.is_empty()
+                    && matches!(
+                        &**callee,
+                        Expr::Path(parts) if parts.len() == 2 && parts[0] == "task" && parts[1] == "channel"
+                    )
+                        || matches!(
+                            &**callee,
+                            Expr::Field { base, field }
+                                if field == "channel"
+                                    && matches!(&**base, Expr::Ident(pkg) if pkg == "task")
+                        )
+        )
+    }
+
     fn match_pattern_literal_key_and_label(pat: &MatchPattern) -> Option<(String, String)> {
         match pat {
             MatchPattern::Literal(MatchLiteral::Int(v)) => {
@@ -204,6 +222,18 @@ impl Checker {
                                 }
                             }
                             declared
+                        } else if Self::is_task_channel_call(value) {
+                            match &declared {
+                                TypeInfo::Opaque(name)
+                                    if crate::types::task_channel_value_type(name).is_some() => {}
+                                _ => {
+                                    self.error(format!(
+                                        "Type mismatch in let `{name}`: declared {:?}, got task.channel()",
+                                        declared
+                                    ));
+                                }
+                            }
+                            declared
                         } else {
                             if expr_ty != TypeInfo::Unknown && declared != expr_ty {
                                 self.error(format!(
@@ -223,6 +253,11 @@ impl Checker {
                         } else if Self::is_map_new_call(value) {
                             self.error(format!(
                                 "Cannot infer map value type for let `{name}`; annotate as `Map[String, T]`"
+                            ));
+                            TypeInfo::Unknown
+                        } else if Self::is_task_channel_call(value) {
+                            self.error(format!(
+                                "Cannot infer channel value type for let `{name}`; annotate as `task.Channel[T]`"
                             ));
                             TypeInfo::Unknown
                         } else {

@@ -206,6 +206,9 @@ impl RtVec {
 
 impl PartialEq for RtVec {
     fn eq(&self, other: &Self) -> bool {
+        if Arc::ptr_eq(&self.0, &other.0) {
+            return true;
+        }
         *self.guard() == *other.guard()
     }
 }

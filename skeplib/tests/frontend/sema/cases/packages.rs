@@ -1321,6 +1321,45 @@ fn main(x: task.Mutex) -> Void {
 }
 
 #[test]
+fn sema_accepts_typed_task_channels_and_message_flow() {
+    let src = r#"
+import task;
+
+fn main() -> Int {
+  let jobs: task.Channel[Int] = task.channel();
+  task.send(jobs, 7);
+  let value: Int = task.recv(jobs);
+  return value;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
+
+#[test]
+fn sema_rejects_untyped_task_channel_and_send_type_mismatch() {
+    let src = r#"
+import task;
+
+fn main() -> Int {
+  let inferred = task.channel();
+  let jobs: task.Channel[Int] = task.channel();
+  task.send(jobs, "bad");
+  return task.recv(jobs);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| d
+        .message
+        .contains("Cannot infer channel value type for let `inferred`; annotate as `task.Channel[T]`")));
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("task.send argument 2 expects Int")));
+}
+
+#[test]
 fn sema_rejects_net_readbytes_and_writebytes_type_mismatches() {
     let src = r#"
 import net;

@@ -1012,6 +1012,22 @@ fn main() -> Int {
 }
 
 #[test]
+fn interpreter_supports_typed_task_channel_roundtrip() {
+    let source = r#"
+import task;
+
+fn main() -> Int {
+  let jobs: task.Channel[Int] = task.channel();
+  task.send(jobs, 12);
+  return task.recv(jobs);
+}
+"#;
+
+    let value = common::ir_run_ok(source);
+    assert_eq!(value, IrValue::Int(12));
+}
+
+#[test]
 fn interpreter_supports_float_and_string_compare_shapes() {
     let float_src = r#"
 fn main() -> Int {

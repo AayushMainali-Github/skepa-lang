@@ -102,6 +102,19 @@ impl Parser {
                     name.push('.');
                     name.push_str(&seg.lexeme);
                 }
+                if name == "task.Channel" && self.at(TokenKind::LBracket) {
+                    self.bump();
+                    let elem = self
+                        .expect_type_name("Expected channel value type in `task.Channel[...]`")?;
+                    if self.at(TokenKind::Comma) {
+                        self.error_here_expected(
+                            "`task.Channel[...]` expects exactly one type argument",
+                        );
+                        return None;
+                    }
+                    self.expect(TokenKind::RBracket, "Expected `]` after channel type")?;
+                    return Some(TypeName::Named(format!("task.Channel[{}]", elem.as_str())));
+                }
                 return Some(TypeName::Named(name));
             }
             _ => {

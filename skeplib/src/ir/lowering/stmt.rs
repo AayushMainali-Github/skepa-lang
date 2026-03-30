@@ -19,6 +19,11 @@ impl IrLowerer {
                     return done;
                 }
                 if let Some(done) =
+                    self.try_compile_task_channel_let(func, lowering, name, ty, value)
+                {
+                    return done;
+                }
+                if let Some(done) =
                     self.try_compile_typed_empty_array_let(func, lowering, name, ty, value)
                 {
                     return done;

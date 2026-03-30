@@ -348,6 +348,17 @@ impl Checker {
                                 g.name, declared
                             ));
                         }
+                    } else if Checker::is_task_channel_call(&g.value) {
+                        if !matches!(
+                            &declared,
+                            TypeInfo::Opaque(name)
+                                if crate::types::task_channel_value_type(name).is_some()
+                        ) {
+                            self.error(format!(
+                                "Type mismatch in global let `{}`: declared {:?}, got task.channel()",
+                                g.name, declared
+                            ));
+                        }
                     } else if expr_ty != TypeInfo::Unknown && expr_ty != declared {
                         self.error(format!(
                             "Type mismatch in global let `{}`: declared {:?}, got {:?}",
@@ -366,6 +377,12 @@ impl Checker {
                     } else if Checker::is_map_new_call(&g.value) {
                         self.error(format!(
                             "Cannot infer map value type for global let `{}`; annotate as `Map[String, T]`",
+                            g.name
+                        ));
+                        TypeInfo::Unknown
+                    } else if Checker::is_task_channel_call(&g.value) {
+                        self.error(format!(
+                            "Cannot infer channel value type for global let `{}`; annotate as `task.Channel[T]`",
                             g.name
                         ));
                         TypeInfo::Unknown

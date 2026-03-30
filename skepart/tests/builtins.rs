@@ -369,6 +369,35 @@ fn builtins_cover_dummy_task_handles() {
 }
 
 #[test]
+fn builtins_cover_typed_task_channel_roundtrip() {
+    let mut host = RecordingHostBuilder::seeded().build();
+    let channel =
+        builtins::call_with_host(&mut host, "task", "channel", &[]).expect("task.channel");
+
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "task",
+            "send",
+            &[channel.clone(), RtValue::Int(41)],
+        )
+        .expect("task.send"),
+        RtValue::Unit
+    );
+    assert_eq!(
+        builtins::call_with_host(&mut host, "task", "recv", std::slice::from_ref(&channel))
+            .expect("task.recv"),
+        RtValue::Int(41)
+    );
+    assert_eq!(
+        builtins::call_with_host(&mut host, "task", "recv", &[channel])
+            .expect_err("empty channel")
+            .kind,
+        RtErrorKind::InvalidArgument
+    );
+}
+
+#[test]
 fn builtins_cover_net_flush() {
     let mut host = RecordingHostBuilder::seeded().build();
     let socket =
