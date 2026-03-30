@@ -15,11 +15,26 @@ use crate::{NoopHost, RtError, RtErrorKind, RtFunctionRef, RtHost, RtResult, RtV
 
 pub trait BuiltinRuntime {
     fn call_function(&mut self, function: RtFunctionRef, args: &[RtValue]) -> RtResult<RtValue>;
+
+    fn spawn_function(
+        &mut self,
+        host: &mut dyn RtHost,
+        function: RtFunctionRef,
+        args: &[RtValue],
+    ) -> RtResult<crate::RtHandle> {
+        let value = self.call_function(function, args)?;
+        host.task_store_completed(value)
+    }
 }
 
 pub trait BuiltinContext {
     fn host(&mut self) -> &mut dyn RtHost;
     fn call_function(&mut self, function: RtFunctionRef, args: &[RtValue]) -> RtResult<RtValue>;
+    fn spawn_function(
+        &mut self,
+        function: RtFunctionRef,
+        args: &[RtValue],
+    ) -> RtResult<crate::RtHandle>;
 }
 
 struct NoopRuntime;
@@ -42,6 +57,14 @@ impl BuiltinContext for SplitContext<'_> {
 
     fn call_function(&mut self, function: RtFunctionRef, args: &[RtValue]) -> RtResult<RtValue> {
         self.runtime.call_function(function, args)
+    }
+
+    fn spawn_function(
+        &mut self,
+        function: RtFunctionRef,
+        args: &[RtValue],
+    ) -> RtResult<crate::RtHandle> {
+        self.runtime.spawn_function(self.host, function, args)
     }
 }
 

@@ -455,6 +455,19 @@ impl RtHost for RecordingHost {
         Ok(handle)
     }
 
+    fn task_store_running(
+        &mut self,
+        task: std::thread::JoinHandle<RtResult<RtValue>>,
+    ) -> RtResult<RtHandle> {
+        let value = task.join().map_err(|_| {
+            RtError::new(
+                skepart::RtErrorKind::InvalidArgument,
+                "spawned task panicked",
+            )
+        })??;
+        self.task_store_completed(value)
+    }
+
     fn task_channel(&mut self) -> RtResult<RtHandle> {
         let handle = self.net_alloc_handle(RtHandleKind::Channel)?;
         self.task_channels.entry(handle.id).or_default();

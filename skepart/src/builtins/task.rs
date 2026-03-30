@@ -23,8 +23,7 @@ pub fn recv(host: &mut dyn RtHost, channel: crate::RtHandle) -> RtResult<RtValue
 }
 
 pub fn spawn(ctx: &mut dyn BuiltinContext, function: RtFunctionRef) -> RtResult<RtValue> {
-    let value = ctx.call_function(function, &[])?;
-    Ok(RtValue::Handle(ctx.host().task_store_completed(value)?))
+    Ok(RtValue::Handle(ctx.spawn_function(function, &[])?))
 }
 
 pub fn join(host: &mut dyn RtHost, task: RtHandle) -> RtResult<RtValue> {

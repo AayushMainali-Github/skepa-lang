@@ -25,6 +25,36 @@ impl builtins::BuiltinRuntime for ImmediateRuntime {
     }
 }
 
+struct ThreadedRuntime;
+
+impl builtins::BuiltinRuntime for ThreadedRuntime {
+    fn call_function(&mut self, function: RtFunctionRef, _args: &[RtValue]) -> RtResult<RtValue> {
+        match function.0 {
+            7 => Ok(RtValue::Int(99)),
+            _ => Err(skepart::RtError::new(
+                skepart::RtErrorKind::InvalidArgument,
+                format!("unknown runtime function id {}", function.0),
+            )),
+        }
+    }
+
+    fn spawn_function(
+        &mut self,
+        host: &mut dyn RtHost,
+        function: RtFunctionRef,
+        _args: &[RtValue],
+    ) -> RtResult<skepart::RtHandle> {
+        let task = std::thread::spawn(move || match function.0 {
+            7 => Ok(RtValue::Int(123)),
+            _ => Err(skepart::RtError::new(
+                skepart::RtErrorKind::InvalidArgument,
+                format!("unknown runtime function id {}", function.0),
+            )),
+        });
+        host.task_store_running(task)
+    }
+}
+
 fn string_vec(items: &[&str]) -> RtValue {
     let value = skepart::RtVec::new();
     for item in items {
@@ -431,6 +461,25 @@ fn builtins_cover_spawn_and_join_roundtrip() {
     assert_eq!(
         builtins::call_with_host(&mut host, "task", "join", &[task]).expect("task.join"),
         RtValue::Int(99)
+    );
+}
+
+#[test]
+fn builtins_spawn_uses_runtime_spawn_hook_when_available() {
+    let mut host = skepart::NoopHost::default();
+    let mut runtime = ThreadedRuntime;
+    let task = builtins::call_with_host_runtime(
+        &mut host,
+        &mut runtime,
+        "task",
+        "spawn",
+        &[RtValue::Function(RtFunctionRef(7))],
+    )
+    .expect("task.spawn");
+
+    assert_eq!(
+        builtins::call_with_host(&mut host, "task", "join", &[task]).expect("task.join"),
+        RtValue::Int(123)
     );
 }
 

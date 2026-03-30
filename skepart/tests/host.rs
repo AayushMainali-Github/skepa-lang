@@ -225,6 +225,25 @@ fn noop_host_closing_any_handle_alias_closes_the_underlying_resource() {
 }
 
 #[test]
+fn noop_host_joins_running_tasks_once() {
+    let mut host = NoopHost::default();
+    let task = host
+        .task_store_running(std::thread::spawn(|| Ok(skepart::RtValue::Int(55))))
+        .expect("store running task");
+
+    assert_eq!(
+        host.task_join(task).expect("join task"),
+        skepart::RtValue::Int(55)
+    );
+    assert_eq!(
+        host.task_join(task)
+            .expect_err("double join should fail")
+            .kind,
+        skepart::RtErrorKind::InvalidArgument
+    );
+}
+
+#[test]
 fn noop_host_rejects_using_socket_handle_as_listener_handle() {
     let mut host = NoopHost::default();
     let socket = host

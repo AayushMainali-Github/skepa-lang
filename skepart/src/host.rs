@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::thread::JoinHandle;
 use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -17,11 +18,16 @@ use crate::{RtBytes, RtError, RtErrorKind, RtHandle, RtHandleKind, RtResult, RtS
 
 pub enum RtNetResource {
     Placeholder(RtHandleKind),
-    Task(Arc<Mutex<Option<crate::RtValue>>>),
+    Task(Arc<Mutex<RtTaskState>>),
     Channel(Arc<Mutex<VecDeque<crate::RtValue>>>),
     TcpStream(TcpStream),
     TlsStream(Box<StreamOwned<ClientConnection, TcpStream>>),
     TcpListener(TcpListener),
+}
+
+pub enum RtTaskState {
+    Completed(Option<crate::RtValue>),
+    Running(Option<JoinHandle<RtResult<crate::RtValue>>>),
 }
 
 impl RtNetResource {
@@ -69,7 +75,18 @@ impl RtNetResourceTable {
     }
 
     pub fn insert_task(&mut self, value: crate::RtValue) -> RtHandle {
-        self.insert(RtNetResource::Task(Arc::new(Mutex::new(Some(value)))))
+        self.insert(RtNetResource::Task(Arc::new(Mutex::new(
+            RtTaskState::Completed(Some(value)),
+        ))))
+    }
+
+    pub fn insert_running_task(
+        &mut self,
+        handle: JoinHandle<RtResult<crate::RtValue>>,
+    ) -> RtHandle {
+        self.insert(RtNetResource::Task(Arc::new(Mutex::new(
+            RtTaskState::Running(Some(handle)),
+        ))))
     }
 
     pub fn kind_of(&self, handle: RtHandle) -> RtResult<RtHandleKind> {
@@ -139,7 +156,7 @@ impl RtNetResourceTable {
         }
     }
 
-    pub fn task(&self, handle: RtHandle) -> RtResult<Arc<Mutex<Option<crate::RtValue>>>> {
+    pub fn task(&self, handle: RtHandle) -> RtResult<Arc<Mutex<RtTaskState>>> {
         self.kind_of(handle)?;
         match self.resources.get(&handle.id) {
             Some(RtNetResource::Task(value)) => Ok(Arc::clone(value)),
@@ -306,6 +323,13 @@ pub trait RtHost {
     }
 
     fn task_store_completed(&mut self, _value: crate::RtValue) -> RtResult<RtHandle> {
+        Err(RtError::unsupported_builtin("task.Task"))
+    }
+
+    fn task_store_running(
+        &mut self,
+        _task: JoinHandle<RtResult<crate::RtValue>>,
+    ) -> RtResult<RtHandle> {
         Err(RtError::unsupported_builtin("task.Task"))
     }
 
@@ -686,6 +710,13 @@ impl RtHost for NoopHost {
         Ok(self.net_resources.insert_task(value))
     }
 
+    fn task_store_running(
+        &mut self,
+        task: JoinHandle<RtResult<crate::RtValue>>,
+    ) -> RtResult<RtHandle> {
+        Ok(self.net_resources.insert_running_task(task))
+    }
+
     fn task_channel(&mut self) -> RtResult<RtHandle> {
         Ok(self.net_resources.insert_channel())
     }
@@ -713,16 +744,35 @@ impl RtHost for NoopHost {
     }
 
     fn task_join(&mut self, task: RtHandle) -> RtResult<crate::RtValue> {
-        let value = self.net_resources.task(task)?;
-        let mut value = value
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        value.take().ok_or_else(|| {
-            RtError::new(
+        let state = self.net_resources.task(task)?;
+        let running = {
+            let mut state = state
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            match &mut *state {
+                RtTaskState::Completed(value) => {
+                    return value.take().ok_or_else(|| {
+                        RtError::new(
+                            RtErrorKind::InvalidArgument,
+                            "cannot join completed task more than once",
+                        )
+                    });
+                }
+                RtTaskState::Running(handle) => handle.take().ok_or_else(|| {
+                    RtError::new(
+                        RtErrorKind::InvalidArgument,
+                        "cannot join completed task more than once",
+                    )
+                })?,
+            }
+        };
+        match running.join() {
+            Ok(result) => result,
+            Err(_) => Err(RtError::new(
                 RtErrorKind::InvalidArgument,
-                "cannot join completed task more than once",
-            )
-        })
+                "spawned task panicked",
+            )),
+        }
     }
 
     fn net_alloc_handle(&mut self, kind: RtHandleKind) -> RtResult<RtHandle> {

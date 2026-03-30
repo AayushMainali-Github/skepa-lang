@@ -435,6 +435,15 @@ impl<'a> IrInterpreter<'a> {
                         ),
                     })
             }
+
+            fn spawn_function(
+                &mut self,
+                function: RtFunctionRef,
+                args: &[RtValue],
+            ) -> skepart::RtResult<skepart::RtHandle> {
+                let value = self.call_function(function, args)?;
+                self.host().task_store_completed(value)
+            }
         }
 
         let mut ctx = InterpContext { interp: self };
