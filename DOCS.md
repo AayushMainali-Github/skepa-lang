@@ -591,6 +591,7 @@ Signatures:
 - `net.parseUrl(url: String) -> Map[String, String]`
 - `net.httpGet(url: String) -> String`
 - `net.httpPost(url: String, body: String) -> String`
+- `net.fetch(url: String, options: Map[String, String]) -> Map[String, String]`
 - `net.listen(address: String) -> net.Listener`
 - `net.accept(listener: net.Listener) -> net.Socket`
 - `net.read(socket: net.Socket) -> String`
@@ -614,6 +615,7 @@ Behavior:
 - `net.parseUrl(url)` parses a URL and returns a `Map[String, String]` with keys: `scheme`, `host`, `port`, `path`, `query`, and `fragment`.
 - `net.httpGet(url)` performs a blocking HTTP GET request and returns the response body as `String`.
 - `net.httpPost(url, body)` performs a blocking HTTP POST request and returns the response body as `String`.
+- `net.fetch(url, options)` performs a blocking HTTP request and returns a response `Map[String, String]`.
 - `net.listen(address)` binds a blocking TCP listener. Using port `0` lets the OS choose an ephemeral port.
 - `net.accept(listener)` blocks until a client connects, then returns a new `net.Socket`.
 - `net.read(socket)` performs a single blocking read of up to 4096 bytes and returns a `String`.
@@ -650,6 +652,17 @@ Notes:
 - `net.httpPost` returns only the response body. It does not expose status code or headers yet.
 - `net.httpPost` sends the request body as-is with a `Content-Length` header.
 - `net.httpPost` expects a valid UTF-8 response body and a basic well-formed HTTP response.
+- `net.fetch` currently supports `http://` and `https://` URLs only.
+- `net.fetch` reads these option keys when present:
+  - `method`
+  - `body`
+  - `contentType`
+- `net.fetch` returns a map with these response keys:
+  - `status`
+  - `body`
+  - `contentType`
+- `net.fetch` defaults to `GET` when `method` is missing.
+- `net.fetch` is the more general HTTP helper; `net.httpGet` and `net.httpPost` are convenience wrappers.
 - `net.tlsConnect` validates the peer certificate chain and hostname through the host TLS implementation.
 - Timeout setters require non-negative millisecond values. `0` means no timeout.
 - Passing the wrong handle kind to a builtin raises a runtime error.
@@ -740,6 +753,28 @@ import str;
 fn main() -> Int {
   let body: String = net.httpPost("https://example.com/api", "{\"ok\":true}");
   if (str.len(body) >= 0) {
+    return 0;
+  }
+  return 1;
+}
+```
+
+Fetch:
+```sk
+import map;
+import net;
+
+fn main() -> Int {
+  let options: Map[String, String] = map.new();
+  map.insert(options, "method", "POST");
+  map.insert(options, "body", "{\"ok\":true}");
+  map.insert(options, "contentType", "application/json");
+
+  let response: Map[String, String] = net.fetch("https://example.com/api", options);
+  let status: String = map.get(response, "status");
+  let body: String = map.get(response, "body");
+
+  if ((status == "200") && (body != "")) {
     return 0;
   }
   return 1;

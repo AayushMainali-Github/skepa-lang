@@ -586,6 +586,11 @@ fn main() -> Int {
   let parts: Map[String, String] = net.parseUrl("https://example.com:443/a?x=1#frag");
   let body: String = net.httpGet("http://example.com/");
   let posted: String = net.httpPost("http://example.com/post", "{}");
+  let fetchOptions: Map[String, String] = map.new();
+  map.insert(fetchOptions, "method", "POST");
+  map.insert(fetchOptions, "body", "{}");
+  map.insert(fetchOptions, "contentType", "application/json");
+  let response: Map[String, String] = net.fetch("https://example.com/api", fetchOptions);
   let listener: net.Listener = net.listen("127.0.0.1:0");
   let socket: net.Socket = net.accept(listener);
   let client: net.Socket = net.connect("127.0.0.1:8080");
@@ -593,6 +598,7 @@ fn main() -> Int {
   let resolved: String = net.resolve("localhost");
   let msg: String = net.read(socket);
   let host: String = map.get(parts, "host");
+  let status: String = map.get(response, "status");
   let raw: Bytes = net.readBytes(socket);
   let exact: Bytes = net.readN(socket, 4);
   let local: String = net.localAddr(client);
@@ -606,7 +612,7 @@ fn main() -> Int {
   net.close(socket);
   net.close(client);
   net.closeListener(listener);
-  if ((local != peer) && (resolved != "") && (host == "example.com") && (body != "") && (posted != "")) {
+  if ((local != peer) && (resolved != "") && (host == "example.com") && (body != "") && (posted != "") && (status != "")) {
     return 0;
   }
   return 1;

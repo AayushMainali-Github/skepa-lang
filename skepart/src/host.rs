@@ -407,6 +407,10 @@ pub trait RtHost {
         Err(RtError::unsupported_builtin("net.httpPost"))
     }
 
+    fn net_fetch(&mut self, _url: &str, _options: &RtMap) -> RtResult<RtMap> {
+        Err(RtError::unsupported_builtin("net.fetch"))
+    }
+
     fn net_accept(&mut self, _listener: RtHandle) -> RtResult<RtHandle> {
         Err(RtError::unsupported_builtin("net.accept"))
     }
@@ -891,6 +895,35 @@ impl RtHost for NoopHost {
         Ok(RtString::from(response))
     }
 
+    fn net_fetch(&mut self, url: &str, options: &RtMap) -> RtResult<RtMap> {
+        let method = match options.get("method") {
+            Ok(value) => value.expect_string()?.as_str().to_owned(),
+            Err(err) if err.kind == RtErrorKind::MissingField => "GET".to_string(),
+            Err(err) => return Err(err),
+        };
+        let body = match options.get("body") {
+            Ok(value) => value.expect_string()?.as_str().to_owned(),
+            Err(err) if err.kind == RtErrorKind::MissingField => String::new(),
+            Err(err) => return Err(err),
+        };
+        let content_type = match options.get("contentType") {
+            Ok(value) => value.expect_string()?.as_str().to_owned(),
+            Err(err) if err.kind == RtErrorKind::MissingField => String::new(),
+            Err(err) => return Err(err),
+        };
+
+        let method = method.to_uppercase();
+        let response = self.http_request_with_content_type(url, &method, &body, &content_type)?;
+        let map = RtMap::new();
+        map.insert("status", RtValue::String(RtString::from(response.status)));
+        map.insert("body", RtValue::String(RtString::from(response.body)));
+        map.insert(
+            "contentType",
+            RtValue::String(RtString::from(response.content_type)),
+        );
+        Ok(map)
+    }
+
     fn net_accept(&mut self, listener: RtHandle) -> RtResult<RtHandle> {
         let stream = {
             let listener_ref = self.net_tcp_listener(listener)?;
@@ -969,6 +1002,17 @@ impl RtHost for NoopHost {
 
 impl NoopHost {
     fn http_request(&mut self, url: &str, method: &str, body: &str) -> RtResult<String> {
+        self.http_request_with_content_type(url, method, body, "")
+            .map(|response| response.body)
+    }
+
+    fn http_request_with_content_type(
+        &mut self,
+        url: &str,
+        method: &str,
+        body: &str,
+        content_type: &str,
+    ) -> RtResult<HttpResponseParts> {
         let parts = parse_url_parts(url)?;
         let port = if parts.port.is_empty() {
             match parts.scheme.as_str() {
@@ -997,17 +1041,7 @@ impl NoopHost {
         } else {
             format!("{}:{}", parts.host, parts.port)
         };
-        let request = if method == "POST" {
-            format!(
-                "POST {request_path} HTTP/1.0\r\nHost: {host_header}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-                body.len(),
-                body
-            )
-        } else {
-            format!(
-                "GET {request_path} HTTP/1.0\r\nHost: {host_header}\r\nConnection: close\r\n\r\n"
-            )
-        };
+        let request = build_http_request(method, &request_path, &host_header, body, content_type);
 
         match parts.scheme.as_str() {
             "http" => {
@@ -1279,7 +1313,13 @@ fn parse_url_parts(url: &str) -> RtResult<ParsedUrlParts> {
     })
 }
 
-fn read_http_response(mut reader: impl Read, method: &str) -> RtResult<String> {
+struct HttpResponseParts {
+    status: String,
+    body: String,
+    content_type: String,
+}
+
+fn read_http_response(mut reader: impl Read, method: &str) -> RtResult<HttpResponseParts> {
     let mut buf = Vec::new();
     reader
         .read_to_end(&mut buf)
@@ -1293,7 +1333,7 @@ fn read_http_response(mut reader: impl Read, method: &str) -> RtResult<String> {
             ),
         )
     })?;
-    let (_, body) = text.split_once("\r\n\r\n").ok_or_else(|| {
+    let (head, body) = text.split_once("\r\n\r\n").ok_or_else(|| {
         RtError::new(
             RtErrorKind::InvalidArgument,
             format!(
@@ -1302,7 +1342,35 @@ fn read_http_response(mut reader: impl Read, method: &str) -> RtResult<String> {
             ),
         )
     })?;
-    Ok(body.to_string())
+    let mut lines = head.lines();
+    let status_line = lines.next().ok_or_else(|| {
+        RtError::new(
+            RtErrorKind::InvalidArgument,
+            format!(
+                "net.http{} response missing status line",
+                http_method_title(method)
+            ),
+        )
+    })?;
+    let status = status_line
+        .split_whitespace()
+        .nth(1)
+        .unwrap_or("")
+        .to_string();
+    let mut content_type = String::new();
+    for line in lines {
+        if let Some((name, value)) = line.split_once(':') {
+            if name.eq_ignore_ascii_case("content-type") {
+                content_type = value.trim().to_string();
+                break;
+            }
+        }
+    }
+    Ok(HttpResponseParts {
+        status,
+        body: body.to_string(),
+        content_type,
+    })
 }
 
 fn http_method_title(method: &str) -> &'static str {
@@ -1310,6 +1378,31 @@ fn http_method_title(method: &str) -> &'static str {
         "GET" => "Get",
         "POST" => "Post",
         _ => "",
+    }
+}
+
+fn build_http_request(
+    method: &str,
+    request_path: &str,
+    host_header: &str,
+    body: &str,
+    content_type: &str,
+) -> String {
+    if method == "POST" {
+        let content_type_header = if content_type.is_empty() {
+            String::new()
+        } else {
+            format!("Content-Type: {content_type}\r\n")
+        };
+        format!(
+            "POST {request_path} HTTP/1.0\r\nHost: {host_header}\r\n{content_type_header}Content-Length: {}\r\nConnection: close\r\n\r\n{}",
+            body.len(),
+            body
+        )
+    } else {
+        format!(
+            "{method} {request_path} HTTP/1.0\r\nHost: {host_header}\r\nConnection: close\r\n\r\n"
+        )
     }
 }
 

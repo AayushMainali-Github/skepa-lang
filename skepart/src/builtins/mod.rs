@@ -287,6 +287,11 @@ pub fn call_with_context(
             url.expect_string()?.as_str(),
             body.expect_string()?.as_str(),
         ),
+        ("net", "fetch", [url, options]) => net::fetch(
+            ctx.host(),
+            url.expect_string()?.as_str(),
+            &options.expect_map()?,
+        ),
         ("net", "accept", [listener]) => net::accept(
             ctx.host(),
             listener.expect_handle_kind(crate::RtHandleKind::Listener)?,

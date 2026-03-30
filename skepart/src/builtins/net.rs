@@ -34,6 +34,10 @@ pub fn http_post(host: &mut dyn RtHost, url: &str, body: &str) -> RtResult<RtVal
     Ok(RtValue::String(host.net_http_post(url, body)?))
 }
 
+pub fn fetch(host: &mut dyn RtHost, url: &str, options: &crate::RtMap) -> RtResult<RtValue> {
+    Ok(RtValue::Map(host.net_fetch(url, options)?))
+}
+
 pub fn accept(host: &mut dyn RtHost, listener: crate::RtHandle) -> RtResult<RtValue> {
     Ok(RtValue::Handle(host.net_accept(listener)?))
 }

@@ -266,6 +266,36 @@ pub(super) fn check_net_builtin(
             checker.check_fixed_arity_builtin("net", method, args, scopes, sig);
             TypeInfo::String
         }
+        "fetch" => {
+            if args.len() != 2 {
+                checker.error(format!(
+                    "net.fetch expects 2 argument(s), got {}",
+                    args.len()
+                ));
+                return TypeInfo::Unknown;
+            }
+            let url_ty = checker.check_expr(&args[0], scopes);
+            if url_ty != TypeInfo::Unknown && url_ty != TypeInfo::String {
+                checker.error(format!(
+                    "net.fetch argument 1 expects {:?}, got {:?}",
+                    TypeInfo::String,
+                    url_ty
+                ));
+            }
+            let options_ty = checker.check_expr(&args[1], scopes);
+            let expected = TypeInfo::Map {
+                value: Box::new(TypeInfo::String),
+            };
+            if options_ty != TypeInfo::Unknown && options_ty != expected {
+                checker.error(format!(
+                    "net.fetch argument 2 expects {:?}, got {:?}",
+                    expected, options_ty
+                ));
+            }
+            TypeInfo::Map {
+                value: Box::new(TypeInfo::String),
+            }
+        }
         "__testSocket" | "listen" | "connect" => {
             checker.check_fixed_arity_builtin("net", method, args, scopes, sig);
             match method {

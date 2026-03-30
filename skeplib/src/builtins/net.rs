@@ -6,6 +6,7 @@ const NO_PARAMS: &[TypeInfo] = &[];
 const STRING_PARAM: &[TypeInfo] = &[TypeInfo::String];
 const STRING_AND_INT_PARAM: &[TypeInfo] = &[TypeInfo::String, TypeInfo::Int];
 const STRING_AND_STRING_PARAM: &[TypeInfo] = &[TypeInfo::String, TypeInfo::String];
+const STRING_AND_UNKNOWN_PARAM: &[TypeInfo] = &[TypeInfo::String, TypeInfo::Unknown];
 const OPAQUE_PARAM_SENTINEL: &[TypeInfo] = &[TypeInfo::Unknown];
 const OPAQUE_AND_STRING_PARAM: &[TypeInfo] = &[TypeInfo::Unknown, TypeInfo::String];
 const OPAQUE_AND_BYTES_PARAM: &[TypeInfo] = &[TypeInfo::Unknown, TypeInfo::Bytes];
@@ -66,6 +67,13 @@ pub(super) const SIGS: &[BuiltinSig] = &[
         name: "httpPost",
         params: STRING_AND_STRING_PARAM,
         ret: TypeInfo::String,
+        kind: BuiltinKind::FixedArity,
+    },
+    BuiltinSig {
+        package: "net",
+        name: "fetch",
+        params: STRING_AND_UNKNOWN_PARAM,
+        ret: TypeInfo::Unknown,
         kind: BuiltinKind::FixedArity,
     },
     BuiltinSig {

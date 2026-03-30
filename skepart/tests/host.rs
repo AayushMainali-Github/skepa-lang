@@ -605,6 +605,51 @@ fn noop_host_supports_basic_http_post_over_loopback() {
 }
 
 #[test]
+fn noop_host_supports_basic_fetch_over_loopback() {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind http listener");
+    let addr = listener.local_addr().expect("listener addr");
+    let server = std::thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("accept http client");
+        let mut buf = [0_u8; 512];
+        let read = stream.read(&mut buf).expect("read request");
+        let request = String::from_utf8_lossy(&buf[..read]);
+        assert!(request.contains("POST /fetch HTTP/1.0"));
+        assert!(request.contains("Content-Type: application/json"));
+        assert!(request.ends_with("\r\n\r\n{\"ok\":true}"));
+        stream
+            .write_all(
+                b"HTTP/1.0 201 Created\r\nContent-Type: application/json\r\nContent-Length: 15\r\n\r\n{\"done\":true}\n",
+            )
+            .expect("write response");
+    });
+
+    let mut host = NoopHost::default();
+    let options = skepart::RtMap::new();
+    options.insert("method", skepart::RtValue::String(RtString::from("POST")));
+    options.insert(
+        "body",
+        skepart::RtValue::String(RtString::from("{\"ok\":true}")),
+    );
+    options.insert(
+        "contentType",
+        skepart::RtValue::String(RtString::from("application/json")),
+    );
+    let response = host
+        .net_fetch(&format!("http://{addr}/fetch"), &options)
+        .expect("fetch");
+    server.join().expect("server thread");
+
+    assert_eq!(
+        response.get("status").expect("status"),
+        skepart::RtValue::String(RtString::from("201"))
+    );
+    assert_eq!(
+        response.get("contentType").expect("content type"),
+        skepart::RtValue::String(RtString::from("application/json"))
+    );
+}
+
+#[test]
 fn noop_host_rejects_tls_connect_with_untrusted_certificate() {
     let cert = generate_simple_self_signed(vec!["localhost".to_string()]).expect("generate cert");
     let cert_der = cert.cert.der().clone();

@@ -477,6 +477,11 @@ impl IrLowerer {
                     value: Box::new(IrType::String),
                 });
             }
+            ("net", "fetch") => {
+                return Some(IrType::Map {
+                    value: Box::new(IrType::String),
+                });
+            }
             ("task", "__testTask") => {
                 let value = args.first()?;
                 return Some(IrType::Opaque(format!(

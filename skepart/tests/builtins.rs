@@ -979,6 +979,72 @@ fn builtins_cover_net_http_post_and_errors() {
 }
 
 #[test]
+fn builtins_cover_net_fetch_and_errors() {
+    let mut host = RecordingHostBuilder::seeded()
+        .net_fetch_response("201", "fetch-ok", "application/json")
+        .build();
+    let options = skepart::RtMap::new();
+    options.insert("method", RtValue::String(RtString::from("POST")));
+    options.insert("body", RtValue::String(RtString::from("{\"ok\":true}")));
+    options.insert(
+        "contentType",
+        RtValue::String(RtString::from("application/json")),
+    );
+
+    let response = builtins::call_with_host(
+        &mut host,
+        "net",
+        "fetch",
+        &[
+            RtValue::String(RtString::from("https://example.com/api")),
+            RtValue::Map(options),
+        ],
+    )
+    .expect("fetch should return map");
+
+    let RtValue::Map(response) = response else {
+        panic!("net.fetch should return a map");
+    };
+    assert_eq!(
+        response.get("status").expect("status"),
+        RtValue::String(RtString::from("201"))
+    );
+    assert_eq!(
+        response.get("body").expect("body"),
+        RtValue::String(RtString::from("fetch-ok"))
+    );
+    assert_eq!(
+        response.get("contentType").expect("contentType"),
+        RtValue::String(RtString::from("application/json"))
+    );
+    assert!(
+        host.output
+            .contains("[netfetch https://example.com/api method=POST]"),
+        "unexpected host output: {}",
+        host.output
+    );
+
+    let mut failing_host = RecordingHostBuilder::seeded()
+        .net_fetch_error("fetch failed")
+        .build();
+    let empty_options = skepart::RtMap::new();
+    assert_eq!(
+        builtins::call_with_host(
+            &mut failing_host,
+            "net",
+            "fetch",
+            &[
+                RtValue::String(RtString::from("https://bad/")),
+                RtValue::Map(empty_options),
+            ],
+        )
+        .expect_err("fetch failure should surface")
+        .kind,
+        RtErrorKind::Io
+    );
+}
+
+#[test]
 fn builtins_enforce_net_close_lifetime_rules() {
     let mut host = RecordingHostBuilder::seeded().build();
     let socket = builtins::call_with_host(&mut host, "net", "__testSocket", &[])

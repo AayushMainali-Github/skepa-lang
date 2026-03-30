@@ -198,6 +198,27 @@ impl RtHost for TestHost {
         Ok(RtString::from("http-post-body"))
     }
 
+    fn net_fetch(&mut self, url: &str, options: &skepart::RtMap) -> RtResult<skepart::RtMap> {
+        let method = options
+            .get("method")
+            .ok()
+            .and_then(|value| value.expect_string().ok())
+            .map(|value| value.as_str().to_owned())
+            .unwrap_or_else(|| "GET".to_string());
+        self.out
+            .lock()
+            .expect("lock trace")
+            .push_str(&format!("[fetch {url} method={method}]"));
+        let map = skepart::RtMap::new();
+        map.insert("status", skepart::RtValue::String(RtString::from("201")));
+        map.insert("body", skepart::RtValue::String(RtString::from("fetch-body")));
+        map.insert(
+            "contentType",
+            skepart::RtValue::String(RtString::from("application/json")),
+        );
+        Ok(map)
+    }
+
     fn net_accept(&mut self, listener: skepart::RtHandle) -> RtResult<skepart::RtHandle> {
         self.net_lookup_handle_kind(listener)?;
         let handle = self.net_alloc_handle(RtHandleKind::Socket)?;
@@ -985,6 +1006,11 @@ fn main() -> Int {
   let parts: Map[String, String] = net.parseUrl("https://example.com:443/a?x=1#frag");
   let body: String = net.httpGet("http://example.com/");
   let posted: String = net.httpPost("http://example.com/post", "{}");
+  let fetchOptions: Map[String, String] = map.new();
+  map.insert(fetchOptions, "method", "POST");
+  map.insert(fetchOptions, "body", "{}");
+  map.insert(fetchOptions, "contentType", "application/json");
+  let response: Map[String, String] = net.fetch("https://example.com/api", fetchOptions);
   let listener: net.Listener = net.listen("127.0.0.1:0");
   let server: net.Socket = net.accept(listener);
   let client: net.Socket = net.connect("127.0.0.1:8080");
@@ -992,6 +1018,7 @@ fn main() -> Int {
   let resolved: String = net.resolve("localhost");
   let msg = net.read(server);
   let host = map.get(parts, "host");
+  let status = map.get(response, "status");
   let raw: Bytes = net.readBytes(server);
   let exact: Bytes = net.readN(server, 3);
   let local = net.localAddr(client);
@@ -1005,7 +1032,7 @@ fn main() -> Int {
   net.close(server);
   net.close(client);
   net.closeListener(listener);
-  if ((local != peer) && (resolved != "") && (host == "example.com") && (body == "http-body") && (posted == "http-post-body")) {
+  if ((local != peer) && (resolved != "") && (host == "example.com") && (body == "http-body") && (posted == "http-post-body") && (status == "201")) {
     return 0;
   }
   return 1;

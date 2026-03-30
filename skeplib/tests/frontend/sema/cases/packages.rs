@@ -1242,6 +1242,11 @@ fn main() -> Void {
   let parts: Map[String, String] = net.parseUrl("https://example.com:443/a?x=1#frag");
   let body: String = net.httpGet("http://example.com/");
   let posted: String = net.httpPost("http://example.com/post", "{}");
+  let fetchOptions: Map[String, String] = map.new();
+  map.insert(fetchOptions, "method", "POST");
+  map.insert(fetchOptions, "body", "{}");
+  map.insert(fetchOptions, "contentType", "application/json");
+  let response: Map[String, String] = net.fetch("https://example.com/api", fetchOptions);
   let listener: net.Listener = net.listen("127.0.0.1:0");
   let socket: net.Socket = net.accept(listener);
   let client: net.Socket = net.connect("127.0.0.1:8080");
@@ -1249,6 +1254,7 @@ fn main() -> Void {
   let resolved: String = net.resolve("localhost");
   let msg: String = net.read(socket);
   let host: String = map.get(parts, "host");
+  let status: String = map.get(response, "status");
   let raw: Bytes = net.readBytes(socket);
   let exact: Bytes = net.readN(socket, 4);
   let local: String = net.localAddr(client);
@@ -1259,7 +1265,7 @@ fn main() -> Void {
   net.flush(client);
   net.setReadTimeout(client, 25);
   net.setWriteTimeout(client, 50);
-  if ((local == peer) && (host != "") && (body != "") && (posted != "")) {
+  if ((local == peer) && (host != "") && (body != "") && (posted != "") && (status != "")) {
     let _ = resolved;
     return;
   }
@@ -1315,6 +1321,29 @@ fn main() -> Void {
   let body: String = net.httpPost(5, false);
   let _ = body;
   return;
+}
+
+#[test]
+fn sema_rejects_net_fetch_wrong_arg_types() {
+    let src = r#"
+import net;
+
+fn main() -> Void {
+  let response: Map[String, String] = net.fetch(5, false);
+  let _ = response;
+  return;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("net.fetch argument 1 expects String")));
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("net.fetch argument 2 expects Map")));
 }
 "#;
     let (result, diags) = analyze_source(src);
