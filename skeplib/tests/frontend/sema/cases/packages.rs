@@ -1348,6 +1348,26 @@ fn main() -> Void {
 }
 
 #[test]
+fn sema_accepts_ffi_integer_calls() {
+    let src = r#"
+import ffi;
+
+fn main() -> Int {
+  let lib: ffi.Library = ffi.open("test-lib");
+  let sym: ffi.Symbol = ffi.bind(lib, "plus");
+  let x: Int = ffi.call0Int(sym);
+  let y: Int = ffi.call1Int(sym, 7);
+  let z: Int = ffi.call1StringInt(sym, "hello");
+  ffi.closeSymbol(sym);
+  ffi.closeLibrary(lib);
+  return x + y + z;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
+
+#[test]
 fn sema_rejects_ffi_type_mismatches() {
     let src = r#"
 import ffi;
@@ -1382,6 +1402,36 @@ fn main() -> Void {
         .as_slice()
         .iter()
         .any(|d| d.message.contains("ffi.closeSymbol argument 1 expects Opaque(\"ffi.Symbol\")")));
+}
+
+#[test]
+fn sema_rejects_ffi_call_type_mismatches() {
+    let src = r#"
+import ffi;
+
+fn main() -> Int {
+  let lib: ffi.Library = ffi.open("x");
+  let sym: ffi.Symbol = ffi.bind(lib, "puts");
+  let a: Int = ffi.call0Int(lib);
+  let b: Int = ffi.call1Int(sym, false);
+  let c: Int = ffi.call1StringInt(sym, 7);
+  return a + b + c;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("ffi.call0Int argument 1 expects Opaque(\"ffi.Symbol\")")));
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("ffi.call1Int argument 2 expects Int")));
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("ffi.call1StringInt argument 2 expects String")));
 }
 
 #[test]

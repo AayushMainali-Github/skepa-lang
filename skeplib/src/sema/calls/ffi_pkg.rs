@@ -76,6 +76,76 @@ pub(super) fn check_ffi_builtin(
             }
             TypeInfo::Void
         }
+        "call0Int" => {
+            if args.len() != 1 {
+                checker.error(format!(
+                    "ffi.call0Int expects 1 argument(s), got {}",
+                    args.len()
+                ));
+                return TypeInfo::Unknown;
+            }
+            let got = checker.check_expr(&args[0], scopes);
+            let expected = TypeInfo::Opaque("ffi.Symbol".to_string());
+            if got != TypeInfo::Unknown && got != expected {
+                checker.error(format!(
+                    "ffi.call0Int argument 1 expects {:?}, got {:?}",
+                    expected, got
+                ));
+            }
+            TypeInfo::Int
+        }
+        "call1Int" => {
+            if args.len() != 2 {
+                checker.error(format!(
+                    "ffi.call1Int expects 2 argument(s), got {}",
+                    args.len()
+                ));
+                return TypeInfo::Unknown;
+            }
+            let symbol_ty = checker.check_expr(&args[0], scopes);
+            let symbol_expected = TypeInfo::Opaque("ffi.Symbol".to_string());
+            if symbol_ty != TypeInfo::Unknown && symbol_ty != symbol_expected {
+                checker.error(format!(
+                    "ffi.call1Int argument 1 expects {:?}, got {:?}",
+                    symbol_expected, symbol_ty
+                ));
+            }
+            let value_ty = checker.check_expr(&args[1], scopes);
+            if value_ty != TypeInfo::Unknown && value_ty != TypeInfo::Int {
+                checker.error(format!(
+                    "ffi.call1Int argument 2 expects {:?}, got {:?}",
+                    TypeInfo::Int,
+                    value_ty
+                ));
+            }
+            TypeInfo::Int
+        }
+        "call1StringInt" => {
+            if args.len() != 2 {
+                checker.error(format!(
+                    "ffi.call1StringInt expects 2 argument(s), got {}",
+                    args.len()
+                ));
+                return TypeInfo::Unknown;
+            }
+            let symbol_ty = checker.check_expr(&args[0], scopes);
+            let symbol_expected = TypeInfo::Opaque("ffi.Symbol".to_string());
+            if symbol_ty != TypeInfo::Unknown && symbol_ty != symbol_expected {
+                checker.error(format!(
+                    "ffi.call1StringInt argument 1 expects {:?}, got {:?}",
+                    symbol_expected, symbol_ty
+                ));
+            }
+            let value_ty = checker.check_expr(&args[1], scopes);
+            if value_ty != TypeInfo::Unknown && value_ty != TypeInfo::String {
+                checker.error(format!(
+                    "ffi.call1StringInt argument 2 expects {:?}, got {:?}",
+                    TypeInfo::String,
+                    value_ty
+                ));
+            }
+            TypeInfo::Int
+        }
         "open" => {
             checker.check_fixed_arity_builtin("ffi", method, args, scopes, sig);
             TypeInfo::Opaque("ffi.Library".to_string())

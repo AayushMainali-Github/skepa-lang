@@ -98,6 +98,33 @@ impl RtHost for TestHost {
         Ok(handle)
     }
 
+    fn ffi_call_0_int(&mut self, symbol: skepart::RtHandle) -> RtResult<i64> {
+        self.net_lookup_handle_kind(symbol)?;
+        self.out
+            .lock()
+            .expect("lock trace")
+            .push_str(&format!("[fficall0int {}]", symbol.id));
+        Ok(11)
+    }
+
+    fn ffi_call_1_int(&mut self, symbol: skepart::RtHandle, value: i64) -> RtResult<i64> {
+        self.net_lookup_handle_kind(symbol)?;
+        self.out
+            .lock()
+            .expect("lock trace")
+            .push_str(&format!("[fficall1int {}={}]", symbol.id, value));
+        Ok(value + 5)
+    }
+
+    fn ffi_call_1_string_int(&mut self, symbol: skepart::RtHandle, value: &str) -> RtResult<i64> {
+        self.net_lookup_handle_kind(symbol)?;
+        self.out
+            .lock()
+            .expect("lock trace")
+            .push_str(&format!("[fficall1stringint {}={value}]", symbol.id));
+        Ok(value.len() as i64)
+    }
+
     fn os_platform(&mut self) -> RtResult<RtString> {
         Ok(RtString::from("test-os"))
     }
@@ -1043,6 +1070,22 @@ fn main() -> Int {
     return 0;
   }
   return 1;
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let trace = Arc::new(Mutex::new(String::new()));
+    let host = TestHost {
+        out: Arc::clone(&trace),
+        next_handle_id: 0,
+    };
+    let value = IrInterpreter::with_host(&program, Box::new(host))
+        .run_main()
+        .expect("IR interpreter should run source with net handles");
+    assert_eq!(value, IrValue::Int(0));
+    assert_eq!(
+        trace.lock().expect("lock trace").as_str(),
+        "[listen 0][accept 0->1][connect 2][tlsconnect 3=example.com:443][read 1][readbytes 1][readn 1 count=3][localaddr 2][peeraddr 3][write 2=net-read][writebytes 2 len=3][writebytes 2 len=3][flush 2][setreadtimeout 2=25][setwritetimeout 2=50][close 1][close 2][close 0]"
+    );
 }
 
 #[test]
@@ -1072,6 +1115,21 @@ fn main() -> Int {
     assert!(trace.contains("[ffiopen test-lib=0]"), "trace was: {trace}");
     assert!(trace.contains("[ffibind 0:puts=1]"), "trace was: {trace}");
 }
+
+#[test]
+fn interpreter_carries_ffi_integer_calls() {
+    let source = r#"
+import ffi;
+
+fn main() -> Int {
+  let lib: ffi.Library = ffi.open("test-lib");
+  let sym: ffi.Symbol = ffi.bind(lib, "plus");
+  let a: Int = ffi.call0Int(sym);
+  let b: Int = ffi.call1Int(sym, 7);
+  ffi.closeSymbol(sym);
+  ffi.closeLibrary(lib);
+  return a + b;
+}
 "#;
 
     let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
@@ -1080,14 +1138,40 @@ fn main() -> Int {
         out: Arc::clone(&trace),
         next_handle_id: 0,
     };
-    let value = IrInterpreter::with_host(&program, Box::new(host))
-        .run_main()
-        .expect("IR interpreter should run source with net handles");
-    assert_eq!(value, IrValue::Int(0));
-    assert_eq!(
-        trace.lock().expect("lock trace").as_str(),
-        "[listen 0][accept 0->1][connect 2][tlsconnect 3=example.com:443][read 1][readbytes 1][readn 1 count=3][localaddr 2][peeraddr 3][write 2=net-read][writebytes 2 len=3][writebytes 2 len=3][flush 2][setreadtimeout 2=25][setwritetimeout 2=50][close 1][close 2][close 0]"
-    );
+    let interp = IrInterpreter::new(program, host);
+    let result = interp.run_main();
+    assert_eq!(result.expect("program should run"), IrValue::Int(23));
+    let trace = trace.lock().expect("lock trace").clone();
+    assert!(trace.contains("[fficall0int 1]"), "trace was: {trace}");
+    assert!(trace.contains("[fficall1int 1=7]"), "trace was: {trace}");
+}
+
+#[test]
+fn interpreter_carries_ffi_borrowed_string_calls() {
+    let source = r#"
+import ffi;
+
+fn main() -> Int {
+  let lib: ffi.Library = ffi.open("test-lib");
+  let sym: ffi.Symbol = ffi.bind(lib, "strlen");
+  let value: Int = ffi.call1StringInt(sym, "hello");
+  ffi.closeSymbol(sym);
+  ffi.closeLibrary(lib);
+  return value;
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let trace = Arc::new(Mutex::new(String::new()));
+    let host = TestHost {
+        out: Arc::clone(&trace),
+        next_handle_id: 0,
+    };
+    let interp = IrInterpreter::new(program, host);
+    let result = interp.run_main();
+    assert_eq!(result.expect("program should run"), IrValue::Int(5));
+    let trace = trace.lock().expect("lock trace").clone();
+    assert!(trace.contains("[fficall1stringint 1=hello]"), "trace was: {trace}");
 }
 
 #[test]

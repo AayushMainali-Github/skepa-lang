@@ -21,6 +21,36 @@ fn ffi_test_symbol_name() -> &'static str {
     "GetCurrentProcessId"
 }
 
+#[cfg(windows)]
+fn ffi_test_call1_int_symbol_name() -> &'static str {
+    "lstrlenA"
+}
+
+#[cfg(windows)]
+fn ffi_test_call1_int_value() -> i64 {
+    0
+}
+
+#[cfg(windows)]
+fn ffi_test_call1_int_expected() -> i64 {
+    0
+}
+
+#[cfg(windows)]
+fn ffi_test_call1_string_int_symbol_name() -> &'static str {
+    "lstrlenA"
+}
+
+#[cfg(windows)]
+fn ffi_test_call1_string_int_value() -> &'static str {
+    "hello"
+}
+
+#[cfg(windows)]
+fn ffi_test_call1_string_int_expected() -> i64 {
+    5
+}
+
 #[cfg(all(unix, not(target_os = "macos")))]
 fn ffi_test_library_path() -> &'static str {
     "libc.so.6"
@@ -28,7 +58,37 @@ fn ffi_test_library_path() -> &'static str {
 
 #[cfg(all(unix, not(target_os = "macos")))]
 fn ffi_test_symbol_name() -> &'static str {
-    "puts"
+    "getpid"
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn ffi_test_call1_int_symbol_name() -> &'static str {
+    "abs"
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn ffi_test_call1_int_value() -> i64 {
+    -9
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn ffi_test_call1_int_expected() -> i64 {
+    9
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn ffi_test_call1_string_int_symbol_name() -> &'static str {
+    "strlen"
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn ffi_test_call1_string_int_value() -> &'static str {
+    "hello"
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn ffi_test_call1_string_int_expected() -> i64 {
+    5
 }
 
 #[cfg(target_os = "macos")]
@@ -38,7 +98,37 @@ fn ffi_test_library_path() -> &'static str {
 
 #[cfg(target_os = "macos")]
 fn ffi_test_symbol_name() -> &'static str {
-    "puts"
+    "getpid"
+}
+
+#[cfg(target_os = "macos")]
+fn ffi_test_call1_int_symbol_name() -> &'static str {
+    "abs"
+}
+
+#[cfg(target_os = "macos")]
+fn ffi_test_call1_int_value() -> i64 {
+    -9
+}
+
+#[cfg(target_os = "macos")]
+fn ffi_test_call1_int_expected() -> i64 {
+    9
+}
+
+#[cfg(target_os = "macos")]
+fn ffi_test_call1_string_int_symbol_name() -> &'static str {
+    "strlen"
+}
+
+#[cfg(target_os = "macos")]
+fn ffi_test_call1_string_int_value() -> &'static str {
+    "hello"
+}
+
+#[cfg(target_os = "macos")]
+fn ffi_test_call1_string_int_expected() -> i64 {
+    5
 }
 
 fn temp_file(name: &str, ext: &str) -> std::path::PathBuf {
@@ -1837,6 +1927,66 @@ fn main() -> Int {{
 "#,
         library = ffi_test_library_path(),
         symbol = ffi_test_symbol_name(),
+    );
+
+    let result = common::native_run_structured(&source);
+    assert_eq!(result.exit_code(), 0, "stderr: {}", result.stderr_lossy());
+}
+
+#[test]
+fn codegen_builds_native_executable_for_ffi_integer_calls() {
+    let source = format!(
+        r#"
+import ffi;
+
+fn main() -> Int {{
+  let lib: ffi.Library = ffi.open("{library}");
+  let sym0: ffi.Symbol = ffi.bind(lib, "{sym0}");
+  let sym1: ffi.Symbol = ffi.bind(lib, "{sym1}");
+  let a: Int = ffi.call0Int(sym0);
+  let b: Int = ffi.call1Int(sym1, {arg1});
+  ffi.closeSymbol(sym0);
+  ffi.closeSymbol(sym1);
+  ffi.closeLibrary(lib);
+  if ((a > 0) && (b == {expected1})) {{
+    return 0;
+  }}
+  return 1;
+}}
+"#,
+        library = ffi_test_library_path(),
+        sym0 = ffi_test_symbol_name(),
+        sym1 = ffi_test_call1_int_symbol_name(),
+        arg1 = ffi_test_call1_int_value(),
+        expected1 = ffi_test_call1_int_expected(),
+    );
+
+    let result = common::native_run_structured(&source);
+    assert_eq!(result.exit_code(), 0, "stderr: {}", result.stderr_lossy());
+}
+
+#[test]
+fn codegen_builds_native_executable_for_ffi_borrowed_string_calls() {
+    let source = format!(
+        r#"
+import ffi;
+
+fn main() -> Int {{
+  let lib: ffi.Library = ffi.open("{library}");
+  let sym: ffi.Symbol = ffi.bind(lib, "{sym}");
+  let value: Int = ffi.call1StringInt(sym, "{arg}");
+  ffi.closeSymbol(sym);
+  ffi.closeLibrary(lib);
+  if (value == {expected}) {{
+    return 0;
+  }}
+  return 1;
+}}
+"#,
+        library = ffi_test_library_path(),
+        sym = ffi_test_call1_string_int_symbol_name(),
+        arg = ffi_test_call1_string_int_value(),
+        expected = ffi_test_call1_string_int_expected(),
     );
 
     let result = common::native_run_structured(&source);

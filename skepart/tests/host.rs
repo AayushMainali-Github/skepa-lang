@@ -19,6 +19,42 @@ fn ffi_test_symbol_name() -> &'static str {
     "GetCurrentProcessId"
 }
 
+#[cfg(windows)]
+fn ffi_test_call0_int_expected() -> i64 {
+    assert!(std::process::id() <= i64::MAX as u32);
+    std::process::id() as i64
+}
+
+#[cfg(windows)]
+fn ffi_test_call1_int_symbol_name() -> &'static str {
+    "lstrlenA"
+}
+
+#[cfg(windows)]
+fn ffi_test_call1_int_value() -> i64 {
+    0
+}
+
+#[cfg(windows)]
+fn ffi_test_call1_int_expected() -> i64 {
+    0
+}
+
+#[cfg(windows)]
+fn ffi_test_call1_string_int_symbol_name() -> &'static str {
+    "lstrlenA"
+}
+
+#[cfg(windows)]
+fn ffi_test_call1_string_int_value() -> &'static str {
+    "hello"
+}
+
+#[cfg(windows)]
+fn ffi_test_call1_string_int_expected() -> i64 {
+    5
+}
+
 #[cfg(all(unix, not(target_os = "macos")))]
 fn ffi_test_library_path() -> &'static str {
     "libc.so.6"
@@ -26,7 +62,42 @@ fn ffi_test_library_path() -> &'static str {
 
 #[cfg(all(unix, not(target_os = "macos")))]
 fn ffi_test_symbol_name() -> &'static str {
-    "puts"
+    "getpid"
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn ffi_test_call0_int_expected() -> i64 {
+    std::process::id() as i64
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn ffi_test_call1_int_symbol_name() -> &'static str {
+    "abs"
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn ffi_test_call1_int_value() -> i64 {
+    -9
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn ffi_test_call1_int_expected() -> i64 {
+    9
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn ffi_test_call1_string_int_symbol_name() -> &'static str {
+    "strlen"
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn ffi_test_call1_string_int_value() -> &'static str {
+    "hello"
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn ffi_test_call1_string_int_expected() -> i64 {
+    5
 }
 
 #[cfg(target_os = "macos")]
@@ -36,7 +107,42 @@ fn ffi_test_library_path() -> &'static str {
 
 #[cfg(target_os = "macos")]
 fn ffi_test_symbol_name() -> &'static str {
-    "puts"
+    "getpid"
+}
+
+#[cfg(target_os = "macos")]
+fn ffi_test_call0_int_expected() -> i64 {
+    std::process::id() as i64
+}
+
+#[cfg(target_os = "macos")]
+fn ffi_test_call1_int_symbol_name() -> &'static str {
+    "abs"
+}
+
+#[cfg(target_os = "macos")]
+fn ffi_test_call1_int_value() -> i64 {
+    -9
+}
+
+#[cfg(target_os = "macos")]
+fn ffi_test_call1_int_expected() -> i64 {
+    9
+}
+
+#[cfg(target_os = "macos")]
+fn ffi_test_call1_string_int_symbol_name() -> &'static str {
+    "strlen"
+}
+
+#[cfg(target_os = "macos")]
+fn ffi_test_call1_string_int_value() -> &'static str {
+    "hello"
+}
+
+#[cfg(target_os = "macos")]
+fn ffi_test_call1_string_int_expected() -> i64 {
+    5
 }
 
 #[test]
@@ -161,6 +267,53 @@ fn noop_host_opens_and_binds_real_shared_library_symbols() {
         host.net_lookup_handle_kind(symbol).expect("symbol kind"),
         RtHandleKind::Symbol
     );
+    host.net_close_handle(symbol).expect("close symbol");
+    host.net_close_handle(library).expect("close library");
+}
+
+#[test]
+fn noop_host_calls_integer_ffi_symbols() {
+    let mut host = NoopHost::default();
+    let library = host
+        .ffi_open_library(ffi_test_library_path())
+        .expect("open shared library");
+    let call0 = host
+        .ffi_bind_symbol(library, ffi_test_symbol_name())
+        .expect("bind zero-arg int symbol");
+    let call1 = host
+        .ffi_bind_symbol(library, ffi_test_call1_int_symbol_name())
+        .expect("bind one-arg int symbol");
+
+    assert_eq!(
+        host.ffi_call_0_int(call0).expect("call0"),
+        ffi_test_call0_int_expected()
+    );
+    assert_eq!(
+        host.ffi_call_1_int(call1, ffi_test_call1_int_value())
+            .expect("call1"),
+        ffi_test_call1_int_expected()
+    );
+    host.net_close_handle(call0).expect("close call0");
+    host.net_close_handle(call1).expect("close call1");
+    host.net_close_handle(library).expect("close library");
+}
+
+#[test]
+fn noop_host_calls_borrowed_string_ffi_symbols() {
+    let mut host = NoopHost::default();
+    let library = host
+        .ffi_open_library(ffi_test_library_path())
+        .expect("open shared library");
+    let symbol = host
+        .ffi_bind_symbol(library, ffi_test_call1_string_int_symbol_name())
+        .expect("bind one-string int symbol");
+
+    assert_eq!(
+        host.ffi_call_1_string_int(symbol, ffi_test_call1_string_int_value())
+            .expect("call1StringInt"),
+        ffi_test_call1_string_int_expected()
+    );
+
     host.net_close_handle(symbol).expect("close symbol");
     host.net_close_handle(library).expect("close library");
 }

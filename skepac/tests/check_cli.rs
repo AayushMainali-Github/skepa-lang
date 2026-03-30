@@ -707,6 +707,9 @@ import ffi;
 fn main() -> Int {
   let lib: ffi.Library = ffi.open("test-lib");
   let sym: ffi.Symbol = ffi.bind(lib, "puts");
+  let _ = ffi.call0Int(sym);
+  let _ = ffi.call1Int(sym, 1);
+  let _ = ffi.call1StringInt(sym, "hello");
   ffi.closeSymbol(sym);
   ffi.closeLibrary(lib);
   return 0;

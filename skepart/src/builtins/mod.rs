@@ -282,6 +282,20 @@ pub fn call_with_context(
             ctx.host(),
             symbol.expect_handle_kind(crate::RtHandleKind::Symbol)?,
         ),
+        ("ffi", "call0Int", [symbol]) => ffi::call_0_int(
+            ctx.host(),
+            symbol.expect_handle_kind(crate::RtHandleKind::Symbol)?,
+        ),
+        ("ffi", "call1Int", [symbol, value]) => ffi::call_1_int(
+            ctx.host(),
+            symbol.expect_handle_kind(crate::RtHandleKind::Symbol)?,
+            value.expect_int()?,
+        ),
+        ("ffi", "call1StringInt", [symbol, value]) => ffi::call_1_string_int(
+            ctx.host(),
+            symbol.expect_handle_kind(crate::RtHandleKind::Symbol)?,
+            value.expect_string()?.as_str(),
+        ),
         ("net", "__testSocket", []) => net::test_socket(ctx.host()),
         ("net", "listen", [address]) => net::listen(ctx.host(), address.expect_string()?.as_str()),
         ("net", "connect", [address]) => {

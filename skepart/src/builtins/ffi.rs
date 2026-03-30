@@ -17,3 +17,19 @@ pub fn close_symbol(host: &mut dyn RtHost, symbol: crate::RtHandle) -> RtResult<
     host.net_close_handle(symbol)?;
     Ok(RtValue::Unit)
 }
+
+pub fn call_0_int(host: &mut dyn RtHost, symbol: crate::RtHandle) -> RtResult<RtValue> {
+    Ok(RtValue::Int(host.ffi_call_0_int(symbol)?))
+}
+
+pub fn call_1_int(host: &mut dyn RtHost, symbol: crate::RtHandle, value: i64) -> RtResult<RtValue> {
+    Ok(RtValue::Int(host.ffi_call_1_int(symbol, value)?))
+}
+
+pub fn call_1_string_int(
+    host: &mut dyn RtHost,
+    symbol: crate::RtHandle,
+    value: &str,
+) -> RtResult<RtValue> {
+    Ok(RtValue::Int(host.ffi_call_1_string_int(symbol, value)?))
+}

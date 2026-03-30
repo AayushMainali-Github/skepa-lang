@@ -84,6 +84,38 @@ pub struct RtForeignSymbol {
 unsafe impl Send for RtForeignSymbol {}
 unsafe impl Sync for RtForeignSymbol {}
 
+impl RtForeignSymbol {
+    pub fn call_0_int(&self) -> i64 {
+        // SAFETY: caller guarantees the symbol uses the expected ABI/signature.
+        let function: unsafe extern "C" fn() -> i64 = unsafe { std::mem::transmute(self.ptr) };
+        unsafe { function() }
+    }
+
+    pub fn call_1_int(&self, value: i64) -> i64 {
+        // SAFETY: caller guarantees the symbol uses the expected ABI/signature.
+        let function: unsafe extern "C" fn(i64) -> i64 = unsafe { std::mem::transmute(self.ptr) };
+        unsafe { function(value) }
+    }
+
+    pub fn call_1_string_int(&self, value: &str) -> Result<i64, String> {
+        let c_value = CString::new(value).map_err(|_| "string argument contains NUL byte")?;
+        #[cfg(windows)]
+        {
+            // SAFETY: caller guarantees the symbol uses the expected ABI/signature.
+            let function: unsafe extern "system" fn(*const i8) -> i32 =
+                unsafe { std::mem::transmute(self.ptr) };
+            Ok(unsafe { function(c_value.as_ptr()) as i64 })
+        }
+        #[cfg(unix)]
+        {
+            // SAFETY: caller guarantees the symbol uses the expected ABI/signature.
+            let function: unsafe extern "C" fn(*const c_char) -> usize =
+                unsafe { std::mem::transmute(self.ptr) };
+            Ok(unsafe { function(c_value.as_ptr()) as i64 })
+        }
+    }
+}
+
 #[cfg(unix)]
 const RTLD_NOW: c_int = 2;
 

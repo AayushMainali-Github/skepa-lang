@@ -315,6 +315,18 @@ pub trait RtHost {
         Err(RtError::unsupported_builtin("ffi.bind"))
     }
 
+    fn ffi_call_0_int(&mut self, _symbol: RtHandle) -> RtResult<i64> {
+        Err(RtError::unsupported_builtin("ffi.call0Int"))
+    }
+
+    fn ffi_call_1_int(&mut self, _symbol: RtHandle, _value: i64) -> RtResult<i64> {
+        Err(RtError::unsupported_builtin("ffi.call1Int"))
+    }
+
+    fn ffi_call_1_string_int(&mut self, _symbol: RtHandle, _value: &str) -> RtResult<i64> {
+        Err(RtError::unsupported_builtin("ffi.call1StringInt"))
+    }
+
     fn os_platform(&mut self) -> RtResult<RtString> {
         Err(RtError::unsupported_builtin("os.platform"))
     }
@@ -660,6 +672,21 @@ impl RtHost for NoopHost {
             library_handle: library_id,
             ptr,
         }))
+    }
+
+    fn ffi_call_0_int(&mut self, symbol: RtHandle) -> RtResult<i64> {
+        let symbol = self.net_resources.foreign_symbol(symbol)?;
+        Ok(symbol.call_0_int())
+    }
+
+    fn ffi_call_1_int(&mut self, symbol: RtHandle, value: i64) -> RtResult<i64> {
+        let symbol = self.net_resources.foreign_symbol(symbol)?;
+        Ok(symbol.call_1_int(value))
+    }
+
+    fn ffi_call_1_string_int(&mut self, symbol: RtHandle, value: &str) -> RtResult<i64> {
+        let symbol = self.net_resources.foreign_symbol(symbol)?;
+        symbol.call_1_string_int(value).map_err(RtError::process)
     }
 
     fn os_platform(&mut self) -> RtResult<RtString> {

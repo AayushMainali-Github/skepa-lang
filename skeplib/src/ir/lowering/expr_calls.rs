@@ -483,6 +483,9 @@ impl IrLowerer {
             ("ffi", "bind") => {
                 return Some(IrType::Opaque("ffi.Symbol".to_string()));
             }
+            ("ffi", "call0Int") | ("ffi", "call1Int") | ("ffi", "call1StringInt") => {
+                return Some(IrType::Int);
+            }
             ("net", "fetch") => {
                 return Some(IrType::Map {
                     value: Box::new(IrType::String),

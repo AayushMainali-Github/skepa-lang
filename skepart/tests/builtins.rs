@@ -984,6 +984,91 @@ fn builtins_cover_ffi_open_bind_and_errors() {
 }
 
 #[test]
+fn builtins_cover_ffi_integer_calls_and_errors() {
+    let mut host = RecordingHostBuilder::seeded()
+        .ffi_call0_int_value(77)
+        .ffi_call1_int_offset(5)
+        .ffi_call1_string_offset(2)
+        .build();
+    let library = builtins::call_with_host(
+        &mut host,
+        "ffi",
+        "open",
+        &[RtValue::String(RtString::from("test-lib"))],
+    )
+    .expect("ffi.open");
+    let symbol = builtins::call_with_host(
+        &mut host,
+        "ffi",
+        "bind",
+        &[library.clone(), RtValue::String(RtString::from("plus"))],
+    )
+    .expect("ffi.bind");
+
+    assert_eq!(
+        builtins::call_with_host(&mut host, "ffi", "call0Int", std::slice::from_ref(&symbol))
+            .expect("ffi.call0Int"),
+        RtValue::Int(77)
+    );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "ffi",
+            "call1Int",
+            &[symbol.clone(), RtValue::Int(9)],
+        )
+        .expect("ffi.call1Int"),
+        RtValue::Int(14)
+    );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "ffi",
+            "call1StringInt",
+            &[symbol.clone(), RtValue::String(RtString::from("hello"))],
+        )
+        .expect("ffi.call1StringInt"),
+        RtValue::Int(7)
+    );
+    assert!(
+        host.output.contains("[fficall0int 1]")
+            && host.output.contains("[fficall1int 1=9]")
+            && host.output.contains("[fficall1stringint 1=hello]"),
+        "unexpected host output: {}",
+        host.output
+    );
+
+    let mut failing_host = RecordingHostBuilder::seeded()
+        .ffi_call_error("call failed")
+        .build();
+    let library = builtins::call_with_host(
+        &mut failing_host,
+        "ffi",
+        "open",
+        &[RtValue::String(RtString::from("test-lib"))],
+    )
+    .expect("ffi.open");
+    let symbol = builtins::call_with_host(
+        &mut failing_host,
+        "ffi",
+        "bind",
+        &[library, RtValue::String(RtString::from("plus"))],
+    )
+    .expect("ffi.bind");
+    assert_eq!(
+        builtins::call_with_host(
+            &mut failing_host,
+            "ffi",
+            "call1StringInt",
+            &[symbol, RtValue::String(RtString::from("boom"))],
+        )
+        .expect_err("ffi.call1StringInt failure should surface")
+        .kind,
+        RtErrorKind::Io
+    );
+}
+
+#[test]
 fn builtins_cover_net_fetch_and_errors() {
     let mut host = RecordingHostBuilder::seeded()
         .net_fetch_response("201", "fetch-ok", "application/json")
