@@ -47,8 +47,15 @@ pub extern "C" fn skp_rt_call_builtin(
                 .collect::<Result<Vec<_>, _>>()?
         };
         FFI_HOST.with(|host| {
-            builtins::call_with_host(&mut *host.borrow_mut(), &package, &name, &args)
-                .map(boxed_value)
+            let mut runtime = FfiBuiltinRuntime;
+            builtins::call_with_host_runtime(
+                &mut *host.borrow_mut(),
+                &mut runtime,
+                &package,
+                &name,
+                &args,
+            )
+            .map(boxed_value)
         })
     }) {
         Ok(value) => value,
@@ -56,5 +63,17 @@ pub extern "C" fn skp_rt_call_builtin(
             set_last_error(err);
             boxed_value(RtValue::Unit)
         }
+    }
+}
+
+struct FfiBuiltinRuntime;
+
+impl builtins::BuiltinRuntime for FfiBuiltinRuntime {
+    fn call_function(
+        &mut self,
+        _function: crate::RtFunctionRef,
+        _args: &[RtValue],
+    ) -> crate::RtResult<RtValue> {
+        Err(crate::RtError::unsupported_builtin("task.spawn"))
     }
 }

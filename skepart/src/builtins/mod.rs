@@ -11,15 +11,39 @@ pub mod str;
 pub mod task;
 pub mod vec;
 
-use crate::{NoopHost, RtError, RtErrorKind, RtHost, RtResult, RtValue};
+use crate::{NoopHost, RtError, RtErrorKind, RtFunctionRef, RtHost, RtResult, RtValue};
+
+pub trait BuiltinRuntime {
+    fn call_function(&mut self, function: RtFunctionRef, args: &[RtValue]) -> RtResult<RtValue>;
+}
+
+struct NoopRuntime;
+
+impl BuiltinRuntime for NoopRuntime {
+    fn call_function(&mut self, _function: RtFunctionRef, _args: &[RtValue]) -> RtResult<RtValue> {
+        Err(RtError::unsupported_builtin("task.spawn"))
+    }
+}
 
 pub fn call(package: &str, name: &str, args: &[RtValue]) -> RtResult<RtValue> {
     let mut host = NoopHost::default();
-    call_with_host(&mut host, package, name, args)
+    let mut runtime = NoopRuntime;
+    call_with_host_runtime(&mut host, &mut runtime, package, name, args)
 }
 
 pub fn call_with_host(
     host: &mut dyn RtHost,
+    package: &str,
+    name: &str,
+    args: &[RtValue],
+) -> RtResult<RtValue> {
+    let mut runtime = NoopRuntime;
+    call_with_host_runtime(host, &mut runtime, package, name, args)
+}
+
+pub fn call_with_host_runtime(
+    host: &mut dyn RtHost,
+    _runtime: &mut dyn BuiltinRuntime,
     package: &str,
     name: &str,
     args: &[RtValue],
