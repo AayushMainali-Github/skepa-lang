@@ -167,6 +167,7 @@ impl Lexer {
             "from" => TokenKind::KwFrom,
             "as" => TokenKind::KwAs,
             "export" => TokenKind::KwExport,
+            "extern" => TokenKind::KwExtern,
             "fn" => TokenKind::KwFn,
             "opr" => TokenKind::KwOpr,
             "precedence" => TokenKind::KwPrecedence,

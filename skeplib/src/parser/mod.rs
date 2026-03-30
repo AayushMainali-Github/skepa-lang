@@ -388,6 +388,12 @@ impl Parser {
                 continue;
             }
 
+            if self.at(TokenKind::KwExtern) {
+                if let Some(f) = self.parse_extern_function() {
+                    functions.push(f);
+                }
+                continue;
+            }
             if self.at(TokenKind::KwFn) {
                 if let Some(f) = self.parse_function() {
                     functions.push(f);
@@ -416,7 +422,7 @@ impl Parser {
             }
 
             self.error_here_expected(
-                "Expected top-level declaration (`import`, `from`, `export`, `let`, `struct`, `impl`, `opr`, or `fn`)",
+                "Expected top-level declaration (`import`, `from`, `export`, `let`, `struct`, `impl`, `opr`, `extern fn`, or `fn`)",
             );
             self.synchronize_toplevel();
         }
@@ -643,10 +649,58 @@ impl Parser {
         self.expect(TokenKind::RBrace, "Expected `}` after function body")?;
 
         Some(FnDecl {
+            is_extern: false,
             name: name.lexeme,
             params,
             return_type,
             body,
+        })
+    }
+
+    fn parse_extern_function(&mut self) -> Option<FnDecl> {
+        self.expect(TokenKind::KwExtern, "Expected `extern`")?;
+        self.expect(TokenKind::KwFn, "Expected `fn` after `extern`")?;
+        let name = self.expect_ident("Expected function name after `extern fn`")?;
+        self.expect(TokenKind::LParen, "Expected `(` after function name")?;
+        let mut params = Vec::new();
+        if !self.at(TokenKind::RParen) {
+            loop {
+                let param_name = self.expect_ident("Expected parameter name")?;
+                self.expect(TokenKind::Colon, "Expected `:` after parameter name")?;
+                let param_ty = self.expect_type_name("Expected parameter type after `:`")?;
+                params.push(Param {
+                    name: param_name.lexeme,
+                    ty: param_ty,
+                });
+
+                if self.at(TokenKind::Comma) {
+                    self.bump();
+                    if self.at(TokenKind::RParen) {
+                        break;
+                    }
+                    continue;
+                }
+                break;
+            }
+        }
+        self.expect(TokenKind::RParen, "Expected `)` after parameters")?;
+        self.expect(
+            TokenKind::Arrow,
+            "Expected `->` after extern function parameters",
+        )?;
+        let return_type =
+            Some(self.expect_type_name("Expected extern function return type after `->`")?);
+        self.expect(
+            TokenKind::Semi,
+            "Expected `;` after extern function declaration",
+        )?;
+
+        Some(FnDecl {
+            is_extern: true,
+            name: name.lexeme,
+            params,
+            return_type,
+            body: Vec::new(),
         })
     }
 
@@ -878,6 +932,7 @@ impl Parser {
                 || self.at(TokenKind::KwFrom)
                 || self.at(TokenKind::KwExport)
                 || self.at(TokenKind::KwLet)
+                || self.at(TokenKind::KwExtern)
                 || self.at(TokenKind::KwFn)
                 || self.at(TokenKind::KwOpr)
                 || self.at(TokenKind::KwStruct)

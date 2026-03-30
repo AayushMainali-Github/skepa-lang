@@ -251,7 +251,9 @@ impl Checker {
         self.check_export_declarations(program);
 
         for f in &program.functions {
-            self.check_function(f);
+            if !f.is_extern {
+                self.check_function(f);
+            }
         }
 
         for imp in &program.impls {

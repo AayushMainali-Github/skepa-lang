@@ -2447,3 +2447,36 @@ fn main() -> Int {
     let (result, diags) = analyze_source(src);
     assert_sema_success(&result, &diags);
 }
+
+#[test]
+fn sema_accepts_extern_function_declarations_and_calls() {
+    let src = r#"
+extern fn puts(s: String) -> Int;
+
+fn main() -> Int {
+  return puts("ok");
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
+
+#[test]
+fn sema_rejects_extern_function_assignment_type_mismatch() {
+    let src = r#"
+extern fn puts(s: String) -> Int;
+
+fn main() -> Int {
+  let s: String = puts("ok");
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("Type mismatch in let `s`"))
+    );
+}

@@ -11,6 +11,7 @@ pub enum TokenKind {
     KwFrom,
     KwAs,
     KwExport,
+    KwExtern,
     KwFn,
     KwOpr,
     KwPrecedence,

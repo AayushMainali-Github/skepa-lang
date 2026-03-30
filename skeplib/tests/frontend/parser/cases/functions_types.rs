@@ -17,6 +17,53 @@ fn parses_typed_function_parameters() {
 fn add(a: Int, b: Int) -> Int {
   return 0;
 }
+"#;
+    let program = parse_ok(src);
+    assert_eq!(program.functions.len(), 1);
+    let f = &program.functions[0];
+    assert_eq!(f.name, "add");
+    assert_eq!(f.params.len(), 2);
+    assert_eq!(f.params[0].name, "a");
+    assert_eq!(f.params[0].ty, TypeName::Int);
+    assert_eq!(f.params[1].name, "b");
+    assert_eq!(f.params[1].ty, TypeName::Int);
+    assert!(!f.is_extern);
+}
+
+#[test]
+fn parses_extern_function_declaration() {
+    let src = r#"
+extern fn puts(s: String) -> Int;
+"#;
+    let program = parse_ok(src);
+    assert_eq!(program.functions.len(), 1);
+    let f = &program.functions[0];
+    assert!(f.is_extern);
+    assert_eq!(f.name, "puts");
+    assert_eq!(f.params.len(), 1);
+    assert_eq!(f.params[0].name, "s");
+    assert_eq!(f.params[0].ty, TypeName::String);
+    assert_eq!(f.return_type, Some(TypeName::Int));
+    assert!(f.body.is_empty());
+}
+
+#[test]
+fn reports_missing_semicolon_after_extern_function_declaration() {
+    let src = r#"
+extern fn puts(s: String) -> Int
+"#;
+    let diags = parse_err(src);
+    assert_has_diag(&diags, "Expected `;` after extern function declaration");
+}
+
+#[test]
+fn reports_missing_return_type_in_extern_function_declaration() {
+    let src = r#"
+extern fn puts(s: String);
+"#;
+    let diags = parse_err(src);
+    assert_has_diag(&diags, "Expected `->` after extern function parameters");
+}
 
 #[test]
 fn parses_bytes_type_annotations() {
@@ -52,17 +99,6 @@ fn take(data: Map[String, Int]) -> Map[String, Bytes] {
             value: Box::new(TypeName::Bytes),
         })
     );
-}
-"#;
-    let program = parse_ok(src);
-    assert_eq!(program.functions.len(), 1);
-    let f = &program.functions[0];
-    assert_eq!(f.name, "add");
-    assert_eq!(f.params.len(), 2);
-    assert_eq!(f.params[0].name, "a");
-    assert_eq!(f.params[0].ty, TypeName::Int);
-    assert_eq!(f.params[1].name, "b");
-    assert_eq!(f.params[1].ty, TypeName::Int);
 }
 
 #[test]

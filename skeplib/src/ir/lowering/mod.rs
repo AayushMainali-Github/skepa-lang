@@ -391,6 +391,9 @@ impl IrLowerer {
         }
 
         for func in &program.functions {
+            if func.is_extern {
+                continue;
+            }
             if let Some(lowered) = self.compile_function(func) {
                 out.functions.push(lowered);
             }

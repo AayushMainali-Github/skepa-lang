@@ -57,6 +57,7 @@ pub struct ExportItem {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FnDecl {
+    pub is_extern: bool,
     pub name: String,
     pub params: Vec<Param>,
     pub return_type: Option<TypeName>,
@@ -415,6 +416,13 @@ fn pretty_fn(func: &FnDecl, indent: usize, out: &mut String) {
         .as_ref()
         .map(TypeName::as_str)
         .unwrap_or_else(|| "Void".to_string());
+    if func.is_extern {
+        out.push_str(&format!(
+            "{pad}extern fn {}({}) -> {};\n",
+            func.name, params, ret
+        ));
+        return;
+    }
     out.push_str(&format!("{pad}fn {}({}) -> {}\n", func.name, params, ret));
     for stmt in &func.body {
         pretty_stmt(stmt, indent + 2, out);

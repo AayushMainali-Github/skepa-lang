@@ -24,6 +24,7 @@ fn create_program_with_one_import_and_one_function() {
         impls: Vec::new(),
         operators: Vec::new(),
         functions: vec![FnDecl {
+            is_extern: false,
             name: "main".to_string(),
             params: Vec::new(),
             return_type: Some(TypeName::Int),
@@ -112,6 +113,7 @@ fn struct_expression_and_field_assignment_nodes_are_supported() {
 #[test]
 fn function_can_store_return_zero_stmt() {
     let function = FnDecl {
+        is_extern: false,
         name: "main".to_string(),
         params: Vec::new(),
         return_type: Some(TypeName::Int),
@@ -134,6 +136,7 @@ fn int_literal_value_is_preserved() {
 #[test]
 fn function_can_store_params_and_return_type() {
     let function = FnDecl {
+        is_extern: false,
         name: "add".to_string(),
         params: vec![
             Param {
