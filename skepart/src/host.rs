@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::fs;
 use std::io::{Read, Write};
-use std::net::{TcpListener, TcpStream};
+use std::net::{TcpListener, TcpStream, ToSocketAddrs};
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::Arc;
@@ -387,6 +387,10 @@ pub trait RtHost {
 
     fn net_tls_connect(&mut self, _host: &str, _port: i64) -> RtResult<RtHandle> {
         Err(RtError::unsupported_builtin("net.tlsConnect"))
+    }
+
+    fn net_resolve(&mut self, _host: &str) -> RtResult<RtString> {
+        Err(RtError::unsupported_builtin("net.resolve"))
     }
 
     fn net_accept(&mut self, _listener: RtHandle) -> RtResult<RtHandle> {
@@ -839,6 +843,16 @@ impl RtHost for NoopHost {
             .complete_io(&mut tls.sock)
             .map_err(|err| RtError::io(err.to_string()))?;
         Ok(self.net_resources.insert_tls_socket(tls))
+    }
+
+    fn net_resolve(&mut self, host: &str) -> RtResult<RtString> {
+        let mut addrs = (host, 0)
+            .to_socket_addrs()
+            .map_err(|err| RtError::io(err.to_string()))?;
+        let addr = addrs
+            .next()
+            .ok_or_else(|| RtError::io(format!("no addresses resolved for `{host}`")))?;
+        Ok(RtString::from(addr.ip().to_string()))
     }
 
     fn net_accept(&mut self, listener: RtHandle) -> RtResult<RtHandle> {

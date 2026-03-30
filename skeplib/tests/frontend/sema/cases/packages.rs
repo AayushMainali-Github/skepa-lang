@@ -1242,6 +1242,7 @@ fn main() -> Void {
   let socket: net.Socket = net.accept(listener);
   let client: net.Socket = net.connect("127.0.0.1:8080");
   let secure: net.Socket = net.tlsConnect("example.com", 443);
+  let resolved: String = net.resolve("localhost");
   let msg: String = net.read(socket);
   let raw: Bytes = net.readBytes(socket);
   let exact: Bytes = net.readN(socket, 4);
@@ -1254,6 +1255,7 @@ fn main() -> Void {
   net.setReadTimeout(client, 25);
   net.setWriteTimeout(client, 50);
   if (local == peer) {
+    let _ = resolved;
     return;
   }
   net.close(socket);
@@ -1264,6 +1266,25 @@ fn main() -> Void {
 "#;
     let (result, diags) = analyze_source(src);
     assert_sema_success(&result, &diags);
+}
+
+#[test]
+fn sema_rejects_net_resolve_wrong_arg_type() {
+    let src = r#"
+import net;
+
+fn main() -> Void {
+  let ip: String = net.resolve(1);
+  let _ = ip;
+  return;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("net.resolve argument 1 expects String")));
 }
 
 #[test]

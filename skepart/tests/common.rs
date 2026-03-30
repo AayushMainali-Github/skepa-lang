@@ -24,6 +24,7 @@ pub struct RecordingHost {
     pub net_read_n_value: Vec<u8>,
     pub net_local_addr_value: String,
     pub net_peer_addr_value: String,
+    pub net_resolve_value: String,
     pub net_flush_error: Option<String>,
     pub net_set_read_timeout_error: Option<String>,
     pub net_set_write_timeout_error: Option<String>,
@@ -33,6 +34,7 @@ pub struct RecordingHost {
     pub net_accept_error: Option<String>,
     pub net_read_error: Option<String>,
     pub net_write_error: Option<String>,
+    pub net_resolve_error: Option<String>,
     pub next_handle_id: usize,
     pub net_handles: HashMap<usize, RtHandleKind>,
     pub task_results: HashMap<usize, RtValue>,
@@ -61,6 +63,7 @@ impl RecordingHost {
             net_read_n_value: b"net-read-n".to_vec(),
             net_local_addr_value: "127.0.0.1:1111".into(),
             net_peer_addr_value: "127.0.0.1:2222".into(),
+            net_resolve_value: "127.0.0.1".into(),
             next_handle_id: 0,
             net_handles: HashMap::new(),
             env: HashMap::from([(String::from("HOME"), String::from("/tmp/home"))]),
@@ -167,6 +170,11 @@ impl RecordingHostBuilder {
         self
     }
 
+    pub fn net_resolve_value(mut self, value: impl Into<String>) -> Self {
+        self.host.net_resolve_value = value.into();
+        self
+    }
+
     pub fn net_flush_error(mut self, value: impl Into<String>) -> Self {
         self.host.net_flush_error = Some(value.into());
         self
@@ -209,6 +217,11 @@ impl RecordingHostBuilder {
 
     pub fn net_write_error(mut self, value: impl Into<String>) -> Self {
         self.host.net_write_error = Some(value.into());
+        self
+    }
+
+    pub fn net_resolve_error(mut self, value: impl Into<String>) -> Self {
+        self.host.net_resolve_error = Some(value.into());
         self
     }
 
@@ -567,6 +580,14 @@ impl RtHost for RecordingHost {
         self.output
             .push_str(&format!("[nettlsconnect {}={host}:{port}]", handle.id));
         Ok(handle)
+    }
+
+    fn net_resolve(&mut self, host: &str) -> RtResult<RtString> {
+        if let Some(message) = &self.net_resolve_error {
+            return Err(RtError::io(message.clone()));
+        }
+        self.output.push_str(&format!("[netresolve {host}]"));
+        Ok(RtString::from(self.net_resolve_value.clone()))
     }
 
     fn net_accept(&mut self, listener: RtHandle) -> RtResult<RtHandle> {

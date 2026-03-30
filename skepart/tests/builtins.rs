@@ -804,6 +804,44 @@ fn builtins_preserve_net_handle_kinds_across_connect_listen_and_accept() {
 }
 
 #[test]
+fn builtins_cover_net_resolve_and_errors() {
+    let mut host = RecordingHostBuilder::seeded()
+        .net_resolve_value("203.0.113.7")
+        .build();
+
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "net",
+            "resolve",
+            &[RtValue::String(RtString::from("example.com"))],
+        )
+        .expect("resolve should return string"),
+        RtValue::String(RtString::from("203.0.113.7"))
+    );
+    assert!(
+        host.output.contains("[netresolve example.com]"),
+        "unexpected host output: {}",
+        host.output
+    );
+
+    let mut failing_host = RecordingHostBuilder::seeded()
+        .net_resolve_error("dns failed")
+        .build();
+    assert_eq!(
+        builtins::call_with_host(
+            &mut failing_host,
+            "net",
+            "resolve",
+            &[RtValue::String(RtString::from("bad.host"))],
+        )
+        .expect_err("resolve failure should surface")
+        .kind,
+        RtErrorKind::Io
+    );
+}
+
+#[test]
 fn builtins_enforce_net_close_lifetime_rules() {
     let mut host = RecordingHostBuilder::seeded().build();
     let socket = builtins::call_with_host(&mut host, "net", "__testSocket", &[])

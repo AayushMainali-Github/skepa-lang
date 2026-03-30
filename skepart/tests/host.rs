@@ -503,6 +503,15 @@ fn noop_host_supports_tls_connect_with_trusted_local_root() {
 }
 
 #[test]
+fn noop_host_resolves_hostnames_to_ip_text() {
+    let mut host = NoopHost::default();
+    assert_eq!(
+        host.net_resolve("127.0.0.1").expect("resolve ip literal"),
+        RtString::from("127.0.0.1")
+    );
+}
+
+#[test]
 fn noop_host_rejects_tls_connect_with_untrusted_certificate() {
     let cert = generate_simple_self_signed(vec!["localhost".to_string()]).expect("generate cert");
     let cert_der = cert.cert.der().clone();

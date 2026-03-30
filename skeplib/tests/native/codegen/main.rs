@@ -1694,6 +1694,25 @@ fn main() -> Int {{
 }
 
 #[test]
+fn codegen_builds_native_executable_for_net_resolve() {
+    let source = r#"
+import net;
+import str;
+
+fn main() -> Int {
+  let ip: String = net.resolve("127.0.0.1");
+  if ((ip == "127.0.0.1") && (str.len(ip) == 9)) {
+    return 0;
+  }
+  return 1;
+}
+"#;
+
+    let result = common::native_run_structured(source);
+    assert_eq!(result.exit_code(), 0, "stderr: {}", result.stderr_lossy());
+}
+
+#[test]
 fn codegen_builds_native_executable_for_net_flush() {
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind loopback listener");
     let addr = listener.local_addr().expect("listener addr");

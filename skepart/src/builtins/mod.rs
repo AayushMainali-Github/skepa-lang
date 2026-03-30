@@ -277,6 +277,9 @@ pub fn call_with_context(
             host_name.expect_string()?.as_str(),
             port.expect_int()?,
         ),
+        ("net", "resolve", [host_name]) => {
+            net::resolve(ctx.host(), host_name.expect_string()?.as_str())
+        }
         ("net", "accept", [listener]) => net::accept(
             ctx.host(),
             listener.expect_handle_kind(crate::RtHandleKind::Listener)?,

@@ -159,6 +159,14 @@ impl RtHost for TestHost {
         Ok(handle)
     }
 
+    fn net_resolve(&mut self, host: &str) -> RtResult<RtString> {
+        self.out
+            .lock()
+            .expect("lock trace")
+            .push_str(&format!("[resolve {host}]"));
+        Ok(RtString::from("127.0.0.1"))
+    }
+
     fn net_accept(&mut self, listener: skepart::RtHandle) -> RtResult<skepart::RtHandle> {
         self.net_lookup_handle_kind(listener)?;
         let handle = self.net_alloc_handle(RtHandleKind::Socket)?;
@@ -946,6 +954,7 @@ fn main() -> Int {
   let server: net.Socket = net.accept(listener);
   let client: net.Socket = net.connect("127.0.0.1:8080");
   let secure: net.Socket = net.tlsConnect("example.com", 443);
+  let resolved: String = net.resolve("localhost");
   let msg = net.read(server);
   let raw: Bytes = net.readBytes(server);
   let exact: Bytes = net.readN(server, 3);
@@ -960,7 +969,7 @@ fn main() -> Int {
   net.close(server);
   net.close(client);
   net.closeListener(listener);
-  if (local != peer) {
+  if ((local != peer) && (resolved != "")) {
     return 0;
   }
   return 1;

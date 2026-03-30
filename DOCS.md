@@ -587,6 +587,7 @@ Opaque types:
 Signatures:
 - `net.connect(address: String) -> net.Socket`
 - `net.tlsConnect(host: String, port: Int) -> net.Socket`
+- `net.resolve(host: String) -> String`
 - `net.listen(address: String) -> net.Listener`
 - `net.accept(listener: net.Listener) -> net.Socket`
 - `net.read(socket: net.Socket) -> String`
@@ -606,6 +607,7 @@ Behavior:
 - All `net` functions are synchronous/blocking.
 - `net.connect(address)` opens a blocking TCP client connection.
 - `net.tlsConnect(host, port)` opens a blocking TLS client connection with certificate and hostname verification.
+- `net.resolve(host)` resolves the host name and returns the first resolved IP address as text.
 - `net.listen(address)` binds a blocking TCP listener. Using port `0` lets the OS choose an ephemeral port.
 - `net.accept(listener)` blocks until a client connects, then returns a new `net.Socket`.
 - `net.read(socket)` performs a single blocking read of up to 4096 bytes and returns a `String`.
@@ -633,6 +635,7 @@ Notes:
 - `net.readBytes` / `net.readN` are the correct APIs for binary protocols and arbitrary payloads.
 - `net.read` is not a read-to-EOF helper; it returns one chunk from a single read call.
 - `net.tlsConnect` is client-side only in the current surface. There is no TLS listener/accept API yet.
+- `net.resolve` returns the first resolved address only. It is a convenience helper, not a full DNS result-set API.
 - `net.tlsConnect` validates the peer certificate chain and hostname through the host TLS implementation.
 - Timeout setters require non-negative millisecond values. `0` means no timeout.
 - Passing the wrong handle kind to a builtin raises a runtime error.
@@ -666,6 +669,19 @@ fn main() -> Int {
   let body = net.read(socket);
   net.close(socket);
   if (body != "") {
+    return 0;
+  }
+  return 1;
+}
+```
+
+Resolve:
+```sk
+import net;
+
+fn main() -> Int {
+  let ip: String = net.resolve("example.com");
+  if (ip != "") {
     return 0;
   }
   return 1;
