@@ -695,13 +695,13 @@ fn check_accepts_minimal_task_builtins_program() {
 import task;
 
 fn main() -> Int {
-  let t: task.Task = task.__testTask();
+  let t: task.Task[Int] = task.__testTask(5);
   let c: task.Channel = task.__testChannel();
-  let t2: task.Task = t;
+  let t2: task.Task[Int] = t;
   let c2: task.Channel = c;
-  let _ = t2;
+  let value: Int = task.join(t2);
   let _ = c2;
-  return 0;
+  return value - 5;
 }
 "#,
     )

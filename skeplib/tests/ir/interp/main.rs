@@ -988,8 +988,8 @@ fn interpreter_carries_dummy_task_handles_through_calls() {
     let source = r#"
 import task;
 
-fn make_task() -> task.Task {
-  return task.__testTask();
+fn make_task() -> task.Task[Int] {
+  return task.__testTask(7);
 }
 
 fn make_channel() -> task.Channel {
@@ -997,18 +997,18 @@ fn make_channel() -> task.Channel {
 }
 
 fn main() -> Int {
-  let t: task.Task = make_task();
+  let t: task.Task[Int] = make_task();
   let c: task.Channel = make_channel();
-  let t2: task.Task = t;
+  let t2: task.Task[Int] = t;
   let c2: task.Channel = c;
-  let _ = t2;
+  let v: Int = task.join(t2);
   let _ = c2;
-  return 0;
+  return v;
 }
 "#;
 
     let value = common::ir_run_ok(source);
-    assert_eq!(value, IrValue::Int(0));
+    assert_eq!(value, IrValue::Int(7));
 }
 
 #[test]

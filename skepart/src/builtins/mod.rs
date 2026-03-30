@@ -263,7 +263,7 @@ pub fn call_with_host_runtime(
             host,
             listener.expect_handle_kind(crate::RtHandleKind::Listener)?,
         ),
-        ("task", "__testTask", []) => task::test_task(host),
+        ("task", "__testTask", [value]) => task::test_task(host, value),
         ("task", "__testChannel", []) => task::test_channel(host),
         ("task", "channel", []) => task::channel(host),
         ("task", "send", [channel, value]) => task::send(
@@ -275,6 +275,9 @@ pub fn call_with_host_runtime(
             host,
             channel.expect_handle_kind(crate::RtHandleKind::Channel)?,
         ),
+        ("task", "join", [task]) => {
+            task::join(host, task.expect_handle_kind(crate::RtHandleKind::Task)?)
+        }
         ("os", "platform", []) => os::platform(host),
         ("os", "arch", []) => os::arch(host),
         ("os", "arg", [value]) => os::arg(host, value.expect_int()?),

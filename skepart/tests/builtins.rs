@@ -352,20 +352,25 @@ fn builtins_cover_net_address_queries() {
 fn builtins_cover_dummy_task_handles() {
     let mut host = RecordingHostBuilder::seeded().build();
 
-    let task =
-        builtins::call_with_host(&mut host, "task", "__testTask", &[]).expect("task.__testTask");
+    let task = builtins::call_with_host(&mut host, "task", "__testTask", &[RtValue::Int(7)])
+        .expect("task.__testTask");
     let channel = builtins::call_with_host(&mut host, "task", "__testChannel", &[])
         .expect("task.__testChannel");
 
-    let RtValue::Handle(task_handle) = task else {
+    let RtValue::Handle(task_handle) = task.clone() else {
         panic!("task.__testTask should return a handle");
     };
-    let RtValue::Handle(channel_handle) = channel else {
+    let RtValue::Handle(channel_handle) = channel.clone() else {
         panic!("task.__testChannel should return a handle");
     };
 
     assert_eq!(task_handle.kind, skepart::RtHandleKind::Task);
     assert_eq!(channel_handle.kind, skepart::RtHandleKind::Channel);
+    assert_eq!(
+        builtins::call_with_host(&mut host, "task", "join", &[task])
+            .expect("task.join"),
+        RtValue::Int(7)
+    );
 }
 
 #[test]

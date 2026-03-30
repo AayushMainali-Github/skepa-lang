@@ -17,6 +17,7 @@ use crate::{RtBytes, RtError, RtErrorKind, RtHandle, RtHandleKind, RtResult, RtS
 
 pub enum RtNetResource {
     Placeholder(RtHandleKind),
+    Task(Arc<Mutex<Option<crate::RtValue>>>),
     Channel(Arc<Mutex<VecDeque<crate::RtValue>>>),
     TcpStream(TcpStream),
     TlsStream(Box<StreamOwned<ClientConnection, TcpStream>>),
@@ -27,6 +28,7 @@ impl RtNetResource {
     pub fn kind(&self) -> RtHandleKind {
         match self {
             Self::Placeholder(kind) => *kind,
+            Self::Task(_) => RtHandleKind::Task,
             Self::Channel(_) => RtHandleKind::Channel,
             Self::TcpStream(_) | Self::TlsStream(_) => RtHandleKind::Socket,
             Self::TcpListener(_) => RtHandleKind::Listener,
@@ -64,6 +66,10 @@ impl RtNetResourceTable {
         self.insert(RtNetResource::Channel(Arc::new(
             Mutex::new(VecDeque::new()),
         )))
+    }
+
+    pub fn insert_task(&mut self, value: crate::RtValue) -> RtHandle {
+        self.insert(RtNetResource::Task(Arc::new(Mutex::new(Some(value)))))
     }
 
     pub fn kind_of(&self, handle: RtHandle) -> RtResult<RtHandleKind> {
@@ -124,6 +130,21 @@ impl RtNetResourceTable {
             Some(RtNetResource::Channel(queue)) => Ok(Arc::clone(queue)),
             Some(other) => Err(RtError::invalid_handle_kind(
                 RtHandleKind::Channel.type_name(),
+                other.kind().type_name(),
+            )),
+            None => Err(RtError::invalid_handle(format!(
+                "unknown handle id {}",
+                handle.id
+            ))),
+        }
+    }
+
+    pub fn task(&self, handle: RtHandle) -> RtResult<Arc<Mutex<Option<crate::RtValue>>>> {
+        self.kind_of(handle)?;
+        match self.resources.get(&handle.id) {
+            Some(RtNetResource::Task(value)) => Ok(Arc::clone(value)),
+            Some(other) => Err(RtError::invalid_handle_kind(
+                RtHandleKind::Task.type_name(),
                 other.kind().type_name(),
             )),
             None => Err(RtError::invalid_handle(format!(
@@ -284,6 +305,10 @@ pub trait RtHost {
         Err(RtError::unsupported_builtin("task.Channel"))
     }
 
+    fn task_store_completed(&mut self, _value: crate::RtValue) -> RtResult<RtHandle> {
+        Err(RtError::unsupported_builtin("task.Task"))
+    }
+
     fn task_channel(&mut self) -> RtResult<RtHandle> {
         Err(RtError::unsupported_builtin("task.channel"))
     }
@@ -294,6 +319,10 @@ pub trait RtHost {
 
     fn task_recv(&mut self, _channel: RtHandle) -> RtResult<crate::RtValue> {
         Err(RtError::unsupported_builtin("task.recv"))
+    }
+
+    fn task_join(&mut self, _task: RtHandle) -> RtResult<crate::RtValue> {
+        Err(RtError::unsupported_builtin("task.join"))
     }
 
     fn net_alloc_handle(&mut self, _kind: RtHandleKind) -> RtResult<RtHandle> {
@@ -653,6 +682,10 @@ impl RtHost for NoopHost {
         Ok(handle)
     }
 
+    fn task_store_completed(&mut self, value: crate::RtValue) -> RtResult<RtHandle> {
+        Ok(self.net_resources.insert_task(value))
+    }
+
     fn task_channel(&mut self) -> RtResult<RtHandle> {
         Ok(self.net_resources.insert_channel())
     }
@@ -675,6 +708,19 @@ impl RtHost for NoopHost {
             RtError::new(
                 RtErrorKind::InvalidArgument,
                 "cannot receive from empty channel",
+            )
+        })
+    }
+
+    fn task_join(&mut self, task: RtHandle) -> RtResult<crate::RtValue> {
+        let value = self.net_resources.task(task)?;
+        let mut value = value
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        value.take().ok_or_else(|| {
+            RtError::new(
+                RtErrorKind::InvalidArgument,
+                "cannot join completed task more than once",
             )
         })
     }

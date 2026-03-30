@@ -35,6 +35,7 @@ pub struct RecordingHost {
     pub net_write_error: Option<String>,
     pub next_handle_id: usize,
     pub net_handles: HashMap<usize, RtHandleKind>,
+    pub task_results: HashMap<usize, RtValue>,
     pub task_channels: HashMap<usize, VecDeque<RtValue>>,
     pub env: HashMap<String, String>,
     pub files: HashMap<String, String>,
@@ -448,6 +449,12 @@ impl RtHost for RecordingHost {
         })
     }
 
+    fn task_store_completed(&mut self, value: RtValue) -> RtResult<RtHandle> {
+        let handle = self.net_alloc_handle(RtHandleKind::Task)?;
+        self.task_results.insert(handle.id, value);
+        Ok(handle)
+    }
+
     fn task_channel(&mut self) -> RtResult<RtHandle> {
         let handle = self.net_alloc_handle(RtHandleKind::Channel)?;
         self.task_channels.entry(handle.id).or_default();
@@ -477,6 +484,17 @@ impl RtHost for RecordingHost {
                     "cannot receive from empty channel",
                 )
             })
+    }
+
+    fn task_join(&mut self, task: RtHandle) -> RtResult<RtValue> {
+        self.net_lookup_handle_kind(task)?;
+        self.output.push_str(&format!("[taskjoin {}]", task.id));
+        self.task_results.remove(&task.id).ok_or_else(|| {
+            RtError::new(
+                skepart::RtErrorKind::InvalidArgument,
+                "cannot join completed task more than once",
+            )
+        })
     }
 
     fn net_alloc_handle(&mut self, kind: RtHandleKind) -> RtResult<RtHandle> {

@@ -65,12 +65,25 @@ pub fn task_channel_type_name(value: &TypeInfo) -> String {
     format!("task.Channel[{}]", display_type(value))
 }
 
+pub fn task_task_type_name(value: &TypeInfo) -> String {
+    format!("task.Task[{}]", display_type(value))
+}
+
 pub fn task_channel_type(value: &TypeInfo) -> TypeInfo {
     TypeInfo::Opaque(task_channel_type_name(value))
 }
 
+pub fn task_task_type(value: &TypeInfo) -> TypeInfo {
+    TypeInfo::Opaque(task_task_type_name(value))
+}
+
 pub fn task_channel_value_type(name: &str) -> Option<TypeInfo> {
     let inner = name.strip_prefix("task.Channel[")?.strip_suffix(']')?;
+    parse_display_type(inner)
+}
+
+pub fn task_task_value_type(name: &str) -> Option<TypeInfo> {
+    let inner = name.strip_prefix("task.Task[")?.strip_suffix(']')?;
     parse_display_type(inner)
 }
 
@@ -121,7 +134,9 @@ fn parse_display_type(value: &str) -> Option<TypeInfo> {
                     value: Box::new(parse_display_type(inner)?),
                 });
             }
-            if value.starts_with("task.Channel[") && value.ends_with(']') {
+            if (value.starts_with("task.Channel[") || value.starts_with("task.Task["))
+                && value.ends_with(']')
+            {
                 return Some(TypeInfo::Opaque(value.to_string()));
             }
             Some(TypeInfo::Named(value.to_string()))
@@ -133,7 +148,8 @@ pub fn is_builtin_opaque_type(name: &str) -> bool {
     matches!(
         name,
         "net.Socket" | "net.Listener" | "task.Task" | "task.Channel"
-    ) || (name.starts_with("task.Channel[") && name.ends_with(']'))
+    ) || ((name.starts_with("task.Channel[") || name.starts_with("task.Task["))
+        && name.ends_with(']'))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

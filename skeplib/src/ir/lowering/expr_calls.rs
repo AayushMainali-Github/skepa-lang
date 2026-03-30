@@ -473,10 +473,21 @@ impl IrLowerer {
                 return Some(IrType::Opaque("net.Listener".to_string()));
             }
             ("task", "__testTask") => {
-                return Some(IrType::Opaque("task.Task".to_string()));
+                let value = args.first()?;
+                return Some(IrType::Opaque(format!(
+                    "task.Task[{}]",
+                    self.display_ir_type(&self.infer_operand_type(func, value))
+                )));
             }
             ("task", "__testChannel") => {
                 return Some(IrType::Opaque("task.Channel".to_string()));
+            }
+            ("task", "join") => {
+                let task = args.first()?;
+                if let IrType::Opaque(name) = self.infer_operand_type(func, task) {
+                    return crate::types::task_task_value_type(&name)
+                        .map(|value| IrType::from(&value));
+                }
             }
             ("task", "recv") => {
                 let channel = args.first()?;
@@ -513,5 +524,33 @@ impl OkOperand {
             Some(dst) => Operand::Temp(dst),
             None => Operand::Const(ConstValue::Unit),
         })
+    }
+}
+
+impl IrLowerer {
+    fn display_ir_type(&self, value: &IrType) -> String {
+        let _ = self;
+        match value {
+            IrType::Int => "Int".to_string(),
+            IrType::Float => "Float".to_string(),
+            IrType::Bool => "Bool".to_string(),
+            IrType::String => "String".to_string(),
+            IrType::Bytes => "Bytes".to_string(),
+            IrType::Void => "Void".to_string(),
+            IrType::Named(name) | IrType::Opaque(name) => name.clone(),
+            IrType::Array { elem, size } => format!("[{}; {}]", self.display_ir_type(elem), size),
+            IrType::Vec { elem } => format!("Vec[{}]", self.display_ir_type(elem)),
+            IrType::Map { value } => format!("Map[String, {}]", self.display_ir_type(value)),
+            IrType::Fn { params, ret } => format!(
+                "Fn({}) -> {}",
+                params
+                    .iter()
+                    .map(|param| self.display_ir_type(param))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                self.display_ir_type(ret)
+            ),
+            IrType::Unknown => "Unknown".to_string(),
+        }
     }
 }

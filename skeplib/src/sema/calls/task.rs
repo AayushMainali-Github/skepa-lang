@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::ast::Expr;
 use crate::builtins::BuiltinSig;
-use crate::types::{TypeInfo, task_channel_type, task_channel_value_type};
+use crate::types::{TypeInfo, task_channel_type, task_channel_value_type, task_task_value_type};
 
 use super::Checker;
 
@@ -78,8 +78,45 @@ pub(super) fn check_task_builtin(
                 }
             }
         }
-        "__testTask" => TypeInfo::Opaque("task.Task".to_string()),
+        "__testTask" => {
+            if args.len() != 1 {
+                checker.error(format!(
+                    "task.__testTask expects 1 argument(s), got {}",
+                    args.len()
+                ));
+                return TypeInfo::Opaque("task.Task".to_string());
+            }
+            let value_ty = checker.check_expr(&args[0], scopes);
+            if matches!(value_ty, TypeInfo::Unknown) {
+                TypeInfo::Opaque("task.Task".to_string())
+            } else {
+                crate::types::task_task_type(&value_ty)
+            }
+        }
         "__testChannel" => TypeInfo::Opaque("task.Channel".to_string()),
+        "join" => {
+            if args.len() != 1 {
+                checker.error(format!(
+                    "task.join expects 1 argument(s), got {}",
+                    args.len()
+                ));
+                return TypeInfo::Unknown;
+            }
+            match checker.check_expr(&args[0], scopes) {
+                TypeInfo::Opaque(name) => task_task_value_type(&name).unwrap_or_else(|| {
+                    checker.error(format!(
+                        "task.join argument 1 expects Task, got {:?}",
+                        TypeInfo::Opaque(name)
+                    ));
+                    TypeInfo::Unknown
+                }),
+                TypeInfo::Unknown => TypeInfo::Unknown,
+                got => {
+                    checker.error(format!("task.join argument 1 expects Task, got {:?}", got));
+                    TypeInfo::Unknown
+                }
+            }
+        }
         _ => {
             checker.check_fixed_arity_builtin("task", method, args, scopes, sig);
             TypeInfo::Unknown

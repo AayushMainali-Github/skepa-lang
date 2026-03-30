@@ -1272,13 +1272,13 @@ fn sema_accepts_builtin_opaque_task_types_and_dummy_builtins() {
 import task;
 
 fn main() -> Int {
-  let t: task.Task = task.__testTask();
+  let t: task.Task[Int] = task.__testTask(9);
   let c: task.Channel = task.__testChannel();
-  let also_t: task.Task = t;
+  let also_t: task.Task[Int] = t;
   let also_c: task.Channel = c;
-  let _ = also_t;
+  let v: Int = task.join(also_t);
   let _ = also_c;
-  return 0;
+  return v;
 }
 "#;
     let (result, diags) = analyze_source(src);
@@ -1289,7 +1289,7 @@ fn main() -> Int {
 fn sema_rejects_task_without_import() {
     let src = r#"
 fn main() -> Int {
-  let t: task.Task = task.__testTask();
+  let t: task.Task[Int] = task.__testTask(1);
   return 0;
 }
 "#;
