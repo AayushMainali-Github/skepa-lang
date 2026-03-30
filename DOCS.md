@@ -350,7 +350,7 @@ Behavior:
 - `random`: deterministic seed + random int/float
 - `os`: host/process helpers (`platform`, `arch`, `arg`, `envHas`, `envGet`, `envSet`, `envRemove`, `sleep`, `exit`, `exec`, `execOut`)
 - `fs`: basic filesystem helpers (`exists`, `readText`, `writeText`, `appendText`, `mkdirAll`, `removeFile`, `removeDirAll`, `join`)
-- `net`: blocking TCP helpers with opaque handle types (`net.Socket`, `net.Listener`)
+- `net`: blocking TCP/TLS helpers with opaque handle types (`net.Socket`, `net.Listener`)
 - `vec`: runtime-sized vector helpers (`new`, `len`, `push`, `get`, `set`, `delete`)
 
 ### 8.1 General Rules
@@ -536,20 +536,38 @@ Opaque types:
 
 Signatures:
 - `net.connect(address: String) -> net.Socket`
+- `net.tlsConnect(host: String, port: Int) -> net.Socket`
 - `net.listen(address: String) -> net.Listener`
 - `net.accept(listener: net.Listener) -> net.Socket`
 - `net.read(socket: net.Socket) -> String`
 - `net.write(socket: net.Socket, data: String) -> Void`
+- `net.readBytes(socket: net.Socket) -> Bytes`
+- `net.writeBytes(socket: net.Socket, data: Bytes) -> Void`
+- `net.readN(socket: net.Socket, count: Int) -> Bytes`
+- `net.localAddr(socket: net.Socket) -> String`
+- `net.peerAddr(socket: net.Socket) -> String`
+- `net.flush(socket: net.Socket) -> Void`
+- `net.setReadTimeout(socket: net.Socket, ms: Int) -> Void`
+- `net.setWriteTimeout(socket: net.Socket, ms: Int) -> Void`
 - `net.close(socket: net.Socket) -> Void`
 - `net.closeListener(listener: net.Listener) -> Void`
 
 Behavior:
 - All `net` functions are synchronous/blocking.
 - `net.connect(address)` opens a blocking TCP client connection.
+- `net.tlsConnect(host, port)` opens a blocking TLS client connection with certificate and hostname verification.
 - `net.listen(address)` binds a blocking TCP listener. Using port `0` lets the OS choose an ephemeral port.
 - `net.accept(listener)` blocks until a client connects, then returns a new `net.Socket`.
 - `net.read(socket)` performs a single blocking read of up to 4096 bytes and returns a `String`.
 - `net.write(socket, data)` writes the UTF-8 bytes of `data` to the socket.
+- `net.readBytes(socket)` performs a single blocking read of up to 4096 bytes and returns raw `Bytes`.
+- `net.writeBytes(socket, data)` writes raw bytes to the socket.
+- `net.readN(socket, count)` performs a blocking exact read of `count` bytes and returns `Bytes`.
+- `net.localAddr(socket)` returns the socket's local address as `host:port`.
+- `net.peerAddr(socket)` returns the socket's peer address as `host:port`.
+- `net.flush(socket)` flushes pending buffered socket/TLS writes.
+- `net.setReadTimeout(socket, ms)` sets the read timeout in milliseconds. `0` clears the timeout.
+- `net.setWriteTimeout(socket, ms)` sets the write timeout in milliseconds. `0` clears the timeout.
 - `net.close(socket)` closes a socket handle.
 - `net.closeListener(listener)` closes a listener handle.
 
@@ -560,13 +578,18 @@ Handle semantics:
 - Closing one alias closes the shared underlying resource for all aliases.
 
 Notes:
-- `net` v1 is text-oriented, not byte-oriented.
+- `net` supports both text and byte-oriented I/O.
 - `net.read` requires valid UTF-8. Non-UTF-8 payloads raise a runtime error.
+- `net.readBytes` / `net.readN` are the correct APIs for binary protocols and arbitrary payloads.
 - `net.read` is not a read-to-EOF helper; it returns one chunk from a single read call.
+- `net.tlsConnect` is client-side only in the current surface. There is no TLS listener/accept API yet.
+- `net.tlsConnect` validates the peer certificate chain and hostname through the host TLS implementation.
+- Timeout setters require non-negative millisecond values. `0` means no timeout.
 - Passing the wrong handle kind to a builtin raises a runtime error.
 - Using a closed handle raises a runtime error.
 - Double-close raises a runtime error.
 - Address parse/bind/connect/read/write failures raise runtime errors.
+- TLS handshake and certificate validation failures raise runtime errors.
 - Resources are also cleaned up when the process/runtime exits, but explicit close is still the intended ownership model.
 
 Examples:
@@ -580,6 +603,22 @@ fn main() -> Int {
   net.write(socket, "ping");
   net.close(socket);
   return 0;
+}
+```
+
+TLS client:
+```sk
+import net;
+
+fn main() -> Int {
+  let socket: net.Socket = net.tlsConnect("example.com", 443);
+  net.write(socket, "GET / HTTP/1.0\r\nHost: example.com\r\n\r\n");
+  let body = net.read(socket);
+  net.close(socket);
+  if (body != "") {
+    return 0;
+  }
+  return 1;
 }
 ```
 
