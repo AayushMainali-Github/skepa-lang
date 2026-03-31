@@ -22,6 +22,46 @@ pub fn call_0_int(host: &mut dyn RtHost, symbol: crate::RtHandle) -> RtResult<Rt
     Ok(RtValue::Int(host.ffi_call_0_int(symbol)?))
 }
 
+pub fn call(
+    host: &mut dyn RtHost,
+    symbol: crate::RtHandle,
+    signature: &str,
+    args: &[RtValue],
+) -> RtResult<RtValue> {
+    match (signature, args) {
+        ("->I", []) => call_0_int(host, symbol),
+        ("->V", []) => call_0_void(host, symbol),
+        ("->B", []) => call_0_bool(host, symbol),
+        ("I->I", [value]) => call_1_int(host, symbol, value.expect_int()?),
+        ("I->B", [value]) => call_1_int_bool(host, symbol, value.expect_int()?),
+        ("I->V", [value]) => call_1_int_void(host, symbol, value.expect_int()?),
+        ("S->I", [value]) => call_1_string_int(host, symbol, value.expect_string()?.as_str()),
+        ("S->V", [value]) => call_1_string_void(host, symbol, value.expect_string()?.as_str()),
+        ("SS->I", [left, right]) => call_2_string_int(
+            host,
+            symbol,
+            left.expect_string()?.as_str(),
+            right.expect_string()?.as_str(),
+        ),
+        ("SI->I", [left, right]) => call_2_string_int_int(
+            host,
+            symbol,
+            left.expect_string()?.as_str(),
+            right.expect_int()?,
+        ),
+        ("II->I", [left, right]) => {
+            call_2_int_int(host, symbol, left.expect_int()?, right.expect_int()?)
+        }
+        ("Y->I", [value]) => call_1_bytes_int(host, symbol, &value.expect_bytes()?),
+        ("YI->I", [value, right]) => {
+            call_2_bytes_int_int(host, symbol, &value.expect_bytes()?, right.expect_int()?)
+        }
+        _ => Err(crate::RtError::unsupported_builtin(format!(
+            "ffi.call<{signature}>"
+        ))),
+    }
+}
+
 pub fn call_0_void(host: &mut dyn RtHost, symbol: crate::RtHandle) -> RtResult<RtValue> {
     host.ffi_call_0_void(symbol)?;
     Ok(RtValue::Unit)

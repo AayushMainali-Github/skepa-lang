@@ -1,5 +1,5 @@
 use crate::builtins::{BuiltinKind, find_builtin_spec};
-use crate::ir::{Instr, IrFunction, IrProgram, IrType};
+use crate::ir::{ConstValue, Instr, IrFunction, IrProgram, IrType};
 
 use super::{IrVerifier, IrVerifyError};
 
@@ -317,6 +317,10 @@ impl IrVerifier {
                 for arg in args {
                     Self::verify_operand(program, func, arg)?;
                 }
+                if builtin.package == "ffi" && builtin.name == "call" {
+                    Self::verify_generic_ffi_call(program, func, args, ret_ty)?;
+                    return Ok(());
+                }
                 if let Some(spec) = find_builtin_spec(&builtin.package, &builtin.name) {
                     if !matches!(ret_ty, IrType::Unknown | IrType::Void) {
                         let expected_ret = IrType::from(&spec.sig.ret);
@@ -457,5 +461,71 @@ impl IrVerifier {
             }
         }
         Ok(())
+    }
+
+    fn verify_generic_ffi_call(
+        program: &IrProgram,
+        func: &IrFunction,
+        args: &[crate::ir::Operand],
+        ret_ty: &IrType,
+    ) -> Result<(), IrVerifyError> {
+        if args.len() < 2 {
+            return Err(IrVerifyError::BadCallSignature {
+                function: func.name.clone(),
+            });
+        }
+        Self::expect_operand_type(
+            program,
+            func,
+            &args[0],
+            &IrType::Opaque("ffi.Symbol".to_string()),
+        )?;
+        Self::expect_operand_type(program, func, &args[1], &IrType::String)?;
+        let Some(signature) = Self::const_string_value(&args[1]) else {
+            return Err(IrVerifyError::BadCallSignature {
+                function: func.name.clone(),
+            });
+        };
+        let Some((expected_args, expected_ret)) = Self::ffi_signature_shape(signature) else {
+            return Err(IrVerifyError::BadCallSignature {
+                function: func.name.clone(),
+            });
+        };
+        if args.len() != expected_args.len() + 2 || !Self::types_compatible(ret_ty, &expected_ret) {
+            return Err(IrVerifyError::BadCallSignature {
+                function: func.name.clone(),
+            });
+        }
+        for (arg, expected) in args[2..].iter().zip(expected_args.iter()) {
+            Self::expect_operand_type(program, func, arg, expected)?;
+        }
+        Ok(())
+    }
+
+    fn const_string_value(operand: &crate::ir::Operand) -> Option<&str> {
+        match operand {
+            crate::ir::Operand::Const(ConstValue::String(value)) => Some(value.as_str()),
+            _ => None,
+        }
+    }
+
+    fn ffi_signature_shape(signature: &str) -> Option<(Vec<IrType>, IrType)> {
+        let (params, ret) = signature.split_once("->")?;
+        let param_types = params
+            .chars()
+            .map(Self::ffi_signature_type)
+            .collect::<Option<Vec<_>>>()?;
+        Some((param_types, Self::ffi_signature_type(ret.chars().next()?)?))
+    }
+
+    fn ffi_signature_type(code: char) -> Option<IrType> {
+        match code {
+            'I' => Some(IrType::Int),
+            'B' => Some(IrType::Bool),
+            'V' => Some(IrType::Void),
+            'S' => Some(IrType::String),
+            'Y' => Some(IrType::Bytes),
+            _ => None,
+        }
     }
 }

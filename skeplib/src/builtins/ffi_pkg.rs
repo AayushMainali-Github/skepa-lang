@@ -3,6 +3,8 @@ use crate::types::TypeInfo;
 use super::{BuiltinKind, BuiltinSig};
 
 const STRING_PARAM: &[TypeInfo] = &[TypeInfo::String];
+const OPAQUE_AND_STRING_AND_UNKNOWN_PARAM: &[TypeInfo] =
+    &[TypeInfo::Unknown, TypeInfo::String, TypeInfo::Unknown];
 const OPAQUE_PARAM_SENTINEL: &[TypeInfo] = &[TypeInfo::Unknown];
 const OPAQUE_AND_STRING_PARAM: &[TypeInfo] = &[TypeInfo::Unknown, TypeInfo::String];
 const OPAQUE_AND_INT_PARAM: &[TypeInfo] = &[TypeInfo::Unknown, TypeInfo::Int];
@@ -36,6 +38,13 @@ pub(super) const SIGS: &[BuiltinSig] = &[
         params: OPAQUE_PARAM_SENTINEL,
         ret: TypeInfo::Void,
         kind: BuiltinKind::FixedArity,
+    },
+    BuiltinSig {
+        package: "ffi",
+        name: "call",
+        params: OPAQUE_AND_STRING_AND_UNKNOWN_PARAM,
+        ret: TypeInfo::Unknown,
+        kind: BuiltinKind::ArrayOps,
     },
     BuiltinSig {
         package: "ffi",

@@ -1012,6 +1012,16 @@ fn builtins_cover_ffi_integer_calls_and_errors() {
         RtValue::Int(77)
     );
     assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "ffi",
+            "call",
+            &[symbol.clone(), RtValue::String(RtString::from("->I")),],
+        )
+        .expect("ffi.call generic zero-int"),
+        RtValue::Int(77)
+    );
+    assert_eq!(
         builtins::call_with_host(&mut host, "ffi", "call0Void", std::slice::from_ref(&symbol))
             .expect("ffi.call0Void"),
         RtValue::Unit
@@ -1134,6 +1144,21 @@ fn builtins_cover_ffi_integer_calls_and_errors() {
             ],
         )
         .expect("ffi.call2BytesIntInt"),
+        RtValue::Int(7)
+    );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "ffi",
+            "call",
+            &[
+                symbol.clone(),
+                RtValue::String(RtString::from("YI->I")),
+                RtValue::Bytes(RtBytes::from(b"abc".to_vec())),
+                RtValue::Int(4),
+            ],
+        )
+        .expect("ffi.call generic bytes-int"),
         RtValue::Int(7)
     );
     assert!(

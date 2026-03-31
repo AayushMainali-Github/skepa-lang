@@ -223,30 +223,16 @@ impl IrLowerer {
             },
         );
 
-        let call_name = match sig.params.as_slice() {
-            [] if sig.ret == IrType::Int => "call0Int",
-            [] if sig.ret == IrType::Bool => "call0Bool",
-            [] if sig.ret == IrType::Void => "call0Void",
-            [IrType::Int] if sig.ret == IrType::Int => "call1Int",
-            [IrType::Int] if sig.ret == IrType::Bool => "call1IntBool",
-            [IrType::Int] if sig.ret == IrType::Void => "call1IntVoid",
-            [IrType::String] if sig.ret == IrType::Int => "call1StringInt",
-            [IrType::String] if sig.ret == IrType::Void => "call1StringVoid",
-            [IrType::Int, IrType::Int] if sig.ret == IrType::Int => "call2IntInt",
-            [IrType::Bytes, IrType::Int] if sig.ret == IrType::Int => "call2BytesIntInt",
-            [IrType::String, IrType::String] if sig.ret == IrType::Int => "call2StringInt",
-            [IrType::String, IrType::Int] if sig.ret == IrType::Int => "call2StringIntInt",
-            [IrType::Bytes] if sig.ret == IrType::Int => "call1BytesInt",
-            _ => {
-                self.unsupported(format!(
-                    "extern function `{}` uses unsupported lowered ABI in IR",
-                    sig.symbol
-                ));
-                return None;
-            }
+        let Some(signature_text) = self.extern_abi_signature(sig) else {
+            self.unsupported(format!(
+                "extern function `{}` uses unsupported lowered ABI in IR",
+                sig.symbol
+            ));
+            return None;
         };
-        let mut call_args = Vec::with_capacity(args.len() + 1);
+        let mut call_args = Vec::with_capacity(args.len() + 2);
         call_args.push(Operand::Temp(sym_dst));
+        call_args.push(Operand::Const(ConstValue::String(signature_text)));
         call_args.extend(args);
         let call_dst = if sig.ret.is_void() {
             None
@@ -261,7 +247,7 @@ impl IrLowerer {
                 ret_ty: sig.ret.clone(),
                 builtin: crate::ir::BuiltinCall {
                     package: "ffi".to_string(),
-                    name: call_name.to_string(),
+                    name: "call".to_string(),
                 },
                 args: call_args,
             },
@@ -685,6 +671,28 @@ impl IrLowerer {
         match self.infer_operand_type(func, callee) {
             IrType::Fn { ret, .. } => (*ret).clone(),
             _ => IrType::Unknown,
+        }
+    }
+
+    fn extern_abi_signature(&self, sig: &ExternFunctionSig) -> Option<String> {
+        let params = sig
+            .params
+            .iter()
+            .map(Self::extern_abi_type_code)
+            .collect::<Option<Vec<_>>>()?
+            .join("");
+        let ret = Self::extern_abi_type_code(&sig.ret)?;
+        Some(format!("{params}->{ret}"))
+    }
+
+    fn extern_abi_type_code(ty: &IrType) -> Option<&'static str> {
+        match ty {
+            IrType::Int => Some("I"),
+            IrType::Bool => Some("B"),
+            IrType::Void => Some("V"),
+            IrType::String => Some("S"),
+            IrType::Bytes => Some("Y"),
+            _ => None,
         }
     }
 }

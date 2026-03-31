@@ -282,6 +282,12 @@ pub fn call_with_context(
             ctx.host(),
             symbol.expect_handle_kind(crate::RtHandleKind::Symbol)?,
         ),
+        ("ffi", "call", [symbol, signature, rest @ ..]) => ffi::call(
+            ctx.host(),
+            symbol.expect_handle_kind(crate::RtHandleKind::Symbol)?,
+            signature.expect_string()?.as_str(),
+            rest,
+        ),
         ("ffi", "call0Int", [symbol]) => ffi::call_0_int(
             ctx.host(),
             symbol.expect_handle_kind(crate::RtHandleKind::Symbol)?,

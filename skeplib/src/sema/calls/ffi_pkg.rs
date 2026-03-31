@@ -15,7 +15,8 @@ pub(super) fn check_ffi_builtin(
 ) -> TypeInfo {
     if matches!(
         method,
-        "call0Int"
+        "call"
+            | "call0Int"
             | "call0Void"
             | "call0Bool"
             | "call1Int"
