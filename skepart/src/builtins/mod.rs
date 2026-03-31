@@ -296,6 +296,11 @@ pub fn call_with_context(
             symbol.expect_handle_kind(crate::RtHandleKind::Symbol)?,
             value.expect_string()?.as_str(),
         ),
+        ("ffi", "call1StringVoid", [symbol, value]) => ffi::call_1_string_void(
+            ctx.host(),
+            symbol.expect_handle_kind(crate::RtHandleKind::Symbol)?,
+            value.expect_string()?.as_str(),
+        ),
         ("ffi", "call1BytesInt", [symbol, value]) => ffi::call_1_bytes_int(
             ctx.host(),
             symbol.expect_handle_kind(crate::RtHandleKind::Symbol)?,

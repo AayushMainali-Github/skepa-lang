@@ -125,6 +125,19 @@ impl RtHost for TestHost {
         Ok(value.len() as i64)
     }
 
+    fn ffi_call_1_string_void(
+        &mut self,
+        symbol: skepart::RtHandle,
+        value: &str,
+    ) -> RtResult<()> {
+        self.net_lookup_handle_kind(symbol)?;
+        self.out
+            .lock()
+            .expect("lock trace")
+            .push_str(&format!("[fficall1stringvoid {}={value}]", symbol.id));
+        Ok(())
+    }
+
     fn ffi_call_1_bytes_int(
         &mut self,
         symbol: skepart::RtHandle,
@@ -1224,6 +1237,35 @@ extern("test-lib") fn strlen(s: String) -> Int;
 
 fn main() -> Int {
   return strlen("hello");
+}
+
+#[test]
+fn interpreter_lowers_linked_extern_void_calls_through_ffi_builtins() {
+    let source = r#"
+extern("test-lib") fn trace(s: String) -> Void;
+
+fn main() -> Int {
+  trace("hello");
+  return 0;
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let trace = Arc::new(Mutex::new(String::new()));
+    let host = TestHost {
+        out: Arc::clone(&trace),
+        next_handle_id: 0,
+    };
+    let interp = IrInterpreter::new(program, host);
+    let result = interp.run_main();
+    assert_eq!(result.expect("program should run"), IrValue::Int(0));
+    let trace = trace.lock().expect("lock trace").clone();
+    assert!(trace.contains("[ffiopen test-lib=0]"), "trace was: {trace}");
+    assert!(trace.contains("[ffibind 0:trace=1]"), "trace was: {trace}");
+    assert!(
+        trace.contains("[fficall1stringvoid 1=hello]"),
+        "trace was: {trace}"
+    );
 }
 "#;
 

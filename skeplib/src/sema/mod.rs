@@ -281,15 +281,16 @@ impl Checker {
             .map(TypeInfo::from_ast)
             .unwrap_or(TypeInfo::Void);
 
-        let supported = matches!(ret, TypeInfo::Int)
+        let supported = (matches!(ret, TypeInfo::Int)
             && matches!(
                 params.as_slice(),
                 [] | [TypeInfo::Int] | [TypeInfo::String] | [TypeInfo::Bytes]
-            );
+            ))
+            || (matches!(ret, TypeInfo::Void) && matches!(params.as_slice(), [TypeInfo::String]));
 
         if !supported {
             self.error(format!(
-                "Extern function `{}` uses unsupported signature; supported forms are `extern fn() -> Int`, `extern fn(Int) -> Int`, `extern fn(String) -> Int`, and `extern fn(Bytes) -> Int`",
+                "Extern function `{}` uses unsupported signature; supported forms are `extern fn() -> Int`, `extern fn(Int) -> Int`, `extern fn(String) -> Int`, `extern fn(Bytes) -> Int`, and `extern fn(String) -> Void`",
                 f.name
             ));
         }

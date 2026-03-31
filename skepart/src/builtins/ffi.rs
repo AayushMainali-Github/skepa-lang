@@ -34,6 +34,15 @@ pub fn call_1_string_int(
     Ok(RtValue::Int(host.ffi_call_1_string_int(symbol, value)?))
 }
 
+pub fn call_1_string_void(
+    host: &mut dyn RtHost,
+    symbol: crate::RtHandle,
+    value: &str,
+) -> RtResult<RtValue> {
+    host.ffi_call_1_string_void(symbol, value)?;
+    Ok(RtValue::Unit)
+}
+
 pub fn call_1_bytes_int(
     host: &mut dyn RtHost,
     symbol: crate::RtHandle,

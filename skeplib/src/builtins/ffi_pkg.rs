@@ -60,6 +60,13 @@ pub(super) const SIGS: &[BuiltinSig] = &[
     },
     BuiltinSig {
         package: "ffi",
+        name: "call1StringVoid",
+        params: OPAQUE_AND_STRING_PARAM,
+        ret: TypeInfo::Void,
+        kind: BuiltinKind::FixedArity,
+    },
+    BuiltinSig {
+        package: "ffi",
         name: "call1BytesInt",
         params: OPAQUE_AND_BYTES_PARAM,
         ret: TypeInfo::Int,

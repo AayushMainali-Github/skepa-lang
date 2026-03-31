@@ -115,6 +115,26 @@ impl RtForeignSymbol {
         }
     }
 
+    pub fn call_1_string_void(&self, value: &str) -> Result<(), String> {
+        let c_value = CString::new(value).map_err(|_| "string argument contains NUL byte")?;
+        #[cfg(windows)]
+        {
+            // SAFETY: caller guarantees the symbol uses the expected ABI/signature.
+            let function: unsafe extern "system" fn(*const i8) =
+                unsafe { std::mem::transmute(self.ptr) };
+            unsafe { function(c_value.as_ptr()) };
+            Ok(())
+        }
+        #[cfg(unix)]
+        {
+            // SAFETY: caller guarantees the symbol uses the expected ABI/signature.
+            let function: unsafe extern "C" fn(*const c_char) =
+                unsafe { std::mem::transmute(self.ptr) };
+            unsafe { function(c_value.as_ptr()) };
+            Ok(())
+        }
+    }
+
     pub fn call_1_bytes_int(&self, value: &[u8]) -> i64 {
         #[cfg(windows)]
         {

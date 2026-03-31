@@ -51,6 +51,16 @@ fn ffi_test_call1_string_int_expected() -> i64 {
     5
 }
 
+#[cfg(windows)]
+fn ffi_test_call1_string_void_library_path() -> &'static str {
+    "kernel32.dll"
+}
+
+#[cfg(windows)]
+fn ffi_test_call1_string_void_symbol_name() -> &'static str {
+    "OutputDebugStringA"
+}
+
 #[cfg(all(unix, not(target_os = "macos")))]
 fn ffi_test_library_path() -> &'static str {
     "libc.so.6"
@@ -91,6 +101,16 @@ fn ffi_test_call1_string_int_expected() -> i64 {
     5
 }
 
+#[cfg(all(unix, not(target_os = "macos")))]
+fn ffi_test_call1_string_void_library_path() -> &'static str {
+    "libc.so.6"
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn ffi_test_call1_string_void_symbol_name() -> &'static str {
+    "perror"
+}
+
 #[cfg(target_os = "macos")]
 fn ffi_test_library_path() -> &'static str {
     "/usr/lib/libSystem.B.dylib"
@@ -129,6 +149,16 @@ fn ffi_test_call1_string_int_value() -> &'static str {
 #[cfg(target_os = "macos")]
 fn ffi_test_call1_string_int_expected() -> i64 {
     5
+}
+
+#[cfg(target_os = "macos")]
+fn ffi_test_call1_string_void_library_path() -> &'static str {
+    "/usr/lib/libSystem.B.dylib"
+}
+
+#[cfg(target_os = "macos")]
+fn ffi_test_call1_string_void_symbol_name() -> &'static str {
+    "perror"
 }
 
 fn temp_file(name: &str, ext: &str) -> std::path::PathBuf {
@@ -2041,6 +2071,25 @@ fn main() -> Int {{
         sym = ffi_test_call1_string_int_symbol_name(),
         arg = ffi_test_call1_string_int_value(),
         expected = ffi_test_call1_string_int_expected(),
+    );
+
+    let result = common::native_run_structured(&source);
+    assert_eq!(result.exit_code(), 0, "stderr: {}", result.stderr_lossy());
+}
+
+#[test]
+fn codegen_builds_native_executable_for_linked_extern_void_calls() {
+    let source = format!(
+        r#"
+extern("{library}") fn {sym}(s: String) -> Void;
+
+fn main() -> Int {{
+  {sym}("hello");
+  return 0;
+}}
+"#,
+        library = ffi_test_call1_string_void_library_path(),
+        sym = ffi_test_call1_string_void_symbol_name(),
     );
 
     let result = common::native_run_structured(&source);

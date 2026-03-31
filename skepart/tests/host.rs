@@ -56,6 +56,16 @@ fn ffi_test_call1_string_int_expected() -> i64 {
 }
 
 #[cfg(windows)]
+fn ffi_test_call1_string_void_library_path() -> &'static str {
+    "kernel32.dll"
+}
+
+#[cfg(windows)]
+fn ffi_test_call1_string_void_symbol_name() -> &'static str {
+    "OutputDebugStringA"
+}
+
+#[cfg(windows)]
 fn ffi_test_call1_bytes_library_path() -> &'static str {
     "ucrtbase.dll"
 }
@@ -116,6 +126,16 @@ fn ffi_test_call1_string_int_expected() -> i64 {
 }
 
 #[cfg(all(unix, not(target_os = "macos")))]
+fn ffi_test_call1_string_void_library_path() -> &'static str {
+    "libc.so.6"
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn ffi_test_call1_string_void_symbol_name() -> &'static str {
+    "perror"
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
 fn ffi_test_call1_bytes_library_path() -> &'static str {
     "libc.so.6"
 }
@@ -173,6 +193,16 @@ fn ffi_test_call1_string_int_value() -> &'static str {
 #[cfg(target_os = "macos")]
 fn ffi_test_call1_string_int_expected() -> i64 {
     5
+}
+
+#[cfg(target_os = "macos")]
+fn ffi_test_call1_string_void_library_path() -> &'static str {
+    "/usr/lib/libSystem.B.dylib"
+}
+
+#[cfg(target_os = "macos")]
+fn ffi_test_call1_string_void_symbol_name() -> &'static str {
+    "perror"
 }
 
 #[cfg(target_os = "macos")]
@@ -358,6 +388,23 @@ fn noop_host_calls_borrowed_string_ffi_symbols() {
             .expect("call1StringInt"),
         ffi_test_call1_string_int_expected()
     );
+
+    host.net_close_handle(symbol).expect("close symbol");
+    host.net_close_handle(library).expect("close library");
+}
+
+#[test]
+fn noop_host_calls_borrowed_string_void_ffi_symbols() {
+    let mut host = NoopHost::default();
+    let library = host
+        .ffi_open_library(ffi_test_call1_string_void_library_path())
+        .expect("open shared library");
+    let symbol = host
+        .ffi_bind_symbol(library, ffi_test_call1_string_void_symbol_name())
+        .expect("bind one-string void symbol");
+
+    host.ffi_call_1_string_void(symbol, "hello")
+        .expect("call1StringVoid");
 
     host.net_close_handle(symbol).expect("close symbol");
     host.net_close_handle(library).expect("close library");

@@ -260,8 +260,22 @@ fn runtime_library_path_in_target_dir(target_dir: &Path) -> Result<PathBuf, Code
             .collect::<Vec<_>>();
         candidates.append(&mut found);
     }
-    candidates.sort();
-    if let Some(path) = candidates.into_iter().last() {
+    candidates.sort_by(|left, right| {
+        let left_key = left
+            .metadata()
+            .and_then(|meta| meta.modified())
+            .ok()
+            .map(std::cmp::Reverse);
+        let right_key = right
+            .metadata()
+            .and_then(|meta| meta.modified())
+            .ok()
+            .map(std::cmp::Reverse);
+        left_key
+            .cmp(&right_key)
+            .then_with(|| left.file_name().cmp(&right.file_name()))
+    });
+    if let Some(path) = candidates.into_iter().next() {
         Ok(path)
     } else {
         let deps_dir = target_dir.join("deps");
@@ -376,6 +390,7 @@ fn main() -> Int {
         let older = deps_dir.join("libskepart-aaaa1111.a");
         let newer = deps_dir.join("libskepart-zzzz9999.a");
         fs::write(&older, []).expect("older archive");
+        std::thread::sleep(std::time::Duration::from_millis(10));
         fs::write(&newer, []).expect("newer archive");
         let selected =
             runtime_library_path_in_target_dir(&target_dir).expect("runtime archive should exist");

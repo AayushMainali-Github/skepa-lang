@@ -224,10 +224,11 @@ impl IrLowerer {
         );
 
         let call_name = match sig.params.as_slice() {
-            [] => "call0Int",
-            [IrType::Int] => "call1Int",
-            [IrType::String] => "call1StringInt",
-            [IrType::Bytes] => "call1BytesInt",
+            [] if sig.ret == IrType::Int => "call0Int",
+            [IrType::Int] if sig.ret == IrType::Int => "call1Int",
+            [IrType::String] if sig.ret == IrType::Int => "call1StringInt",
+            [IrType::String] if sig.ret == IrType::Void => "call1StringVoid",
+            [IrType::Bytes] if sig.ret == IrType::Int => "call1BytesInt",
             _ => {
                 self.unsupported(format!(
                     "extern function `{}` uses unsupported lowered ABI in IR",
