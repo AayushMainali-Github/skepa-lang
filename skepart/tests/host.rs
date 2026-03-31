@@ -608,6 +608,40 @@ fn noop_host_calls_borrowed_bytes_ffi_symbols() {
 }
 
 #[test]
+fn noop_host_reuses_cached_ffi_libraries_and_symbols_across_handles() {
+    let mut host = NoopHost::default();
+
+    let library_a = host
+        .ffi_open_library(ffi_test_library_path())
+        .expect("open shared library first time");
+    let library_b = host
+        .ffi_open_library(ffi_test_library_path())
+        .expect("open shared library second time");
+    let symbol_a = host
+        .ffi_bind_symbol(library_a, ffi_test_call1_string_int_symbol_name())
+        .expect("bind symbol first time");
+    let symbol_b = host
+        .ffi_bind_symbol(library_b, ffi_test_call1_string_int_symbol_name())
+        .expect("bind symbol second time");
+
+    host.net_close_handle(symbol_a)
+        .expect("close first symbol handle");
+    host.net_close_handle(library_a)
+        .expect("close first library handle");
+
+    assert_eq!(
+        host.ffi_call_1_string_int(symbol_b, ffi_test_call1_string_int_value())
+            .expect("second symbol handle should still work"),
+        ffi_test_call1_string_int_expected()
+    );
+
+    host.net_close_handle(symbol_b)
+        .expect("close second symbol handle");
+    host.net_close_handle(library_b)
+        .expect("close second library handle");
+}
+
+#[test]
 fn recording_host_covers_new_bool_and_mixed_ffi_shapes() {
     let mut host = RecordingHostBuilder::seeded().build();
     let library = host.ffi_open_library("test-lib").expect("open");

@@ -23,8 +23,8 @@ pub enum RtNetResource {
     Placeholder(RtHandleKind),
     Task(Arc<Mutex<RtTaskState>>),
     Channel(Arc<Mutex<VecDeque<crate::RtValue>>>),
-    ForeignLibrary(RtForeignLibrary),
-    ForeignSymbol(RtForeignSymbol),
+    ForeignLibrary(Arc<RtForeignLibrary>),
+    ForeignSymbol(Arc<RtForeignSymbol>),
     TcpStream(TcpStream),
     TlsStream(Box<StreamOwned<ClientConnection, TcpStream>>),
     TcpListener(TcpListener),
@@ -81,11 +81,11 @@ impl RtNetResourceTable {
         )))
     }
 
-    pub fn insert_library(&mut self, library: RtForeignLibrary) -> RtHandle {
+    pub fn insert_library(&mut self, library: Arc<RtForeignLibrary>) -> RtHandle {
         self.insert(RtNetResource::ForeignLibrary(library))
     }
 
-    pub fn insert_symbol(&mut self, symbol: RtForeignSymbol) -> RtHandle {
+    pub fn insert_symbol(&mut self, symbol: Arc<RtForeignSymbol>) -> RtHandle {
         self.insert(RtNetResource::ForeignSymbol(symbol))
     }
 
@@ -186,10 +186,10 @@ impl RtNetResourceTable {
         }
     }
 
-    pub fn foreign_library(&self, handle: RtHandle) -> RtResult<&RtForeignLibrary> {
+    pub fn foreign_library(&self, handle: RtHandle) -> RtResult<Arc<RtForeignLibrary>> {
         self.kind_of(handle)?;
         match self.resources.get(&handle.id) {
-            Some(RtNetResource::ForeignLibrary(value)) => Ok(value),
+            Some(RtNetResource::ForeignLibrary(value)) => Ok(Arc::clone(value)),
             Some(other) => Err(RtError::invalid_handle_kind(
                 RtHandleKind::Library.type_name(),
                 other.kind().type_name(),
@@ -201,10 +201,10 @@ impl RtNetResourceTable {
         }
     }
 
-    pub fn foreign_symbol(&self, handle: RtHandle) -> RtResult<&RtForeignSymbol> {
+    pub fn foreign_symbol(&self, handle: RtHandle) -> RtResult<Arc<RtForeignSymbol>> {
         self.kind_of(handle)?;
         match self.resources.get(&handle.id) {
-            Some(RtNetResource::ForeignSymbol(value)) => Ok(value),
+            Some(RtNetResource::ForeignSymbol(value)) => Ok(Arc::clone(value)),
             Some(other) => Err(RtError::invalid_handle_kind(
                 RtHandleKind::Symbol.type_name(),
                 other.kind().type_name(),
@@ -570,6 +570,9 @@ pub struct NoopHost {
     random_state: u64,
     net_resources: RtNetResourceTable,
     tls_root_certs: Vec<CertificateDer<'static>>,
+    ffi_library_cache: HashMap<String, Arc<RtForeignLibrary>>,
+    ffi_symbol_cache: HashMap<(String, String), Arc<RtForeignSymbol>>,
+    ffi_library_paths: HashMap<usize, String>,
 }
 
 impl Default for NoopHost {
@@ -578,6 +581,9 @@ impl Default for NoopHost {
             random_state: 0x1234_5678_9ABC_DEF0,
             net_resources: RtNetResourceTable::default(),
             tls_root_certs: Vec::new(),
+            ffi_library_cache: HashMap::new(),
+            ffi_symbol_cache: HashMap::new(),
+            ffi_library_paths: HashMap::new(),
         }
     }
 }
@@ -713,20 +719,45 @@ impl RtHost for NoopHost {
     }
 
     fn ffi_open_library(&mut self, path: &str) -> RtResult<RtHandle> {
-        let library = RtForeignLibrary::open(path).map_err(RtError::io)?;
-        Ok(self.net_resources.insert_library(library))
+        let library = if let Some(library) = self.ffi_library_cache.get(path) {
+            Arc::clone(library)
+        } else {
+            let library = Arc::new(RtForeignLibrary::open(path).map_err(RtError::io)?);
+            self.ffi_library_cache
+                .insert(path.to_string(), Arc::clone(&library));
+            library
+        };
+        let handle = self.net_resources.insert_library(library);
+        self.ffi_library_paths.insert(handle.id, path.to_string());
+        Ok(handle)
     }
 
     fn ffi_bind_symbol(&mut self, library: RtHandle, symbol: &str) -> RtResult<RtHandle> {
         let library_id = library.id;
-        let ptr = {
-            let library = self.net_resources.foreign_library(library)?;
-            library.bind(symbol).map_err(RtError::io)?
+        let library_path = self
+            .ffi_library_paths
+            .get(&library.id)
+            .cloned()
+            .ok_or_else(|| {
+                RtError::invalid_handle(format!("unknown ffi library handle id {}", library.id))
+            })?;
+        let cache_key = (library_path.clone(), symbol.to_string());
+        let symbol = if let Some(symbol_value) = self.ffi_symbol_cache.get(&cache_key) {
+            Arc::clone(symbol_value)
+        } else {
+            let ptr = {
+                let library = self.net_resources.foreign_library(library)?;
+                library.bind(symbol).map_err(RtError::io)?
+            };
+            let symbol_value = Arc::new(RtForeignSymbol {
+                library_handle: library_id,
+                ptr,
+            });
+            self.ffi_symbol_cache
+                .insert(cache_key, Arc::clone(&symbol_value));
+            symbol_value
         };
-        Ok(self.net_resources.insert_symbol(RtForeignSymbol {
-            library_handle: library_id,
-            ptr,
-        }))
+        Ok(self.net_resources.insert_symbol(symbol))
     }
 
     fn ffi_call_0_int(&mut self, symbol: RtHandle) -> RtResult<i64> {
