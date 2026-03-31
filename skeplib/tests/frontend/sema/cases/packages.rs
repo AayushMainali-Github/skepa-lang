@@ -2451,7 +2451,7 @@ fn main() -> Int {
 #[test]
 fn sema_accepts_extern_function_declarations_and_calls() {
     let src = r#"
-extern fn puts(s: String) -> Int;
+extern("libc.so.6") fn puts(s: String) -> Int;
 
 fn main() -> Int {
   return puts("ok");
@@ -2464,7 +2464,7 @@ fn main() -> Int {
 #[test]
 fn sema_rejects_extern_function_assignment_type_mismatch() {
     let src = r#"
-extern fn puts(s: String) -> Int;
+extern("libc.so.6") fn puts(s: String) -> Int;
 
 fn main() -> Int {
   let s: String = puts("ok");
@@ -2484,9 +2484,9 @@ fn main() -> Int {
 #[test]
 fn sema_rejects_unsupported_extern_function_signatures() {
     let src = r#"
-extern fn bad_ret() -> String;
-extern fn bad_param(flag: Bool) -> Int;
-extern fn too_many(a: Int, b: Int) -> Int;
+extern("libc.so.6") fn bad_ret() -> String;
+extern("libc.so.6") fn bad_param(flag: Bool) -> Int;
+extern("libc.so.6") fn too_many(a: Int, b: Int) -> Int;
 
 fn main() -> Int {
   return 0;

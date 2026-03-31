@@ -650,6 +650,7 @@ impl Parser {
 
         Some(FnDecl {
             is_extern: false,
+            extern_library: None,
             name: name.lexeme,
             params,
             return_type,
@@ -659,6 +660,24 @@ impl Parser {
 
     fn parse_extern_function(&mut self) -> Option<FnDecl> {
         self.expect(TokenKind::KwExtern, "Expected `extern`")?;
+        let extern_library = if self.at(TokenKind::LParen) {
+            self.bump();
+            let tok = self.expect(
+                TokenKind::StringLit,
+                "Expected string library path in `extern(\"...\")`",
+            )?;
+            let raw = tok
+                .lexeme
+                .strip_prefix('"')
+                .and_then(|v| v.strip_suffix('"'))
+                .unwrap_or(&tok.lexeme)
+                .to_string();
+            let library = self.decode_string_escapes(&raw, tok.span);
+            self.expect(TokenKind::RParen, "Expected `)` after extern library path")?;
+            Some(library)
+        } else {
+            None
+        };
         self.expect(TokenKind::KwFn, "Expected `fn` after `extern`")?;
         let name = self.expect_ident("Expected function name after `extern fn`")?;
         self.expect(TokenKind::LParen, "Expected `(` after function name")?;
@@ -697,6 +716,7 @@ impl Parser {
 
         Some(FnDecl {
             is_extern: true,
+            extern_library,
             name: name.lexeme,
             params,
             return_type,

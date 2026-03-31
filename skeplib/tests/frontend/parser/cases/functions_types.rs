@@ -44,7 +44,29 @@ extern fn puts(s: String) -> Int;
     assert_eq!(f.params[0].name, "s");
     assert_eq!(f.params[0].ty, TypeName::String);
     assert_eq!(f.return_type, Some(TypeName::Int));
+    assert_eq!(f.extern_library, None);
     assert!(f.body.is_empty());
+}
+
+#[test]
+fn parses_linked_extern_function_declaration() {
+    let src = r#"
+extern("libc.so.6") fn strlen(s: String) -> Int;
+"#;
+    let program = parse_ok(src);
+    let f = &program.functions[0];
+    assert!(f.is_extern);
+    assert_eq!(f.extern_library.as_deref(), Some("libc.so.6"));
+    assert_eq!(f.name, "strlen");
+}
+
+#[test]
+fn reports_missing_string_library_path_in_linked_extern_function() {
+    let src = r#"
+extern(1) fn strlen(s: String) -> Int;
+"#;
+    let diags = parse_err(src);
+    assert_has_diag(&diags, "Expected string library path in `extern(\"...\")`");
 }
 
 #[test]

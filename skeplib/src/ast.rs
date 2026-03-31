@@ -58,6 +58,7 @@ pub struct ExportItem {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FnDecl {
     pub is_extern: bool,
+    pub extern_library: Option<String>,
     pub name: String,
     pub params: Vec<Param>,
     pub return_type: Option<TypeName>,
@@ -417,10 +418,20 @@ fn pretty_fn(func: &FnDecl, indent: usize, out: &mut String) {
         .map(TypeName::as_str)
         .unwrap_or_else(|| "Void".to_string());
     if func.is_extern {
-        out.push_str(&format!(
-            "{pad}extern fn {}({}) -> {};\n",
-            func.name, params, ret
-        ));
+        if let Some(library) = &func.extern_library {
+            out.push_str(&format!(
+                "{pad}extern(\"{}\") fn {}({}) -> {};\n",
+                library.replace('"', "\\\""),
+                func.name,
+                params,
+                ret
+            ));
+        } else {
+            out.push_str(&format!(
+                "{pad}extern fn {}({}) -> {};\n",
+                func.name, params, ret
+            ));
+        }
         return;
     }
     out.push_str(&format!("{pad}fn {}({}) -> {}\n", func.name, params, ret));
