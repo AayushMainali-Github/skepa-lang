@@ -287,15 +287,18 @@ impl Checker {
                 [] | [TypeInfo::Int]
                     | [TypeInfo::String]
                     | [TypeInfo::Bytes]
+                    | [TypeInfo::Int, TypeInfo::Int]
+                    | [TypeInfo::Bytes, TypeInfo::Int]
                     | [TypeInfo::String, TypeInfo::String]
                     | [TypeInfo::String, TypeInfo::Int]
             ))
+            || (matches!(ret, TypeInfo::Bool) && matches!(params.as_slice(), [] | [TypeInfo::Int]))
             || (matches!(ret, TypeInfo::Void)
-                && matches!(params.as_slice(), [TypeInfo::String] | [TypeInfo::Int]));
+                && matches!(params.as_slice(), [] | [TypeInfo::String] | [TypeInfo::Int]));
 
         if !supported {
             self.error(format!(
-                "Extern function `{}` uses unsupported signature; supported forms are `extern fn() -> Int`, `extern fn(Int) -> Int`, `extern fn(Int) -> Void`, `extern fn(String) -> Int`, `extern fn(Bytes) -> Int`, `extern fn(String, String) -> Int`, `extern fn(String, Int) -> Int`, and `extern fn(String) -> Void`",
+                "Extern function `{}` uses unsupported signature; supported forms are `extern fn() -> Int`, `extern fn() -> Bool`, `extern fn() -> Void`, `extern fn(Int) -> Int`, `extern fn(Int) -> Bool`, `extern fn(Int) -> Void`, `extern fn(String) -> Int`, `extern fn(Bytes) -> Int`, `extern fn(Int, Int) -> Int`, `extern fn(Bytes, Int) -> Int`, `extern fn(String, String) -> Int`, `extern fn(String, Int) -> Int`, and `extern fn(String) -> Void`",
                 f.name
             ));
         }

@@ -1012,6 +1012,16 @@ fn builtins_cover_ffi_integer_calls_and_errors() {
         RtValue::Int(77)
     );
     assert_eq!(
+        builtins::call_with_host(&mut host, "ffi", "call0Void", std::slice::from_ref(&symbol))
+            .expect("ffi.call0Void"),
+        RtValue::Unit
+    );
+    assert_eq!(
+        builtins::call_with_host(&mut host, "ffi", "call0Bool", std::slice::from_ref(&symbol))
+            .expect("ffi.call0Bool"),
+        RtValue::Bool(true)
+    );
+    assert_eq!(
         builtins::call_with_host(
             &mut host,
             "ffi",
@@ -1020,6 +1030,16 @@ fn builtins_cover_ffi_integer_calls_and_errors() {
         )
         .expect("ffi.call1Int"),
         RtValue::Int(14)
+    );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "ffi",
+            "call1IntBool",
+            &[symbol.clone(), RtValue::Int(9)],
+        )
+        .expect("ffi.call1IntBool"),
+        RtValue::Bool(true)
     );
     assert_eq!(
         builtins::call_with_host(
@@ -1083,6 +1103,16 @@ fn builtins_cover_ffi_integer_calls_and_errors() {
         builtins::call_with_host(
             &mut host,
             "ffi",
+            "call2IntInt",
+            &[symbol.clone(), RtValue::Int(2), RtValue::Int(5)],
+        )
+        .expect("ffi.call2IntInt"),
+        RtValue::Int(7)
+    );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "ffi",
             "call1BytesInt",
             &[
                 symbol.clone(),
@@ -1092,19 +1122,38 @@ fn builtins_cover_ffi_integer_calls_and_errors() {
         .expect("ffi.call1BytesInt"),
         RtValue::Int(6)
     );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "ffi",
+            "call2BytesIntInt",
+            &[
+                symbol.clone(),
+                RtValue::Bytes(RtBytes::from(b"abc".to_vec())),
+                RtValue::Int(4),
+            ],
+        )
+        .expect("ffi.call2BytesIntInt"),
+        RtValue::Int(7)
+    );
     assert!(
         host.output.contains("[fficall0int 1]")
+            && host.output.contains("[fficall0void 1]")
+            && host.output.contains("[fficall0bool 1]")
             && host.output.contains("[fficall1int 1=9]")
+            && host.output.contains("[fficall1intbool 1=9]")
             && host.output.contains("[fficall1intvoid 1=4]")
             && host.output.contains("[fficall1stringint 1=hello]")
             && host.output.contains("[fficall1stringvoid 1=trace]")
             && host.output.contains("[fficall2stringint 1=alpha|beta]")
-            && host.output.contains("[fficall2stringintint 1=abc|2]"),
+            && host.output.contains("[fficall2stringintint 1=abc|2]")
+            && host.output.contains("[fficall2intint 1=2|5]"),
         "unexpected host output: {}",
         host.output
     );
     assert!(
-        host.output.contains("[fficall1bytesint 1 len=3]"),
+        host.output.contains("[fficall1bytesint 1 len=3]")
+            && host.output.contains("[fficall2bytesintint 1 len=3|4]"),
         "unexpected host output: {}",
         host.output
     );

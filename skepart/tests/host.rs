@@ -91,6 +91,16 @@ fn ffi_test_call2_string_int_int_symbol_name() -> &'static str {
 }
 
 #[cfg(windows)]
+fn ffi_test_call0_void_library_path() -> &'static str {
+    "ucrtbase.dll"
+}
+
+#[cfg(windows)]
+fn ffi_test_call0_void_symbol_name() -> &'static str {
+    "_tzset"
+}
+
+#[cfg(windows)]
 fn ffi_test_call1_bytes_library_path() -> &'static str {
     "ucrtbase.dll"
 }
@@ -186,6 +196,16 @@ fn ffi_test_call2_string_int_int_symbol_name() -> &'static str {
 }
 
 #[cfg(all(unix, not(target_os = "macos")))]
+fn ffi_test_call0_void_library_path() -> &'static str {
+    "libc.so.6"
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn ffi_test_call0_void_symbol_name() -> &'static str {
+    "tzset"
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
 fn ffi_test_call1_bytes_library_path() -> &'static str {
     "libc.so.6"
 }
@@ -278,6 +298,16 @@ fn ffi_test_call2_string_int_int_library_path() -> &'static str {
 #[cfg(target_os = "macos")]
 fn ffi_test_call2_string_int_int_symbol_name() -> &'static str {
     "strnlen"
+}
+
+#[cfg(target_os = "macos")]
+fn ffi_test_call0_void_library_path() -> &'static str {
+    "/usr/lib/libSystem.B.dylib"
+}
+
+#[cfg(target_os = "macos")]
+fn ffi_test_call0_void_symbol_name() -> &'static str {
+    "tzset"
 }
 
 #[cfg(target_os = "macos")]
@@ -449,6 +479,22 @@ fn noop_host_calls_integer_ffi_symbols() {
 }
 
 #[test]
+fn noop_host_calls_zero_void_ffi_symbols() {
+    let mut host = NoopHost::default();
+    let library = host
+        .ffi_open_library(ffi_test_call0_void_library_path())
+        .expect("open shared library");
+    let symbol = host
+        .ffi_bind_symbol(library, ffi_test_call0_void_symbol_name())
+        .expect("bind zero-void symbol");
+
+    host.ffi_call_0_void(symbol).expect("call0Void");
+
+    host.net_close_handle(symbol).expect("close symbol");
+    host.net_close_handle(library).expect("close library");
+}
+
+#[test]
 fn noop_host_calls_borrowed_string_ffi_symbols() {
     let mut host = NoopHost::default();
     let library = host
@@ -559,6 +605,25 @@ fn noop_host_calls_borrowed_bytes_ffi_symbols() {
 
     host.net_close_handle(symbol).expect("close symbol");
     host.net_close_handle(library).expect("close library");
+}
+
+#[test]
+fn recording_host_covers_new_bool_and_mixed_ffi_shapes() {
+    let mut host = RecordingHostBuilder::seeded().build();
+    let library = host.ffi_open_library("test-lib").expect("open");
+    let symbol = host.ffi_bind_symbol(library, "plus").expect("bind");
+
+    assert!(host.ffi_call_0_bool(symbol).expect("call0Bool"));
+    assert!(host.ffi_call_1_int_bool(symbol, 3).expect("call1IntBool"));
+    assert_eq!(
+        host.ffi_call_2_int_int(symbol, 2, 5).expect("call2IntInt"),
+        7
+    );
+    assert_eq!(
+        host.ffi_call_2_bytes_int_int(symbol, &RtBytes::from(b"abc".to_vec()), 4)
+            .expect("call2BytesIntInt"),
+        7
+    );
 }
 
 #[test]

@@ -853,10 +853,15 @@ Borrowing and ownership rules:
 - Closing a library or symbol invalidates that handle for all aliases.
 - Supported linked extern ABI shapes currently lower to borrowed-only calls:
   - `extern("lib") fn foo() -> Int`
+  - `extern("lib") fn foo() -> Bool`
+  - `extern("lib") fn foo() -> Void`
   - `extern("lib") fn foo(Int) -> Int`
+  - `extern("lib") fn foo(Int) -> Bool`
   - `extern("lib") fn foo(Int) -> Void`
   - `extern("lib") fn foo(String) -> Int`
   - `extern("lib") fn foo(String) -> Void`
+  - `extern("lib") fn foo(Int, Int) -> Int`
+  - `extern("lib") fn foo(Bytes, Int) -> Int`
   - `extern("lib") fn foo(String, String) -> Int`
   - `extern("lib") fn foo(String, Int) -> Int`
   - `extern("lib") fn foo(Bytes) -> Int`

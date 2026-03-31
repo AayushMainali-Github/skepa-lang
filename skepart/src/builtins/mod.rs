@@ -286,7 +286,20 @@ pub fn call_with_context(
             ctx.host(),
             symbol.expect_handle_kind(crate::RtHandleKind::Symbol)?,
         ),
+        ("ffi", "call0Void", [symbol]) => ffi::call_0_void(
+            ctx.host(),
+            symbol.expect_handle_kind(crate::RtHandleKind::Symbol)?,
+        ),
+        ("ffi", "call0Bool", [symbol]) => ffi::call_0_bool(
+            ctx.host(),
+            symbol.expect_handle_kind(crate::RtHandleKind::Symbol)?,
+        ),
         ("ffi", "call1Int", [symbol, value]) => ffi::call_1_int(
+            ctx.host(),
+            symbol.expect_handle_kind(crate::RtHandleKind::Symbol)?,
+            value.expect_int()?,
+        ),
+        ("ffi", "call1IntBool", [symbol, value]) => ffi::call_1_int_bool(
             ctx.host(),
             symbol.expect_handle_kind(crate::RtHandleKind::Symbol)?,
             value.expect_int()?,
@@ -318,10 +331,22 @@ pub fn call_with_context(
             left.expect_string()?.as_str(),
             right.expect_int()?,
         ),
+        ("ffi", "call2IntInt", [symbol, left, right]) => ffi::call_2_int_int(
+            ctx.host(),
+            symbol.expect_handle_kind(crate::RtHandleKind::Symbol)?,
+            left.expect_int()?,
+            right.expect_int()?,
+        ),
         ("ffi", "call1BytesInt", [symbol, value]) => ffi::call_1_bytes_int(
             ctx.host(),
             symbol.expect_handle_kind(crate::RtHandleKind::Symbol)?,
             &value.expect_bytes()?,
+        ),
+        ("ffi", "call2BytesIntInt", [symbol, value, right]) => ffi::call_2_bytes_int_int(
+            ctx.host(),
+            symbol.expect_handle_kind(crate::RtHandleKind::Symbol)?,
+            &value.expect_bytes()?,
+            right.expect_int()?,
         ),
         ("net", "__testSocket", []) => net::test_socket(ctx.host()),
         ("net", "listen", [address]) => net::listen(ctx.host(), address.expect_string()?.as_str()),

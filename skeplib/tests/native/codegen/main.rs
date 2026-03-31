@@ -86,6 +86,16 @@ fn ffi_test_call2_string_int_int_symbol_name() -> &'static str {
     "strnlen"
 }
 
+#[cfg(windows)]
+fn ffi_test_call0_void_library_path() -> &'static str {
+    "ucrtbase.dll"
+}
+
+#[cfg(windows)]
+fn ffi_test_call0_void_symbol_name() -> &'static str {
+    "_tzset"
+}
+
 #[cfg(all(unix, not(target_os = "macos")))]
 fn ffi_test_library_path() -> &'static str {
     "libc.so.6"
@@ -161,6 +171,16 @@ fn ffi_test_call2_string_int_int_symbol_name() -> &'static str {
     "strnlen"
 }
 
+#[cfg(all(unix, not(target_os = "macos")))]
+fn ffi_test_call0_void_library_path() -> &'static str {
+    "libc.so.6"
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn ffi_test_call0_void_symbol_name() -> &'static str {
+    "tzset"
+}
+
 #[cfg(target_os = "macos")]
 fn ffi_test_library_path() -> &'static str {
     "/usr/lib/libSystem.B.dylib"
@@ -234,6 +254,16 @@ fn ffi_test_call2_string_int_int_library_path() -> &'static str {
 #[cfg(target_os = "macos")]
 fn ffi_test_call2_string_int_int_symbol_name() -> &'static str {
     "strnlen"
+}
+
+#[cfg(target_os = "macos")]
+fn ffi_test_call0_void_library_path() -> &'static str {
+    "/usr/lib/libSystem.B.dylib"
+}
+
+#[cfg(target_os = "macos")]
+fn ffi_test_call0_void_symbol_name() -> &'static str {
+    "tzset"
 }
 
 fn temp_file(name: &str, ext: &str) -> std::path::PathBuf {
@@ -2167,6 +2197,25 @@ fn main() -> Int {{
 "#,
         library = ffi_test_call2_string_int_int_library_path(),
         sym = ffi_test_call2_string_int_int_symbol_name(),
+    );
+
+    let result = common::native_run_structured(&source);
+    assert_eq!(result.exit_code(), 0, "stderr: {}", result.stderr_lossy());
+}
+
+#[test]
+fn codegen_builds_native_executable_for_linked_extern_zero_void_calls() {
+    let source = format!(
+        r#"
+extern("{void_library}") fn {void_sym}() -> Void;
+
+fn main() -> Int {{
+  {void_sym}();
+  return 0;
+}}
+"#,
+        void_library = ffi_test_call0_void_library_path(),
+        void_sym = ffi_test_call0_void_symbol_name(),
     );
 
     let result = common::native_run_structured(&source);

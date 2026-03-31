@@ -91,9 +91,27 @@ impl RtForeignSymbol {
         unsafe { function() }
     }
 
+    pub fn call_0_void(&self) {
+        // SAFETY: caller guarantees the symbol uses the expected ABI/signature.
+        let function: unsafe extern "C" fn() = unsafe { std::mem::transmute(self.ptr) };
+        unsafe { function() };
+    }
+
+    pub fn call_0_bool(&self) -> bool {
+        // SAFETY: caller guarantees the symbol uses the expected ABI/signature.
+        let function: unsafe extern "C" fn() -> bool = unsafe { std::mem::transmute(self.ptr) };
+        unsafe { function() }
+    }
+
     pub fn call_1_int(&self, value: i64) -> i64 {
         // SAFETY: caller guarantees the symbol uses the expected ABI/signature.
         let function: unsafe extern "C" fn(i64) -> i64 = unsafe { std::mem::transmute(self.ptr) };
+        unsafe { function(value) }
+    }
+
+    pub fn call_1_int_bool(&self, value: i64) -> bool {
+        // SAFETY: caller guarantees the symbol uses the expected ABI/signature.
+        let function: unsafe extern "C" fn(i64) -> bool = unsafe { std::mem::transmute(self.ptr) };
         unsafe { function(value) }
     }
 
@@ -187,6 +205,13 @@ impl RtForeignSymbol {
         }
     }
 
+    pub fn call_2_int_int(&self, left: i64, right: i64) -> i64 {
+        // SAFETY: caller guarantees the symbol uses the expected ABI/signature.
+        let function: unsafe extern "C" fn(i64, i64) -> i64 =
+            unsafe { std::mem::transmute(self.ptr) };
+        unsafe { function(left, right) }
+    }
+
     pub fn call_1_bytes_int(&self, value: &[u8]) -> i64 {
         #[cfg(windows)]
         {
@@ -201,6 +226,23 @@ impl RtForeignSymbol {
             let function: unsafe extern "C" fn(*const c_char, usize) -> usize =
                 unsafe { std::mem::transmute(self.ptr) };
             unsafe { function(value.as_ptr().cast(), value.len()) as i64 }
+        }
+    }
+
+    pub fn call_2_bytes_int_int(&self, value: &[u8], right: i64) -> i64 {
+        #[cfg(windows)]
+        {
+            // SAFETY: caller guarantees the symbol uses the expected ABI/signature.
+            let function: unsafe extern "C" fn(*const c_char, usize, usize) -> usize =
+                unsafe { std::mem::transmute(self.ptr) };
+            unsafe { function(value.as_ptr().cast(), value.len(), right as usize) as i64 }
+        }
+        #[cfg(unix)]
+        {
+            // SAFETY: caller guarantees the symbol uses the expected ABI/signature.
+            let function: unsafe extern "C" fn(*const c_char, usize, usize) -> usize =
+                unsafe { std::mem::transmute(self.ptr) };
+            unsafe { function(value.as_ptr().cast(), value.len(), right as usize) as i64 }
         }
     }
 }

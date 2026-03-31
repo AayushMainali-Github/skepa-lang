@@ -16,13 +16,18 @@ pub(super) fn check_ffi_builtin(
     if matches!(
         method,
         "call0Int"
+            | "call0Void"
+            | "call0Bool"
             | "call1Int"
+            | "call1IntBool"
             | "call1IntVoid"
             | "call1StringInt"
             | "call1StringVoid"
             | "call2StringInt"
             | "call2StringIntInt"
             | "call1BytesInt"
+            | "call2IntInt"
+            | "call2BytesIntInt"
     ) {
         checker.error(format!(
             "`ffi.{method}` is a low-level internal helper; use `extern(\"...\") fn ...;` declarations instead"

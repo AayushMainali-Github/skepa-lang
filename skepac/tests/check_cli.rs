@@ -66,6 +66,16 @@ fn ffi_test_call2_string_int_int_symbol_name() -> &'static str {
     "strnlen"
 }
 
+#[cfg(target_os = "windows")]
+fn ffi_test_call0_void_library_path() -> &'static str {
+    "ucrtbase.dll"
+}
+
+#[cfg(target_os = "windows")]
+fn ffi_test_call0_void_symbol_name() -> &'static str {
+    "_tzset"
+}
+
 #[cfg(target_os = "linux")]
 fn ffi_test_library_path() -> &'static str {
     "libc.so.6"
@@ -121,6 +131,16 @@ fn ffi_test_call2_string_int_int_symbol_name() -> &'static str {
     "strnlen"
 }
 
+#[cfg(target_os = "linux")]
+fn ffi_test_call0_void_library_path() -> &'static str {
+    "libc.so.6"
+}
+
+#[cfg(target_os = "linux")]
+fn ffi_test_call0_void_symbol_name() -> &'static str {
+    "tzset"
+}
+
 #[cfg(target_os = "macos")]
 fn ffi_test_library_path() -> &'static str {
     "/usr/lib/libSystem.B.dylib"
@@ -174,6 +194,16 @@ fn ffi_test_call2_string_int_int_library_path() -> &'static str {
 #[cfg(target_os = "macos")]
 fn ffi_test_call2_string_int_int_symbol_name() -> &'static str {
     "strnlen"
+}
+
+#[cfg(target_os = "macos")]
+fn ffi_test_call0_void_library_path() -> &'static str {
+    "/usr/lib/libSystem.B.dylib"
+}
+
+#[cfg(target_os = "macos")]
+fn ffi_test_call0_void_symbol_name() -> &'static str {
+    "tzset"
 }
 
 #[test]
@@ -1154,6 +1184,36 @@ fn main() -> Int {{
 "#,
             library = ffi_test_call2_string_int_int_library_path(),
             sym = ffi_test_call2_string_int_int_symbol_name(),
+        ),
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("run")
+        .arg(&source)
+        .output()
+        .expect("run skepac run");
+
+    assert_eq!(output.status.code(), Some(0), "{:?}", output);
+}
+
+#[test]
+fn run_executes_linked_extern_zero_void_function_end_to_end() {
+    let tmp = make_temp_dir("skepac_run_extern_linked_zero_void");
+    let source = tmp.join("main.sk");
+    fs::write(
+        &source,
+        format!(
+            r#"
+extern("{void_library}") fn {void_sym}() -> Void;
+
+fn main() -> Int {{
+  {void_sym}();
+  return 0;
+}}
+"#,
+            void_library = ffi_test_call0_void_library_path(),
+            void_sym = ffi_test_call0_void_symbol_name(),
         ),
     )
     .expect("write source");

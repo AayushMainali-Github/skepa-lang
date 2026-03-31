@@ -2503,6 +2503,31 @@ fn main() -> Int {
 }
 
 #[test]
+fn sema_accepts_more_extern_function_shapes() {
+    let src = r#"
+import bytes;
+
+extern("libc.so.6") fn init() -> Void;
+extern("libc.so.6") fn tty() -> Bool;
+extern("libc.so.6") fn pos(flag: Int) -> Bool;
+extern("libc.so.6") fn add(a: Int, b: Int) -> Int;
+extern("libc.so.6") fn count(raw: Bytes, n: Int) -> Int;
+
+fn main() -> Int {
+  let raw: Bytes = bytes.fromString("hello");
+  init();
+  let _a: Bool = tty();
+  let _b: Bool = pos(1);
+  let _c: Int = add(2, 3);
+  let _d: Int = count(raw, 3);
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
+
+#[test]
 fn sema_rejects_extern_function_assignment_type_mismatch() {
     let src = r#"
 extern("libc.so.6") fn puts(s: String) -> Int;

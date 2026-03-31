@@ -22,8 +22,25 @@ pub fn call_0_int(host: &mut dyn RtHost, symbol: crate::RtHandle) -> RtResult<Rt
     Ok(RtValue::Int(host.ffi_call_0_int(symbol)?))
 }
 
+pub fn call_0_void(host: &mut dyn RtHost, symbol: crate::RtHandle) -> RtResult<RtValue> {
+    host.ffi_call_0_void(symbol)?;
+    Ok(RtValue::Unit)
+}
+
+pub fn call_0_bool(host: &mut dyn RtHost, symbol: crate::RtHandle) -> RtResult<RtValue> {
+    Ok(RtValue::Bool(host.ffi_call_0_bool(symbol)?))
+}
+
 pub fn call_1_int(host: &mut dyn RtHost, symbol: crate::RtHandle, value: i64) -> RtResult<RtValue> {
     Ok(RtValue::Int(host.ffi_call_1_int(symbol, value)?))
+}
+
+pub fn call_1_int_bool(
+    host: &mut dyn RtHost,
+    symbol: crate::RtHandle,
+    value: i64,
+) -> RtResult<RtValue> {
+    Ok(RtValue::Bool(host.ffi_call_1_int_bool(symbol, value)?))
 }
 
 pub fn call_1_int_void(
@@ -80,4 +97,24 @@ pub fn call_1_bytes_int(
     value: &crate::RtBytes,
 ) -> RtResult<RtValue> {
     Ok(RtValue::Int(host.ffi_call_1_bytes_int(symbol, value)?))
+}
+
+pub fn call_2_int_int(
+    host: &mut dyn RtHost,
+    symbol: crate::RtHandle,
+    left: i64,
+    right: i64,
+) -> RtResult<RtValue> {
+    Ok(RtValue::Int(host.ffi_call_2_int_int(symbol, left, right)?))
+}
+
+pub fn call_2_bytes_int_int(
+    host: &mut dyn RtHost,
+    symbol: crate::RtHandle,
+    value: &crate::RtBytes,
+    right: i64,
+) -> RtResult<RtValue> {
+    Ok(RtValue::Int(
+        host.ffi_call_2_bytes_int_int(symbol, value, right)?,
+    ))
 }

@@ -225,10 +225,15 @@ impl IrLowerer {
 
         let call_name = match sig.params.as_slice() {
             [] if sig.ret == IrType::Int => "call0Int",
+            [] if sig.ret == IrType::Bool => "call0Bool",
+            [] if sig.ret == IrType::Void => "call0Void",
             [IrType::Int] if sig.ret == IrType::Int => "call1Int",
+            [IrType::Int] if sig.ret == IrType::Bool => "call1IntBool",
             [IrType::Int] if sig.ret == IrType::Void => "call1IntVoid",
             [IrType::String] if sig.ret == IrType::Int => "call1StringInt",
             [IrType::String] if sig.ret == IrType::Void => "call1StringVoid",
+            [IrType::Int, IrType::Int] if sig.ret == IrType::Int => "call2IntInt",
+            [IrType::Bytes, IrType::Int] if sig.ret == IrType::Int => "call2BytesIntInt",
             [IrType::String, IrType::String] if sig.ret == IrType::Int => "call2StringInt",
             [IrType::String, IrType::Int] if sig.ret == IrType::Int => "call2StringIntInt",
             [IrType::Bytes] if sig.ret == IrType::Int => "call1BytesInt",
@@ -611,10 +616,18 @@ impl IrLowerer {
             ("ffi", "call0Int")
             | ("ffi", "call1Int")
             | ("ffi", "call1StringInt")
+            | ("ffi", "call2IntInt")
+            | ("ffi", "call2BytesIntInt")
             | ("ffi", "call2StringInt")
             | ("ffi", "call2StringIntInt")
             | ("ffi", "call1BytesInt") => {
                 return Some(IrType::Int);
+            }
+            ("ffi", "call0Bool") | ("ffi", "call1IntBool") => {
+                return Some(IrType::Bool);
+            }
+            ("ffi", "call0Void") | ("ffi", "call1IntVoid") | ("ffi", "call1StringVoid") => {
+                return Some(IrType::Void);
             }
             ("net", "fetch") => {
                 return Some(IrType::Map {
