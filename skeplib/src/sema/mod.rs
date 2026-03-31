@@ -223,6 +223,9 @@ impl Checker {
                     format!("Unknown return type in function `{}`", f.name),
                 );
             }
+            if f.is_extern {
+                self.check_extern_function_signature(f);
+            }
             let params = f
                 .params
                 .iter()
@@ -263,6 +266,32 @@ impl Checker {
         }
         for operator in &program.operators {
             self.check_operator(operator);
+        }
+    }
+
+    fn check_extern_function_signature(&mut self, f: &crate::ast::FnDecl) {
+        let params = f
+            .params
+            .iter()
+            .map(|p| TypeInfo::from_ast(&p.ty))
+            .collect::<Vec<_>>();
+        let ret = f
+            .return_type
+            .as_ref()
+            .map(TypeInfo::from_ast)
+            .unwrap_or(TypeInfo::Void);
+
+        let supported = matches!(ret, TypeInfo::Int)
+            && matches!(
+                params.as_slice(),
+                [] | [TypeInfo::Int] | [TypeInfo::String] | [TypeInfo::Bytes]
+            );
+
+        if !supported {
+            self.error(format!(
+                "Extern function `{}` uses unsupported signature; supported forms are `extern fn() -> Int`, `extern fn(Int) -> Int`, `extern fn(String) -> Int`, and `extern fn(Bytes) -> Int`",
+                f.name
+            ));
         }
     }
 

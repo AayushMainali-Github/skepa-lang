@@ -2480,3 +2480,27 @@ fn main() -> Int {
             .any(|d| d.message.contains("Type mismatch in let `s`"))
     );
 }
+
+#[test]
+fn sema_rejects_unsupported_extern_function_signatures() {
+    let src = r#"
+extern fn bad_ret() -> String;
+extern fn bad_param(flag: Bool) -> Int;
+extern fn too_many(a: Int, b: Int) -> Int;
+
+fn main() -> Int {
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message.contains("Extern function `bad_ret` uses unsupported signature")
+    }));
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message.contains("Extern function `bad_param` uses unsupported signature")
+    }));
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message.contains("Extern function `too_many` uses unsupported signature")
+    }));
+}
