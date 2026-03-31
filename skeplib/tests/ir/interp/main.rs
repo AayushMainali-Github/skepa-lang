@@ -1169,18 +1169,13 @@ fn main() -> Int {
 }
 
 #[test]
-fn interpreter_carries_ffi_integer_calls() {
+fn interpreter_lowers_linked_extern_calls_through_ffi_runtime() {
     let source = r#"
-import ffi;
+extern("test-lib") fn strlen(s: String) -> Int;
+extern("test-lib") fn plus(seed: Int) -> Int;
 
 fn main() -> Int {
-  let lib: ffi.Library = ffi.open("test-lib");
-  let sym: ffi.Symbol = ffi.bind(lib, "plus");
-  let a: Int = ffi.call0Int(sym);
-  let b: Int = ffi.call1Int(sym, 7);
-  ffi.closeSymbol(sym);
-  ffi.closeLibrary(lib);
-  return a + b;
+  return strlen("hello") + plus(7);
 }
 "#;
 
@@ -1192,68 +1187,13 @@ fn main() -> Int {
     };
     let interp = IrInterpreter::new(program, host);
     let result = interp.run_main();
-    assert_eq!(result.expect("program should run"), IrValue::Int(23));
+    assert_eq!(result.expect("program should run"), IrValue::Int(17));
     let trace = trace.lock().expect("lock trace").clone();
-    assert!(trace.contains("[fficall0int 1]"), "trace was: {trace}");
-    assert!(trace.contains("[fficall1int 1=7]"), "trace was: {trace}");
-}
-
-#[test]
-fn interpreter_carries_ffi_borrowed_string_calls() {
-    let source = r#"
-import ffi;
-
-fn main() -> Int {
-  let lib: ffi.Library = ffi.open("test-lib");
-  let sym: ffi.Symbol = ffi.bind(lib, "strlen");
-  let value: Int = ffi.call1StringInt(sym, "hello");
-  ffi.closeSymbol(sym);
-  ffi.closeLibrary(lib);
-  return value;
-}
-"#;
-
-    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
-    let trace = Arc::new(Mutex::new(String::new()));
-    let host = TestHost {
-        out: Arc::clone(&trace),
-        next_handle_id: 0,
-    };
-    let interp = IrInterpreter::new(program, host);
-    let result = interp.run_main();
-    assert_eq!(result.expect("program should run"), IrValue::Int(5));
-    let trace = trace.lock().expect("lock trace").clone();
+    assert!(trace.contains("[ffiopen test-lib=0]"), "trace was: {trace}");
+    assert!(trace.contains("[ffibind 0:strlen=1]"), "trace was: {trace}");
     assert!(trace.contains("[fficall1stringint 1=hello]"), "trace was: {trace}");
-}
-
-#[test]
-fn interpreter_carries_ffi_borrowed_bytes_calls() {
-    let source = r#"
-import bytes;
-import ffi;
-
-fn main() -> Int {
-  let lib: ffi.Library = ffi.open("test-lib");
-  let sym: ffi.Symbol = ffi.bind(lib, "strlen");
-  let raw: Bytes = bytes.fromString("hello");
-  let value: Int = ffi.call1BytesInt(sym, raw);
-  ffi.closeSymbol(sym);
-  ffi.closeLibrary(lib);
-  return value;
-}
-"#;
-
-    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
-    let trace = Arc::new(Mutex::new(String::new()));
-    let host = TestHost {
-        out: Arc::clone(&trace),
-        next_handle_id: 0,
-    };
-    let interp = IrInterpreter::new(program, host);
-    let result = interp.run_main();
-    assert_eq!(result.expect("program should run"), IrValue::Int(5));
-    let trace = trace.lock().expect("lock trace").clone();
-    assert!(trace.contains("[fficall1bytesint 1 len=5]"), "trace was: {trace}");
+    assert!(trace.contains("[ffibind 0:plus=2]"), "trace was: {trace}");
+    assert!(trace.contains("[fficall1int 2=7]"), "trace was: {trace}");
 }
 
 #[test]

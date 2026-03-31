@@ -1348,64 +1348,51 @@ fn main() -> Void {
 }
 
 #[test]
-fn sema_accepts_ffi_integer_calls() {
+fn sema_rejects_public_low_level_ffi_call_helpers() {
     let src = r#"
 import ffi;
-import bytes;
 
 fn main() -> Int {
   let lib: ffi.Library = ffi.open("test-lib");
-  let sym: ffi.Symbol = ffi.bind(lib, "plus");
-  let x: Int = ffi.call0Int(sym);
-  let y: Int = ffi.call1Int(sym, 7);
-  let z: Int = ffi.call1StringInt(sym, "hello");
-  let q: Int = ffi.call2StringInt(sym, "same", "same");
-  let r: Int = ffi.call2StringIntInt(sym, "hello", 3);
-  let raw: Bytes = bytes.fromString("abc");
-  let w: Int = ffi.call1BytesInt(sym, raw);
-  ffi.closeSymbol(sym);
-  ffi.closeLibrary(lib);
-  return x + y + z + q + r + w;
-}
-"#;
-    let (result, diags) = analyze_source(src);
-    assert_sema_success(&result, &diags);
-}
-
-#[test]
-fn sema_accepts_ffi_void_string_calls() {
-    let src = r#"
-import ffi;
-
-fn main() -> Void {
-  let lib: ffi.Library = ffi.open("test-lib");
-  let sym: ffi.Symbol = ffi.bind(lib, "puts");
+  let sym: ffi.Symbol = ffi.bind(lib, "strlen");
+  let a = ffi.call0Int(sym);
+  let b = ffi.call1Int(sym, 7);
+  let c = ffi.call1StringInt(sym, "hello");
   ffi.call1StringVoid(sym, "hello");
-  ffi.closeSymbol(sym);
-  ffi.closeLibrary(lib);
-  return;
-}
-"#;
-    let (result, diags) = analyze_source(src);
-    assert_sema_success(&result, &diags);
-}
-
-#[test]
-fn sema_accepts_ffi_void_int_calls() {
-    let src = r#"
-import ffi;
-
-fn main() -> Void {
-  let lib: ffi.Library = ffi.open("test-lib");
-  let sym: ffi.Symbol = ffi.bind(lib, "srand");
   ffi.call1IntVoid(sym, 7);
+  let d = ffi.call2StringInt(sym, "same", "same");
+  let e = ffi.call2StringIntInt(sym, "hello", 3);
+  let _ = a;
+  let _ = b;
+  let _ = c;
+  let _ = d;
+  let _ = e;
   ffi.closeSymbol(sym);
   ffi.closeLibrary(lib);
-  return;
+  return 0;
 }
 "#;
     let (result, diags) = analyze_source(src);
-    assert_sema_success(&result, &diags);
+    assert!(result.has_errors);
+    for name in [
+        "ffi.call0Int",
+        "ffi.call1Int",
+        "ffi.call1StringInt",
+        "ffi.call1StringVoid",
+        "ffi.call1IntVoid",
+        "ffi.call2StringInt",
+        "ffi.call2StringIntInt",
+    ] {
+        assert!(
+            diags
+                .as_slice()
+                .iter()
+                .any(|d| d.message.contains(&format!(
+                    "`{name}` is a low-level internal helper"
+                ))),
+            "missing diagnostic for {name}: {diags:?}"
+        );
+    }
 }
 
 #[test]
@@ -1445,68 +1432,6 @@ fn main() -> Void {
         .any(|d| d.message.contains("ffi.closeSymbol argument 1 expects Opaque(\"ffi.Symbol\")")));
 }
 
-#[test]
-fn sema_rejects_ffi_call_type_mismatches() {
-    let src = r#"
-import ffi;
-import bytes;
-
-fn main() -> Int {
-  let lib: ffi.Library = ffi.open("x");
-  let sym: ffi.Symbol = ffi.bind(lib, "puts");
-  let a: Int = ffi.call0Int(lib);
-  let b: Int = ffi.call1Int(sym, false);
-  ffi.call1IntVoid(sym, false);
-  let c: Int = ffi.call1StringInt(sym, 7);
-  ffi.call1StringVoid(sym, 7);
-  let e: Int = ffi.call2StringInt(sym, 7, "x");
-  let f: Int = ffi.call2StringIntInt(sym, 7, "x");
-  let raw: Bytes = bytes.fromString("x");
-  let d: Int = ffi.call1BytesInt(sym, 7);
-  return a + b + c + d + e + f + bytes.len(raw);
-}
-"#;
-    let (result, diags) = analyze_source(src);
-    assert!(result.has_errors);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("ffi.call0Int argument 1 expects Opaque(\"ffi.Symbol\")")));
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("ffi.call1Int argument 2 expects Int")));
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("ffi.call1IntVoid argument 2 expects Int")));
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("ffi.call1StringInt argument 2 expects String")));
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("ffi.call1StringVoid argument 2 expects String")));
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("ffi.call2StringInt argument 2 expects String")));
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("ffi.call2StringIntInt argument 2 expects String")));
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("ffi.call2StringIntInt argument 3 expects Int")));
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("ffi.call1BytesInt argument 2 expects Bytes")));
-}
-
-#[test]
 fn sema_rejects_ffi_without_import() {
     let src = r#"
 fn main() -> Void {

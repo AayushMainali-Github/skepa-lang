@@ -2039,50 +2039,16 @@ fn main() -> Int {{
 }
 
 #[test]
-fn codegen_builds_native_executable_for_ffi_integer_calls() {
+fn codegen_builds_native_executable_for_linked_extern_borrowed_calls() {
     let source = format!(
         r#"
-import ffi;
+extern("{library}") fn {sym}(s: String) -> Int;
+extern("{library}") fn {int_sym}(seed: Int) -> Int;
 
 fn main() -> Int {{
-  let lib: ffi.Library = ffi.open("{library}");
-  let sym0: ffi.Symbol = ffi.bind(lib, "{sym0}");
-  let sym1: ffi.Symbol = ffi.bind(lib, "{sym1}");
-  let a: Int = ffi.call0Int(sym0);
-  let b: Int = ffi.call1Int(sym1, {arg1});
-  ffi.closeSymbol(sym0);
-  ffi.closeSymbol(sym1);
-  ffi.closeLibrary(lib);
-  if ((a > 0) && (b == {expected1})) {{
-    return 0;
-  }}
-  return 1;
-}}
-"#,
-        library = ffi_test_library_path(),
-        sym0 = ffi_test_symbol_name(),
-        sym1 = ffi_test_call1_int_symbol_name(),
-        arg1 = ffi_test_call1_int_value(),
-        expected1 = ffi_test_call1_int_expected(),
-    );
-
-    let result = common::native_run_structured(&source);
-    assert_eq!(result.exit_code(), 0, "stderr: {}", result.stderr_lossy());
-}
-
-#[test]
-fn codegen_builds_native_executable_for_ffi_borrowed_string_calls() {
-    let source = format!(
-        r#"
-import ffi;
-
-fn main() -> Int {{
-  let lib: ffi.Library = ffi.open("{library}");
-  let sym: ffi.Symbol = ffi.bind(lib, "{sym}");
-  let value: Int = ffi.call1StringInt(sym, "{arg}");
-  ffi.closeSymbol(sym);
-  ffi.closeLibrary(lib);
-  if (value == {expected}) {{
+  let a: Int = {sym}("{arg}");
+  let b: Int = {int_sym}({int_arg});
+  if ((a == {expected}) && (b == {int_expected})) {{
     return 0;
   }}
   return 1;
@@ -2092,36 +2058,9 @@ fn main() -> Int {{
         sym = ffi_test_call1_string_int_symbol_name(),
         arg = ffi_test_call1_string_int_value(),
         expected = ffi_test_call1_string_int_expected(),
-    );
-
-    let result = common::native_run_structured(&source);
-    assert_eq!(result.exit_code(), 0, "stderr: {}", result.stderr_lossy());
-}
-
-#[test]
-fn codegen_builds_native_executable_for_ffi_borrowed_bytes_calls() {
-    let source = format!(
-        r#"
-import bytes;
-import ffi;
-
-fn main() -> Int {{
-  let lib: ffi.Library = ffi.open("{library}");
-  let sym: ffi.Symbol = ffi.bind(lib, "{sym}");
-  let raw: Bytes = bytes.fromString("{arg}");
-  let value: Int = ffi.call1BytesInt(sym, raw);
-  ffi.closeSymbol(sym);
-  ffi.closeLibrary(lib);
-  if (value == {expected}) {{
-    return 0;
-  }}
-  return 1;
-}}
-"#,
-        library = ffi_test_library_path(),
-        sym = ffi_test_call1_string_int_symbol_name(),
-        arg = ffi_test_call1_string_int_value(),
-        expected = ffi_test_call1_string_int_expected(),
+        int_sym = ffi_test_call1_int_symbol_name(),
+        int_arg = ffi_test_call1_int_value(),
+        int_expected = ffi_test_call1_int_expected(),
     );
 
     let result = common::native_run_structured(&source);

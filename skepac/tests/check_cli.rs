@@ -866,27 +866,20 @@ fn check_accepts_minimal_ffi_builtins_program() {
     let file = tmp.join("ffi_minimal.sk");
     fs::write(
         &file,
-        r#"
-import ffi;
-import bytes;
+        format!(
+            r#"
+extern("{library}") fn strlen(s: String) -> Int;
 
-fn main() -> Int {
-  let lib: ffi.Library = ffi.open("test-lib");
-  let sym: ffi.Symbol = ffi.bind(lib, "puts");
-  let _ = ffi.call0Int(sym);
-  let _ = ffi.call1Int(sym, 1);
-  ffi.call1IntVoid(sym, 1);
-  let _ = ffi.call1StringInt(sym, "hello");
-  ffi.call1StringVoid(sym, "hello");
-  let _ = ffi.call2StringInt(sym, "same", "same");
-  let _ = ffi.call2StringIntInt(sym, "hello", 2);
-  let raw: Bytes = bytes.fromString("abc");
-  let _ = ffi.call1BytesInt(sym, raw);
-  ffi.closeSymbol(sym);
-  ffi.closeLibrary(lib);
-  return 0;
-}
+fn main() -> Int {{
+  let value: Int = strlen("hello");
+  if (value >= 0) {{
+    return 0;
+  }}
+  return 1;
+}}
 "#,
+            library = ffi_test_library_path(),
+        ),
     )
     .expect("write source");
 

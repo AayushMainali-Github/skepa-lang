@@ -13,6 +13,22 @@ pub(super) fn check_ffi_builtin(
     scopes: &mut [HashMap<String, TypeInfo>],
     sig: &BuiltinSig,
 ) -> TypeInfo {
+    if matches!(
+        method,
+        "call0Int"
+            | "call1Int"
+            | "call1IntVoid"
+            | "call1StringInt"
+            | "call1StringVoid"
+            | "call2StringInt"
+            | "call2StringIntInt"
+            | "call1BytesInt"
+    ) {
+        checker.error(format!(
+            "`ffi.{method}` is a low-level internal helper; use `extern(\"...\") fn ...;` declarations instead"
+        ));
+        return TypeInfo::Unknown;
+    }
     match method {
         "bind" => {
             if args.len() != 2 {

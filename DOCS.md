@@ -22,7 +22,7 @@ Module / namespace:
 - `import`, `from`, `as`, `export`
 
 Declarations:
-- `struct`, `impl`, `fn`, `let`
+- `struct`, `impl`, `fn`, `extern`, `let`
 
 Control flow:
 - `if`, `else`, `while`, `for`, `match`, `break`, `continue`, `return`
@@ -58,6 +58,7 @@ top_decl         = import_decl
                  | global_let
                  | struct_decl
                  | impl_decl
+                 | extern_fn_decl
                  | fn_decl ;
 
 import_decl      = "import" dotted_path [ "as" ident ] ";"
@@ -78,6 +79,7 @@ field_decl       = ident ":" type ;
 impl_decl        = "impl" ident "{" { method_decl } "}" ;
 method_decl      = "fn" ident "(" [ param_list ] ")" [ "->" type ] block ;
 
+extern_fn_decl   = "extern" [ "(" string_lit ")" ] "fn" ident "(" [ param_list ] ")" [ "->" type ] ";" ;
 fn_decl          = "fn" ident "(" [ param_list ] ")" [ "->" type ] block ;
 param_list       = param { "," param } [","] ;
 param            = ident ":" type ;
@@ -832,52 +834,47 @@ Signatures:
 - `ffi.bind(lib: ffi.Library, symbol: String) -> ffi.Symbol`
 - `ffi.closeLibrary(lib: ffi.Library) -> Void`
 - `ffi.closeSymbol(sym: ffi.Symbol) -> Void`
-- `ffi.call0Int(sym: ffi.Symbol) -> Int`
-- `ffi.call1Int(sym: ffi.Symbol, value: Int) -> Int`
-- `ffi.call1IntVoid(sym: ffi.Symbol, value: Int) -> Void`
-- `ffi.call1StringInt(sym: ffi.Symbol, value: String) -> Int`
-- `ffi.call1StringVoid(sym: ffi.Symbol, value: String) -> Void`
-- `ffi.call2StringInt(sym: ffi.Symbol, left: String, right: String) -> Int`
-- `ffi.call2StringIntInt(sym: ffi.Symbol, left: String, right: Int) -> Int`
-- `ffi.call1BytesInt(sym: ffi.Symbol, value: Bytes) -> Int`
+
+Preferred user-facing API:
+- Linked extern declarations are the primary FFI surface.
+- Example:
+  - `extern("libc.so.6") fn strlen(s: String) -> Int;`
+  - `extern("libc.so.6") fn srand(seed: Int) -> Void;`
+- User code should call linked extern declarations directly
 
 Behavior:
 - `ffi.open` loads a shared library from the host OS.
 - `ffi.bind` looks up a symbol within that library.
 - `ffi.closeLibrary` and `ffi.closeSymbol` close the corresponding handles.
-- `ffi.call0Int` calls a zero-argument foreign function returning an integer.
-- `ffi.call1Int` calls a one-argument integer foreign function.
-- `ffi.call1IntVoid` calls a one-argument integer foreign function that returns no value.
-- `ffi.call1StringInt` calls a one-argument foreign function that receives a borrowed string and returns an integer.
-- `ffi.call1StringVoid` calls a one-argument foreign function that receives a borrowed string and returns no value.
-- `ffi.call2StringInt` calls a two-argument foreign function that receives two borrowed strings and returns an integer.
-- `ffi.call2StringIntInt` calls a two-argument foreign function that receives a borrowed string and an integer and returns an integer.
-- `ffi.call1BytesInt` calls a one-argument foreign function that receives borrowed bytes and returns an integer.
+- Linked extern calls are lowered through the runtime FFI layer automatically.
 
 Borrowing and ownership rules:
 - `ffi.Library` and `ffi.Symbol` are opaque runtime-managed handles, not structs.
 - Closing a library or symbol invalidates that handle for all aliases.
-- `ffi.call1StringInt` passes a temporary borrowed NUL-terminated string pointer for the duration of the call only.
-- `ffi.call1IntVoid` passes the integer argument by value for the duration of the call.
-- `ffi.call1StringVoid` passes a temporary borrowed NUL-terminated string pointer for the duration of the call only.
-- `ffi.call2StringInt` passes two temporary borrowed NUL-terminated string pointers for the duration of the call only.
-- `ffi.call2StringIntInt` passes a temporary borrowed NUL-terminated string pointer plus an integer value for the duration of the call only.
-- `ffi.call1BytesInt` passes a temporary borrowed `(ptr, len)` byte view for the duration of the call only.
-- Foreign code must not retain these borrowed string/byte pointers after the call returns.
+- Supported linked extern ABI shapes currently lower to borrowed-only calls:
+  - `extern("lib") fn foo() -> Int`
+  - `extern("lib") fn foo(Int) -> Int`
+  - `extern("lib") fn foo(Int) -> Void`
+  - `extern("lib") fn foo(String) -> Int`
+  - `extern("lib") fn foo(String) -> Void`
+  - `extern("lib") fn foo(String, String) -> Int`
+  - `extern("lib") fn foo(String, Int) -> Int`
+  - `extern("lib") fn foo(Bytes) -> Int`
+- String arguments are passed as temporary borrowed NUL-terminated pointers valid only for the duration of the call.
+- `Bytes` arguments are passed as temporary borrowed `(ptr, len)` views valid only for the duration of the call.
+- `Int` arguments are passed by value.
+- Foreign code must not retain borrowed string or byte pointers after the call returns.
 - No ownership transfer APIs exist yet for strings, bytes, or raw pointers.
 
 String and buffer rules:
-- `ffi.call1StringInt` rejects `String` values containing an embedded NUL byte at runtime.
-- `ffi.call1StringVoid` rejects `String` values containing an embedded NUL byte at runtime.
-- `ffi.call2StringInt` rejects either `String` argument if it contains an embedded NUL byte at runtime.
-- `ffi.call2StringIntInt` rejects the `String` argument if it contains an embedded NUL byte at runtime.
-- `ffi.call1BytesInt` accepts arbitrary `Bytes`, including zero bytes.
-- These call helpers intentionally cover only narrow, explicit ABI shapes. General pointer-based FFI is not exposed yet.
+- Any linked extern call that borrows `String` rejects embedded NUL bytes at runtime.
+- Linked extern calls that borrow `Bytes` accept arbitrary byte content, including zero bytes.
+- The public FFI surface intentionally stays narrow and borrowed-only. General pointer-based FFI is not exposed yet.
 
 Notes:
 - Symbol ABI/signature correctness is the caller's responsibility.
 - Calling a symbol with the wrong ABI or signature is undefined behavior at the foreign boundary.
-- The current FFI surface is intentionally narrow while ownership rules remain explicit and testable.
+- The runtime still uses low-level `ffi.call...` helpers internally when lowering linked extern calls, but they are not the intended user-facing API.
 
 ### 8.14 `vec`
 
