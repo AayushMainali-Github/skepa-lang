@@ -55,6 +55,21 @@ fn ffi_test_call1_string_int_expected() -> i64 {
     5
 }
 
+#[cfg(windows)]
+fn ffi_test_call1_bytes_library_path() -> &'static str {
+    "ucrtbase.dll"
+}
+
+#[cfg(windows)]
+fn ffi_test_call1_bytes_symbol_name() -> &'static str {
+    "strnlen"
+}
+
+#[cfg(windows)]
+fn ffi_test_call1_bytes_expected() -> i64 {
+    5
+}
+
 #[cfg(all(unix, not(target_os = "macos")))]
 fn ffi_test_library_path() -> &'static str {
     "libc.so.6"
@@ -100,6 +115,21 @@ fn ffi_test_call1_string_int_expected() -> i64 {
     5
 }
 
+#[cfg(all(unix, not(target_os = "macos")))]
+fn ffi_test_call1_bytes_library_path() -> &'static str {
+    "libc.so.6"
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn ffi_test_call1_bytes_symbol_name() -> &'static str {
+    "strnlen"
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn ffi_test_call1_bytes_expected() -> i64 {
+    5
+}
+
 #[cfg(target_os = "macos")]
 fn ffi_test_library_path() -> &'static str {
     "/usr/lib/libSystem.B.dylib"
@@ -142,6 +172,21 @@ fn ffi_test_call1_string_int_value() -> &'static str {
 
 #[cfg(target_os = "macos")]
 fn ffi_test_call1_string_int_expected() -> i64 {
+    5
+}
+
+#[cfg(target_os = "macos")]
+fn ffi_test_call1_bytes_library_path() -> &'static str {
+    "/usr/lib/libSystem.B.dylib"
+}
+
+#[cfg(target_os = "macos")]
+fn ffi_test_call1_bytes_symbol_name() -> &'static str {
+    "strnlen"
+}
+
+#[cfg(target_os = "macos")]
+fn ffi_test_call1_bytes_expected() -> i64 {
     5
 }
 
@@ -322,16 +367,16 @@ fn noop_host_calls_borrowed_string_ffi_symbols() {
 fn noop_host_calls_borrowed_bytes_ffi_symbols() {
     let mut host = NoopHost::default();
     let library = host
-        .ffi_open_library(ffi_test_library_path())
+        .ffi_open_library(ffi_test_call1_bytes_library_path())
         .expect("open shared library");
     let symbol = host
-        .ffi_bind_symbol(library, ffi_test_call1_string_int_symbol_name())
+        .ffi_bind_symbol(library, ffi_test_call1_bytes_symbol_name())
         .expect("bind one-bytes int symbol");
 
     assert_eq!(
         host.ffi_call_1_bytes_int(symbol, &RtBytes::from(b"hello".to_vec()))
             .expect("call1BytesInt"),
-        ffi_test_call1_string_int_expected()
+        ffi_test_call1_bytes_expected()
     );
 
     host.net_close_handle(symbol).expect("close symbol");

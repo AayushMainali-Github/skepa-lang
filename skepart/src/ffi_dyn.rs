@@ -1,7 +1,7 @@
 #[cfg(unix)]
 use std::ffi::{c_char, c_int, c_void, CStr, CString};
 #[cfg(windows)]
-use std::ffi::{c_void, CString};
+use std::ffi::{c_char, c_void, CString};
 
 pub struct RtForeignLibrary {
     handle: *mut c_void,
@@ -119,16 +119,16 @@ impl RtForeignSymbol {
         #[cfg(windows)]
         {
             // SAFETY: caller guarantees the symbol uses the expected ABI/signature.
-            let function: unsafe extern "system" fn(*const u8, i64) -> i32 =
+            let function: unsafe extern "C" fn(*const c_char, usize) -> usize =
                 unsafe { std::mem::transmute(self.ptr) };
-            unsafe { function(value.as_ptr(), value.len() as i64) as i64 }
+            unsafe { function(value.as_ptr().cast(), value.len()) as i64 }
         }
         #[cfg(unix)]
         {
             // SAFETY: caller guarantees the symbol uses the expected ABI/signature.
-            let function: unsafe extern "C" fn(*const u8, usize) -> usize =
+            let function: unsafe extern "C" fn(*const c_char, usize) -> usize =
                 unsafe { std::mem::transmute(self.ptr) };
-            unsafe { function(value.as_ptr(), value.len()) as i64 }
+            unsafe { function(value.as_ptr().cast(), value.len()) as i64 }
         }
     }
 }
