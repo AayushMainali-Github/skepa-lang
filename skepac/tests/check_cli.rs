@@ -41,6 +41,11 @@ fn ffi_test_call1_string_void_symbol_name() -> &'static str {
     "OutputDebugStringA"
 }
 
+#[cfg(target_os = "windows")]
+fn ffi_test_call2_string_int_symbol_name() -> &'static str {
+    "lstrcmpA"
+}
+
 #[cfg(target_os = "linux")]
 fn ffi_test_library_path() -> &'static str {
     "libc.so.6"
@@ -71,6 +76,11 @@ fn ffi_test_call1_string_void_symbol_name() -> &'static str {
     "perror"
 }
 
+#[cfg(target_os = "linux")]
+fn ffi_test_call2_string_int_symbol_name() -> &'static str {
+    "strcmp"
+}
+
 #[cfg(target_os = "macos")]
 fn ffi_test_library_path() -> &'static str {
     "/usr/lib/libSystem.B.dylib"
@@ -99,6 +109,11 @@ fn ffi_test_call1_string_void_library_path() -> &'static str {
 #[cfg(target_os = "macos")]
 fn ffi_test_call1_string_void_symbol_name() -> &'static str {
     "perror"
+}
+
+#[cfg(target_os = "macos")]
+fn ffi_test_call2_string_int_symbol_name() -> &'static str {
+    "strcmp"
 }
 
 #[test]
@@ -802,6 +817,7 @@ fn main() -> Int {
   let _ = ffi.call1Int(sym, 1);
   let _ = ffi.call1StringInt(sym, "hello");
   ffi.call1StringVoid(sym, "hello");
+  let _ = ffi.call2StringInt(sym, "same", "same");
   let raw: Bytes = bytes.fromString("abc");
   let _ = ffi.call1BytesInt(sym, raw);
   ffi.closeSymbol(sym);
@@ -987,6 +1003,39 @@ fn main() -> Int {{
 "#,
             library = ffi_test_call1_string_void_library_path(),
             sym = ffi_test_call1_string_void_symbol_name(),
+        ),
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("run")
+        .arg(&source)
+        .output()
+        .expect("run skepac run");
+
+    assert_eq!(output.status.code(), Some(0), "{:?}", output);
+}
+
+#[test]
+fn run_executes_linked_extern_two_string_function_end_to_end() {
+    let tmp = make_temp_dir("skepac_run_extern_linked_two_string");
+    let source = tmp.join("main.sk");
+    fs::write(
+        &source,
+        format!(
+            r#"
+extern("{library}") fn {sym}(a: String, b: String) -> Int;
+
+fn main() -> Int {{
+  let value: Int = {sym}("same", "same");
+  if (value == 0) {{
+    return 0;
+  }}
+  return 1;
+}}
+"#,
+            library = ffi_test_library_path(),
+            sym = ffi_test_call2_string_int_symbol_name(),
         ),
     )
     .expect("write source");

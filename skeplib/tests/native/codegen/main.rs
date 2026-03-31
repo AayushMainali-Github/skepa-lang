@@ -61,6 +61,11 @@ fn ffi_test_call1_string_void_symbol_name() -> &'static str {
     "OutputDebugStringA"
 }
 
+#[cfg(windows)]
+fn ffi_test_call2_string_int_symbol_name() -> &'static str {
+    "lstrcmpA"
+}
+
 #[cfg(all(unix, not(target_os = "macos")))]
 fn ffi_test_library_path() -> &'static str {
     "libc.so.6"
@@ -111,6 +116,11 @@ fn ffi_test_call1_string_void_symbol_name() -> &'static str {
     "perror"
 }
 
+#[cfg(all(unix, not(target_os = "macos")))]
+fn ffi_test_call2_string_int_symbol_name() -> &'static str {
+    "strcmp"
+}
+
 #[cfg(target_os = "macos")]
 fn ffi_test_library_path() -> &'static str {
     "/usr/lib/libSystem.B.dylib"
@@ -159,6 +169,11 @@ fn ffi_test_call1_string_void_library_path() -> &'static str {
 #[cfg(target_os = "macos")]
 fn ffi_test_call1_string_void_symbol_name() -> &'static str {
     "perror"
+}
+
+#[cfg(target_os = "macos")]
+fn ffi_test_call2_string_int_symbol_name() -> &'static str {
+    "strcmp"
 }
 
 fn temp_file(name: &str, ext: &str) -> std::path::PathBuf {
@@ -2090,6 +2105,28 @@ fn main() -> Int {{
 "#,
         library = ffi_test_call1_string_void_library_path(),
         sym = ffi_test_call1_string_void_symbol_name(),
+    );
+
+    let result = common::native_run_structured(&source);
+    assert_eq!(result.exit_code(), 0, "stderr: {}", result.stderr_lossy());
+}
+
+#[test]
+fn codegen_builds_native_executable_for_linked_extern_two_string_calls() {
+    let source = format!(
+        r#"
+extern("{library}") fn {sym}(a: String, b: String) -> Int;
+
+fn main() -> Int {{
+  let value: Int = {sym}("same", "same");
+  if (value == 0) {{
+    return 0;
+  }}
+  return 1;
+}}
+"#,
+        library = ffi_test_library_path(),
+        sym = ffi_test_call2_string_int_symbol_name(),
     );
 
     let result = common::native_run_structured(&source);

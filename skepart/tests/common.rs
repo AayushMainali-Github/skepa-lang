@@ -555,6 +555,29 @@ impl RtHost for RecordingHost {
         Ok(())
     }
 
+    fn ffi_call_2_string_int(
+        &mut self,
+        symbol: RtHandle,
+        left: &str,
+        right: &str,
+    ) -> RtResult<i64> {
+        if let Some(message) = &self.ffi_call_error {
+            return Err(RtError::io(message.clone()));
+        }
+        match self.net_lookup_handle_kind(symbol)? {
+            RtHandleKind::Symbol => {}
+            other => {
+                return Err(RtError::invalid_handle_kind(
+                    RtHandleKind::Symbol.type_name(),
+                    other.type_name(),
+                ))
+            }
+        }
+        self.output
+            .push_str(&format!("[fficall2stringint {}={left}|{right}]", symbol.id));
+        Ok(left.len() as i64 - right.len() as i64)
+    }
+
     fn ffi_call_1_bytes_int(&mut self, symbol: RtHandle, value: &RtBytes) -> RtResult<i64> {
         if let Some(message) = &self.ffi_call_error {
             return Err(RtError::io(message.clone()));

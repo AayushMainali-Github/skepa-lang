@@ -1267,6 +1267,34 @@ fn main() -> Int {
         "trace was: {trace}"
     );
 }
+
+#[test]
+fn interpreter_lowers_linked_extern_two_string_calls_through_ffi_builtins() {
+    let source = r#"
+extern("test-lib") fn compare(a: String, b: String) -> Int;
+
+fn main() -> Int {
+  return compare("alpha", "beta");
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let trace = Arc::new(Mutex::new(String::new()));
+    let host = TestHost {
+        out: Arc::clone(&trace),
+        next_handle_id: 0,
+    };
+    let interp = IrInterpreter::new(program, host);
+    let result = interp.run_main();
+    assert_eq!(result.expect("program should run"), IrValue::Int(0));
+    let trace = trace.lock().expect("lock trace").clone();
+    assert!(trace.contains("[ffiopen test-lib=0]"), "trace was: {trace}");
+    assert!(trace.contains("[ffibind 0:compare=1]"), "trace was: {trace}");
+    assert!(
+        trace.contains("[fficall2stringint 1=alpha|beta]"),
+        "trace was: {trace}"
+    );
+}
 "#;
 
     let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");

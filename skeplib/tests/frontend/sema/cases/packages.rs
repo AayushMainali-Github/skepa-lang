@@ -1359,11 +1359,16 @@ fn main() -> Int {
   let x: Int = ffi.call0Int(sym);
   let y: Int = ffi.call1Int(sym, 7);
   let z: Int = ffi.call1StringInt(sym, "hello");
+  let q: Int = ffi.call2StringInt(sym, "same", "same");
   let raw: Bytes = bytes.fromString("abc");
   let w: Int = ffi.call1BytesInt(sym, raw);
   ffi.closeSymbol(sym);
   ffi.closeLibrary(lib);
-  return x + y + z + w;
+  return x + y + z + q + w;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
 }
 
 #[test]
@@ -1438,9 +1443,10 @@ fn main() -> Int {
   let b: Int = ffi.call1Int(sym, false);
   let c: Int = ffi.call1StringInt(sym, 7);
   ffi.call1StringVoid(sym, 7);
+  let e: Int = ffi.call2StringInt(sym, 7, "x");
   let raw: Bytes = bytes.fromString("x");
   let d: Int = ffi.call1BytesInt(sym, 7);
-  return a + b + c + d + bytes.len(raw);
+  return a + b + c + d + e + bytes.len(raw);
 }
 "#;
     let (result, diags) = analyze_source(src);
@@ -1461,6 +1467,10 @@ fn main() -> Int {
         .as_slice()
         .iter()
         .any(|d| d.message.contains("ffi.call1StringVoid argument 2 expects String")));
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("ffi.call2StringInt argument 2 expects String")));
     assert!(diags
         .as_slice()
         .iter()
@@ -2492,6 +2502,19 @@ extern("libc.so.6") fn trace(s: String) -> Void;
 fn main() -> Int {
   trace("ok");
   return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
+
+#[test]
+fn sema_accepts_extern_two_string_function_declarations_and_calls() {
+    let src = r#"
+extern("libc.so.6") fn compare(a: String, b: String) -> Int;
+
+fn main() -> Int {
+  return compare("same", "same");
 }
 "#;
     let (result, diags) = analyze_source(src);
