@@ -1360,11 +1360,12 @@ fn main() -> Int {
   let y: Int = ffi.call1Int(sym, 7);
   let z: Int = ffi.call1StringInt(sym, "hello");
   let q: Int = ffi.call2StringInt(sym, "same", "same");
+  let r: Int = ffi.call2StringIntInt(sym, "hello", 3);
   let raw: Bytes = bytes.fromString("abc");
   let w: Int = ffi.call1BytesInt(sym, raw);
   ffi.closeSymbol(sym);
   ffi.closeLibrary(lib);
-  return x + y + z + q + w;
+  return x + y + z + q + r + w;
 }
 "#;
     let (result, diags) = analyze_source(src);
@@ -1383,10 +1384,6 @@ fn main() -> Void {
   ffi.closeSymbol(sym);
   ffi.closeLibrary(lib);
   return;
-}
-"#;
-    let (result, diags) = analyze_source(src);
-    assert_sema_success(&result, &diags);
 }
 "#;
     let (result, diags) = analyze_source(src);
@@ -1444,9 +1441,10 @@ fn main() -> Int {
   let c: Int = ffi.call1StringInt(sym, 7);
   ffi.call1StringVoid(sym, 7);
   let e: Int = ffi.call2StringInt(sym, 7, "x");
+  let f: Int = ffi.call2StringIntInt(sym, 7, "x");
   let raw: Bytes = bytes.fromString("x");
   let d: Int = ffi.call1BytesInt(sym, 7);
-  return a + b + c + d + e + bytes.len(raw);
+  return a + b + c + d + e + f + bytes.len(raw);
 }
 "#;
     let (result, diags) = analyze_source(src);
@@ -1471,6 +1469,14 @@ fn main() -> Int {
         .as_slice()
         .iter()
         .any(|d| d.message.contains("ffi.call2StringInt argument 2 expects String")));
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("ffi.call2StringIntInt argument 2 expects String")));
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("ffi.call2StringIntInt argument 3 expects Int")));
     assert!(diags
         .as_slice()
         .iter()
@@ -2515,6 +2521,19 @@ extern("libc.so.6") fn compare(a: String, b: String) -> Int;
 
 fn main() -> Int {
   return compare("same", "same");
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
+
+#[test]
+fn sema_accepts_extern_string_int_function_declarations_and_calls() {
+    let src = r#"
+extern("libc.so.6") fn count(s: String, n: Int) -> Int;
+
+fn main() -> Int {
+  return count("hello", 3);
 }
 "#;
     let (result, diags) = analyze_source(src);

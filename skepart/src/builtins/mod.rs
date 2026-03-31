@@ -307,6 +307,12 @@ pub fn call_with_context(
             left.expect_string()?.as_str(),
             right.expect_string()?.as_str(),
         ),
+        ("ffi", "call2StringIntInt", [symbol, left, right]) => ffi::call_2_string_int_int(
+            ctx.host(),
+            symbol.expect_handle_kind(crate::RtHandleKind::Symbol)?,
+            left.expect_string()?.as_str(),
+            right.expect_int()?,
+        ),
         ("ffi", "call1BytesInt", [symbol, value]) => ffi::call_1_bytes_int(
             ctx.host(),
             symbol.expect_handle_kind(crate::RtHandleKind::Symbol)?,

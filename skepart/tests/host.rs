@@ -71,6 +71,16 @@ fn ffi_test_call2_string_int_symbol_name() -> &'static str {
 }
 
 #[cfg(windows)]
+fn ffi_test_call2_string_int_int_library_path() -> &'static str {
+    "ucrtbase.dll"
+}
+
+#[cfg(windows)]
+fn ffi_test_call2_string_int_int_symbol_name() -> &'static str {
+    "strnlen"
+}
+
+#[cfg(windows)]
 fn ffi_test_call1_bytes_library_path() -> &'static str {
     "ucrtbase.dll"
 }
@@ -146,6 +156,16 @@ fn ffi_test_call2_string_int_symbol_name() -> &'static str {
 }
 
 #[cfg(all(unix, not(target_os = "macos")))]
+fn ffi_test_call2_string_int_int_library_path() -> &'static str {
+    "libc.so.6"
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn ffi_test_call2_string_int_int_symbol_name() -> &'static str {
+    "strnlen"
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
 fn ffi_test_call1_bytes_library_path() -> &'static str {
     "libc.so.6"
 }
@@ -218,6 +238,16 @@ fn ffi_test_call1_string_void_symbol_name() -> &'static str {
 #[cfg(target_os = "macos")]
 fn ffi_test_call2_string_int_symbol_name() -> &'static str {
     "strcmp"
+}
+
+#[cfg(target_os = "macos")]
+fn ffi_test_call2_string_int_int_library_path() -> &'static str {
+    "/usr/lib/libSystem.B.dylib"
+}
+
+#[cfg(target_os = "macos")]
+fn ffi_test_call2_string_int_int_symbol_name() -> &'static str {
+    "strnlen"
 }
 
 #[cfg(target_os = "macos")]
@@ -439,6 +469,26 @@ fn noop_host_calls_two_borrowed_string_ffi_symbols() {
         host.ffi_call_2_string_int(symbol, "same", "same")
             .expect("call2StringInt"),
         0
+    );
+
+    host.net_close_handle(symbol).expect("close symbol");
+    host.net_close_handle(library).expect("close library");
+}
+
+#[test]
+fn noop_host_calls_borrowed_string_int_ffi_symbols() {
+    let mut host = NoopHost::default();
+    let library = host
+        .ffi_open_library(ffi_test_call2_string_int_int_library_path())
+        .expect("open shared library");
+    let symbol = host
+        .ffi_bind_symbol(library, ffi_test_call2_string_int_int_symbol_name())
+        .expect("bind string-int int symbol");
+
+    assert_eq!(
+        host.ffi_call_2_string_int_int(symbol, "hello", 3)
+            .expect("call2StringIntInt"),
+        3
     );
 
     host.net_close_handle(symbol).expect("close symbol");

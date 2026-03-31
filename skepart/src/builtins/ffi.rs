@@ -54,6 +54,17 @@ pub fn call_2_string_int(
     ))
 }
 
+pub fn call_2_string_int_int(
+    host: &mut dyn RtHost,
+    symbol: crate::RtHandle,
+    left: &str,
+    right: i64,
+) -> RtResult<RtValue> {
+    Ok(RtValue::Int(
+        host.ffi_call_2_string_int_int(symbol, left, right)?,
+    ))
+}
+
 pub fn call_1_bytes_int(
     host: &mut dyn RtHost,
     symbol: crate::RtHandle,

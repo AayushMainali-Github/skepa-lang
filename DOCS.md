@@ -837,6 +837,7 @@ Signatures:
 - `ffi.call1StringInt(sym: ffi.Symbol, value: String) -> Int`
 - `ffi.call1StringVoid(sym: ffi.Symbol, value: String) -> Void`
 - `ffi.call2StringInt(sym: ffi.Symbol, left: String, right: String) -> Int`
+- `ffi.call2StringIntInt(sym: ffi.Symbol, left: String, right: Int) -> Int`
 - `ffi.call1BytesInt(sym: ffi.Symbol, value: Bytes) -> Int`
 
 Behavior:
@@ -848,6 +849,7 @@ Behavior:
 - `ffi.call1StringInt` calls a one-argument foreign function that receives a borrowed string and returns an integer.
 - `ffi.call1StringVoid` calls a one-argument foreign function that receives a borrowed string and returns no value.
 - `ffi.call2StringInt` calls a two-argument foreign function that receives two borrowed strings and returns an integer.
+- `ffi.call2StringIntInt` calls a two-argument foreign function that receives a borrowed string and an integer and returns an integer.
 - `ffi.call1BytesInt` calls a one-argument foreign function that receives borrowed bytes and returns an integer.
 
 Borrowing and ownership rules:
@@ -856,6 +858,7 @@ Borrowing and ownership rules:
 - `ffi.call1StringInt` passes a temporary borrowed NUL-terminated string pointer for the duration of the call only.
 - `ffi.call1StringVoid` passes a temporary borrowed NUL-terminated string pointer for the duration of the call only.
 - `ffi.call2StringInt` passes two temporary borrowed NUL-terminated string pointers for the duration of the call only.
+- `ffi.call2StringIntInt` passes a temporary borrowed NUL-terminated string pointer plus an integer value for the duration of the call only.
 - `ffi.call1BytesInt` passes a temporary borrowed `(ptr, len)` byte view for the duration of the call only.
 - Foreign code must not retain these borrowed string/byte pointers after the call returns.
 - No ownership transfer APIs exist yet for strings, bytes, or raw pointers.
@@ -864,6 +867,7 @@ String and buffer rules:
 - `ffi.call1StringInt` rejects `String` values containing an embedded NUL byte at runtime.
 - `ffi.call1StringVoid` rejects `String` values containing an embedded NUL byte at runtime.
 - `ffi.call2StringInt` rejects either `String` argument if it contains an embedded NUL byte at runtime.
+- `ffi.call2StringIntInt` rejects the `String` argument if it contains an embedded NUL byte at runtime.
 - `ffi.call1BytesInt` accepts arbitrary `Bytes`, including zero bytes.
 - These call helpers intentionally cover only narrow, explicit ABI shapes. General pointer-based FFI is not exposed yet.
 

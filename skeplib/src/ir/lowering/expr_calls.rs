@@ -229,6 +229,7 @@ impl IrLowerer {
             [IrType::String] if sig.ret == IrType::Int => "call1StringInt",
             [IrType::String] if sig.ret == IrType::Void => "call1StringVoid",
             [IrType::String, IrType::String] if sig.ret == IrType::Int => "call2StringInt",
+            [IrType::String, IrType::Int] if sig.ret == IrType::Int => "call2StringIntInt",
             [IrType::Bytes] if sig.ret == IrType::Int => "call1BytesInt",
             _ => {
                 self.unsupported(format!(
@@ -610,6 +611,7 @@ impl IrLowerer {
             | ("ffi", "call1Int")
             | ("ffi", "call1StringInt")
             | ("ffi", "call2StringInt")
+            | ("ffi", "call2StringIntInt")
             | ("ffi", "call1BytesInt") => {
                 return Some(IrType::Int);
             }
