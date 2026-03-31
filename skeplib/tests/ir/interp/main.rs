@@ -1218,6 +1218,37 @@ fn main() -> Int {
 }
 
 #[test]
+fn interpreter_lowers_linked_extern_calls_through_ffi_builtins() {
+    let source = r#"
+extern("test-lib") fn strlen(s: String) -> Int;
+
+fn main() -> Int {
+  return strlen("hello");
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let trace = Arc::new(Mutex::new(String::new()));
+    let host = TestHost {
+        out: Arc::clone(&trace),
+        next_handle_id: 0,
+    };
+    let interp = IrInterpreter::new(program, host);
+    let result = interp.run_main();
+    assert_eq!(result.expect("program should run"), IrValue::Int(5));
+    let trace = trace.lock().expect("lock trace").clone();
+    assert!(
+        trace.contains("[ffiopen test-lib=0]"),
+        "trace was: {trace}"
+    );
+    assert!(trace.contains("[ffibind 0:strlen=1]"), "trace was: {trace}");
+    assert!(
+        trace.contains("[fficall1stringint 1=hello]"),
+        "trace was: {trace}"
+    );
+}
+
+#[test]
 fn interpreter_carries_dummy_task_handles_through_calls() {
     let source = r#"
 import task;

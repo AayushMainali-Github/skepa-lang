@@ -7,6 +7,7 @@ pub(super) struct IrLowerer {
     pub(super) builder: IrBuilder,
     pub(super) diags: DiagnosticBag,
     pub(super) functions: HashMap<String, FunctionSig>,
+    pub(super) extern_functions: HashMap<String, ExternFunctionSig>,
     pub(super) globals: HashMap<String, (crate::ir::GlobalId, IrType)>,
     pub(super) structs: HashMap<String, (crate::ir::StructId, Vec<crate::ir::StructField>)>,
     pub(super) module_id: Option<String>,
@@ -38,12 +39,21 @@ pub(super) struct FunctionSig {
     pub(super) ret: IrType,
 }
 
+#[derive(Clone)]
+pub(super) struct ExternFunctionSig {
+    pub(super) library: Option<String>,
+    pub(super) symbol: String,
+    pub(super) params: Vec<IrType>,
+    pub(super) ret: IrType,
+}
+
 impl IrLowerer {
     pub(super) fn new() -> Self {
         Self {
             builder: IrBuilder::new(),
             diags: DiagnosticBag::new(),
             functions: HashMap::new(),
+            extern_functions: HashMap::new(),
             globals: HashMap::new(),
             structs: HashMap::new(),
             module_id: None,

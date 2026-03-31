@@ -2,28 +2,24 @@ use crate::ast::Expr;
 use crate::builtins::find_builtin_spec;
 use crate::ir::{BlockId, ConstValue, Instr, IrType, Operand};
 
-use super::context::{FunctionLowering, IrLowerer};
+use super::context::{ExternFunctionSig, FunctionLowering, IrLowerer};
 
 impl IrLowerer {
-    fn direct_callee_sig(&self, callee: &Expr) -> Option<super::context::FunctionSig> {
+    fn direct_callee_target(&self, callee: &Expr) -> Option<String> {
         match callee {
-            Expr::Ident(name) => {
-                let direct_name = self
-                    .direct_import_calls
+            Expr::Ident(name) => Some(
+                self.direct_import_calls
                     .get(name)
                     .cloned()
-                    .unwrap_or_else(|| self.qualify_name(name));
-                self.functions.get(&direct_name).cloned()
-            }
-            Expr::Path(parts) => {
+                    .unwrap_or_else(|| self.qualify_name(name)),
+            ),
+            Expr::Path(parts) => Some({
                 let name = parts.join(".");
-                let target_name = self
-                    .namespace_call_targets
+                self.namespace_call_targets
                     .get(&name)
                     .cloned()
-                    .unwrap_or_else(|| self.qualify_name(&name));
-                self.functions.get(&target_name).cloned()
-            }
+                    .unwrap_or_else(|| self.qualify_name(&name))
+            }),
             _ => None,
         }
     }
@@ -40,23 +36,33 @@ impl IrLowerer {
             lowered_args.push(self.compile_expr(func, lowering, arg)?);
         }
 
-        if let Some(sig) = self.direct_callee_sig(callee) {
-            let dst = if sig.ret.is_void() {
-                None
-            } else {
-                Some(self.builder.push_temp(func, sig.ret.clone()))
-            };
-            self.builder.push_instr(
-                func,
-                lowering.current_block,
-                Instr::CallDirect {
-                    dst,
-                    ret_ty: sig.ret.clone(),
-                    function: sig.id,
-                    args: lowered_args,
-                },
-            );
-            return OkOperand::from_call_result(dst);
+        if let Some(target_name) = self.direct_callee_target(callee) {
+            if let Some(extern_sig) = self.extern_functions.get(&target_name).cloned() {
+                return self.compile_extern_call(
+                    func,
+                    lowering.current_block,
+                    &extern_sig,
+                    lowered_args,
+                );
+            }
+            if let Some(sig) = self.functions.get(&target_name).cloned() {
+                let dst = if sig.ret.is_void() {
+                    None
+                } else {
+                    Some(self.builder.push_temp(func, sig.ret.clone()))
+                };
+                self.builder.push_instr(
+                    func,
+                    lowering.current_block,
+                    Instr::CallDirect {
+                        dst,
+                        ret_ty: sig.ret.clone(),
+                        function: sig.id,
+                        args: lowered_args,
+                    },
+                );
+                return OkOperand::from_call_result(dst);
+            }
         }
 
         match callee {
@@ -165,6 +171,121 @@ impl IrLowerer {
                 OkOperand::from_call_result(dst)
             }
         }
+    }
+
+    fn compile_extern_call(
+        &mut self,
+        func: &mut crate::ir::IrFunction,
+        block: BlockId,
+        sig: &ExternFunctionSig,
+        args: Vec<Operand>,
+    ) -> Option<Operand> {
+        let Some(library) = sig.library.as_ref() else {
+            self.unsupported(format!(
+                "extern function `{}` requires a linked library path in IR lowering",
+                sig.symbol
+            ));
+            return None;
+        };
+
+        let lib_ty = IrType::Opaque("ffi.Library".to_string());
+        let lib_dst = self.builder.push_temp(func, lib_ty.clone());
+        self.builder.push_instr(
+            func,
+            block,
+            Instr::CallBuiltin {
+                dst: Some(lib_dst),
+                ret_ty: lib_ty,
+                builtin: crate::ir::BuiltinCall {
+                    package: "ffi".to_string(),
+                    name: "open".to_string(),
+                },
+                args: vec![Operand::Const(ConstValue::String(library.clone()))],
+            },
+        );
+
+        let sym_ty = IrType::Opaque("ffi.Symbol".to_string());
+        let sym_dst = self.builder.push_temp(func, sym_ty.clone());
+        self.builder.push_instr(
+            func,
+            block,
+            Instr::CallBuiltin {
+                dst: Some(sym_dst),
+                ret_ty: sym_ty,
+                builtin: crate::ir::BuiltinCall {
+                    package: "ffi".to_string(),
+                    name: "bind".to_string(),
+                },
+                args: vec![
+                    Operand::Temp(lib_dst),
+                    Operand::Const(ConstValue::String(sig.symbol.clone())),
+                ],
+            },
+        );
+
+        let call_name = match sig.params.as_slice() {
+            [] => "call0Int",
+            [IrType::Int] => "call1Int",
+            [IrType::String] => "call1StringInt",
+            [IrType::Bytes] => "call1BytesInt",
+            _ => {
+                self.unsupported(format!(
+                    "extern function `{}` uses unsupported lowered ABI in IR",
+                    sig.symbol
+                ));
+                return None;
+            }
+        };
+        let mut call_args = Vec::with_capacity(args.len() + 1);
+        call_args.push(Operand::Temp(sym_dst));
+        call_args.extend(args);
+        let call_dst = if sig.ret.is_void() {
+            None
+        } else {
+            Some(self.builder.push_temp(func, sig.ret.clone()))
+        };
+        self.builder.push_instr(
+            func,
+            block,
+            Instr::CallBuiltin {
+                dst: call_dst,
+                ret_ty: sig.ret.clone(),
+                builtin: crate::ir::BuiltinCall {
+                    package: "ffi".to_string(),
+                    name: call_name.to_string(),
+                },
+                args: call_args,
+            },
+        );
+
+        self.builder.push_instr(
+            func,
+            block,
+            Instr::CallBuiltin {
+                dst: None,
+                ret_ty: IrType::Void,
+                builtin: crate::ir::BuiltinCall {
+                    package: "ffi".to_string(),
+                    name: "closeSymbol".to_string(),
+                },
+                args: vec![Operand::Temp(sym_dst)],
+            },
+        );
+        self.builder.push_instr(
+            func,
+            block,
+            Instr::CallBuiltin {
+                dst: None,
+                ret_ty: IrType::Void,
+                builtin: crate::ir::BuiltinCall {
+                    package: "ffi".to_string(),
+                    name: "closeLibrary".to_string(),
+                },
+                args: vec![Operand::Temp(lib_dst)],
+            },
+        );
+
+        OkOperand::from_call_result(call_dst)
     }
 
     fn compile_method_call(

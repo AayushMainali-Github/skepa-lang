@@ -13,7 +13,7 @@ mod expr_helpers;
 mod project;
 mod stmt;
 
-use context::{FunctionLowering, FunctionSig, IrLowerer};
+use context::{ExternFunctionSig, FunctionLowering, FunctionSig, IrLowerer};
 
 pub use project::{
     compile_project_entry, compile_project_entry_unoptimized, compile_project_graph,
@@ -307,6 +307,26 @@ impl IrLowerer {
                 .as_ref()
                 .map(|ty| self.lower_type_name(ty))
                 .unwrap_or(IrType::Void);
+            if func.is_extern {
+                self.extern_functions.insert(
+                    self.qualify_name(&func.name),
+                    ExternFunctionSig {
+                        library: func.extern_library.clone(),
+                        symbol: func.name.clone(),
+                        params: func
+                            .params
+                            .iter()
+                            .map(|param| self.lower_type_name(&param.ty))
+                            .collect(),
+                        ret: func
+                            .return_type
+                            .as_ref()
+                            .map(|ty| self.lower_type_name(ty))
+                            .unwrap_or(IrType::Void),
+                    },
+                );
+                continue;
+            }
             let id = crate::ir::FunctionId(self.functions.len());
             self.functions.insert(
                 self.qualify_name(&func.name),

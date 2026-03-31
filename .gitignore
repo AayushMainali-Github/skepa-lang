@@ -11,5 +11,7 @@ tmp_*.txt
 temp_*
 tmp_*
 .tmp_*
+extern_tmp*
+extern_win*
 
 target-*

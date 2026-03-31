@@ -2024,6 +2024,30 @@ fn main() -> Int {{
 }
 
 #[test]
+fn codegen_builds_native_executable_for_linked_extern_calls() {
+    let source = format!(
+        r#"
+extern("{library}") fn {sym}(s: String) -> Int;
+
+fn main() -> Int {{
+  let value: Int = {sym}("{arg}");
+  if (value == {expected}) {{
+    return 0;
+  }}
+  return 1;
+}}
+"#,
+        library = ffi_test_library_path(),
+        sym = ffi_test_call1_string_int_symbol_name(),
+        arg = ffi_test_call1_string_int_value(),
+        expected = ffi_test_call1_string_int_expected(),
+    );
+
+    let result = common::native_run_structured(&source);
+    assert_eq!(result.exit_code(), 0, "stderr: {}", result.stderr_lossy());
+}
+
+#[test]
 fn codegen_builds_native_executable_for_net_flush() {
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind loopback listener");
     let addr = listener.local_addr().expect("listener addr");
