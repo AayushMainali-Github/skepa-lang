@@ -42,6 +42,16 @@ fn ffi_test_call1_string_void_symbol_name() -> &'static str {
 }
 
 #[cfg(target_os = "windows")]
+fn ffi_test_call1_int_void_library_path() -> &'static str {
+    "ucrtbase.dll"
+}
+
+#[cfg(target_os = "windows")]
+fn ffi_test_call1_int_void_symbol_name() -> &'static str {
+    "srand"
+}
+
+#[cfg(target_os = "windows")]
 fn ffi_test_call2_string_int_symbol_name() -> &'static str {
     "lstrcmpA"
 }
@@ -87,6 +97,16 @@ fn ffi_test_call1_string_void_symbol_name() -> &'static str {
 }
 
 #[cfg(target_os = "linux")]
+fn ffi_test_call1_int_void_library_path() -> &'static str {
+    "libc.so.6"
+}
+
+#[cfg(target_os = "linux")]
+fn ffi_test_call1_int_void_symbol_name() -> &'static str {
+    "srand"
+}
+
+#[cfg(target_os = "linux")]
 fn ffi_test_call2_string_int_symbol_name() -> &'static str {
     "strcmp"
 }
@@ -129,6 +149,16 @@ fn ffi_test_call1_string_void_library_path() -> &'static str {
 #[cfg(target_os = "macos")]
 fn ffi_test_call1_string_void_symbol_name() -> &'static str {
     "perror"
+}
+
+#[cfg(target_os = "macos")]
+fn ffi_test_call1_int_void_library_path() -> &'static str {
+    "/usr/lib/libSystem.B.dylib"
+}
+
+#[cfg(target_os = "macos")]
+fn ffi_test_call1_int_void_symbol_name() -> &'static str {
+    "srand"
 }
 
 #[cfg(target_os = "macos")]
@@ -845,6 +875,7 @@ fn main() -> Int {
   let sym: ffi.Symbol = ffi.bind(lib, "puts");
   let _ = ffi.call0Int(sym);
   let _ = ffi.call1Int(sym, 1);
+  ffi.call1IntVoid(sym, 1);
   let _ = ffi.call1StringInt(sym, "hello");
   ffi.call1StringVoid(sym, "hello");
   let _ = ffi.call2StringInt(sym, "same", "same");
@@ -1034,6 +1065,36 @@ fn main() -> Int {{
 "#,
             library = ffi_test_call1_string_void_library_path(),
             sym = ffi_test_call1_string_void_symbol_name(),
+        ),
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("run")
+        .arg(&source)
+        .output()
+        .expect("run skepac run");
+
+    assert_eq!(output.status.code(), Some(0), "{:?}", output);
+}
+
+#[test]
+fn run_executes_linked_extern_int_void_function_end_to_end() {
+    let tmp = make_temp_dir("skepac_run_extern_linked_int_void");
+    let source = tmp.join("main.sk");
+    fs::write(
+        &source,
+        format!(
+            r#"
+extern("{library}") fn {sym}(seed: Int) -> Void;
+
+fn main() -> Int {{
+  {sym}(123);
+  return 0;
+}}
+"#,
+            library = ffi_test_call1_int_void_library_path(),
+            sym = ffi_test_call1_int_void_symbol_name(),
         ),
     )
     .expect("write source");

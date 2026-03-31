@@ -291,6 +291,11 @@ pub fn call_with_context(
             symbol.expect_handle_kind(crate::RtHandleKind::Symbol)?,
             value.expect_int()?,
         ),
+        ("ffi", "call1IntVoid", [symbol, value]) => ffi::call_1_int_void(
+            ctx.host(),
+            symbol.expect_handle_kind(crate::RtHandleKind::Symbol)?,
+            value.expect_int()?,
+        ),
         ("ffi", "call1StringInt", [symbol, value]) => ffi::call_1_string_int(
             ctx.host(),
             symbol.expect_handle_kind(crate::RtHandleKind::Symbol)?,

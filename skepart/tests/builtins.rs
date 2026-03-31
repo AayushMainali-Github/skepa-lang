@@ -1025,6 +1025,16 @@ fn builtins_cover_ffi_integer_calls_and_errors() {
         builtins::call_with_host(
             &mut host,
             "ffi",
+            "call1IntVoid",
+            &[symbol.clone(), RtValue::Int(4)],
+        )
+        .expect("ffi.call1IntVoid"),
+        RtValue::Unit
+    );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "ffi",
             "call1StringInt",
             &[symbol.clone(), RtValue::String(RtString::from("hello"))],
         )
@@ -1085,6 +1095,7 @@ fn builtins_cover_ffi_integer_calls_and_errors() {
     assert!(
         host.output.contains("[fficall0int 1]")
             && host.output.contains("[fficall1int 1=9]")
+            && host.output.contains("[fficall1intvoid 1=4]")
             && host.output.contains("[fficall1stringint 1=hello]")
             && host.output.contains("[fficall1stringvoid 1=trace]")
             && host.output.contains("[fficall2stringint 1=alpha|beta]")

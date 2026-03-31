@@ -290,11 +290,12 @@ impl Checker {
                     | [TypeInfo::String, TypeInfo::String]
                     | [TypeInfo::String, TypeInfo::Int]
             ))
-            || (matches!(ret, TypeInfo::Void) && matches!(params.as_slice(), [TypeInfo::String]));
+            || (matches!(ret, TypeInfo::Void)
+                && matches!(params.as_slice(), [TypeInfo::String] | [TypeInfo::Int]));
 
         if !supported {
             self.error(format!(
-                "Extern function `{}` uses unsupported signature; supported forms are `extern fn() -> Int`, `extern fn(Int) -> Int`, `extern fn(String) -> Int`, `extern fn(Bytes) -> Int`, `extern fn(String, String) -> Int`, `extern fn(String, Int) -> Int`, and `extern fn(String) -> Void`",
+                "Extern function `{}` uses unsupported signature; supported forms are `extern fn() -> Int`, `extern fn(Int) -> Int`, `extern fn(Int) -> Void`, `extern fn(String) -> Int`, `extern fn(Bytes) -> Int`, `extern fn(String, String) -> Int`, `extern fn(String, Int) -> Int`, and `extern fn(String) -> Void`",
                 f.name
             ));
         }

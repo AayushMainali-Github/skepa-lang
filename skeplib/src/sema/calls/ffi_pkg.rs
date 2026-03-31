@@ -120,6 +120,32 @@ pub(super) fn check_ffi_builtin(
             }
             TypeInfo::Int
         }
+        "call1IntVoid" => {
+            if args.len() != 2 {
+                checker.error(format!(
+                    "ffi.call1IntVoid expects 2 argument(s), got {}",
+                    args.len()
+                ));
+                return TypeInfo::Unknown;
+            }
+            let symbol_ty = checker.check_expr(&args[0], scopes);
+            let symbol_expected = TypeInfo::Opaque("ffi.Symbol".to_string());
+            if symbol_ty != TypeInfo::Unknown && symbol_ty != symbol_expected {
+                checker.error(format!(
+                    "ffi.call1IntVoid argument 1 expects {:?}, got {:?}",
+                    symbol_expected, symbol_ty
+                ));
+            }
+            let value_ty = checker.check_expr(&args[1], scopes);
+            if value_ty != TypeInfo::Unknown && value_ty != TypeInfo::Int {
+                checker.error(format!(
+                    "ffi.call1IntVoid argument 2 expects {:?}, got {:?}",
+                    TypeInfo::Int,
+                    value_ty
+                ));
+            }
+            TypeInfo::Void
+        }
         "call1StringInt" => {
             if args.len() != 2 {
                 checker.error(format!(

@@ -62,6 +62,16 @@ fn ffi_test_call1_string_void_symbol_name() -> &'static str {
 }
 
 #[cfg(windows)]
+fn ffi_test_call1_int_void_library_path() -> &'static str {
+    "ucrtbase.dll"
+}
+
+#[cfg(windows)]
+fn ffi_test_call1_int_void_symbol_name() -> &'static str {
+    "srand"
+}
+
+#[cfg(windows)]
 fn ffi_test_call2_string_int_symbol_name() -> &'static str {
     "lstrcmpA"
 }
@@ -127,6 +137,16 @@ fn ffi_test_call1_string_void_symbol_name() -> &'static str {
 }
 
 #[cfg(all(unix, not(target_os = "macos")))]
+fn ffi_test_call1_int_void_library_path() -> &'static str {
+    "libc.so.6"
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn ffi_test_call1_int_void_symbol_name() -> &'static str {
+    "srand"
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
 fn ffi_test_call2_string_int_symbol_name() -> &'static str {
     "strcmp"
 }
@@ -189,6 +209,16 @@ fn ffi_test_call1_string_void_library_path() -> &'static str {
 #[cfg(target_os = "macos")]
 fn ffi_test_call1_string_void_symbol_name() -> &'static str {
     "perror"
+}
+
+#[cfg(target_os = "macos")]
+fn ffi_test_call1_int_void_library_path() -> &'static str {
+    "/usr/lib/libSystem.B.dylib"
+}
+
+#[cfg(target_os = "macos")]
+fn ffi_test_call1_int_void_symbol_name() -> &'static str {
+    "srand"
 }
 
 #[cfg(target_os = "macos")]
@@ -2135,6 +2165,25 @@ fn main() -> Int {{
 "#,
         library = ffi_test_call1_string_void_library_path(),
         sym = ffi_test_call1_string_void_symbol_name(),
+    );
+
+    let result = common::native_run_structured(&source);
+    assert_eq!(result.exit_code(), 0, "stderr: {}", result.stderr_lossy());
+}
+
+#[test]
+fn codegen_builds_native_executable_for_linked_extern_int_void_calls() {
+    let source = format!(
+        r#"
+extern("{library}") fn {sym}(seed: Int) -> Void;
+
+fn main() -> Int {{
+  {sym}(123);
+  return 0;
+}}
+"#,
+        library = ffi_test_call1_int_void_library_path(),
+        sym = ffi_test_call1_int_void_symbol_name(),
     );
 
     let result = common::native_run_structured(&source);

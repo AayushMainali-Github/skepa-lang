@@ -1391,6 +1391,24 @@ fn main() -> Void {
 }
 
 #[test]
+fn sema_accepts_ffi_void_int_calls() {
+    let src = r#"
+import ffi;
+
+fn main() -> Void {
+  let lib: ffi.Library = ffi.open("test-lib");
+  let sym: ffi.Symbol = ffi.bind(lib, "srand");
+  ffi.call1IntVoid(sym, 7);
+  ffi.closeSymbol(sym);
+  ffi.closeLibrary(lib);
+  return;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
+
+#[test]
 fn sema_rejects_ffi_type_mismatches() {
     let src = r#"
 import ffi;
@@ -1438,6 +1456,7 @@ fn main() -> Int {
   let sym: ffi.Symbol = ffi.bind(lib, "puts");
   let a: Int = ffi.call0Int(lib);
   let b: Int = ffi.call1Int(sym, false);
+  ffi.call1IntVoid(sym, false);
   let c: Int = ffi.call1StringInt(sym, 7);
   ffi.call1StringVoid(sym, 7);
   let e: Int = ffi.call2StringInt(sym, 7, "x");
@@ -1457,6 +1476,10 @@ fn main() -> Int {
         .as_slice()
         .iter()
         .any(|d| d.message.contains("ffi.call1Int argument 2 expects Int")));
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("ffi.call1IntVoid argument 2 expects Int")));
     assert!(diags
         .as_slice()
         .iter()
@@ -2507,6 +2530,20 @@ extern("libc.so.6") fn trace(s: String) -> Void;
 
 fn main() -> Int {
   trace("ok");
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
+
+#[test]
+fn sema_accepts_extern_void_int_function_declarations_and_calls() {
+    let src = r#"
+extern("libc.so.6") fn srand(seed: Int) -> Void;
+
+fn main() -> Int {
+  srand(1);
   return 0;
 }
 "#;

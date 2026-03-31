@@ -834,6 +834,7 @@ Signatures:
 - `ffi.closeSymbol(sym: ffi.Symbol) -> Void`
 - `ffi.call0Int(sym: ffi.Symbol) -> Int`
 - `ffi.call1Int(sym: ffi.Symbol, value: Int) -> Int`
+- `ffi.call1IntVoid(sym: ffi.Symbol, value: Int) -> Void`
 - `ffi.call1StringInt(sym: ffi.Symbol, value: String) -> Int`
 - `ffi.call1StringVoid(sym: ffi.Symbol, value: String) -> Void`
 - `ffi.call2StringInt(sym: ffi.Symbol, left: String, right: String) -> Int`
@@ -846,6 +847,7 @@ Behavior:
 - `ffi.closeLibrary` and `ffi.closeSymbol` close the corresponding handles.
 - `ffi.call0Int` calls a zero-argument foreign function returning an integer.
 - `ffi.call1Int` calls a one-argument integer foreign function.
+- `ffi.call1IntVoid` calls a one-argument integer foreign function that returns no value.
 - `ffi.call1StringInt` calls a one-argument foreign function that receives a borrowed string and returns an integer.
 - `ffi.call1StringVoid` calls a one-argument foreign function that receives a borrowed string and returns no value.
 - `ffi.call2StringInt` calls a two-argument foreign function that receives two borrowed strings and returns an integer.
@@ -856,6 +858,7 @@ Borrowing and ownership rules:
 - `ffi.Library` and `ffi.Symbol` are opaque runtime-managed handles, not structs.
 - Closing a library or symbol invalidates that handle for all aliases.
 - `ffi.call1StringInt` passes a temporary borrowed NUL-terminated string pointer for the duration of the call only.
+- `ffi.call1IntVoid` passes the integer argument by value for the duration of the call.
 - `ffi.call1StringVoid` passes a temporary borrowed NUL-terminated string pointer for the duration of the call only.
 - `ffi.call2StringInt` passes two temporary borrowed NUL-terminated string pointers for the duration of the call only.
 - `ffi.call2StringIntInt` passes a temporary borrowed NUL-terminated string pointer plus an integer value for the duration of the call only.
