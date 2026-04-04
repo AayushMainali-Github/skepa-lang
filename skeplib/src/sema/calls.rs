@@ -123,6 +123,8 @@ impl Checker {
                 || parts[0] == "str"
                 || parts[0] == "bytes"
                 || parts[0] == "map"
+                || parts[0] == "option"
+                || parts[0] == "result"
                 || parts[0] == "arr"
                 || parts[0] == "datetime"
                 || parts[0] == "ffi"

@@ -207,6 +207,8 @@ impl Checker {
                                 | "random"
                                 | "bytes"
                                 | "map"
+                                | "option"
+                                | "result"
                                 | "net"
                                 | "os"
                                 | "fs"

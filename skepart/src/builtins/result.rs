@@ -7,3 +7,11 @@ pub fn ok(value: &RtValue) -> RtValue {
 pub fn err(value: &RtValue) -> RtValue {
     RtValue::Result(RtResultValue::err(value.clone()))
 }
+
+pub fn is_ok(value: &RtResultValue) -> RtValue {
+    RtValue::Bool(value.is_ok())
+}
+
+pub fn is_err(value: &RtResultValue) -> RtValue {
+    RtValue::Bool(value.is_err())
+}

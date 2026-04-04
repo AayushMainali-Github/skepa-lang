@@ -1007,6 +1007,71 @@ fn main() -> Int {
 }
 
 #[test]
+fn check_accepts_option_and_result_inspection_program() {
+    let tmp = make_temp_dir("skepac_check_option_result_inspect");
+    let file = tmp.join("inspect.sk");
+    fs::write(
+        &file,
+        r#"
+import option;
+import result;
+
+fn main() -> Int {
+  let a: Option[Int] = Some(7);
+  let b: Option[Int] = None();
+  let c: Result[Int, String] = Ok(7);
+  let d: Result[Int, String] = Err("bad");
+  if (option.isSome(a) && option.isNone(b) && result.isOk(c) && result.isErr(d)) {
+    return 0;
+  }
+  return 1;
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("check")
+        .arg(&file)
+        .output()
+        .expect("run check");
+    assert_eq!(output.status.code(), Some(0), "{:?}", output);
+}
+
+#[test]
+fn run_executes_option_and_result_inspection_program_end_to_end() {
+    let tmp = make_temp_dir("skepac_run_option_result_inspect");
+    let source = tmp.join("main.sk");
+    fs::write(
+        &source,
+        r#"
+import option;
+import result;
+
+fn main() -> Int {
+  let a: Option[Int] = Some(7);
+  let b: Option[Int] = None();
+  let c: Result[Int, String] = Ok(7);
+  let d: Result[Int, String] = Err("bad");
+  if (option.isSome(a) && option.isNone(b) && result.isOk(c) && result.isErr(d)) {
+    return 0;
+  }
+  return 1;
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("run")
+        .arg(&source)
+        .output()
+        .expect("run skepac run");
+
+    assert_eq!(output.status.code(), Some(0), "{:?}", output);
+}
+
+#[test]
 fn check_accepts_minimal_map_builtins_program() {
     let tmp = make_temp_dir("skepac_check_map_minimal");
     let file = tmp.join("map_minimal.sk");

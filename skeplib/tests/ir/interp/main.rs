@@ -1585,3 +1585,25 @@ fn main() -> Int {
         ExpectedErrorKind::IndexOutOfBounds,
     );
 }
+
+#[test]
+fn interpreter_supports_option_and_result_inspection_helpers() {
+    let source = r#"
+import option;
+import result;
+
+fn main() -> Int {
+  let a: Option[Int] = Some(7);
+  let b: Option[Int] = None();
+  let c: Result[Int, String] = Ok(7);
+  let d: Result[Int, String] = Err("bad");
+  if (option.isSome(a) && option.isNone(b) && result.isOk(c) && result.isErr(d)) {
+    return 0;
+  }
+  return 1;
+}
+"#;
+
+    let value = common::ir_run_ok(source);
+    assert_eq!(value, IrValue::Int(0));
+}

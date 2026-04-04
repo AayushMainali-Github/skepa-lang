@@ -1860,3 +1860,58 @@ fn builtins_reject_new_os_invalid_argument_shapes() {
         RtErrorKind::TypeMismatch
     );
 }
+
+#[test]
+fn builtins_cover_option_and_result_inspection_helpers() {
+    let some = builtins::call("option", "some", &[RtValue::Int(7)]).expect("option.some");
+    let none = builtins::call("option", "none", &[]).expect("option.none");
+    let ok = builtins::call("result", "ok", &[RtValue::String(RtString::from("ok"))])
+        .expect("result.ok");
+    let err = builtins::call("result", "err", &[RtValue::String(RtString::from("bad"))])
+        .expect("result.err");
+
+    assert_eq!(
+        builtins::call("option", "isSome", std::slice::from_ref(&some)).expect("option.isSome"),
+        RtValue::Bool(true)
+    );
+    assert_eq!(
+        builtins::call("option", "isNone", std::slice::from_ref(&some)).expect("option.isNone"),
+        RtValue::Bool(false)
+    );
+    assert_eq!(
+        builtins::call("option", "isSome", std::slice::from_ref(&none)).expect("option.isSome"),
+        RtValue::Bool(false)
+    );
+    assert_eq!(
+        builtins::call("option", "isNone", std::slice::from_ref(&none)).expect("option.isNone"),
+        RtValue::Bool(true)
+    );
+    assert_eq!(
+        builtins::call("result", "isOk", std::slice::from_ref(&ok)).expect("result.isOk"),
+        RtValue::Bool(true)
+    );
+    assert_eq!(
+        builtins::call("result", "isErr", std::slice::from_ref(&ok)).expect("result.isErr"),
+        RtValue::Bool(false)
+    );
+    assert_eq!(
+        builtins::call("result", "isOk", std::slice::from_ref(&err)).expect("result.isOk"),
+        RtValue::Bool(false)
+    );
+    assert_eq!(
+        builtins::call("result", "isErr", std::slice::from_ref(&err)).expect("result.isErr"),
+        RtValue::Bool(true)
+    );
+    assert_eq!(
+        builtins::call("option", "isSome", &[RtValue::Int(1)])
+            .expect_err("option.isSome type mismatch")
+            .kind,
+        RtErrorKind::TypeMismatch
+    );
+    assert_eq!(
+        builtins::call("result", "isOk", &[RtValue::Int(1)])
+            .expect_err("result.isOk type mismatch")
+            .kind,
+        RtErrorKind::TypeMismatch
+    );
+}

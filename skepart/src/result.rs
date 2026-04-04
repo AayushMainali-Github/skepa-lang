@@ -14,4 +14,12 @@ impl RtResultValue {
     pub fn err(value: RtValue) -> Self {
         Self::Err(Box::new(value))
     }
+
+    pub fn is_ok(&self) -> bool {
+        matches!(self, Self::Ok(_))
+    }
+
+    pub fn is_err(&self) -> bool {
+        matches!(self, Self::Err(_))
+    }
 }

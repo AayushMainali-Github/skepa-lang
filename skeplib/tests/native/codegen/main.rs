@@ -2398,6 +2398,27 @@ fn main() -> Int {
     assert_eq!(common::native_run_project_structured(&entry).exit_code(), 7);
 }
 
+#[test]
+fn codegen_builds_native_executable_for_option_and_result_inspection_helpers() {
+    let source = r#"
+import option;
+import result;
+
+fn main() -> Int {
+  let a: Option[Int] = Some(7);
+  let b: Option[Int] = None();
+  let c: Result[Int, String] = Ok(7);
+  let d: Result[Int, String] = Err("bad");
+  if (option.isSome(a) && option.isNone(b) && result.isOk(c) && result.isErr(d)) {
+    return 0;
+  }
+  return 1;
+}
+"#;
+
+    assert_eq!(common::native_run_structured(source).exit_code(), 0);
+}
+
 fn object_ext() -> &'static str {
     if cfg!(windows) { "obj" } else { "o" }
 }

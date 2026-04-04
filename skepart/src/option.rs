@@ -11,4 +11,12 @@ impl RtOption {
     pub fn none() -> Self {
         Self(None)
     }
+
+    pub fn is_some(&self) -> bool {
+        self.0.is_some()
+    }
+
+    pub fn is_none(&self) -> bool {
+        self.0.is_none()
+    }
 }

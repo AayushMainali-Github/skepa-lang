@@ -123,8 +123,12 @@ pub fn call_with_context(
         }
         ("option", "some", [value]) => Ok(option::some(value)),
         ("option", "none", []) => Ok(option::none()),
+        ("option", "isSome", [value]) => Ok(option::is_some(&value.expect_option()?)),
+        ("option", "isNone", [value]) => Ok(option::is_none(&value.expect_option()?)),
         ("result", "ok", [value]) => Ok(result::ok(value)),
         ("result", "err", [value]) => Ok(result::err(value)),
+        ("result", "isOk", [value]) => Ok(result::is_ok(&value.expect_result_value()?)),
+        ("result", "isErr", [value]) => Ok(result::is_err(&value.expect_result_value()?)),
         ("map", "new", []) => Ok(RtValue::Map(map::new())),
         ("map", "len", [value]) => Ok(map::len(&value.expect_map()?)),
         ("map", "has", [value, key]) => Ok(map::has(

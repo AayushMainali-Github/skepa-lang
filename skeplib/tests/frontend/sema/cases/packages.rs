@@ -2570,3 +2570,51 @@ fn main() -> Int {
         d.message.contains("Extern function `too_many` uses unsupported signature")
     }));
 }
+
+#[test]
+fn sema_accepts_option_and_result_inspection_helpers() {
+    let src = r#"
+import option;
+import result;
+
+fn main() -> Int {
+  let a: Option[Int] = Some(7);
+  let b: Option[Int] = None();
+  let c: Result[Int, String] = Ok(7);
+  let d: Result[Int, String] = Err("bad");
+  let sa: Bool = option.isSome(a);
+  let nb: Bool = option.isNone(b);
+  let oc: Bool = result.isOk(c);
+  let ed: Bool = result.isErr(d);
+  if (sa && nb && oc && ed) {
+    return 0;
+  }
+  return 1;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
+
+#[test]
+fn sema_rejects_option_and_result_inspection_without_import_or_with_bad_types() {
+    let src = r#"
+fn main() -> Int {
+  let a: Option[Int] = Some(7);
+  let b: Result[Int, String] = Ok(7);
+  let _x = option.isSome(1);
+  let _y = result.isErr(a);
+  let _z = option.isNone(a);
+  let _w = result.isOk(b);
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message.contains("`option.*` used without `import option;`")
+    }));
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message.contains("`result.*` used without `import result;`")
+    }));
+}

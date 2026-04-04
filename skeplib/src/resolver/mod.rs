@@ -281,6 +281,8 @@ pub fn resolve_project(entry: &Path) -> Result<ModuleGraph, Vec<ResolveError>> {
                     import_path[0].as_str(),
                     "io" | "bytes"
                         | "map"
+                        | "option"
+                        | "result"
                         | "str"
                         | "arr"
                         | "datetime"
