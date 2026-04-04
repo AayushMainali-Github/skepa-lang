@@ -82,6 +82,21 @@ fn main() -> Int {
     assert_sema_success(&result, &diags);
 }
 
+#[test]
+fn sema_rejects_bad_option_constructor_arity() {
+    let src = r#"
+fn main() -> Int {
+  let a: Option[Int] = Some(1, 2);
+  let b: Option[Int] = None(1);
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert_has_diag(&diags, "Some expects 1 argument, got 2");
+    assert_has_diag(&diags, "None expects 0 arguments, got 1");
+}
+
 fn main() -> Int {
   let x: Int = add(1, 2);
   if (x > 0) {

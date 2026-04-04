@@ -895,6 +895,43 @@ fn main() -> Int {
 }
 
 #[test]
+fn run_executes_option_program_end_to_end() {
+    let tmp = make_temp_dir("skepac_run_option");
+    let source = tmp.join("main.sk");
+    fs::write(
+        &source,
+        r#"
+fn wrap(x: Int) -> Option[Int] {
+  return Some(x);
+}
+
+fn missing() -> Option[Int] {
+  return None();
+}
+
+fn main() -> Int {
+  let a: Option[Int] = wrap(7);
+  let b: Option[Int] = Some(7);
+  let c: Option[Int] = missing();
+  if (a == b && a != c && c == None()) {
+    return 0;
+  }
+  return 1;
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("run")
+        .arg(&source)
+        .output()
+        .expect("run skepac run");
+
+    assert_eq!(output.status.code(), Some(0), "{:?}", output);
+}
+
+#[test]
 fn check_accepts_minimal_map_builtins_program() {
     let tmp = make_temp_dir("skepac_check_map_minimal");
     let file = tmp.join("map_minimal.sk");
