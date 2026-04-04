@@ -55,11 +55,7 @@ pub fn emit_boxed_operand(
         IrType::String => "skp_rt_value_from_string",
         IrType::Bytes => "skp_rt_value_from_bytes",
         IrType::Option { .. } => "skp_rt_value_from_option",
-        IrType::Result { .. } => {
-            return Err(CodegenError::Unsupported(
-                "boxing Result values is not implemented yet",
-            ));
-        }
+        IrType::Result { .. } => "skp_rt_value_from_result",
         IrType::Array { .. } => "skp_rt_value_from_array",
         IrType::Vec { .. } => "skp_rt_value_from_vec",
         IrType::Map { .. } => "skp_rt_value_from_map",
@@ -106,11 +102,9 @@ pub fn emit_unbox_value(
         IrType::Option { .. } => lines.push(format!(
             "  {dest} = call ptr @skp_rt_value_to_option(ptr {raw})"
         )),
-        IrType::Result { .. } => {
-            return Err(CodegenError::Unsupported(
-                "unboxing Result values is not implemented yet",
-            ));
-        }
+        IrType::Result { .. } => lines.push(format!(
+            "  {dest} = call ptr @skp_rt_value_to_result(ptr {raw})"
+        )),
         IrType::Array { .. } => lines.push(format!(
             "  {dest} = call ptr @skp_rt_value_to_array(ptr {raw})"
         )),
@@ -131,7 +125,7 @@ pub fn emit_unbox_value(
         )),
         _ => {
             return Err(CodegenError::Unsupported(
-                "unboxing is only implemented for Int/Float/Bool/String/Bytes/Option/Array/Vec/Map/Struct/Handle/Function",
+                "unboxing is only implemented for Int/Float/Bool/String/Bytes/Option/Result/Array/Vec/Map/Struct/Handle/Function",
             ));
         }
     }

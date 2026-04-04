@@ -9,6 +9,7 @@ pub mod net;
 pub mod option;
 pub mod os;
 pub mod random;
+pub mod result;
 pub mod str;
 pub mod task;
 pub mod vec;
@@ -122,6 +123,8 @@ pub fn call_with_context(
         }
         ("option", "some", [value]) => Ok(option::some(value)),
         ("option", "none", []) => Ok(option::none()),
+        ("result", "ok", [value]) => Ok(result::ok(value)),
+        ("result", "err", [value]) => Ok(result::err(value)),
         ("map", "new", []) => Ok(RtValue::Map(map::new())),
         ("map", "len", [value]) => Ok(map::len(&value.expect_map()?)),
         ("map", "has", [value, key]) => Ok(map::has(

@@ -86,9 +86,20 @@ pub fn emit_compare(
             }
         }
         crate::ir::IrType::Result { .. } => {
-            return Err(CodegenError::Unsupported(
-                "result comparisons are not implemented in LLVM lowering",
+            let eq = format!("%v{counter}");
+            *counter += 1;
+            lines.push(format!(
+                "  {eq} = call i1 @skp_rt_result_eq(ptr {left}, ptr {right})"
             ));
+            match op {
+                CmpOp::Eq => lines.push(format!("  {dest} = xor i1 {eq}, false")),
+                CmpOp::Ne => lines.push(format!("  {dest} = xor i1 {eq}, true")),
+                _ => {
+                    return Err(CodegenError::Unsupported(
+                        "result ordering comparisons are not implemented in LLVM lowering",
+                    ));
+                }
+            }
         }
         crate::ir::IrType::Float => {
             let pred = match op {

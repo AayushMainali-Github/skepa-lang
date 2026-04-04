@@ -6,6 +6,7 @@ const RUNTIME_DECLS: &[(&str, &str)] = &[
     ("skp_rt_string_eq", "declare i1 @skp_rt_string_eq(ptr, ptr)"),
     ("skp_rt_bytes_eq", "declare i1 @skp_rt_bytes_eq(ptr, ptr)"),
     ("skp_rt_option_eq", "declare i1 @skp_rt_option_eq(ptr, ptr)"),
+    ("skp_rt_result_eq", "declare i1 @skp_rt_result_eq(ptr, ptr)"),
     (
         "skp_rt_builtin_str_len",
         "declare i64 @skp_rt_builtin_str_len(ptr)",
@@ -71,6 +72,10 @@ const RUNTIME_DECLS: &[(&str, &str)] = &[
         "declare ptr @skp_rt_value_from_option(ptr)",
     ),
     (
+        "skp_rt_value_from_result",
+        "declare ptr @skp_rt_value_from_result(ptr)",
+    ),
+    (
         "skp_rt_value_from_array",
         "declare ptr @skp_rt_value_from_array(ptr)",
     ),
@@ -118,6 +123,10 @@ const RUNTIME_DECLS: &[(&str, &str)] = &[
     (
         "skp_rt_value_to_option",
         "declare ptr @skp_rt_value_to_option(ptr)",
+    ),
+    (
+        "skp_rt_value_to_result",
+        "declare ptr @skp_rt_value_to_result(ptr)",
     ),
     (
         "skp_rt_value_to_array",

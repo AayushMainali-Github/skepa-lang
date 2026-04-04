@@ -7,6 +7,7 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use crate::array::RtArray;
 use crate::map::RtMap;
 use crate::option::RtOption;
+use crate::result::RtResultValue;
 use crate::string::RtString;
 use crate::value::{RtStruct, RtValue};
 use crate::vec::RtVec;
@@ -97,6 +98,10 @@ pub fn boxed_option(value: RtOption) -> *mut RtOption {
     Box::into_raw(Box::new(value))
 }
 
+pub fn boxed_result(value: RtResultValue) -> *mut RtResultValue {
+    Box::into_raw(Box::new(value))
+}
+
 pub fn boxed_struct(value: RtStruct) -> *mut RtStruct {
     Box::into_raw(Box::new(value))
 }
@@ -149,6 +154,12 @@ unsafe fn free_boxed_map(ptr: *mut RtMap) {
 }
 
 unsafe fn free_boxed_option(ptr: *mut RtOption) {
+    if !ptr.is_null() {
+        unsafe { drop(Box::from_raw(ptr)) };
+    }
+}
+
+unsafe fn free_boxed_result(ptr: *mut RtResultValue) {
     if !ptr.is_null() {
         unsafe { drop(Box::from_raw(ptr)) };
     }
@@ -229,6 +240,11 @@ pub unsafe extern "C" fn skp_rt_map_free(ptr: *mut RtMap) {
 #[no_mangle]
 pub unsafe extern "C" fn skp_rt_option_free(ptr: *mut RtOption) {
     unsafe { free_boxed_option(ptr) };
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn skp_rt_result_free(ptr: *mut RtResultValue) {
+    unsafe { free_boxed_result(ptr) };
 }
 
 #[no_mangle]

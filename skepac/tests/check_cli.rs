@@ -895,6 +895,81 @@ fn main() -> Int {
 }
 
 #[test]
+fn check_accepts_minimal_result_program() {
+    let tmp = make_temp_dir("skepac_check_result_minimal");
+    let file = tmp.join("result_minimal.sk");
+    fs::write(
+        &file,
+        r#"
+fn wrap(x: Int) -> Result[Int, String] {
+  return Ok(x);
+}
+
+fn fail() -> Result[Int, String] {
+  return Err("bad");
+}
+
+fn main() -> Int {
+  let a: Result[Int, String] = wrap(7);
+  let b: Result[Int, String] = Ok(7);
+  let c: Result[Int, String] = fail();
+  let d: Result[Int, String] = Err("bad");
+  if (a == b && c == d && a != c) {
+    return 0;
+  }
+  return 1;
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("check")
+        .arg(&file)
+        .output()
+        .expect("run check");
+    assert_eq!(output.status.code(), Some(0), "{:?}", output);
+}
+
+#[test]
+fn run_executes_result_program_end_to_end() {
+    let tmp = make_temp_dir("skepac_run_result");
+    let source = tmp.join("main.sk");
+    fs::write(
+        &source,
+        r#"
+fn wrap(x: Int) -> Result[Int, String] {
+  return Ok(x);
+}
+
+fn fail() -> Result[Int, String] {
+  return Err("bad");
+}
+
+fn main() -> Int {
+  let a: Result[Int, String] = wrap(7);
+  let b: Result[Int, String] = Ok(7);
+  let c: Result[Int, String] = fail();
+  let d: Result[Int, String] = Err("bad");
+  if (a == b && c == d && a != c) {
+    return 0;
+  }
+  return 1;
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("run")
+        .arg(&source)
+        .output()
+        .expect("run skepac run");
+
+    assert_eq!(output.status.code(), Some(0), "{:?}", output);
+}
+
+#[test]
 fn run_executes_option_program_end_to_end() {
     let tmp = make_temp_dir("skepac_run_option");
     let source = tmp.join("main.sk");

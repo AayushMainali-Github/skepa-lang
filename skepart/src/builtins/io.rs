@@ -45,6 +45,10 @@ fn display_value(value: &RtValue) -> String {
             Some(inner) => format!("Some({})", display_value(inner)),
             None => "None".to_owned(),
         },
+        RtValue::Result(value) => match value {
+            crate::RtResultValue::Ok(inner) => format!("Ok({})", display_value(inner)),
+            crate::RtResultValue::Err(inner) => format!("Err({})", display_value(inner)),
+        },
         RtValue::Array(_) => "[array]".to_owned(),
         RtValue::Vec(_) => "[vec]".to_owned(),
         RtValue::Map(_) => "[map]".to_owned(),

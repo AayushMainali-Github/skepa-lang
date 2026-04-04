@@ -85,6 +85,34 @@ impl Checker {
                     self.error(format!("None expects 0 arguments, got {}", args.len()));
                     return TypeInfo::Unknown;
                 }
+                ("Ok", [value]) => {
+                    let value_ty = self.check_expr(value, scopes);
+                    return TypeInfo::Result {
+                        ok: Box::new(value_ty),
+                        err: Box::new(TypeInfo::Unknown),
+                    };
+                }
+                ("Ok", _) => {
+                    for arg in args {
+                        self.check_expr(arg, scopes);
+                    }
+                    self.error(format!("Ok expects 1 argument, got {}", args.len()));
+                    return TypeInfo::Unknown;
+                }
+                ("Err", [value]) => {
+                    let err_ty = self.check_expr(value, scopes);
+                    return TypeInfo::Result {
+                        ok: Box::new(TypeInfo::Unknown),
+                        err: Box::new(err_ty),
+                    };
+                }
+                ("Err", _) => {
+                    for arg in args {
+                        self.check_expr(arg, scopes);
+                    }
+                    self.error(format!("Err expects 1 argument, got {}", args.len()));
+                    return TypeInfo::Unknown;
+                }
                 _ => {}
             }
         }

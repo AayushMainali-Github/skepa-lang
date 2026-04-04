@@ -6,6 +6,30 @@ use crate::types::TypeInfo;
 use super::Checker;
 
 impl Checker {
+    fn refine_result_type_from_expected(value_ty: TypeInfo, expected: &TypeInfo) -> TypeInfo {
+        match (expected, value_ty) {
+            (
+                TypeInfo::Result { ok, err },
+                TypeInfo::Result {
+                    ok: value_ok,
+                    err: value_err,
+                },
+            ) => TypeInfo::Result {
+                ok: Box::new(if matches!(*value_ok, TypeInfo::Unknown) {
+                    (**ok).clone()
+                } else {
+                    (*value_ok).clone()
+                }),
+                err: Box::new(if matches!(*value_err, TypeInfo::Unknown) {
+                    (**err).clone()
+                } else {
+                    (*value_err).clone()
+                }),
+            },
+            (_, value_ty) => value_ty,
+        }
+    }
+
     pub(super) fn is_vec_new_call(expr: &Expr) -> bool {
         matches!(
             expr,
@@ -235,6 +259,8 @@ impl Checker {
                             }
                             declared
                         } else {
+                            let expr_ty =
+                                Self::refine_result_type_from_expected(expr_ty, &declared);
                             if !Self::types_compatible(&expr_ty, &declared) {
                                 self.error(format!(
                                     "Type mismatch in let `{name}`: declared {:?}, got {:?}",
@@ -361,6 +387,7 @@ impl Checker {
                     Some(expr) => self.check_expr(expr, scopes),
                     None => TypeInfo::Void,
                 };
+                let ret_ty = Self::refine_result_type_from_expected(ret_ty, expected_ret);
                 if ret_ty != TypeInfo::Unknown
                     && &ret_ty != expected_ret
                     && !Self::types_compatible(&ret_ty, expected_ret)

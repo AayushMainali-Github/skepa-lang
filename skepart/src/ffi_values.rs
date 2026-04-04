@@ -4,11 +4,12 @@ use std::slice;
 use crate::array::RtArray;
 use crate::bytes::RtBytes;
 use crate::ffi_support::{
-    boxed_array, boxed_map, boxed_option, boxed_string, boxed_struct, boxed_value, boxed_vec,
-    clear_last_error, clone_value, ffi_try, invalid_argument, set_last_error,
+    boxed_array, boxed_map, boxed_option, boxed_result, boxed_string, boxed_struct, boxed_value,
+    boxed_vec, clear_last_error, clone_value, ffi_try, invalid_argument, set_last_error,
 };
 use crate::map::RtMap;
 use crate::option::RtOption;
+use crate::result::RtResultValue;
 use crate::string::RtString;
 use crate::value::{RtFunctionRef, RtHandle, RtStruct, RtValue};
 use crate::vec::RtVec;
@@ -86,6 +87,16 @@ pub extern "C" fn skp_rt_option_eq(left: *mut RtOption, right: *mut RtOption) ->
 }
 
 #[no_mangle]
+pub extern "C" fn skp_rt_result_eq(left: *mut RtResultValue, right: *mut RtResultValue) -> bool {
+    clear_last_error();
+    if left.is_null() || right.is_null() {
+        set_last_error(invalid_argument("result pointers must not be null"));
+        return false;
+    }
+    unsafe { *left == *right }
+}
+
+#[no_mangle]
 pub extern "C" fn skp_rt_option_some(value: *mut RtValue) -> *mut RtOption {
     match ffi_try(|| clone_value(value).map(RtOption::some).map(boxed_option)) {
         Ok(value) => value,
@@ -99,6 +110,28 @@ pub extern "C" fn skp_rt_option_some(value: *mut RtValue) -> *mut RtOption {
 #[no_mangle]
 pub extern "C" fn skp_rt_option_none() -> *mut RtOption {
     boxed_option(RtOption::none())
+}
+
+#[no_mangle]
+pub extern "C" fn skp_rt_result_ok(value: *mut RtValue) -> *mut RtResultValue {
+    match ffi_try(|| clone_value(value).map(RtResultValue::ok).map(boxed_result)) {
+        Ok(value) => value,
+        Err(err) => {
+            set_last_error(err);
+            std::ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn skp_rt_result_err(value: *mut RtValue) -> *mut RtResultValue {
+    match ffi_try(|| clone_value(value).map(RtResultValue::err).map(boxed_result)) {
+        Ok(value) => value,
+        Err(err) => {
+            set_last_error(err);
+            std::ptr::null_mut()
+        }
+    }
 }
 
 #[no_mangle]
@@ -216,6 +249,22 @@ pub extern "C" fn skp_rt_value_from_option(value: *mut RtOption) -> *mut RtValue
             return Err(invalid_argument("option pointer must not be null"));
         }
         Ok(boxed_value(RtValue::Option(unsafe { (*value).clone() })))
+    }) {
+        Ok(value) => value,
+        Err(err) => {
+            set_last_error(err);
+            std::ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn skp_rt_value_from_result(value: *mut RtResultValue) -> *mut RtValue {
+    match ffi_try(|| {
+        if value.is_null() {
+            return Err(invalid_argument("result pointer must not be null"));
+        }
+        Ok(boxed_value(RtValue::Result(unsafe { (*value).clone() })))
     }) {
         Ok(value) => value,
         Err(err) => {
@@ -385,6 +434,17 @@ pub extern "C" fn skp_rt_value_to_bytes(value: *mut RtValue) -> *mut RtBytes {
 #[no_mangle]
 pub extern "C" fn skp_rt_value_to_option(value: *mut RtValue) -> *mut RtOption {
     match ffi_try(|| clone_value(value)?.expect_option().map(boxed_option)) {
+        Ok(value) => value,
+        Err(err) => {
+            set_last_error(err);
+            std::ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn skp_rt_value_to_result(value: *mut RtValue) -> *mut RtResultValue {
+    match ffi_try(|| clone_value(value)?.expect_result_value().map(boxed_result)) {
         Ok(value) => value,
         Err(err) => {
             set_last_error(err);

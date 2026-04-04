@@ -1,7 +1,9 @@
 use crate::ir::{
     BinaryOp, CmpOp, ConstValue, FunctionId, Instr, IrFunction, IrType, Operand, UnaryOp,
 };
-use skepart::{RtArray, RtFunctionRef, RtString, RtStruct, RtValue, RtVec, builtins};
+use skepart::{
+    RtArray, RtFunctionRef, RtResultValue, RtString, RtStruct, RtValue, RtVec, builtins,
+};
 
 use super::{Frame, IrInterpError, IrInterpreter};
 
@@ -486,7 +488,13 @@ impl<'a> IrInterpreter<'a> {
                 },
                 _ => false,
             },
-            IrType::Result { .. } => false,
+            IrType::Result { ok, err } => match value {
+                RtValue::Result(result) => match result {
+                    RtResultValue::Ok(value) => Self::runtime_matches_ir_type(value, ok),
+                    RtResultValue::Err(value) => Self::runtime_matches_ir_type(value, err),
+                },
+                _ => false,
+            },
             IrType::Array { .. } => matches!(value, RtValue::Array(_)),
             IrType::Vec { .. } => matches!(value, RtValue::Vec(_)),
             IrType::Map { .. } => matches!(value, RtValue::Map(_)),
@@ -572,6 +580,11 @@ impl<'a> IrInterpreter<'a> {
                 CmpOp::Eq => a == b,
                 CmpOp::Ne => a != b,
                 _ => return Err(IrInterpError::TypeMismatch("unsupported option comparison")),
+            }),
+            (RtValue::Result(a), RtValue::Result(b)) => Ok(match op {
+                CmpOp::Eq => a == b,
+                CmpOp::Ne => a != b,
+                _ => return Err(IrInterpError::TypeMismatch("unsupported result comparison")),
             }),
             _ => Err(IrInterpError::TypeMismatch("bad compare operands")),
         }

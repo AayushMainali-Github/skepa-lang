@@ -65,6 +65,47 @@ fn id(data: Result[Int, String]) -> Result[Int, String] {
   return copy;
 }
 
+#[test]
+fn sema_accepts_ok_err_values_and_result_equality() {
+    let src = r#"
+fn wrap(x: Int) -> Result[Int, String] {
+  return Ok(x);
+}
+
+fn fail() -> Result[Int, String] {
+  return Err("bad");
+}
+
+fn main() -> Int {
+  let a: Result[Int, String] = wrap(7);
+  let b: Result[Int, String] = Ok(7);
+  let c: Result[Int, String] = fail();
+  let d: Result[Int, String] = Err("bad");
+  if (a == b && c == d && a != c) {
+    return 0;
+  }
+  return 1;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
+
+#[test]
+fn sema_rejects_bad_result_constructor_arity() {
+    let src = r#"
+fn main() -> Int {
+  let a: Result[Int, String] = Ok(1, 2);
+  let b: Result[Int, String] = Err();
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert_has_diag(&diags, "Ok expects 1 argument, got 2");
+    assert_has_diag(&diags, "Err expects 1 argument, got 0");
+}
+
 fn main() -> Int {
   return 0;
 }

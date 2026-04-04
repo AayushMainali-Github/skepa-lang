@@ -927,6 +927,33 @@ fn wrap(x: Int) -> Option[Int] {
   return Some(x);
 }
 
+#[test]
+fn interpreter_supports_result_values_and_equality() {
+    let source = r#"
+fn wrap(x: Int) -> Result[Int, String] {
+  return Ok(x);
+}
+
+fn fail() -> Result[Int, String] {
+  return Err("bad");
+}
+
+fn main() -> Int {
+  let a: Result[Int, String] = wrap(7);
+  let b: Result[Int, String] = Ok(7);
+  let c: Result[Int, String] = fail();
+  let d: Result[Int, String] = Err("bad");
+  if (a == b && c == d && a != c) {
+    return 0;
+  }
+  return 1;
+}
+"#;
+
+    let value = common::ir_run_ok(source);
+    assert_eq!(value, IrValue::Int(0));
+}
+
 fn missing() -> Option[Int] {
   return None();
 }

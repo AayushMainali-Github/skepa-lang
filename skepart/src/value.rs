@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{RtArray, RtBytes, RtError, RtMap, RtOption, RtResult, RtString, RtVec};
+use crate::{RtArray, RtBytes, RtError, RtMap, RtOption, RtResult, RtResultValue, RtString, RtVec};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RtFunctionRef(pub usize);
@@ -51,6 +51,7 @@ pub enum RtValue {
     String(RtString),
     Bytes(RtBytes),
     Option(RtOption),
+    Result(RtResultValue),
     Array(RtArray),
     Vec(RtVec),
     Map(RtMap),
@@ -69,6 +70,7 @@ impl RtValue {
             Self::String(_) => "String",
             Self::Bytes(_) => "Bytes",
             Self::Option(_) => "Option",
+            Self::Result(_) => "Result",
             Self::Array(_) => "Array",
             Self::Vec(_) => "Vec",
             Self::Map(_) => "Map",
@@ -144,6 +146,16 @@ impl RtValue {
             Self::Option(value) => Ok(value.clone()),
             other => Err(RtError::type_mismatch(format!(
                 "expected Option, got {}",
+                other.type_name()
+            ))),
+        }
+    }
+
+    pub fn expect_result_value(&self) -> RtResult<RtResultValue> {
+        match self {
+            Self::Result(value) => Ok(value.clone()),
+            other => Err(RtError::type_mismatch(format!(
+                "expected Result, got {}",
                 other.type_name()
             ))),
         }

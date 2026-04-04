@@ -75,6 +75,52 @@ impl IrLowerer {
                     );
                     return OkOperand::from_call_result(dst);
                 }
+                ("Ok", [value_expr]) => {
+                    let value = self.compile_expr(func, lowering, value_expr)?;
+                    let value_ty = self.infer_operand_type(func, &value);
+                    let ret_ty = IrType::Result {
+                        ok: Box::new(value_ty),
+                        err: Box::new(IrType::Unknown),
+                    };
+                    let dst = Some(self.builder.push_temp(func, ret_ty.clone()));
+                    self.builder.push_instr(
+                        func,
+                        lowering.current_block,
+                        Instr::CallBuiltin {
+                            dst,
+                            ret_ty: ret_ty.clone(),
+                            builtin: crate::ir::BuiltinCall {
+                                package: "result".to_string(),
+                                name: "ok".to_string(),
+                            },
+                            args: vec![value],
+                        },
+                    );
+                    return OkOperand::from_call_result(dst);
+                }
+                ("Err", [value_expr]) => {
+                    let value = self.compile_expr(func, lowering, value_expr)?;
+                    let value_ty = self.infer_operand_type(func, &value);
+                    let ret_ty = IrType::Result {
+                        ok: Box::new(IrType::Unknown),
+                        err: Box::new(value_ty),
+                    };
+                    let dst = Some(self.builder.push_temp(func, ret_ty.clone()));
+                    self.builder.push_instr(
+                        func,
+                        lowering.current_block,
+                        Instr::CallBuiltin {
+                            dst,
+                            ret_ty: ret_ty.clone(),
+                            builtin: crate::ir::BuiltinCall {
+                                package: "result".to_string(),
+                                name: "err".to_string(),
+                            },
+                            args: vec![value],
+                        },
+                    );
+                    return OkOperand::from_call_result(dst);
+                }
                 _ => {}
             }
         }
@@ -639,6 +685,20 @@ impl IrLowerer {
             ("option", "none") => {
                 return Some(IrType::Option {
                     value: Box::new(IrType::Unknown),
+                });
+            }
+            ("result", "ok") => {
+                let value = args.first()?;
+                return Some(IrType::Result {
+                    ok: Box::new(self.infer_operand_type(func, value)),
+                    err: Box::new(IrType::Unknown),
+                });
+            }
+            ("result", "err") => {
+                let value = args.first()?;
+                return Some(IrType::Result {
+                    ok: Box::new(IrType::Unknown),
+                    err: Box::new(self.infer_operand_type(func, value)),
                 });
             }
             ("net", "__testSocket") | ("net", "connect") | ("net", "accept") => {
