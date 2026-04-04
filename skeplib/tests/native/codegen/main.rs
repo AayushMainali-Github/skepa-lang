@@ -2426,3 +2426,30 @@ fn object_ext() -> &'static str {
 fn exe_ext() -> &'static str {
     if cfg!(windows) { "exe" } else { "out" }
 }
+
+#[test]
+fn codegen_builds_native_executable_for_lowercase_option_and_result_constructor_aliases() {
+    let source = r#"
+fn wrap(x: Int) -> Option[Int] {
+  return some(x);
+}
+
+fn fail() -> Result[Int, String] {
+  return err("bad");
+}
+
+fn main() -> Int {
+  let a: Option[Int] = wrap(7);
+  let b: Option[Int] = some(7);
+  let c: Option[Int] = none();
+  let d: Result[Int, String] = ok(7);
+  let e: Result[Int, String] = fail();
+  if (a == b && c == none() && d == ok(7) && e == err("bad")) {
+    return 0;
+  }
+  return 1;
+}
+"#;
+
+    assert_eq!(common::native_run_structured(source).exit_code(), 0);
+}

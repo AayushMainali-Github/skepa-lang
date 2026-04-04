@@ -33,7 +33,7 @@ impl IrLowerer {
     ) -> Option<Operand> {
         if let Expr::Ident(name) = callee {
             match (name.as_str(), args) {
-                ("Some", [value_expr]) => {
+                ("Some" | "some", [value_expr]) => {
                     let value = self.compile_expr(func, lowering, value_expr)?;
                     let value_ty = self.infer_operand_type(func, &value);
                     let ret_ty = IrType::Option {
@@ -55,7 +55,7 @@ impl IrLowerer {
                     );
                     return OkOperand::from_call_result(dst);
                 }
-                ("None", []) => {
+                ("None" | "none", []) => {
                     let ret_ty = IrType::Option {
                         value: Box::new(IrType::Unknown),
                     };
@@ -75,7 +75,7 @@ impl IrLowerer {
                     );
                     return OkOperand::from_call_result(dst);
                 }
-                ("Ok", [value_expr]) => {
+                ("Ok" | "ok", [value_expr]) => {
                     let value = self.compile_expr(func, lowering, value_expr)?;
                     let value_ty = self.infer_operand_type(func, &value);
                     let ret_ty = IrType::Result {
@@ -98,7 +98,7 @@ impl IrLowerer {
                     );
                     return OkOperand::from_call_result(dst);
                 }
-                ("Err", [value_expr]) => {
+                ("Err" | "err", [value_expr]) => {
                     let value = self.compile_expr(func, lowering, value_expr)?;
                     let value_ty = self.infer_operand_type(func, &value);
                     let ret_ty = IrType::Result {

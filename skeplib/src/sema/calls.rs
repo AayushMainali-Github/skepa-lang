@@ -60,57 +60,57 @@ impl Checker {
     ) -> TypeInfo {
         if let Expr::Ident(name) = callee {
             match (name.as_str(), args) {
-                ("Some", [value]) => {
+                ("Some" | "some", [value]) => {
                     let value_ty = self.check_expr(value, scopes);
                     return TypeInfo::Option {
                         value: Box::new(value_ty),
                     };
                 }
-                ("Some", _) => {
+                ("Some" | "some", _) => {
                     for arg in args {
                         self.check_expr(arg, scopes);
                     }
-                    self.error(format!("Some expects 1 argument, got {}", args.len()));
+                    self.error(format!("{name} expects 1 argument, got {}", args.len()));
                     return TypeInfo::Unknown;
                 }
-                ("None", []) => {
+                ("None" | "none", []) => {
                     return TypeInfo::Option {
                         value: Box::new(TypeInfo::Unknown),
                     };
                 }
-                ("None", _) => {
+                ("None" | "none", _) => {
                     for arg in args {
                         self.check_expr(arg, scopes);
                     }
-                    self.error(format!("None expects 0 arguments, got {}", args.len()));
+                    self.error(format!("{name} expects 0 arguments, got {}", args.len()));
                     return TypeInfo::Unknown;
                 }
-                ("Ok", [value]) => {
+                ("Ok" | "ok", [value]) => {
                     let value_ty = self.check_expr(value, scopes);
                     return TypeInfo::Result {
                         ok: Box::new(value_ty),
                         err: Box::new(TypeInfo::Unknown),
                     };
                 }
-                ("Ok", _) => {
+                ("Ok" | "ok", _) => {
                     for arg in args {
                         self.check_expr(arg, scopes);
                     }
-                    self.error(format!("Ok expects 1 argument, got {}", args.len()));
+                    self.error(format!("{name} expects 1 argument, got {}", args.len()));
                     return TypeInfo::Unknown;
                 }
-                ("Err", [value]) => {
+                ("Err" | "err", [value]) => {
                     let err_ty = self.check_expr(value, scopes);
                     return TypeInfo::Result {
                         ok: Box::new(TypeInfo::Unknown),
                         err: Box::new(err_ty),
                     };
                 }
-                ("Err", _) => {
+                ("Err" | "err", _) => {
                     for arg in args {
                         self.check_expr(arg, scopes);
                     }
-                    self.error(format!("Err expects 1 argument, got {}", args.len()));
+                    self.error(format!("{name} expects 1 argument, got {}", args.len()));
                     return TypeInfo::Unknown;
                 }
                 _ => {}

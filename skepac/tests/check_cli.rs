@@ -1746,3 +1746,42 @@ fn main() -> Int {
     assert!(stderr.contains("native toolchain failure"));
     assert!(stderr.contains("llvm-as") || stderr.contains("llc") || stderr.contains("clang"));
 }
+
+#[test]
+fn run_executes_lowercase_option_and_result_constructor_aliases_end_to_end() {
+    let tmp = make_temp_dir("skepac_run_option_result_aliases");
+    let source = tmp.join("main.sk");
+    fs::write(
+        &source,
+        r#"
+fn wrap(x: Int) -> Option[Int] {
+  return some(x);
+}
+
+fn fail() -> Result[Int, String] {
+  return err("bad");
+}
+
+fn main() -> Int {
+  let a: Option[Int] = wrap(7);
+  let b: Option[Int] = some(7);
+  let c: Option[Int] = none();
+  let d: Result[Int, String] = ok(7);
+  let e: Result[Int, String] = fail();
+  if (a == b && c == none() && d == ok(7) && e == err("bad")) {
+    return 0;
+  }
+  return 1;
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("run")
+        .arg(&source)
+        .output()
+        .expect("run skepac run");
+
+    assert_eq!(output.status.code(), Some(0), "{:?}", output);
+}
