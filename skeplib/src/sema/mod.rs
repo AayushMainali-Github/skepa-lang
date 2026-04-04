@@ -588,6 +588,7 @@ impl Checker {
             | TypeName::String
             | TypeName::Bytes
             | TypeName::Void => {}
+            TypeName::Option { value } => self.check_decl_type_exists(value, err_prefix),
             TypeName::Array { elem, .. } => self.check_decl_type_exists(elem, err_prefix),
             TypeName::Vec { elem } => self.check_decl_type_exists(elem, err_prefix),
             TypeName::Map { value } => self.check_decl_type_exists(value, err_prefix),

@@ -230,6 +230,9 @@ pub enum TypeName {
     String,
     Bytes,
     Void,
+    Option {
+        value: Box<TypeName>,
+    },
     Named(String),
     Array {
         elem: Box<TypeName>,
@@ -693,6 +696,7 @@ impl TypeName {
             TypeName::String => "String".to_string(),
             TypeName::Bytes => "Bytes".to_string(),
             TypeName::Void => "Void".to_string(),
+            TypeName::Option { value } => format!("Option[{}]", value.as_str()),
             TypeName::Named(name) => name.clone(),
             TypeName::Array { elem, size } => format!("[{}; {}]", elem.as_str(), size),
             TypeName::Vec { elem } => format!("Vec[{}]", elem.as_str()),

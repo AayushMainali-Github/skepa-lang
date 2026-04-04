@@ -439,6 +439,12 @@ impl Checker {
                     self.error("Map values cannot be compared with `==` or `!=`".to_string());
                     return TypeInfo::Unknown;
                 }
+                if matches!(lt, TypeInfo::Option { .. }) || matches!(rt, TypeInfo::Option { .. }) {
+                    self.error(
+                        "Option values cannot be compared with `==` or `!=` yet".to_string(),
+                    );
+                    return TypeInfo::Unknown;
+                }
                 if lt == rt || lt == TypeInfo::Unknown || rt == TypeInfo::Unknown {
                     TypeInfo::Bool
                 } else {

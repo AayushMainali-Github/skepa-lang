@@ -41,6 +41,22 @@ fn main() -> Int {
     assert_sema_success(&result, &diags);
 }
 
+#[test]
+fn sema_accepts_option_type_in_signatures_and_locals() {
+    let src = r#"
+fn id(data: Option[Int]) -> Option[Int] {
+  let copy: Option[Int] = data;
+  return copy;
+}
+
+fn main() -> Int {
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
+
 fn main() -> Int {
   let x: Int = add(1, 2);
   if (x > 0) {

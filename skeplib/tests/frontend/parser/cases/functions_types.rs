@@ -124,6 +124,29 @@ fn take(data: Map[String, Int]) -> Map[String, Bytes] {
 }
 
 #[test]
+fn parses_option_type_annotations() {
+    let src = r#"
+fn maybe(flag: Bool, name: Option[String]) -> Option[Int] {
+  return 0;
+}
+"#;
+    let program = parse_ok(src);
+    let f = &program.functions[0];
+    assert_eq!(
+        f.params[1].ty,
+        TypeName::Option {
+            value: Box::new(TypeName::String),
+        }
+    );
+    assert_eq!(
+        f.return_type,
+        Some(TypeName::Option {
+            value: Box::new(TypeName::Int),
+        })
+    );
+}
+
+#[test]
 fn parses_static_array_type_annotations() {
     let src = r#"
 fn sum_row(row: [Int; 4]) -> [Int; 4] {

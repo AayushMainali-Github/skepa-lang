@@ -53,6 +53,20 @@ impl Parser {
             });
         }
 
+        if self.at(TokenKind::Ident) && self.current().lexeme == "Option" {
+            self.bump();
+            self.expect(TokenKind::LBracket, "Expected `[` after `Option`")?;
+            let value = self.expect_type_name("Expected option value type in `Option[...]`")?;
+            if self.at(TokenKind::Comma) {
+                self.error_here_expected("`Option[...]` expects exactly one type argument");
+                return None;
+            }
+            self.expect(TokenKind::RBracket, "Expected `]` after option type")?;
+            return Some(TypeName::Option {
+                value: Box::new(value),
+            });
+        }
+
         if self.at(TokenKind::Ident) && self.current().lexeme == "Map" {
             self.bump();
             self.expect(TokenKind::LBracket, "Expected `[` after `Map`")?;

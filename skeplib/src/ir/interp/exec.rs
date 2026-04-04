@@ -479,6 +479,7 @@ impl<'a> IrInterpreter<'a> {
             IrType::Void => matches!(value, RtValue::Unit),
             IrType::Named(_) => matches!(value, RtValue::Struct(_)),
             IrType::Opaque(_) => matches!(value, RtValue::Handle(_)),
+            IrType::Option { .. } => false,
             IrType::Array { .. } => matches!(value, RtValue::Array(_)),
             IrType::Vec { .. } => matches!(value, RtValue::Vec(_)),
             IrType::Map { .. } => matches!(value, RtValue::Map(_)),
