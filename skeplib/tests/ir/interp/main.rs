@@ -921,6 +921,32 @@ fn main() -> Int {
 }
 
 #[test]
+fn interpreter_supports_option_values_and_equality() {
+    let source = r#"
+fn wrap(x: Int) -> Option[Int] {
+  return Some(x);
+}
+
+fn missing() -> Option[Int] {
+  return None();
+}
+
+fn main() -> Int {
+  let a: Option[Int] = wrap(7);
+  let b: Option[Int] = Some(7);
+  let c: Option[Int] = missing();
+  if (a == b && a != c && c == None()) {
+    return 0;
+  }
+  return 1;
+}
+"#;
+
+    let value = common::ir_run_ok(source);
+    assert_eq!(value, IrValue::Int(0));
+}
+
+#[test]
 fn interpreter_supports_map_builtins_through_runtime() {
     let source = r#"
 import map;

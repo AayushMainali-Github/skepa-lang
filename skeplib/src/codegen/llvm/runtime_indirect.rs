@@ -152,11 +152,9 @@ fn emit_indirect_wrapper(func: &IrFunction) -> Result<Vec<String>, CodegenError>
             IrType::Bytes => lines.push(format!(
                 "  %arg{index} = call ptr @skp_rt_value_to_bytes(ptr %argraw{index})"
             )),
-            IrType::Option { .. } => {
-                return Err(CodegenError::Unsupported(
-                    "indirect-call trampoline does not support Option signatures yet",
-                ));
-            }
+            IrType::Option { .. } => lines.push(format!(
+                "  %arg{index} = call ptr @skp_rt_value_to_option(ptr %argraw{index})"
+            )),
             IrType::Array { .. } => lines.push(format!(
                 "  %arg{index} = call ptr @skp_rt_value_to_array(ptr %argraw{index})"
             )),
@@ -206,11 +204,7 @@ fn emit_indirect_wrapper(func: &IrFunction) -> Result<Vec<String>, CodegenError>
             IrType::Bool => "skp_rt_value_from_bool",
             IrType::String => "skp_rt_value_from_string",
             IrType::Bytes => "skp_rt_value_from_bytes",
-            IrType::Option { .. } => {
-                return Err(CodegenError::Unsupported(
-                    "indirect-call trampoline does not support Option signatures yet",
-                ));
-            }
+            IrType::Option { .. } => "skp_rt_value_from_option",
             IrType::Array { .. } => "skp_rt_value_from_array",
             IrType::Vec { .. } => "skp_rt_value_from_vec",
             IrType::Map { .. } => "skp_rt_value_from_map",

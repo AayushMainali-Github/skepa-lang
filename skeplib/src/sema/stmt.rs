@@ -235,7 +235,7 @@ impl Checker {
                             }
                             declared
                         } else {
-                            if expr_ty != TypeInfo::Unknown && declared != expr_ty {
+                            if !Self::types_compatible(&expr_ty, &declared) {
                                 self.error(format!(
                                     "Type mismatch in let `{name}`: declared {:?}, got {:?}",
                                     declared, expr_ty
@@ -272,10 +272,7 @@ impl Checker {
             Stmt::Assign { target, value } => {
                 let target_ty = self.lookup_assignment_target(target, scopes);
                 let value_ty = self.check_expr(value, scopes);
-                if target_ty != TypeInfo::Unknown
-                    && value_ty != TypeInfo::Unknown
-                    && target_ty != value_ty
-                {
+                if !Self::types_compatible(&value_ty, &target_ty) {
                     self.error(format!(
                         "Assignment type mismatch: target {:?}, value {:?}",
                         target_ty, value_ty
@@ -364,7 +361,10 @@ impl Checker {
                     Some(expr) => self.check_expr(expr, scopes),
                     None => TypeInfo::Void,
                 };
-                if ret_ty != TypeInfo::Unknown && &ret_ty != expected_ret {
+                if ret_ty != TypeInfo::Unknown
+                    && &ret_ty != expected_ret
+                    && !Self::types_compatible(&ret_ty, expected_ret)
+                {
                     self.error(format!(
                         "Return type mismatch: expected {:?}, got {:?}",
                         expected_ret, ret_ty

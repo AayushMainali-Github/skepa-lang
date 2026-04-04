@@ -137,10 +137,42 @@ impl IrVerifier {
         if actual == expected {
             return true;
         }
-        matches!(
-            (actual, expected),
-            (_, IrType::Unknown) | (IrType::Unknown, _)
-        )
+        match (actual, expected) {
+            (_, IrType::Unknown) | (IrType::Unknown, _) => true,
+            (IrType::Option { value: a }, IrType::Option { value: b }) => {
+                Self::types_compatible(a, b)
+            }
+            (
+                IrType::Array {
+                    elem: a_elem,
+                    size: a_size,
+                },
+                IrType::Array {
+                    elem: b_elem,
+                    size: b_size,
+                },
+            ) => a_size == b_size && Self::types_compatible(a_elem, b_elem),
+            (IrType::Vec { elem: a }, IrType::Vec { elem: b }) => Self::types_compatible(a, b),
+            (IrType::Map { value: a }, IrType::Map { value: b }) => Self::types_compatible(a, b),
+            (
+                IrType::Fn {
+                    params: a_params,
+                    ret: a_ret,
+                },
+                IrType::Fn {
+                    params: b_params,
+                    ret: b_ret,
+                },
+            ) => {
+                a_params.len() == b_params.len()
+                    && a_params
+                        .iter()
+                        .zip(b_params.iter())
+                        .all(|(a, b)| Self::types_compatible(a, b))
+                    && Self::types_compatible(a_ret, b_ret)
+            }
+            _ => false,
+        }
     }
 
     pub(super) fn verify_field_ref(

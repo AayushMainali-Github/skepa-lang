@@ -56,6 +56,52 @@ struct Checker {
 }
 
 impl Checker {
+    pub(super) fn types_compatible(actual: &TypeInfo, expected: &TypeInfo) -> bool {
+        if actual == expected
+            || matches!(actual, TypeInfo::Unknown)
+            || matches!(expected, TypeInfo::Unknown)
+        {
+            return true;
+        }
+        match (actual, expected) {
+            (TypeInfo::Option { value: a }, TypeInfo::Option { value: b }) => {
+                Self::types_compatible(a, b)
+            }
+            (
+                TypeInfo::Array {
+                    elem: a_elem,
+                    size: a_size,
+                },
+                TypeInfo::Array {
+                    elem: b_elem,
+                    size: b_size,
+                },
+            ) => a_size == b_size && Self::types_compatible(a_elem, b_elem),
+            (TypeInfo::Vec { elem: a }, TypeInfo::Vec { elem: b }) => Self::types_compatible(a, b),
+            (TypeInfo::Map { value: a }, TypeInfo::Map { value: b }) => {
+                Self::types_compatible(a, b)
+            }
+            (
+                TypeInfo::Fn {
+                    params: a_params,
+                    ret: a_ret,
+                },
+                TypeInfo::Fn {
+                    params: b_params,
+                    ret: b_ret,
+                },
+            ) => {
+                a_params.len() == b_params.len()
+                    && a_params
+                        .iter()
+                        .zip(b_params.iter())
+                        .all(|(a, b)| Self::types_compatible(a, b))
+                    && Self::types_compatible(a_ret, b_ret)
+            }
+            _ => false,
+        }
+    }
+
     fn resolve_named_type_name(&self, name: &str) -> Option<String> {
         if is_builtin_opaque_type(name) {
             return Some(name.to_string());
@@ -400,7 +446,7 @@ impl Checker {
                                 g.name, declared
                             ));
                         }
-                    } else if expr_ty != TypeInfo::Unknown && expr_ty != declared {
+                    } else if !Self::types_compatible(&expr_ty, &declared) {
                         self.error(format!(
                             "Type mismatch in global let `{}`: declared {:?}, got {:?}",
                             g.name, declared, expr_ty

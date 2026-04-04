@@ -1,6 +1,6 @@
 use skepart::{
-    RtArray, RtBytes, RtErrorKind, RtFunctionRef, RtHandle, RtHandleKind, RtMap, RtString,
-    RtStruct, RtValue, RtVec,
+    RtArray, RtBytes, RtErrorKind, RtFunctionRef, RtHandle, RtHandleKind, RtMap, RtOption,
+    RtString, RtStruct, RtValue, RtVec,
 };
 
 #[test]
@@ -15,6 +15,14 @@ fn value_accessors_return_expected_values() {
     assert_eq!(
         RtValue::Bytes(RtBytes::from(vec![1_u8, 2, 3])).expect_bytes(),
         Ok(RtBytes::from(vec![1_u8, 2, 3]))
+    );
+    assert_eq!(
+        RtValue::Option(RtOption::some(RtValue::Int(42))).expect_option(),
+        Ok(RtOption::some(RtValue::Int(42)))
+    );
+    assert_eq!(
+        RtValue::Option(RtOption::none()).expect_option(),
+        Ok(RtOption::none())
     );
     assert_eq!(
         RtValue::Array(RtArray::new(vec![RtValue::Int(1)])).expect_array(),
@@ -89,6 +97,13 @@ fn value_accessors_report_wrong_type() {
     assert_eq!(
         RtValue::Int(1)
             .expect_string()
+            .expect_err("wrong type")
+            .kind,
+        RtErrorKind::TypeMismatch
+    );
+    assert_eq!(
+        RtValue::Int(1)
+            .expect_option()
             .expect_err("wrong type")
             .kind,
         RtErrorKind::TypeMismatch

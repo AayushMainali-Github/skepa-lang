@@ -479,7 +479,13 @@ impl<'a> IrInterpreter<'a> {
             IrType::Void => matches!(value, RtValue::Unit),
             IrType::Named(_) => matches!(value, RtValue::Struct(_)),
             IrType::Opaque(_) => matches!(value, RtValue::Handle(_)),
-            IrType::Option { .. } => false,
+            IrType::Option { value: inner } => match value {
+                RtValue::Option(option) => match &option.0 {
+                    Some(value) => Self::runtime_matches_ir_type(value, inner),
+                    None => true,
+                },
+                _ => false,
+            },
             IrType::Array { .. } => matches!(value, RtValue::Array(_)),
             IrType::Vec { .. } => matches!(value, RtValue::Vec(_)),
             IrType::Map { .. } => matches!(value, RtValue::Map(_)),
@@ -560,6 +566,11 @@ impl<'a> IrInterpreter<'a> {
                 CmpOp::Eq => a == b,
                 CmpOp::Ne => a != b,
                 _ => return Err(IrInterpError::TypeMismatch("unsupported bytes comparison")),
+            }),
+            (RtValue::Option(a), RtValue::Option(b)) => Ok(match op {
+                CmpOp::Eq => a == b,
+                CmpOp::Ne => a != b,
+                _ => return Err(IrInterpError::TypeMismatch("unsupported option comparison")),
             }),
             _ => Err(IrInterpError::TypeMismatch("bad compare operands")),
         }

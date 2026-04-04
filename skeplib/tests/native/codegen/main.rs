@@ -1650,6 +1650,31 @@ fn main() -> Int {
 }
 
 #[test]
+fn codegen_builds_native_executable_for_option_values() {
+    let source = r#"
+fn wrap(x: Int) -> Option[Int] {
+  return Some(x);
+}
+
+fn missing() -> Option[Int] {
+  return None();
+}
+
+fn main() -> Int {
+  let a: Option[Int] = wrap(7);
+  let b: Option[Int] = Some(7);
+  let c: Option[Int] = missing();
+  if (a == b && a != c && c == None()) {
+    return 0;
+  }
+  return 1;
+}
+"#;
+
+    assert_eq!(common::native_run_structured(source).exit_code(), 0);
+}
+
+#[test]
 fn codegen_builds_native_executable_for_new_os_builtins() {
     let (exec_name, exec_arg) = if cfg!(windows) {
         ("where.exe", "cmd")

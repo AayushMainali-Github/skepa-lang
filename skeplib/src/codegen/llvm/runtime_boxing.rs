@@ -54,11 +54,7 @@ pub fn emit_boxed_operand(
         IrType::Bool => "skp_rt_value_from_bool",
         IrType::String => "skp_rt_value_from_string",
         IrType::Bytes => "skp_rt_value_from_bytes",
-        IrType::Option { .. } => {
-            return Err(CodegenError::Unsupported(
-                "boxing Option values is not implemented yet",
-            ));
-        }
+        IrType::Option { .. } => "skp_rt_value_from_option",
         IrType::Array { .. } => "skp_rt_value_from_array",
         IrType::Vec { .. } => "skp_rt_value_from_vec",
         IrType::Map { .. } => "skp_rt_value_from_map",
@@ -102,11 +98,9 @@ pub fn emit_unbox_value(
         IrType::Bytes => lines.push(format!(
             "  {dest} = call ptr @skp_rt_value_to_bytes(ptr {raw})"
         )),
-        IrType::Option { .. } => {
-            return Err(CodegenError::Unsupported(
-                "unboxing Option values is not implemented yet",
-            ));
-        }
+        IrType::Option { .. } => lines.push(format!(
+            "  {dest} = call ptr @skp_rt_value_to_option(ptr {raw})"
+        )),
         IrType::Array { .. } => lines.push(format!(
             "  {dest} = call ptr @skp_rt_value_to_array(ptr {raw})"
         )),

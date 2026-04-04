@@ -31,6 +31,54 @@ impl IrLowerer {
         callee: &Expr,
         args: &[Expr],
     ) -> Option<Operand> {
+        if let Expr::Ident(name) = callee {
+            match (name.as_str(), args) {
+                ("Some", [value_expr]) => {
+                    let value = self.compile_expr(func, lowering, value_expr)?;
+                    let value_ty = self.infer_operand_type(func, &value);
+                    let ret_ty = IrType::Option {
+                        value: Box::new(value_ty),
+                    };
+                    let dst = Some(self.builder.push_temp(func, ret_ty.clone()));
+                    self.builder.push_instr(
+                        func,
+                        lowering.current_block,
+                        Instr::CallBuiltin {
+                            dst,
+                            ret_ty: ret_ty.clone(),
+                            builtin: crate::ir::BuiltinCall {
+                                package: "option".to_string(),
+                                name: "some".to_string(),
+                            },
+                            args: vec![value],
+                        },
+                    );
+                    return OkOperand::from_call_result(dst);
+                }
+                ("None", []) => {
+                    let ret_ty = IrType::Option {
+                        value: Box::new(IrType::Unknown),
+                    };
+                    let dst = Some(self.builder.push_temp(func, ret_ty.clone()));
+                    self.builder.push_instr(
+                        func,
+                        lowering.current_block,
+                        Instr::CallBuiltin {
+                            dst,
+                            ret_ty: ret_ty.clone(),
+                            builtin: crate::ir::BuiltinCall {
+                                package: "option".to_string(),
+                                name: "none".to_string(),
+                            },
+                            args: Vec::new(),
+                        },
+                    );
+                    return OkOperand::from_call_result(dst);
+                }
+                _ => {}
+            }
+        }
+
         let mut lowered_args = Vec::with_capacity(args.len());
         for arg in args {
             lowered_args.push(self.compile_expr(func, lowering, arg)?);
@@ -582,6 +630,17 @@ impl IrLowerer {
         args: &[Operand],
     ) -> Option<IrType> {
         match (package, name) {
+            ("option", "some") => {
+                let value = args.first()?;
+                return Some(IrType::Option {
+                    value: Box::new(self.infer_operand_type(func, value)),
+                });
+            }
+            ("option", "none") => {
+                return Some(IrType::Option {
+                    value: Box::new(IrType::Unknown),
+                });
+            }
             ("net", "__testSocket") | ("net", "connect") | ("net", "accept") => {
                 return Some(IrType::Opaque("net.Socket".to_string()));
             }

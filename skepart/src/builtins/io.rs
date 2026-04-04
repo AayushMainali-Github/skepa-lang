@@ -41,6 +41,10 @@ fn display_value(value: &RtValue) -> String {
         RtValue::Bool(value) => value.to_string(),
         RtValue::String(value) => value.as_str().to_owned(),
         RtValue::Bytes(value) => format!("[bytes len={}]", value.len()),
+        RtValue::Option(value) => match &value.0 {
+            Some(inner) => format!("Some({})", display_value(inner)),
+            None => "None".to_owned(),
+        },
         RtValue::Array(_) => "[array]".to_owned(),
         RtValue::Vec(_) => "[vec]".to_owned(),
         RtValue::Map(_) => "[map]".to_owned(),

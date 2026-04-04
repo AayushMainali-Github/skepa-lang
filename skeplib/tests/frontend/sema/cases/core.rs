@@ -57,6 +57,31 @@ fn main() -> Int {
     assert_sema_success(&result, &diags);
 }
 
+#[test]
+fn sema_accepts_some_none_values_and_option_equality() {
+    let src = r#"
+fn wrap(x: Int) -> Option[Int] {
+  return Some(x);
+}
+
+fn missing() -> Option[Int] {
+  return None();
+}
+
+fn main() -> Int {
+  let a: Option[Int] = wrap(7);
+  let b: Option[Int] = Some(7);
+  let c: Option[Int] = None();
+  if (a == b && a != c && c == missing()) {
+    return 0;
+  }
+  return 1;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
+
 fn main() -> Int {
   let x: Int = add(1, 2);
   if (x > 0) {

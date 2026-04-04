@@ -6,6 +6,7 @@ pub mod fs;
 pub mod io;
 pub mod map;
 pub mod net;
+pub mod option;
 pub mod os;
 pub mod random;
 pub mod str;
@@ -119,6 +120,8 @@ pub fn call_with_context(
         ("bytes", "append", [left, right]) => {
             Ok(bytes::append(&left.expect_bytes()?, &right.expect_bytes()?))
         }
+        ("option", "some", [value]) => Ok(option::some(value)),
+        ("option", "none", []) => Ok(option::none()),
         ("map", "new", []) => Ok(RtValue::Map(map::new())),
         ("map", "len", [value]) => Ok(map::len(&value.expect_map()?)),
         ("map", "has", [value, key]) => Ok(map::has(

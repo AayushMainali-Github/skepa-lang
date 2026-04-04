@@ -58,6 +58,37 @@ impl Checker {
         args: &[Expr],
         scopes: &mut [HashMap<String, TypeInfo>],
     ) -> TypeInfo {
+        if let Expr::Ident(name) = callee {
+            match (name.as_str(), args) {
+                ("Some", [value]) => {
+                    let value_ty = self.check_expr(value, scopes);
+                    return TypeInfo::Option {
+                        value: Box::new(value_ty),
+                    };
+                }
+                ("Some", _) => {
+                    for arg in args {
+                        self.check_expr(arg, scopes);
+                    }
+                    self.error(format!("Some expects 1 argument, got {}", args.len()));
+                    return TypeInfo::Unknown;
+                }
+                ("None", []) => {
+                    return TypeInfo::Option {
+                        value: Box::new(TypeInfo::Unknown),
+                    };
+                }
+                ("None", _) => {
+                    for arg in args {
+                        self.check_expr(arg, scopes);
+                    }
+                    self.error(format!("None expects 0 arguments, got {}", args.len()));
+                    return TypeInfo::Unknown;
+                }
+                _ => {}
+            }
+        }
+
         if let Some(parts) = Self::expr_to_parts(callee)
             && parts.len() == 2
             && (parts[0] == "io"
@@ -148,7 +179,7 @@ impl Checker {
             for (i, arg) in args.iter().enumerate() {
                 let got = self.check_expr(arg, scopes);
                 let expected = sig.params[i].clone();
-                if got != TypeInfo::Unknown && got != expected {
+                if !Self::types_compatible(&got, &expected) {
                     self.error(format!(
                         "Argument {} for `{}`: expected {:?}, got {:?}",
                         i + 1,
@@ -175,7 +206,7 @@ impl Checker {
             for (i, arg) in args.iter().enumerate() {
                 let got = self.check_expr(arg, scopes);
                 let expected = params[i].clone();
-                if got != TypeInfo::Unknown && got != expected {
+                if !Self::types_compatible(&got, &expected) {
                     self.error(format!(
                         "Argument {} for function value call: expected {:?}, got {:?}",
                         i + 1,
@@ -258,7 +289,7 @@ impl Checker {
         for (i, arg) in args.iter().enumerate() {
             let got = self.check_expr(arg, scopes);
             let expected = expected_params[i].clone();
-            if got != TypeInfo::Unknown && got != expected {
+            if !Self::types_compatible(&got, &expected) {
                 self.error(format!(
                     "Argument {} for method `{}.{}`: expected {:?}, got {:?}",
                     i + 1,
@@ -341,7 +372,7 @@ impl Checker {
         for (idx, arg) in args.iter().enumerate() {
             let got = self.check_expr(arg, scopes);
             let expected = sig.params[idx].clone();
-            if got != TypeInfo::Unknown && got != expected {
+            if !Self::types_compatible(&got, &expected) {
                 self.error(format!(
                     "{package}.{method} argument {} expects {:?}, got {:?}",
                     idx + 1,

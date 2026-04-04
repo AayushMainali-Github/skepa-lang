@@ -289,7 +289,7 @@ impl Checker {
                             "Duplicate field `{field_name}` in struct `{name}` literal"
                         ));
                     }
-                    if value_ty != TypeInfo::Unknown && value_ty != expected_ty {
+                    if !Self::types_compatible(&value_ty, &expected_ty) {
                         self.error(format!(
                             "Type mismatch for field `{field_name}` in struct `{name}` literal: expected {:?}, got {:?}",
                             expected_ty, value_ty
@@ -439,13 +439,7 @@ impl Checker {
                     self.error("Map values cannot be compared with `==` or `!=`".to_string());
                     return TypeInfo::Unknown;
                 }
-                if matches!(lt, TypeInfo::Option { .. }) || matches!(rt, TypeInfo::Option { .. }) {
-                    self.error(
-                        "Option values cannot be compared with `==` or `!=` yet".to_string(),
-                    );
-                    return TypeInfo::Unknown;
-                }
-                if lt == rt || lt == TypeInfo::Unknown || rt == TypeInfo::Unknown {
+                if Self::types_compatible(&lt, &rt) {
                     TypeInfo::Bool
                 } else {
                     self.error(format!(
