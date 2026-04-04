@@ -183,6 +183,16 @@ fn inline_types_compatible(actual: &IrType, expected: &IrType) -> bool {
             asz == bsz && inline_types_compatible(a, b)
         }
         (IrType::Option { value: a }, IrType::Option { value: b }) => inline_types_compatible(a, b),
+        (
+            IrType::Result {
+                ok: a_ok,
+                err: a_err,
+            },
+            IrType::Result {
+                ok: b_ok,
+                err: b_err,
+            },
+        ) => inline_types_compatible(a_ok, b_ok) && inline_types_compatible(a_err, b_err),
         (IrType::Vec { elem: a }, IrType::Vec { elem: b }) => inline_types_compatible(a, b),
         (IrType::Map { value: a }, IrType::Map { value: b }) => inline_types_compatible(a, b),
         (

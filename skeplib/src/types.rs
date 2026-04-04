@@ -11,6 +11,10 @@ pub enum TypeInfo {
     Option {
         value: Box<TypeInfo>,
     },
+    Result {
+        ok: Box<TypeInfo>,
+        err: Box<TypeInfo>,
+    },
     Named(String),
     Opaque(String),
     Array {
@@ -41,6 +45,10 @@ impl TypeInfo {
             TypeName::Void => TypeInfo::Void,
             TypeName::Option { value } => TypeInfo::Option {
                 value: Box::new(TypeInfo::from_ast(value)),
+            },
+            TypeName::Result { ok, err } => TypeInfo::Result {
+                ok: Box::new(TypeInfo::from_ast(ok)),
+                err: Box::new(TypeInfo::from_ast(err)),
             },
             TypeName::Named(name) => {
                 if is_builtin_opaque_type(name) {
@@ -102,6 +110,9 @@ fn display_type(value: &TypeInfo) -> String {
         TypeInfo::Bytes => "Bytes".to_string(),
         TypeInfo::Void => "Void".to_string(),
         TypeInfo::Option { value } => format!("Option[{}]", display_type(value)),
+        TypeInfo::Result { ok, err } => {
+            format!("Result[{}, {}]", display_type(ok), display_type(err))
+        }
         TypeInfo::Named(name) | TypeInfo::Opaque(name) => name.clone(),
         TypeInfo::Array { elem, size } => format!("[{}; {}]", display_type(elem), size),
         TypeInfo::Vec { elem } => format!("Vec[{}]", display_type(elem)),
@@ -139,6 +150,16 @@ fn parse_display_type(value: &str) -> Option<TypeInfo> {
             {
                 return Some(TypeInfo::Option {
                     value: Box::new(parse_display_type(inner)?),
+                });
+            }
+            if let Some(inner) = value
+                .strip_prefix("Result[")
+                .and_then(|v| v.strip_suffix(']'))
+                && let Some((ok, err)) = inner.split_once(", ")
+            {
+                return Some(TypeInfo::Result {
+                    ok: Box::new(parse_display_type(ok)?),
+                    err: Box::new(parse_display_type(err)?),
                 });
             }
             if let Some(inner) = value

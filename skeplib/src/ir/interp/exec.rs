@@ -486,6 +486,7 @@ impl<'a> IrInterpreter<'a> {
                 },
                 _ => false,
             },
+            IrType::Result { .. } => false,
             IrType::Array { .. } => matches!(value, RtValue::Array(_)),
             IrType::Vec { .. } => matches!(value, RtValue::Vec(_)),
             IrType::Map { .. } => matches!(value, RtValue::Map(_)),

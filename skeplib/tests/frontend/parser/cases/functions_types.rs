@@ -147,6 +147,24 @@ fn maybe(flag: Bool, name: Option[String]) -> Option[Int] {
 }
 
 #[test]
+fn parses_result_type_annotations() {
+    let src = r#"
+fn parse(data: String) -> Result[Int, String] {
+  return 0;
+}
+"#;
+    let program = parse_ok(src);
+    let f = &program.functions[0];
+    assert_eq!(
+        f.return_type,
+        Some(TypeName::Result {
+            ok: Box::new(TypeName::Int),
+            err: Box::new(TypeName::String),
+        })
+    );
+}
+
+#[test]
 fn parses_static_array_type_annotations() {
     let src = r#"
 fn sum_row(row: [Int; 4]) -> [Int; 4] {

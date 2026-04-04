@@ -11,6 +11,10 @@ pub enum IrType {
     Option {
         value: Box<IrType>,
     },
+    Result {
+        ok: Box<IrType>,
+        err: Box<IrType>,
+    },
     Named(String),
     Opaque(String),
     Array {
@@ -41,6 +45,10 @@ impl From<&TypeInfo> for IrType {
             TypeInfo::Void => Self::Void,
             TypeInfo::Option { value } => Self::Option {
                 value: Box::new(Self::from(value.as_ref())),
+            },
+            TypeInfo::Result { ok, err } => Self::Result {
+                ok: Box::new(Self::from(ok.as_ref())),
+                err: Box::new(Self::from(err.as_ref())),
             },
             TypeInfo::Named(name) => Self::Named(name.clone()),
             TypeInfo::Opaque(name) => Self::Opaque(name.clone()),

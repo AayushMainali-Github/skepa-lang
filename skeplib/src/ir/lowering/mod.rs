@@ -219,6 +219,10 @@ impl IrLowerer {
             crate::ast::TypeName::Option { value } => IrType::Option {
                 value: Box::new(self.lower_type_name(value)),
             },
+            crate::ast::TypeName::Result { ok, err } => IrType::Result {
+                ok: Box::new(self.lower_type_name(ok)),
+                err: Box::new(self.lower_type_name(err)),
+            },
             crate::ast::TypeName::Named(name) => {
                 if crate::types::is_builtin_opaque_type(name) {
                     IrType::Opaque(name.clone())

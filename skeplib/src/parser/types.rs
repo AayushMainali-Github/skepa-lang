@@ -67,6 +67,19 @@ impl Parser {
             });
         }
 
+        if self.at(TokenKind::Ident) && self.current().lexeme == "Result" {
+            self.bump();
+            self.expect(TokenKind::LBracket, "Expected `[` after `Result`")?;
+            let ok = self.expect_type_name("Expected ok type in `Result[..., ...]`")?;
+            self.expect(TokenKind::Comma, "Expected `,` after result ok type")?;
+            let err = self.expect_type_name("Expected error type in `Result[..., ...]`")?;
+            self.expect(TokenKind::RBracket, "Expected `]` after result type")?;
+            return Some(TypeName::Result {
+                ok: Box::new(ok),
+                err: Box::new(err),
+            });
+        }
+
         if self.at(TokenKind::Ident) && self.current().lexeme == "Map" {
             self.bump();
             self.expect(TokenKind::LBracket, "Expected `[` after `Map`")?;

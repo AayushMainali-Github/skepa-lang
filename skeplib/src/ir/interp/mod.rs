@@ -180,6 +180,7 @@ fn runtime_type_name(ty: &IrType) -> &'static str {
         IrType::String => "String",
         IrType::Bytes => "Bytes",
         IrType::Option { .. } => "Option",
+        IrType::Result { .. } => "Result",
         IrType::Array { .. } => "Array",
         IrType::Vec { .. } => "Vec",
         IrType::Map { .. } => "Map",

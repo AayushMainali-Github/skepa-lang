@@ -9,6 +9,7 @@ pub fn llvm_ty(ty: &IrType) -> Result<&'static str, CodegenError> {
         IrType::String => Ok("ptr"),
         IrType::Bytes => Ok("ptr"),
         IrType::Option { .. } => Ok("ptr"),
+        IrType::Result { .. } => Ok("ptr"),
         IrType::Named(_) => Ok("ptr"),
         IrType::Opaque(_) => Ok("ptr"),
         IrType::Array { .. } => Ok("ptr"),
@@ -17,7 +18,7 @@ pub fn llvm_ty(ty: &IrType) -> Result<&'static str, CodegenError> {
         IrType::Fn { .. } => Ok("ptr"),
         IrType::Void => Ok("void"),
         _ => Err(CodegenError::Unsupported(
-            "only Int/Float/Bool/String/Bytes/Option/Named/Opaque/Array/Vec/Map/Fn/Void lowering is implemented",
+            "only Int/Float/Bool/String/Bytes/Option/Result/Named/Opaque/Array/Vec/Map/Fn/Void lowering is implemented",
         )),
     }
 }

@@ -155,6 +155,11 @@ fn emit_indirect_wrapper(func: &IrFunction) -> Result<Vec<String>, CodegenError>
             IrType::Option { .. } => lines.push(format!(
                 "  %arg{index} = call ptr @skp_rt_value_to_option(ptr %argraw{index})"
             )),
+            IrType::Result { .. } => {
+                return Err(CodegenError::Unsupported(
+                    "indirect-call trampoline does not support Result signatures yet",
+                ));
+            }
             IrType::Array { .. } => lines.push(format!(
                 "  %arg{index} = call ptr @skp_rt_value_to_array(ptr %argraw{index})"
             )),
@@ -205,6 +210,11 @@ fn emit_indirect_wrapper(func: &IrFunction) -> Result<Vec<String>, CodegenError>
             IrType::String => "skp_rt_value_from_string",
             IrType::Bytes => "skp_rt_value_from_bytes",
             IrType::Option { .. } => "skp_rt_value_from_option",
+            IrType::Result { .. } => {
+                return Err(CodegenError::Unsupported(
+                    "indirect-call trampoline does not support Result signatures yet",
+                ));
+            }
             IrType::Array { .. } => "skp_rt_value_from_array",
             IrType::Vec { .. } => "skp_rt_value_from_vec",
             IrType::Map { .. } => "skp_rt_value_from_map",

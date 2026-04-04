@@ -85,6 +85,11 @@ pub fn emit_compare(
                 }
             }
         }
+        crate::ir::IrType::Result { .. } => {
+            return Err(CodegenError::Unsupported(
+                "result comparisons are not implemented in LLVM lowering",
+            ));
+        }
         crate::ir::IrType::Float => {
             let pred = match op {
                 CmpOp::Eq => "oeq",

@@ -58,6 +58,22 @@ fn main() -> Int {
 }
 
 #[test]
+fn sema_accepts_result_type_in_signatures_and_locals() {
+    let src = r#"
+fn id(data: Result[Int, String]) -> Result[Int, String] {
+  let copy: Result[Int, String] = data;
+  return copy;
+}
+
+fn main() -> Int {
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
+
+#[test]
 fn sema_accepts_some_none_values_and_option_equality() {
     let src = r#"
 fn wrap(x: Int) -> Option[Int] {

@@ -143,6 +143,16 @@ impl IrVerifier {
                 Self::types_compatible(a, b)
             }
             (
+                IrType::Result {
+                    ok: a_ok,
+                    err: a_err,
+                },
+                IrType::Result {
+                    ok: b_ok,
+                    err: b_err,
+                },
+            ) => Self::types_compatible(a_ok, b_ok) && Self::types_compatible(a_err, b_err),
+            (
                 IrType::Array {
                     elem: a_elem,
                     size: a_size,

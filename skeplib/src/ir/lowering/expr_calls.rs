@@ -778,6 +778,11 @@ impl IrLowerer {
             IrType::Bytes => "Bytes".to_string(),
             IrType::Void => "Void".to_string(),
             IrType::Option { value } => format!("Option[{}]", self.display_ir_type(value)),
+            IrType::Result { ok, err } => format!(
+                "Result[{}, {}]",
+                self.display_ir_type(ok),
+                self.display_ir_type(err)
+            ),
             IrType::Named(name) | IrType::Opaque(name) => name.clone(),
             IrType::Array { elem, size } => format!("[{}; {}]", self.display_ir_type(elem), size),
             IrType::Vec { elem } => format!("Vec[{}]", self.display_ir_type(elem)),

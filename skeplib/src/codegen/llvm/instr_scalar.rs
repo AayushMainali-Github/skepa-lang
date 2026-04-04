@@ -56,6 +56,7 @@ pub fn emit_scalar_instr(
                 ty,
                 crate::ir::IrType::String
                     | crate::ir::IrType::Option { .. }
+                    | crate::ir::IrType::Result { .. }
                     | crate::ir::IrType::Named(_)
                     | crate::ir::IrType::Array { .. }
                     | crate::ir::IrType::Vec { .. }

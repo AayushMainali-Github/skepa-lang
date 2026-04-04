@@ -68,6 +68,16 @@ impl Checker {
                 Self::types_compatible(a, b)
             }
             (
+                TypeInfo::Result {
+                    ok: a_ok,
+                    err: a_err,
+                },
+                TypeInfo::Result {
+                    ok: b_ok,
+                    err: b_err,
+                },
+            ) => Self::types_compatible(a_ok, b_ok) && Self::types_compatible(a_err, b_err),
+            (
                 TypeInfo::Array {
                     elem: a_elem,
                     size: a_size,
@@ -635,6 +645,10 @@ impl Checker {
             | TypeName::Bytes
             | TypeName::Void => {}
             TypeName::Option { value } => self.check_decl_type_exists(value, err_prefix),
+            TypeName::Result { ok, err } => {
+                self.check_decl_type_exists(ok, err_prefix.clone());
+                self.check_decl_type_exists(err, err_prefix);
+            }
             TypeName::Array { elem, .. } => self.check_decl_type_exists(elem, err_prefix),
             TypeName::Vec { elem } => self.check_decl_type_exists(elem, err_prefix),
             TypeName::Map { value } => self.check_decl_type_exists(value, err_prefix),
