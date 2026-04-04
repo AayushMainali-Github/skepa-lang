@@ -146,6 +146,10 @@ pub struct MatchArm {
 pub enum MatchPattern {
     Wildcard,
     Literal(MatchLiteral),
+    Variant {
+        name: String,
+        binding: Option<String>,
+    },
     Or(Vec<MatchPattern>),
 }
 
@@ -683,6 +687,10 @@ fn pretty_match_pattern(pat: &MatchPattern) -> String {
         MatchPattern::Literal(MatchLiteral::Bool(v)) => v.to_string(),
         MatchPattern::Literal(MatchLiteral::String(s)) => format!("\"{}\"", s.replace('"', "\\\"")),
         MatchPattern::Literal(MatchLiteral::Float(v)) => v.clone(),
+        MatchPattern::Variant { name, binding } => match binding {
+            Some(binding) => format!("{name}({binding})"),
+            None => name.clone(),
+        },
         MatchPattern::Or(parts) => parts
             .iter()
             .map(pretty_match_pattern)

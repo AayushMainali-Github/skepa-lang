@@ -31,4 +31,18 @@ pub(super) const SIGS: &[BuiltinSig] = &[
         ret: TypeInfo::Bool,
         kind: BuiltinKind::FixedArity,
     },
+    BuiltinSig {
+        package: "result",
+        name: "unwrapOk",
+        params: &[TypeInfo::Unknown],
+        ret: TypeInfo::Unknown,
+        kind: BuiltinKind::FixedArity,
+    },
+    BuiltinSig {
+        package: "result",
+        name: "unwrapErr",
+        params: &[TypeInfo::Unknown],
+        ret: TypeInfo::Unknown,
+        kind: BuiltinKind::FixedArity,
+    },
 ];

@@ -2453,3 +2453,25 @@ fn main() -> Int {
 
     assert_eq!(common::native_run_structured(source).exit_code(), 0);
 }
+
+#[test]
+fn codegen_builds_native_executable_for_match_on_option_and_result_variants() {
+    let source = r#"
+fn unwrap_or_zero(value: Option[Int]) -> Int {
+  match (value) {
+    Some(x) => { return x; }
+    None => { return 0; }
+  }
+}
+
+fn main() -> Int {
+  let res: Result[Int, String] = ok(7);
+  match (res) {
+    Ok(v) => { return unwrap_or_zero(some(v)); }
+    Err(e) => { return 0; }
+  }
+}
+"#;
+
+    assert_eq!(common::native_run_structured(source).exit_code(), 7);
+}

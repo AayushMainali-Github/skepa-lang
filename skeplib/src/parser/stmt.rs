@@ -300,6 +300,28 @@ impl Parser {
             self.bump();
             return Some(MatchPattern::Wildcard);
         }
+        if self.at(TokenKind::Ident) {
+            let name = self.bump().lexeme;
+            if matches!(name.as_str(), "Some" | "None" | "Ok" | "Err") {
+                let mut binding = None;
+                if self.at(TokenKind::LParen) {
+                    self.bump();
+                    if self.at(TokenKind::Ident) {
+                        let ident = self.bump().lexeme;
+                        if ident != "_" {
+                            binding = Some(ident);
+                        }
+                    }
+                    self.expect(
+                        TokenKind::RParen,
+                        "Expected `)` after variant match pattern",
+                    )?;
+                }
+                return Some(MatchPattern::Variant { name, binding });
+            }
+            self.error_here_expected("Expected match pattern (`_`, literal, or variant)");
+            return None;
+        }
         if self.at(TokenKind::IntLit) {
             let tok = self.bump();
             let value = tok.lexeme.parse::<i64>().ok()?;
@@ -329,7 +351,7 @@ impl Parser {
             return Some(MatchPattern::Literal(MatchLiteral::String(s)));
         }
 
-        self.error_here_expected("Expected match pattern (`_` or literal)");
+        self.error_here_expected("Expected match pattern (`_`, literal, or variant)");
         None
     }
 }

@@ -1,4 +1,4 @@
-use crate::ast::{AssignTarget, Expr, Stmt};
+use crate::ast::{AssignTarget, Expr, MatchLiteral, MatchPattern, Stmt};
 use crate::ir::{BlockId, BranchTerminator, Instr, IrType, Operand, Terminator};
 
 use super::context::{FunctionLowering, IrLowerer, LoopLowering};
@@ -167,6 +167,7 @@ impl IrLowerer {
             ),
             Stmt::Break => self.compile_break(func, lowering),
             Stmt::Continue => self.compile_continue(func, lowering),
+            Stmt::Match { expr, arms } => self.compile_match(func, lowering, expr, arms),
             _ => {
                 self.unsupported("statement form is not in the initial IR lowering subset");
                 false
@@ -364,6 +365,249 @@ impl IrLowerer {
             func,
             lowering.current_block,
             Terminator::Jump(loop_ctx.continue_block),
+        );
+        true
+    }
+
+    fn compile_match(
+        &mut self,
+        func: &mut crate::ir::IrFunction,
+        lowering: &mut FunctionLowering,
+        expr: &Expr,
+        arms: &[crate::ast::MatchArm],
+    ) -> bool {
+        let target = match self.compile_expr(func, lowering, expr) {
+            Some(value) => value,
+            None => return false,
+        };
+        let target_ty = self.infer_operand_type(func, &target);
+        let match_local = self.builder.push_local(
+            func,
+            format!("__match{}", lowering.scratch_counter),
+            target_ty.clone(),
+        );
+        lowering.scratch_counter += 1;
+        self.builder.push_instr(
+            func,
+            lowering.current_block,
+            Instr::StoreLocal {
+                local: match_local,
+                ty: target_ty.clone(),
+                value: target,
+            },
+        );
+
+        let join_block = self.builder.push_block(func, "match_join");
+        let mut dispatch_block = lowering.current_block;
+
+        for (index, arm) in arms.iter().enumerate() {
+            let body_block = self.builder.push_block(func, &format!("match_arm_{index}"));
+            let next_block = if index + 1 == arms.len() {
+                join_block
+            } else {
+                self.builder
+                    .push_block(func, &format!("match_next_{index}"))
+            };
+
+            if matches!(arm.pattern, MatchPattern::Wildcard) {
+                self.builder
+                    .set_terminator(func, dispatch_block, Terminator::Jump(body_block));
+            } else {
+                let cond = match self.compile_match_condition(
+                    func,
+                    dispatch_block,
+                    match_local,
+                    &target_ty,
+                    &arm.pattern,
+                ) {
+                    Some(cond) => cond,
+                    None => return false,
+                };
+                self.builder.set_terminator(
+                    func,
+                    dispatch_block,
+                    Terminator::Branch(BranchTerminator {
+                        cond,
+                        then_block: body_block,
+                        else_block: next_block,
+                    }),
+                );
+            }
+
+            lowering.current_block = body_block;
+            let saved_locals = lowering.locals.clone();
+            if !self.bind_match_pattern(func, lowering, match_local, &target_ty, &arm.pattern) {
+                return false;
+            }
+            for stmt in &arm.body {
+                if !self.compile_stmt(func, lowering, stmt) {
+                    return false;
+                }
+            }
+            self.ensure_fallthrough_jump(func, lowering.current_block, join_block);
+            lowering.locals = saved_locals;
+            dispatch_block = next_block;
+        }
+
+        if matches!(
+            func.blocks
+                .iter()
+                .find(|block| block.id == dispatch_block)
+                .map(|block| &block.terminator),
+            Some(Terminator::Unreachable)
+        ) {
+            self.builder
+                .set_terminator(func, dispatch_block, Terminator::Jump(join_block));
+        }
+
+        lowering.current_block = join_block;
+        true
+    }
+
+    fn compile_match_condition(
+        &mut self,
+        func: &mut crate::ir::IrFunction,
+        block: BlockId,
+        match_local: crate::ir::LocalId,
+        target_ty: &IrType,
+        pattern: &MatchPattern,
+    ) -> Option<Operand> {
+        match pattern {
+            MatchPattern::Wildcard => Some(Operand::Const(crate::ir::ConstValue::Bool(true))),
+            MatchPattern::Literal(lit) => {
+                let rhs = match lit {
+                    MatchLiteral::Int(v) => Operand::Const(crate::ir::ConstValue::Int(*v)),
+                    MatchLiteral::Bool(v) => Operand::Const(crate::ir::ConstValue::Bool(*v)),
+                    MatchLiteral::String(v) => {
+                        Operand::Const(crate::ir::ConstValue::String(v.clone()))
+                    }
+                    MatchLiteral::Float(v) => {
+                        let parsed = v.parse::<f64>().ok()?;
+                        Operand::Const(crate::ir::ConstValue::Float(parsed))
+                    }
+                };
+                let dst = self.builder.push_temp(func, IrType::Bool);
+                self.builder.push_instr(
+                    func,
+                    block,
+                    Instr::Compare {
+                        dst,
+                        op: crate::ir::CmpOp::Eq,
+                        left: Operand::Local(match_local),
+                        right: rhs,
+                    },
+                );
+                Some(Operand::Temp(dst))
+            }
+            MatchPattern::Variant { name, .. } => {
+                let builtin = match name.as_str() {
+                    "Some" => ("option", "isSome"),
+                    "None" => ("option", "isNone"),
+                    "Ok" => ("result", "isOk"),
+                    "Err" => ("result", "isErr"),
+                    other => {
+                        self.unsupported(format!(
+                            "unsupported match variant `{other}` in lowering"
+                        ));
+                        return None;
+                    }
+                };
+                let dst = self.builder.push_temp(func, IrType::Bool);
+                self.builder.push_instr(
+                    func,
+                    block,
+                    Instr::CallBuiltin {
+                        dst: Some(dst),
+                        ret_ty: IrType::Bool,
+                        builtin: crate::ir::BuiltinCall {
+                            package: builtin.0.to_string(),
+                            name: builtin.1.to_string(),
+                        },
+                        args: vec![Operand::Local(match_local)],
+                    },
+                );
+                Some(Operand::Temp(dst))
+            }
+            MatchPattern::Or(parts) => {
+                let mut parts = parts.iter();
+                let first = self.compile_match_condition(
+                    func,
+                    block,
+                    match_local,
+                    target_ty,
+                    parts.next()?,
+                )?;
+                let mut acc = first;
+                for part in parts {
+                    let rhs =
+                        self.compile_match_condition(func, block, match_local, target_ty, part)?;
+                    let dst = self.builder.push_temp(func, IrType::Bool);
+                    self.builder.push_instr(
+                        func,
+                        block,
+                        Instr::Logic {
+                            dst,
+                            op: crate::ir::LogicOp::Or,
+                            left: acc,
+                            right: rhs,
+                        },
+                    );
+                    acc = Operand::Temp(dst);
+                }
+                Some(acc)
+            }
+        }
+    }
+
+    fn bind_match_pattern(
+        &mut self,
+        func: &mut crate::ir::IrFunction,
+        lowering: &mut FunctionLowering,
+        match_local: crate::ir::LocalId,
+        target_ty: &IrType,
+        pattern: &MatchPattern,
+    ) -> bool {
+        let MatchPattern::Variant {
+            name,
+            binding: Some(binding),
+        } = pattern
+        else {
+            return true;
+        };
+
+        let (builtin_pkg, builtin_name, value_ty) = match (name.as_str(), target_ty) {
+            ("Some", IrType::Option { value }) => ("option", "unwrapSome", (**value).clone()),
+            ("Ok", IrType::Result { ok, .. }) => ("result", "unwrapOk", (**ok).clone()),
+            ("Err", IrType::Result { err, .. }) => ("result", "unwrapErr", (**err).clone()),
+            _ => return true,
+        };
+
+        let dst = self.builder.push_temp(func, value_ty.clone());
+        self.builder.push_instr(
+            func,
+            lowering.current_block,
+            Instr::CallBuiltin {
+                dst: Some(dst),
+                ret_ty: value_ty.clone(),
+                builtin: crate::ir::BuiltinCall {
+                    package: builtin_pkg.to_string(),
+                    name: builtin_name.to_string(),
+                },
+                args: vec![Operand::Local(match_local)],
+            },
+        );
+        let local = self
+            .builder
+            .push_local(func, binding.clone(), value_ty.clone());
+        lowering.locals.insert(binding.clone(), local);
+        self.builder.push_instr(
+            func,
+            lowering.current_block,
+            Instr::StoreLocal {
+                local,
+                ty: value_ty,
+                value: Operand::Temp(dst),
+            },
         );
         true
     }

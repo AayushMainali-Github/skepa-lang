@@ -98,7 +98,78 @@ impl Checker {
             MatchPattern::Literal(MatchLiteral::Float(v)) => {
                 Some((format!("float:{v}"), format!("Float literal `{v}`")))
             }
+            MatchPattern::Variant { name, .. } => {
+                Some((format!("variant:{name}"), format!("variant `{name}`")))
+            }
             MatchPattern::Wildcard | MatchPattern::Or(_) => None,
+        }
+    }
+
+    fn match_variant_binding_type(pat: &MatchPattern, target_ty: &TypeInfo) -> Option<TypeInfo> {
+        match (pat, target_ty) {
+            (MatchPattern::Variant { name, .. }, TypeInfo::Option { value }) if name == "Some" => {
+                Some((**value).clone())
+            }
+            (MatchPattern::Variant { name, .. }, TypeInfo::Result { ok, .. }) if name == "Ok" => {
+                Some((**ok).clone())
+            }
+            (MatchPattern::Variant { name, .. }, TypeInfo::Result { err, .. }) if name == "Err" => {
+                Some((**err).clone())
+            }
+            _ => None,
+        }
+    }
+
+    fn match_variant_allowed(name: &str, target_ty: &TypeInfo) -> bool {
+        match target_ty {
+            TypeInfo::Option { .. } => matches!(name, "Some" | "None"),
+            TypeInfo::Result { .. } => matches!(name, "Ok" | "Err"),
+            TypeInfo::Unknown => matches!(name, "Some" | "None" | "Ok" | "Err"),
+            _ => false,
+        }
+    }
+
+    fn pattern_has_wildcard(pat: &MatchPattern) -> bool {
+        match pat {
+            MatchPattern::Wildcard => true,
+            MatchPattern::Or(parts) => parts.iter().any(Self::pattern_has_wildcard),
+            _ => false,
+        }
+    }
+
+    fn check_match_exhaustiveness(
+        &mut self,
+        target_ty: &TypeInfo,
+        seen_wildcard: bool,
+        seen_literals: &std::collections::HashSet<String>,
+    ) {
+        if seen_wildcard {
+            return;
+        }
+        match target_ty {
+            TypeInfo::Option { .. } => {
+                let has_some = seen_literals.contains("variant:Some");
+                let has_none = seen_literals.contains("variant:None");
+                if !(has_some && has_none) {
+                    self.error(
+                        "Match on Option requires `Some(...)` and `None` arms or a wildcard arm `_`"
+                            .to_string(),
+                    );
+                }
+            }
+            TypeInfo::Result { .. } => {
+                let has_ok = seen_literals.contains("variant:Ok");
+                let has_err = seen_literals.contains("variant:Err");
+                if !(has_ok && has_err) {
+                    self.error(
+                        "Match on Result requires `Ok(...)` and `Err(...)` arms or a wildcard arm `_`"
+                            .to_string(),
+                    );
+                }
+            }
+            _ => {
+                self.error("Match statement requires a wildcard arm `_`".to_string());
+            }
         }
     }
 
@@ -129,6 +200,25 @@ impl Checker {
                     self.error(format!("Duplicate match pattern {label}"));
                 }
             }
+            MatchPattern::Variant { name, binding } => {
+                if !Self::match_variant_allowed(name, target_ty) {
+                    self.error(format!(
+                        "Match variant `{name}` is not valid for target type {:?}",
+                        target_ty
+                    ));
+                }
+                if matches!(name.as_str(), "None" | "Some" | "Ok" | "Err")
+                    && matches!(name.as_str(), "None")
+                    && binding.is_some()
+                {
+                    self.error("Match variant `None` cannot bind a value".to_string());
+                }
+                if let Some((key, label)) = Self::match_pattern_literal_key_and_label(pat)
+                    && !seen_literals.insert(key)
+                {
+                    self.error(format!("Duplicate match pattern {label}"));
+                }
+            }
             MatchPattern::Or(parts) => {
                 if parts.is_empty() {
                     self.error(
@@ -138,7 +228,22 @@ impl Checker {
                 }
                 for part in parts {
                     if matches!(part, MatchPattern::Wildcard | MatchPattern::Or(_)) {
-                        self.error("Match OR-pattern alternatives must be literals".to_string());
+                        self.error(
+                            "Match OR-pattern alternatives must be literals or variants"
+                                .to_string(),
+                        );
+                        continue;
+                    }
+                    if matches!(
+                        part,
+                        MatchPattern::Variant {
+                            binding: Some(_),
+                            ..
+                        }
+                    ) {
+                        self.error(
+                            "Match OR-pattern variant alternatives cannot bind values".to_string(),
+                        );
                         continue;
                     }
                     self.check_match_pattern(part, target_ty, seen_literals);
@@ -409,7 +514,7 @@ impl Checker {
                 }
 
                 for (idx, arm) in arms.iter().enumerate() {
-                    if matches!(arm.pattern, MatchPattern::Wildcard) {
+                    if Self::pattern_has_wildcard(&arm.pattern) {
                         if seen_wildcard {
                             self.error(
                                 "Match statement can contain only one wildcard arm".to_string(),
@@ -424,15 +529,27 @@ impl Checker {
                     self.check_match_pattern(&arm.pattern, &target_ty, &mut seen_literals);
 
                     scopes.push(HashMap::new());
+                    match &arm.pattern {
+                        MatchPattern::Variant {
+                            binding: Some(binding),
+                            ..
+                        } => {
+                            if let Some(binding_ty) =
+                                Self::match_variant_binding_type(&arm.pattern, &target_ty)
+                                && let Some(scope) = scopes.last_mut()
+                            {
+                                scope.insert(binding.clone(), binding_ty);
+                            }
+                        }
+                        _ => {}
+                    }
                     for s in &arm.body {
                         self.check_stmt(s, scopes, expected_ret);
                     }
                     scopes.pop();
                 }
 
-                if !seen_wildcard {
-                    self.error("Match statement requires a wildcard arm `_`".to_string());
-                }
+                Self::check_match_exhaustiveness(self, &target_ty, seen_wildcard, &seen_literals);
             }
         }
     }

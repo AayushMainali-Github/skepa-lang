@@ -1635,3 +1635,26 @@ fn main() -> Int {
     let value = common::ir_run_ok(source);
     assert_eq!(value, IrValue::Int(0));
 }
+
+#[test]
+fn interpreter_supports_match_on_option_and_result_variants() {
+    let source = r#"
+fn unwrap_or_zero(value: Option[Int]) -> Int {
+  match (value) {
+    Some(x) => { return x; }
+    None => { return 0; }
+  }
+}
+
+fn main() -> Int {
+  let res: Result[Int, String] = ok(7);
+  match (res) {
+    Ok(v) => { return unwrap_or_zero(some(v)); }
+    Err(e) => { return 0; }
+  }
+}
+"#;
+
+    let value = common::ir_run_ok(source);
+    assert_eq!(value, IrValue::Int(7));
+}

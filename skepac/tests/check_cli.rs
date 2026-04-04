@@ -1785,3 +1785,37 @@ fn main() -> Int {
 
     assert_eq!(output.status.code(), Some(0), "{:?}", output);
 }
+
+#[test]
+fn run_executes_match_on_option_and_result_variants_end_to_end() {
+    let tmp = make_temp_dir("skepac_run_option_result_match");
+    let source = tmp.join("main.sk");
+    fs::write(
+        &source,
+        r#"
+fn unwrap_or_zero(value: Option[Int]) -> Int {
+  match (value) {
+    Some(x) => { return x; }
+    None => { return 0; }
+  }
+}
+
+fn main() -> Int {
+  let res: Result[Int, String] = ok(7);
+  match (res) {
+    Ok(v) => { return unwrap_or_zero(some(v)); }
+    Err(e) => { return 0; }
+  }
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("run")
+        .arg(&source)
+        .output()
+        .expect("run skepac run");
+
+    assert_eq!(output.status.code(), Some(7), "{:?}", output);
+}

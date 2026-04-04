@@ -1415,3 +1415,52 @@ fn main() -> Int {
     let (result, diags) = analyze_source(src);
     assert_sema_success(&result, &diags);
 }
+
+#[test]
+fn sema_accepts_match_on_option_and_result_variants() {
+    let src = r#"
+fn unwrap_or_zero(value: Option[Int]) -> Int {
+  match (value) {
+    Some(x) => { return x; }
+    None => { return 0; }
+  }
+}
+
+fn main() -> Int {
+  let res: Result[Int, String] = ok(7);
+  match (res) {
+    Ok(v) => { return unwrap_or_zero(some(v)); }
+    Err(e) => { return 0; }
+  }
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
+
+#[test]
+fn sema_rejects_non_exhaustive_option_and_result_match() {
+    let src = r#"
+fn main() -> Int {
+  let opt: Option[Int] = some(1);
+  let res: Result[Int, String] = ok(2);
+  match (opt) {
+    Some(x) => { return x; }
+  }
+  match (res) {
+    Ok(v) => { return v; }
+  }
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert_has_diag(
+        &diags,
+        "Match on Option requires `Some(...)` and `None` arms or a wildcard arm `_`",
+    );
+    assert_has_diag(
+        &diags,
+        "Match on Result requires `Ok(...)` and `Err(...)` arms or a wildcard arm `_`",
+    );
+}

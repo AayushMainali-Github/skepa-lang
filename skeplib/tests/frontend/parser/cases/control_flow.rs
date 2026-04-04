@@ -120,7 +120,39 @@ fn main() -> Int {
 }
 "#;
     let diags = parse_err(src);
-    assert_has_diag(&diags, "Expected match pattern (`_` or literal)");
+    assert_has_diag(&diags, "Expected match pattern (`_`, literal, or variant)");
+}
+
+#[test]
+fn parses_match_statement_with_option_and_result_variant_patterns() {
+    let src = r#"
+fn main() -> Int {
+  match (some(1)) {
+    Some(x) => { return x; }
+    None => { return 0; }
+  }
+}
+"#;
+    let program = parse_ok(src);
+    match &program.functions[0].body[0] {
+        Stmt::Match { arms, .. } => {
+            assert_eq!(
+                arms[0].pattern,
+                MatchPattern::Variant {
+                    name: "Some".to_string(),
+                    binding: Some("x".to_string()),
+                }
+            );
+            assert_eq!(
+                arms[1].pattern,
+                MatchPattern::Variant {
+                    name: "None".to_string(),
+                    binding: None,
+                }
+            );
+        }
+        _ => panic!("expected match statement"),
+    }
 }
 
 #[test]
