@@ -52,6 +52,7 @@ struct Checker {
     globals: HashMap<String, TypeInfo>,
     loop_depth: usize,
     fn_lit_scope_floors: Vec<usize>,
+    return_types: Vec<TypeInfo>,
     has_external_context: bool,
 }
 
@@ -256,6 +257,7 @@ impl Checker {
             globals: HashMap::new(),
             loop_depth: 0,
             fn_lit_scope_floors: Vec::new(),
+            return_types: Vec::new(),
             has_external_context: false,
         }
     }
@@ -693,9 +695,11 @@ impl Checker {
             scopes[0].insert(p.name.clone(), TypeInfo::from_ast(&p.ty));
         }
 
+        self.return_types.push(expected_ret.clone());
         for stmt in &f.body {
             self.check_stmt(stmt, &mut scopes, &expected_ret);
         }
+        self.return_types.pop();
         if expected_ret != TypeInfo::Void && !Self::block_must_return(&f.body) {
             self.error(format!(
                 "Function `{}` may exit without returning {:?}",
@@ -718,9 +722,11 @@ impl Checker {
             scopes[0].insert("self".to_string(), TypeInfo::Named(target.to_string()));
         }
 
+        self.return_types.push(expected_ret.clone());
         for stmt in &m.body {
             self.check_stmt(stmt, &mut scopes, &expected_ret);
         }
+        self.return_types.pop();
         if expected_ret != TypeInfo::Void && !Self::block_must_return(&m.body) {
             self.error(format!(
                 "Method `{}.{}` may exit without returning {:?}",
@@ -735,9 +741,11 @@ impl Checker {
         for p in &operator.params {
             scopes[0].insert(p.name.clone(), TypeInfo::from_ast(&p.ty));
         }
+        self.return_types.push(expected_ret.clone());
         for stmt in &operator.body {
             self.check_stmt(stmt, &mut scopes, &expected_ret);
         }
+        self.return_types.pop();
         if !Self::block_must_return(&operator.body) {
             self.error(format!(
                 "Operator `{}` may exit without returning {:?}",

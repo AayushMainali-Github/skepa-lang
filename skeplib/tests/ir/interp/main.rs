@@ -1658,3 +1658,32 @@ fn main() -> Int {
     let value = common::ir_run_ok(source);
     assert_eq!(value, IrValue::Int(7));
 }
+
+#[test]
+fn interpreter_supports_try_propagation_for_option_and_result() {
+    let source = r#"
+fn plus_one(x: Option[Int]) -> Option[Int] {
+  let value = x?;
+  return Some(value + 1);
+}
+
+fn plus_two(x: Result[Int, String]) -> Result[Int, String] {
+  let value = x?;
+  return Ok(value + 2);
+}
+
+fn main() -> Int {
+  let a: Option[Int] = plus_one(Some(7));
+  let b: Option[Int] = plus_one(None());
+  let c: Result[Int, String] = plus_two(Ok(10));
+  let d: Result[Int, String] = plus_two(Err("bad"));
+  if (a == Some(8) && b == None() && c == Ok(12) && d == Err("bad")) {
+    return 0;
+  }
+  return 1;
+}
+"#;
+
+    let value = common::ir_run_ok(source);
+    assert_eq!(value, IrValue::Int(0));
+}

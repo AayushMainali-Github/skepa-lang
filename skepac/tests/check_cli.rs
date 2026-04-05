@@ -1819,3 +1819,43 @@ fn main() -> Int {
 
     assert_eq!(output.status.code(), Some(7), "{:?}", output);
 }
+
+#[test]
+fn run_executes_try_propagation_end_to_end() {
+    let tmp = make_temp_dir("skepac_run_try_propagation");
+    let source = tmp.join("main.sk");
+    fs::write(
+        &source,
+        r#"
+fn plus_one(x: Option[Int]) -> Option[Int] {
+  let value = x?;
+  return Some(value + 1);
+}
+
+fn plus_two(x: Result[Int, String]) -> Result[Int, String] {
+  let value = x?;
+  return Ok(value + 2);
+}
+
+fn main() -> Int {
+  let a: Option[Int] = plus_one(Some(7));
+  let b: Option[Int] = plus_one(None());
+  let c: Result[Int, String] = plus_two(Ok(10));
+  let d: Result[Int, String] = plus_two(Err("bad"));
+  if (a == Some(8) && b == None() && c == Ok(12) && d == Err("bad")) {
+    return 0;
+  }
+  return 1;
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("run")
+        .arg(&source)
+        .output()
+        .expect("run skepac run");
+
+    assert_eq!(output.status.code(), Some(0), "{:?}", output);
+}

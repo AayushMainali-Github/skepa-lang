@@ -493,3 +493,23 @@ fn main() -> Int {
         other => panic!("expected grouped callee call, got {other:?}"),
     }
 }
+
+#[test]
+fn parses_try_postfix_expression() {
+    let src = r#"
+fn main() -> Option[Int] {
+  let value = some(7)?;
+  return Some(value);
+}
+"#;
+    let program = parse_ok(src);
+    match &program.functions[0].body[0] {
+        Stmt::Let { value, .. } => match value {
+            Expr::Try(inner) => {
+                assert!(matches!(inner.as_ref(), Expr::Call { .. }));
+            }
+            other => panic!("expected try expression, got {other:?}"),
+        },
+        other => panic!("expected let statement, got {other:?}"),
+    }
+}

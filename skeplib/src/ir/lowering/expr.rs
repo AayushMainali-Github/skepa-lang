@@ -311,6 +311,246 @@ impl IrLowerer {
                 }
             }
             Expr::Call { callee, args } => self.compile_call(func, lowering, callee, args),
+            Expr::Try(inner) => self.compile_try_expr(func, lowering, inner),
+        }
+    }
+
+    fn compile_try_expr(
+        &mut self,
+        func: &mut crate::ir::IrFunction,
+        lowering: &mut FunctionLowering,
+        inner: &Expr,
+    ) -> Option<Operand> {
+        let value = self.compile_expr(func, lowering, inner)?;
+        let value_ty = self.infer_operand_type(func, &value);
+        let func_ret_ty = func.ret_ty.clone();
+        let saved_block = lowering.current_block;
+        let value_local = self.builder.push_local(
+            func,
+            format!("__try{}", lowering.scratch_counter),
+            value_ty.clone(),
+        );
+        lowering.scratch_counter += 1;
+        self.builder.push_instr(
+            func,
+            saved_block,
+            Instr::StoreLocal {
+                local: value_local,
+                ty: value_ty.clone(),
+                value,
+            },
+        );
+
+        match (&value_ty, &func_ret_ty) {
+            (IrType::Option { value: inner_ty }, IrType::Option { value: ret_inner }) => {
+                let cond_temp = self.builder.push_temp(func, IrType::Bool);
+                self.builder.push_instr(
+                    func,
+                    saved_block,
+                    Instr::CallBuiltin {
+                        dst: Some(cond_temp),
+                        ret_ty: IrType::Bool,
+                        builtin: crate::ir::BuiltinCall {
+                            package: "option".to_string(),
+                            name: "isSome".to_string(),
+                        },
+                        args: vec![Operand::Local(value_local)],
+                    },
+                );
+
+                let some_block = self.builder.push_block(func, "try_some");
+                let none_block = self.builder.push_block(func, "try_none");
+                let join_block = self.builder.push_block(func, "try_join");
+                self.builder.set_terminator(
+                    func,
+                    saved_block,
+                    Terminator::Branch(BranchTerminator {
+                        cond: Operand::Temp(cond_temp),
+                        then_block: some_block,
+                        else_block: none_block,
+                    }),
+                );
+
+                let unwrapped_ty = (**inner_ty).clone();
+                let result_local = self.builder.push_local(
+                    func,
+                    format!("__try_unwrap{}", lowering.scratch_counter),
+                    unwrapped_ty.clone(),
+                );
+                lowering.scratch_counter += 1;
+                let unwrap_temp = self.builder.push_temp(func, unwrapped_ty.clone());
+                self.builder.push_instr(
+                    func,
+                    some_block,
+                    Instr::CallBuiltin {
+                        dst: Some(unwrap_temp),
+                        ret_ty: unwrapped_ty.clone(),
+                        builtin: crate::ir::BuiltinCall {
+                            package: "option".to_string(),
+                            name: "unwrapSome".to_string(),
+                        },
+                        args: vec![Operand::Local(value_local)],
+                    },
+                );
+                self.builder.push_instr(
+                    func,
+                    some_block,
+                    Instr::StoreLocal {
+                        local: result_local,
+                        ty: unwrapped_ty.clone(),
+                        value: Operand::Temp(unwrap_temp),
+                    },
+                );
+                self.builder
+                    .set_terminator(func, some_block, Terminator::Jump(join_block));
+
+                let none_temp = self.builder.push_temp(
+                    func,
+                    IrType::Option {
+                        value: Box::new((**ret_inner).clone()),
+                    },
+                );
+                self.builder.push_instr(
+                    func,
+                    none_block,
+                    Instr::CallBuiltin {
+                        dst: Some(none_temp),
+                        ret_ty: IrType::Option {
+                            value: Box::new((**ret_inner).clone()),
+                        },
+                        builtin: crate::ir::BuiltinCall {
+                            package: "option".to_string(),
+                            name: "none".to_string(),
+                        },
+                        args: Vec::new(),
+                    },
+                );
+                self.builder.set_terminator(
+                    func,
+                    none_block,
+                    Terminator::Return(Some(Operand::Temp(none_temp))),
+                );
+
+                lowering.current_block = join_block;
+                Some(Operand::Local(result_local))
+            }
+            (
+                IrType::Result {
+                    ok: ok_ty,
+                    err: err_ty,
+                },
+                IrType::Result {
+                    ok: ret_ok,
+                    err: ret_err,
+                },
+            ) => {
+                let cond_temp = self.builder.push_temp(func, IrType::Bool);
+                self.builder.push_instr(
+                    func,
+                    saved_block,
+                    Instr::CallBuiltin {
+                        dst: Some(cond_temp),
+                        ret_ty: IrType::Bool,
+                        builtin: crate::ir::BuiltinCall {
+                            package: "result".to_string(),
+                            name: "isOk".to_string(),
+                        },
+                        args: vec![Operand::Local(value_local)],
+                    },
+                );
+
+                let ok_block = self.builder.push_block(func, "try_ok");
+                let err_block = self.builder.push_block(func, "try_err");
+                let join_block = self.builder.push_block(func, "try_join");
+                self.builder.set_terminator(
+                    func,
+                    saved_block,
+                    Terminator::Branch(BranchTerminator {
+                        cond: Operand::Temp(cond_temp),
+                        then_block: ok_block,
+                        else_block: err_block,
+                    }),
+                );
+
+                let unwrapped_ok_ty = (**ok_ty).clone();
+                let result_local = self.builder.push_local(
+                    func,
+                    format!("__try_unwrap{}", lowering.scratch_counter),
+                    unwrapped_ok_ty.clone(),
+                );
+                lowering.scratch_counter += 1;
+                let unwrap_ok_temp = self.builder.push_temp(func, unwrapped_ok_ty.clone());
+                self.builder.push_instr(
+                    func,
+                    ok_block,
+                    Instr::CallBuiltin {
+                        dst: Some(unwrap_ok_temp),
+                        ret_ty: unwrapped_ok_ty.clone(),
+                        builtin: crate::ir::BuiltinCall {
+                            package: "result".to_string(),
+                            name: "unwrapOk".to_string(),
+                        },
+                        args: vec![Operand::Local(value_local)],
+                    },
+                );
+                self.builder.push_instr(
+                    func,
+                    ok_block,
+                    Instr::StoreLocal {
+                        local: result_local,
+                        ty: unwrapped_ok_ty.clone(),
+                        value: Operand::Temp(unwrap_ok_temp),
+                    },
+                );
+                self.builder
+                    .set_terminator(func, ok_block, Terminator::Jump(join_block));
+
+                let propagated_err_ty = (**err_ty).clone();
+                let unwrap_err_temp = self.builder.push_temp(func, propagated_err_ty.clone());
+                self.builder.push_instr(
+                    func,
+                    err_block,
+                    Instr::CallBuiltin {
+                        dst: Some(unwrap_err_temp),
+                        ret_ty: propagated_err_ty.clone(),
+                        builtin: crate::ir::BuiltinCall {
+                            package: "result".to_string(),
+                            name: "unwrapErr".to_string(),
+                        },
+                        args: vec![Operand::Local(value_local)],
+                    },
+                );
+                let err_result_ty = IrType::Result {
+                    ok: Box::new((**ret_ok).clone()),
+                    err: Box::new((**ret_err).clone()),
+                };
+                let err_result_temp = self.builder.push_temp(func, err_result_ty.clone());
+                self.builder.push_instr(
+                    func,
+                    err_block,
+                    Instr::CallBuiltin {
+                        dst: Some(err_result_temp),
+                        ret_ty: err_result_ty,
+                        builtin: crate::ir::BuiltinCall {
+                            package: "result".to_string(),
+                            name: "err".to_string(),
+                        },
+                        args: vec![Operand::Temp(unwrap_err_temp)],
+                    },
+                );
+                self.builder.set_terminator(
+                    func,
+                    err_block,
+                    Terminator::Return(Some(Operand::Temp(err_result_temp))),
+                );
+
+                lowering.current_block = join_block;
+                Some(Operand::Local(result_local))
+            }
+            _ => {
+                self.unsupported("`?` lowering requires Option/Result-compatible function return");
+                None
+            }
         }
     }
 

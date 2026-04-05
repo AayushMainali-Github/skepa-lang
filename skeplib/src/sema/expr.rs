@@ -335,12 +335,14 @@ impl Checker {
                     inner_scopes[outer_scope_len].insert(p.name.clone(), TypeInfo::from_ast(&p.ty));
                 }
                 self.fn_lit_scope_floors.push(outer_scope_len);
+                self.return_types.push(expected_ret.clone());
                 let saved_loop_depth = self.loop_depth;
                 self.loop_depth = 0;
                 for stmt in body {
                     self.check_stmt(stmt, &mut inner_scopes, &expected_ret);
                 }
                 self.loop_depth = saved_loop_depth;
+                self.return_types.pop();
                 self.fn_lit_scope_floors.pop();
                 if expected_ret != TypeInfo::Void && !Self::block_must_return(body) {
                     self.error(format!(
@@ -353,6 +355,60 @@ impl Checker {
                     params: params.iter().map(|p| TypeInfo::from_ast(&p.ty)).collect(),
                     ret: Box::new(expected_ret),
                 }
+            }
+            Expr::Try(inner) => self.check_try_expr(inner, scopes),
+        }
+    }
+
+    fn check_try_expr(
+        &mut self,
+        inner: &Expr,
+        scopes: &mut [HashMap<String, TypeInfo>],
+    ) -> TypeInfo {
+        let inner_ty = self.check_expr(inner, scopes);
+        let Some(expected_ret) = self.return_types.last().cloned() else {
+            self.error("`?` is only allowed inside a function-like body".to_string());
+            return TypeInfo::Unknown;
+        };
+
+        match (inner_ty, expected_ret) {
+            (TypeInfo::Option { value }, TypeInfo::Option { .. }) => *value,
+            (
+                TypeInfo::Result { ok, err },
+                TypeInfo::Result {
+                    ok: _,
+                    err: expected_err,
+                },
+            ) => {
+                if !Self::types_compatible(&err, &expected_err) {
+                    self.error(format!(
+                        "`?` result error type mismatch: expression has {:?}, function returns {:?}",
+                        err, expected_err
+                    ));
+                    return TypeInfo::Unknown;
+                }
+                *ok
+            }
+            (TypeInfo::Option { .. }, other) => {
+                self.error(format!(
+                    "`?` on Option requires a function returning Option, got {:?}",
+                    other
+                ));
+                TypeInfo::Unknown
+            }
+            (TypeInfo::Result { .. }, other) => {
+                self.error(format!(
+                    "`?` on Result requires a function returning Result, got {:?}",
+                    other
+                ));
+                TypeInfo::Unknown
+            }
+            (other, _) => {
+                self.error(format!(
+                    "`?` expects Option or Result expression, got {:?}",
+                    other
+                ));
+                TypeInfo::Unknown
             }
         }
     }

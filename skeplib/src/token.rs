@@ -43,6 +43,7 @@ pub enum TokenKind {
     Backtick,
     Comma,
     Dot,
+    Question,
     Colon,
     Semi,
     Arrow,

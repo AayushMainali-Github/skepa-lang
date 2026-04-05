@@ -66,6 +66,7 @@ impl Lexer {
             '`' => self.single(TokenKind::Backtick, start, line, col),
             ',' => self.single(TokenKind::Comma, start, line, col),
             '.' => self.single(TokenKind::Dot, start, line, col),
+            '?' => self.single(TokenKind::Question, start, line, col),
             ':' => self.single(TokenKind::Colon, start, line, col),
             ';' => self.single(TokenKind::Semi, start, line, col),
             '+' => self.single(TokenKind::Plus, start, line, col),

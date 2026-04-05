@@ -217,6 +217,7 @@ pub enum Expr {
         callee: Box<Expr>,
         args: Vec<Expr>,
     },
+    Try(Box<Expr>),
     Group(Box<Expr>),
 }
 
@@ -676,6 +677,7 @@ fn pretty_expr(expr: &Expr) -> String {
             let args = args.iter().map(pretty_expr).collect::<Vec<_>>().join(", ");
             format!("{}({})", pretty_expr(callee), args)
         }
+        Expr::Try(inner) => format!("{}?", pretty_expr(inner)),
         Expr::Group(inner) => format!("({})", pretty_expr(inner)),
     }
 }

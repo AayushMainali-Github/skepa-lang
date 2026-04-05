@@ -1464,3 +1464,51 @@ fn main() -> Int {
         "Match on Result requires `Ok(...)` and `Err(...)` arms or a wildcard arm `_`",
     );
 }
+
+#[test]
+fn sema_accepts_try_propagation_for_option_and_result() {
+    let src = r#"
+fn plus_one(x: Option[Int]) -> Option[Int] {
+  let value = x?;
+  return Some(value + 1);
+}
+
+fn plus_two(x: Result[Int, String]) -> Result[Int, String] {
+  let value = x?;
+  return Ok(value + 2);
+}
+
+fn main() -> Int {
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
+
+#[test]
+fn sema_rejects_try_in_incompatible_contexts() {
+    let src = r#"
+fn bad_option(x: Option[Int]) -> Int {
+  let value = x?;
+  return value;
+}
+
+fn bad_result(x: Result[Int, String]) -> Result[Int, Int] {
+  let value = x?;
+  return Ok(value);
+}
+
+fn bad_value(x: Int) -> Int {
+  return x?;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert_has_diag(
+        &diags,
+        "`?` on Option requires a function returning Option",
+    );
+    assert_has_diag(&diags, "`?` result error type mismatch");
+    assert_has_diag(&diags, "`?` expects Option or Result expression");
+}

@@ -198,6 +198,12 @@ impl Parser {
                 continue;
             }
 
+            if self.at(TokenKind::Question) {
+                self.bump();
+                expr = Expr::Try(Box::new(expr));
+                continue;
+            }
+
             break;
         }
         Some(expr)
