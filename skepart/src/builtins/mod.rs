@@ -138,9 +138,10 @@ pub fn call_with_context(
             &value.expect_map()?,
             key.expect_string()?.as_str(),
         )),
-        ("map", "get", [value, key]) => {
-            map::get(&value.expect_map()?, key.expect_string()?.as_str())
-        }
+        ("map", "get", [value, key]) => Ok(map::get(
+            &value.expect_map()?,
+            key.expect_string()?.as_str(),
+        )),
         ("map", "insert", [value, key, item]) => {
             map::insert(
                 &value.expect_map()?,
@@ -149,9 +150,10 @@ pub fn call_with_context(
             );
             Ok(RtValue::Unit)
         }
-        ("map", "remove", [value, key]) => {
-            map::remove(&value.expect_map()?, key.expect_string()?.as_str())
-        }
+        ("map", "remove", [value, key]) => Ok(map::remove(
+            &value.expect_map()?,
+            key.expect_string()?.as_str(),
+        )),
         ("str", "len", [value]) => Ok(RtValue::Int(str::len(&value.expect_string()?))),
         ("str", "contains", [haystack, needle]) => Ok(RtValue::Bool(str::contains(
             &haystack.expect_string()?,

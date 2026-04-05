@@ -1030,7 +1030,6 @@ impl RtHost for RecordingHost {
         }
         let method = options
             .get("method")
-            .ok()
             .and_then(|value| value.expect_string().ok())
             .map(|value| value.as_str().to_owned())
             .unwrap_or_else(|| "GET".to_string());

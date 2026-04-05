@@ -62,7 +62,7 @@ pub(super) fn check_map_builtin(
                 ));
             }
             match map_ty {
-                TypeInfo::Map { value } => *value,
+                TypeInfo::Map { value } => TypeInfo::Option { value },
                 TypeInfo::Unknown => TypeInfo::Unknown,
                 got => {
                     checker.error(format!("map.get argument 1 expects Map, got {:?}", got));
@@ -119,7 +119,7 @@ pub(super) fn check_map_builtin(
                 ));
             }
             match map_ty {
-                TypeInfo::Map { value } => *value,
+                TypeInfo::Map { value } => TypeInfo::Option { value },
                 TypeInfo::Unknown => TypeInfo::Unknown,
                 got => {
                     checker.error(format!("map.remove argument 1 expects Map, got {:?}", got));

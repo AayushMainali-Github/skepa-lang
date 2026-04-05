@@ -364,6 +364,8 @@ impl Checker {
             "str" => return str_pkg::check_str_builtin(self, method, args, scopes, sig),
             "bytes" => return bytes::check_bytes_builtin(self, method, args, scopes, sig),
             "map" => return map::check_map_builtin(self, method, args, scopes),
+            "option" => return self.check_option_builtin(method, args, scopes),
+            "result" => return self.check_result_builtin(method, args, scopes),
             "arr" => return arr::check_arr_builtin(self, method, args, scopes),
             "datetime" => {
                 return datetime::check_datetime_builtin(self, method, args, scopes, sig);
@@ -380,6 +382,143 @@ impl Checker {
         }
 
         sig.ret.clone()
+    }
+
+    fn check_option_builtin(
+        &mut self,
+        method: &str,
+        args: &[Expr],
+        scopes: &mut [HashMap<String, TypeInfo>],
+    ) -> TypeInfo {
+        match method {
+            "isSome" | "isNone" => {
+                if args.len() != 1 {
+                    self.error(format!(
+                        "option.{method} expects 1 argument(s), got {}",
+                        args.len()
+                    ));
+                    return TypeInfo::Unknown;
+                }
+                let got = self.check_expr(&args[0], scopes);
+                match got {
+                    TypeInfo::Option { .. } | TypeInfo::Unknown => {}
+                    other => self.error(format!(
+                        "option.{method} argument 1 expects Option, got {:?}",
+                        other
+                    )),
+                }
+                TypeInfo::Bool
+            }
+            "unwrapSome" => {
+                if args.len() != 1 {
+                    self.error(format!(
+                        "option.unwrapSome expects 1 argument(s), got {}",
+                        args.len()
+                    ));
+                    return TypeInfo::Unknown;
+                }
+                let got = self.check_expr(&args[0], scopes);
+                match got {
+                    TypeInfo::Option { value } => *value,
+                    TypeInfo::Unknown => TypeInfo::Unknown,
+                    other => {
+                        self.error(format!(
+                            "option.unwrapSome argument 1 expects Option, got {:?}",
+                            other
+                        ));
+                        TypeInfo::Unknown
+                    }
+                }
+            }
+            _ => self.check_fixed_arity_builtin(
+                "option",
+                method,
+                args,
+                scopes,
+                crate::builtins::find_builtin_spec("option", method)
+                    .expect("known option builtin")
+                    .sig,
+            ),
+        }
+    }
+
+    fn check_result_builtin(
+        &mut self,
+        method: &str,
+        args: &[Expr],
+        scopes: &mut [HashMap<String, TypeInfo>],
+    ) -> TypeInfo {
+        match method {
+            "isOk" | "isErr" => {
+                if args.len() != 1 {
+                    self.error(format!(
+                        "result.{method} expects 1 argument(s), got {}",
+                        args.len()
+                    ));
+                    return TypeInfo::Unknown;
+                }
+                let got = self.check_expr(&args[0], scopes);
+                match got {
+                    TypeInfo::Result { .. } | TypeInfo::Unknown => {}
+                    other => self.error(format!(
+                        "result.{method} argument 1 expects Result, got {:?}",
+                        other
+                    )),
+                }
+                TypeInfo::Bool
+            }
+            "unwrapOk" => {
+                if args.len() != 1 {
+                    self.error(format!(
+                        "result.unwrapOk expects 1 argument(s), got {}",
+                        args.len()
+                    ));
+                    return TypeInfo::Unknown;
+                }
+                let got = self.check_expr(&args[0], scopes);
+                match got {
+                    TypeInfo::Result { ok, .. } => *ok,
+                    TypeInfo::Unknown => TypeInfo::Unknown,
+                    other => {
+                        self.error(format!(
+                            "result.unwrapOk argument 1 expects Result, got {:?}",
+                            other
+                        ));
+                        TypeInfo::Unknown
+                    }
+                }
+            }
+            "unwrapErr" => {
+                if args.len() != 1 {
+                    self.error(format!(
+                        "result.unwrapErr expects 1 argument(s), got {}",
+                        args.len()
+                    ));
+                    return TypeInfo::Unknown;
+                }
+                let got = self.check_expr(&args[0], scopes);
+                match got {
+                    TypeInfo::Result { err, .. } => *err,
+                    TypeInfo::Unknown => TypeInfo::Unknown,
+                    other => {
+                        self.error(format!(
+                            "result.unwrapErr argument 1 expects Result, got {:?}",
+                            other
+                        ));
+                        TypeInfo::Unknown
+                    }
+                }
+            }
+            _ => self.check_fixed_arity_builtin(
+                "result",
+                method,
+                args,
+                scopes,
+                crate::builtins::find_builtin_spec("result", method)
+                    .expect("known result builtin")
+                    .sig,
+            ),
+        }
     }
 
     pub(super) fn check_fixed_arity_builtin(

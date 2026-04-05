@@ -1612,13 +1612,14 @@ fn main() -> Int {
 fn codegen_builds_native_executable_for_map_builtins() {
     let source = r#"
 import map;
+import option;
 
 fn main() -> Int {
   let headers: Map[String, Int] = map.new();
   let same = headers;
   map.insert(headers, "content-length", 12);
-  let value = map.get(same, "content-length");
-  let removed = map.remove(headers, "content-length");
+  let value = option.unwrapSome(map.get(same, "content-length"));
+  let removed = option.unwrapSome(map.remove(headers, "content-length"));
   if (!map.has(same, "content-length") && map.len(headers) == 0) {
     return value + removed;
   }
@@ -1630,23 +1631,21 @@ fn main() -> Int {
 }
 
 #[test]
-fn codegen_reports_runtime_failure_for_missing_map_key() {
+fn codegen_handles_missing_map_key_with_option_none() {
     let source = r#"
 import map;
+import option;
 
 fn main() -> Int {
   let headers: Map[String, Int] = map.new();
-  return map.get(headers, "missing");
+  if (option.isNone(map.get(headers, "missing"))) {
+    return 0;
+  }
+  return 1;
 }
 "#;
 
-    let output = common::native_run_structured(source);
-    assert_ne!(output.exit_code(), 0);
-    assert!(
-        output.stderr_lossy().contains("missing map key"),
-        "expected missing-key runtime failure, got: {}",
-        output.stderr_lossy()
-    );
+    assert_eq!(common::native_run_exit_code_ok(source), 0);
 }
 
 #[test]
@@ -2023,16 +2022,17 @@ fn codegen_builds_native_executable_for_net_parse_url() {
     let source = r#"
 import net;
 import map;
+import option;
 import str;
 
 fn main() -> Int {
   let parts: Map[String, String] = net.parseUrl("https://example.com:8443/api?q=1#frag");
-  let scheme: String = map.get(parts, "scheme");
-  let host: String = map.get(parts, "host");
-  let port: String = map.get(parts, "port");
-  let path: String = map.get(parts, "path");
-  let query: String = map.get(parts, "query");
-  let fragment: String = map.get(parts, "fragment");
+  let scheme: String = option.unwrapSome(map.get(parts, "scheme"));
+  let host: String = option.unwrapSome(map.get(parts, "host"));
+  let port: String = option.unwrapSome(map.get(parts, "port"));
+  let path: String = option.unwrapSome(map.get(parts, "path"));
+  let query: String = option.unwrapSome(map.get(parts, "query"));
+  let fragment: String = option.unwrapSome(map.get(parts, "fragment"));
   if ((scheme == "https")
       && (host == "example.com")
       && (port == "8443")
@@ -2073,6 +2073,7 @@ fn codegen_builds_native_executable_for_net_fetch() {
         r#"
 import map;
 import net;
+import option;
 import str;
 
 fn main() -> Int {{
@@ -2081,9 +2082,9 @@ fn main() -> Int {{
   map.insert(options, "body", "{{\"ok\":true}}");
   map.insert(options, "contentType", "application/json");
   let response: Map[String, String] = net.fetch("http://{addr}/fetch", options);
-  let status: String = map.get(response, "status");
-  let body: String = map.get(response, "body");
-  let contentType: String = map.get(response, "contentType");
+  let status: String = option.unwrapSome(map.get(response, "status"));
+  let body: String = option.unwrapSome(map.get(response, "body"));
+  let contentType: String = option.unwrapSome(map.get(response, "contentType"));
   if ((status == "201") && (body == "{{\"ok\":true}}") && (contentType == "application/json") && (str.len(body) == 11)) {{
     return 0;
   }}

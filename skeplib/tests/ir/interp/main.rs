@@ -977,13 +977,14 @@ fn main() -> Int {
 fn interpreter_supports_map_builtins_through_runtime() {
     let source = r#"
 import map;
+import option;
 
 fn main() -> Int {
   let headers: Map[String, Int] = map.new();
   map.insert(headers, "content-length", 12);
   let same = headers;
-  let value = map.get(same, "content-length");
-  let removed = map.remove(headers, "content-length");
+  let value = option.unwrapSome(map.get(same, "content-length"));
+  let removed = option.unwrapSome(map.remove(headers, "content-length"));
   if (map.has(same, "content-length") || map.len(headers) != 0) {
     return 0;
   }
@@ -1142,6 +1143,7 @@ fn interpreter_carries_real_net_builtin_handles_through_calls() {
 import net;
 import bytes;
 import map;
+import option;
 
 fn main() -> Int {
   let parts: Map[String, String] = net.parseUrl("https://example.com:443/a?x=1#frag");
@@ -1156,8 +1158,8 @@ fn main() -> Int {
   let secure: net.Socket = net.tlsConnect("example.com", 443);
   let resolved: String = net.resolve("localhost");
   let msg = net.read(server);
-  let host = map.get(parts, "host");
-  let status = map.get(response, "status");
+  let host = option.unwrapSome(map.get(parts, "host"));
+  let status = option.unwrapSome(map.get(response, "status"));
   let raw: Bytes = net.readBytes(server);
   let exact: Bytes = net.readN(server, 3);
   let local = net.localAddr(client);

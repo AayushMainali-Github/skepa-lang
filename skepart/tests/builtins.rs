@@ -283,7 +283,7 @@ fn builtins_cover_map_roundtrip_and_errors() {
             &[value.clone(), RtValue::String(RtString::from("name"))],
         )
         .expect("map.get"),
-        RtValue::Int(7)
+        RtValue::Option(skepart::RtOption::some(RtValue::Int(7)))
     );
     assert_eq!(
         builtins::call(
@@ -292,7 +292,7 @@ fn builtins_cover_map_roundtrip_and_errors() {
             &[value.clone(), RtValue::String(RtString::from("name"))],
         )
         .expect("map.remove"),
-        RtValue::Int(7)
+        RtValue::Option(skepart::RtOption::some(RtValue::Int(7)))
     );
     assert_eq!(
         builtins::call("map", "len", std::slice::from_ref(&value)).expect("map.len"),
@@ -316,9 +316,17 @@ fn builtins_cover_map_roundtrip_and_errors() {
             "get",
             &[value.clone(), RtValue::String(RtString::from("missing"))],
         )
-        .expect_err("map.get missing key")
-        .kind,
-        RtErrorKind::MissingField
+        .expect("map.get missing key"),
+        RtValue::Option(skepart::RtOption::none())
+    );
+    assert_eq!(
+        builtins::call(
+            "map",
+            "remove",
+            &[value, RtValue::String(RtString::from("missing"))],
+        )
+        .expect("map.remove missing key"),
+        RtValue::Option(skepart::RtOption::none())
     );
 }
 

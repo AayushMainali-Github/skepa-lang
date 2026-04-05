@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use crate::{RtError, RtResult, RtValue};
+use crate::RtValue;
 
 #[derive(Debug, Clone, Default)]
 pub struct RtMap(Arc<Mutex<HashMap<String, RtValue>>>);
@@ -23,26 +23,16 @@ impl RtMap {
         self.guard().contains_key(key)
     }
 
-    pub fn get(&self, key: &str) -> RtResult<RtValue> {
-        self.guard().get(key).cloned().ok_or_else(|| {
-            RtError::new(
-                crate::RtErrorKind::MissingField,
-                format!("missing map key `{key}`"),
-            )
-        })
+    pub fn get(&self, key: &str) -> Option<RtValue> {
+        self.guard().get(key).cloned()
     }
 
     pub fn insert(&self, key: impl Into<String>, value: RtValue) {
         self.guard().insert(key.into(), value);
     }
 
-    pub fn remove(&self, key: &str) -> RtResult<RtValue> {
-        self.guard().remove(key).ok_or_else(|| {
-            RtError::new(
-                crate::RtErrorKind::MissingField,
-                format!("missing map key `{key}`"),
-            )
-        })
+    pub fn remove(&self, key: &str) -> Option<RtValue> {
+        self.guard().remove(key)
     }
 
     fn guard(&self) -> MutexGuard<'_, HashMap<String, RtValue>> {

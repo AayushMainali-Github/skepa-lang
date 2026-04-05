@@ -167,14 +167,15 @@ fn main() -> Int {
 fn sema_accepts_map_builtins() {
     let src = r#"
 import map;
+import option;
 
 fn main() -> Int {
   let headers: Map[String, Int] = map.new();
   map.insert(headers, "content-length", 12);
   let has_len: Bool = map.has(headers, "content-length");
-  let value: Int = map.get(headers, "content-length");
-  let removed: Int = map.remove(headers, "content-length");
-  if (has_len && value == removed && map.len(headers) == 0) {
+  let value: Option[Int] = map.get(headers, "content-length");
+  let removed: Option[Int] = map.remove(headers, "content-length");
+  if (has_len && option.isSome(value) && value == removed && map.len(headers) == 0) {
     return 1;
   }
   return 0;
@@ -212,6 +213,7 @@ fn main() -> Int {
   let values: Map[String, Int] = map.new();
   map.insert(values, "ok", false);
   let _x = map.get(values, 1);
+  let _y: Int = map.get(values, "ok");
   let _same: Bool = values == values;
   return 0;
 }
@@ -226,6 +228,9 @@ fn main() -> Int {
     }));
     assert!(diags.as_slice().iter().any(|d| {
         d.message.contains("map.get argument 2 expects String")
+    }));
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message.contains("Type mismatch in let `_y`")
     }));
     assert!(diags.as_slice().iter().any(|d| {
         d.message.contains("Map values cannot be compared with `==` or `!=`")
@@ -1237,6 +1242,7 @@ fn sema_accepts_minimal_net_listener_and_socket_builtins() {
 import net;
 import bytes;
 import map;
+import option;
 
 fn main() -> Void {
   let parts: Map[String, String] = net.parseUrl("https://example.com:443/a?x=1#frag");
@@ -1251,8 +1257,8 @@ fn main() -> Void {
   let secure: net.Socket = net.tlsConnect("example.com", 443);
   let resolved: String = net.resolve("localhost");
   let msg: String = net.read(socket);
-  let host: String = map.get(parts, "host");
-  let status: String = map.get(response, "status");
+  let host: String = option.unwrapSome(map.get(parts, "host"));
+  let status: String = option.unwrapSome(map.get(response, "status"));
   let raw: Bytes = net.readBytes(socket);
   let exact: Bytes = net.readN(socket, 4);
   let local: String = net.localAddr(client);

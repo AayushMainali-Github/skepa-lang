@@ -774,10 +774,28 @@ impl IrLowerer {
                         .map(|value| IrType::from(&value));
                 }
             }
+            ("option", "unwrapSome") => {
+                let value = args.first()?;
+                if let IrType::Option { value } = self.infer_operand_type(func, value) {
+                    return Some(*value);
+                }
+            }
+            ("result", "unwrapOk") => {
+                let value = args.first()?;
+                if let IrType::Result { ok, .. } = self.infer_operand_type(func, value) {
+                    return Some(*ok);
+                }
+            }
+            ("result", "unwrapErr") => {
+                let value = args.first()?;
+                if let IrType::Result { err, .. } = self.infer_operand_type(func, value) {
+                    return Some(*err);
+                }
+            }
             ("map", "get") | ("map", "remove") => {
                 let map = args.first()?;
                 if let IrType::Map { value } = self.infer_operand_type(func, map) {
-                    return Some(*value);
+                    return Some(IrType::Option { value });
                 }
             }
             _ => {}

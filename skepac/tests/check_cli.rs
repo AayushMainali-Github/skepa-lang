@@ -553,13 +553,14 @@ fn run_executes_map_program_end_to_end() {
         &source,
         r#"
 import map;
+import option;
 
 fn main() -> Int {
   let headers: Map[String, Int] = map.new();
   let same = headers;
   map.insert(headers, "content-length", 12);
-  let value = map.get(same, "content-length");
-  let removed = map.remove(headers, "content-length");
+  let value = option.unwrapSome(map.get(same, "content-length"));
+  let removed = option.unwrapSome(map.remove(headers, "content-length"));
   if (!map.has(same, "content-length") && map.len(headers) == 0) {
     return value + removed;
   }
@@ -579,17 +580,21 @@ fn main() -> Int {
 }
 
 #[test]
-fn run_reports_runtime_failure_for_missing_map_key() {
+fn run_handles_missing_map_key_with_option_none() {
     let tmp = make_temp_dir("skepac_run_map_missing_key");
     let source = tmp.join("main.sk");
     fs::write(
         &source,
         r#"
 import map;
+import option;
 
 fn main() -> Int {
   let headers: Map[String, Int] = map.new();
-  return map.get(headers, "missing");
+  if (option.isNone(map.get(headers, "missing"))) {
+    return 0;
+  }
+  return 1;
 }
 "#,
     )
@@ -601,12 +606,7 @@ fn main() -> Int {
         .output()
         .expect("run skepac run");
 
-    assert_ne!(output.status.code(), Some(0), "{:?}", output);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("missing map key") || stderr.contains("MissingField"),
-        "stderr was: {stderr}"
-    );
+    assert_eq!(output.status.code(), Some(0), "{:?}", output);
 }
 
 #[test]
@@ -774,6 +774,7 @@ fn check_accepts_minimal_net_builtins_program() {
         &file,
         r#"
 import net;
+import option;
 import bytes;
 import map;
 
@@ -790,8 +791,8 @@ fn main() -> Int {
   let secure: net.Socket = net.tlsConnect("example.com", 443);
   let resolved: String = net.resolve("localhost");
   let msg: String = net.read(socket);
-  let host: String = map.get(parts, "host");
-  let status: String = map.get(response, "status");
+  let host: String = option.unwrapSome(map.get(parts, "host"));
+  let status: String = option.unwrapSome(map.get(response, "status"));
   let raw: Bytes = net.readBytes(socket);
   let exact: Bytes = net.readN(socket, 4);
   let local: String = net.localAddr(client);
@@ -1079,13 +1080,14 @@ fn check_accepts_minimal_map_builtins_program() {
         &file,
         r#"
 import map;
+import option;
 
 fn main() -> Int {
   let headers: Map[String, Int] = map.new();
   map.insert(headers, "content-length", 12);
   let ok: Bool = map.has(headers, "content-length");
-  let n: Int = map.get(headers, "content-length");
-  let gone: Int = map.remove(headers, "content-length");
+  let n: Int = option.unwrapSome(map.get(headers, "content-length"));
+  let gone: Int = option.unwrapSome(map.remove(headers, "content-length"));
   if (ok && n == gone && map.len(headers) == 0) {
     return 0;
   }

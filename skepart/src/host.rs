@@ -1131,19 +1131,16 @@ impl RtHost for NoopHost {
 
     fn net_fetch(&mut self, url: &str, options: &RtMap) -> RtResult<RtMap> {
         let method = match options.get("method") {
-            Ok(value) => value.expect_string()?.as_str().to_owned(),
-            Err(err) if err.kind == RtErrorKind::MissingField => "GET".to_string(),
-            Err(err) => return Err(err),
+            Some(value) => value.expect_string()?.as_str().to_owned(),
+            None => "GET".to_string(),
         };
         let body = match options.get("body") {
-            Ok(value) => value.expect_string()?.as_str().to_owned(),
-            Err(err) if err.kind == RtErrorKind::MissingField => String::new(),
-            Err(err) => return Err(err),
+            Some(value) => value.expect_string()?.as_str().to_owned(),
+            None => String::new(),
         };
         let content_type = match options.get("contentType") {
-            Ok(value) => value.expect_string()?.as_str().to_owned(),
-            Err(err) if err.kind == RtErrorKind::MissingField => String::new(),
-            Err(err) => return Err(err),
+            Some(value) => value.expect_string()?.as_str().to_owned(),
+            None => String::new(),
         };
 
         let method = method.to_uppercase();
