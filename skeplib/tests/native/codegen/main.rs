@@ -2033,10 +2033,11 @@ fn main() -> Int {{
 fn codegen_builds_native_executable_for_net_resolve() {
     let source = r#"
 import net;
+import result;
 import str;
 
 fn main() -> Int {
-  let ip: String = net.resolve("127.0.0.1");
+  let ip: String = result.unwrapOk(net.resolve("127.0.0.1"));
   if ((ip == "127.0.0.1") && (str.len(ip) == 9)) {
     return 0;
   }

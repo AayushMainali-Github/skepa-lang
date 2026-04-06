@@ -824,8 +824,10 @@ fn builtins_cover_net_resolve_and_errors() {
             "resolve",
             &[RtValue::String(RtString::from("example.com"))],
         )
-        .expect("resolve should return string"),
-        RtValue::String(RtString::from("203.0.113.7"))
+        .expect("resolve should return result"),
+        RtValue::Result(skepart::RtResultValue::ok(RtValue::String(RtString::from(
+            "203.0.113.7",
+        ))))
     );
     assert!(
         host.output.contains("[netresolve example.com]"),
@@ -836,17 +838,23 @@ fn builtins_cover_net_resolve_and_errors() {
     let mut failing_host = RecordingHostBuilder::seeded()
         .net_resolve_error("dns failed")
         .build();
-    assert_eq!(
-        builtins::call_with_host(
-            &mut failing_host,
-            "net",
-            "resolve",
-            &[RtValue::String(RtString::from("bad.host"))],
-        )
-        .expect_err("resolve failure should surface")
-        .kind,
-        RtErrorKind::Io
-    );
+    let failed = builtins::call_with_host(
+        &mut failing_host,
+        "net",
+        "resolve",
+        &[RtValue::String(RtString::from("bad.host"))],
+    )
+    .expect("resolve failure should return Err(string)");
+    let RtValue::Result(failed) = failed else {
+        panic!("net.resolve should return a result");
+    };
+    let skepart::RtResultValue::Err(failed) = failed else {
+        panic!("net.resolve should return Err(string) on failure");
+    };
+    let RtValue::String(failed) = *failed else {
+        panic!("net.resolve should return Err(string)");
+    };
+    assert!(failed.as_str().contains("dns failed"));
 }
 
 #[test]

@@ -85,6 +85,7 @@ param_list       = param { "," param } [","] ;
 param            = ident ":" type ;
 
 type             = primitive_type
+                 | option_type
                  | named_type
                  | array_type
                  | vec_type
@@ -92,6 +93,7 @@ type             = primitive_type
                  | fn_type ;
 
 primitive_type   = "Int" | "Float" | "Bool" | "String" | "Bytes" | "Void" ;
+option_type      = "Option" "[" type "]" ;
 named_type       = ident { "." ident } ;
 array_type       = "[" type ";" int_lit "]" ;
 vec_type         = "Vec" "[" type "]" ;
@@ -124,8 +126,13 @@ while_stmt       = "while" "(" expr ")" block ;
 for_stmt         = "for" "(" [ for_init ] ";" [ expr ] ";" [ for_step ] ")" block ;
 match_stmt       = "match" "(" expr ")" "{" match_arm { match_arm } "}" ;
 match_arm        = match_pattern "=>" block ;
-match_pattern    = "_" | match_lit | ( match_lit { "|" match_lit } ) ;
+match_pattern    = "_"
+                 | match_lit
+                 | match_variant
+                 | ( match_simple_pattern { "|" match_simple_pattern } ) ;
+match_simple_pattern = match_lit | match_variant ;
 match_lit        = int_lit | float_lit | bool_lit | string_lit ;
+match_variant    = ident [ "(" ident ")" ] ;
 for_init         = for_let | for_assign | expr ;
 for_step         = for_assign | expr ;
 for_let          = "let" ident [ ":" type ] "=" expr ;
@@ -143,10 +150,11 @@ comparison       = additive { ("<" | "<=" | ">" | ">=") additive } ;
 additive         = multiplicative { ("+" | "-") multiplicative } ;
 multiplicative   = unary { ("*" | "/" | "%") unary } ;
 unary            = ("+" | "-" | "!") unary | postfix ;
-postfix          = primary { call_suffix | field_suffix | index_suffix } ;
+postfix          = primary { call_suffix | field_suffix | index_suffix | try_suffix } ;
 call_suffix      = "(" [ expr { "," expr } [","] ] ")" ;
 field_suffix     = "." ident ;
 index_suffix     = "[" expr "]" ;
+try_suffix       = "?" ;
 
 primary          = int_lit | float_lit | bool_lit | string_lit
                  | ident
@@ -328,13 +336,32 @@ Syntax:
 Pattern forms:
 - wildcard: `_`
 - literals: `Int`, `Float`, `Bool`, `String`
-- OR-patterns with literals: `1 | 2`, `"y" | "Y"`
+- builtin sum-type variants:
+  - `Some(x)`
+  - `None`
+  - `Ok(v)`
+  - `Err(e)`
+- OR-patterns with literals or non-binding variants:
+  - `1 | 2`
+  - `"y" | "Y"`
+  - `None | Some`
 
 Behavior:
 - Match target is evaluated exactly once.
 - Arms are checked top-to-bottom.
 - First matching arm executes.
 - No fallthrough.
+- `Option[T]` matches are exhaustive only when they contain:
+  - both `Some(...)` and `None`
+  - or a wildcard arm `_`
+- `Result[T, E]` matches are exhaustive only when they contain:
+  - both `Ok(...)` and `Err(...)`
+  - or a wildcard arm `_`
+
+Notes:
+- Variant bindings destructure the payload into a local visible only inside that arm.
+- `None` is written without payload binding in patterns.
+- OR-pattern variant alternatives cannot bind payload names. Use separate arms when binding is needed.
 
 ## 7. Type System Notes
 
@@ -345,6 +372,300 @@ Behavior:
 - Maps are runtime-sized in type syntax (`Map[String, T]`).
 - Struct methods: first parameter must be `self: StructName`.
 - Function literals are non-capturing.
+
+## 7.1 Error Model
+
+The language error model has three categories:
+
+1. fatal runtime errors
+2. typed absence
+3. typed recoverable failure
+
+### Fatal Runtime Errors
+
+They are the correct mechanism for:
+- programmer bugs
+- violated builtin preconditions
+- invalid internal states
+- misuse of opaque handles
+- impossible states at runtime
+- unrecoverable host/runtime failures where no typed surface exists yet
+
+Examples that use runtime-error behavior:
+- out-of-bounds indexing
+- negative sleep duration
+- using the wrong `net` handle kind
+- use-after-close on `net`, `task`, or `ffi` handles
+- invalid UTF-8 passed to helpers that explicitly require valid UTF-8
+- calling foreign symbols with the wrong ABI/signature
+
+Runtime errors are process-level failures unless explicitly handled by the embedding/testing runtime. They are not typed language values.
+
+### Typed Absence
+
+`Option[T]` is the language mechanism for absence.
+
+It is the correct mechanism when:
+- a value may legitimately be missing
+- missing data is expected and common
+- callers should branch explicitly instead of crashing
+
+Examples of `Option`-style APIs:
+- safe map lookup
+- safe environment lookup
+- safe collection access helpers
+
+Absence is not an error by itself. It should not use fatal runtime failure when the missing case is part of ordinary control flow.
+
+### Typed Recoverable Failure
+
+`Result[T, E]` is the language mechanism for recoverable failure.
+
+It is the correct mechanism when:
+- an operation can fail during normal execution
+- the caller is expected to decide how to recover
+- the failure should be visible in the type system
+
+Examples of `Result`-style APIs:
+- parsing
+- filesystem I/O
+- network requests
+- database operations
+- structured FFI boundaries
+
+Recoverable failure should not use fatal runtime failure when the caller can reasonably inspect, transform, retry, or propagate the error.
+
+### Design Rule
+
+When a feature can fail, choose the surface by intent:
+
+- use runtime error for bugs, invariant violations, and misuse
+- use `Option[T]` for ordinary absence
+- use `Result[T, E]` for ordinary recoverable failure
+
+### Standard Library Error Conventions
+
+The standard library follows these conventions:
+
+- use runtime error for programmer bugs, invariant violations, misuse, and strict operations that cannot sensibly continue
+- use `Option[T]` for ordinary absence
+- use `Result[T, E]` for ordinary recoverable failure
+
+Builtins that stay runtime-error style:
+- indexing operations with invalid bounds
+- wrong-type builtin calls
+- wrong opaque handle kind passed to a builtin
+- use of closed handles
+- double-close on handle resources
+- invalid ABI use in FFI
+- explicit process termination APIs like `os.exit`
+
+Builtins that use `Option[T]` for absence:
+- `os.envGet`
+- `map.get`
+- `map.remove`
+
+Builtins that use `Result[T, E]` for recoverable failure:
+- `fs.readText`
+- `fs.writeText`
+- `fs.appendText`
+- `fs.mkdirAll`
+- `fs.removeFile`
+- `fs.removeDirAll`
+- `net.parseUrl`
+- `net.fetch`
+
+Builtins that use runtime-fatal behavior today and are natural candidates for future `Result[T, E]` surfaces:
+- `datetime.parseUnix`
+- `net.connect`
+- `net.tlsConnect`
+- `net.listen`
+- `net.accept`
+- `net.read`
+- `net.write`
+- `net.readBytes`
+- `net.writeBytes`
+- `net.readN`
+- `net.resolve`
+- `ffi.open`
+- `ffi.bind`
+
+The language and standard library use a mixed model:
+- runtime errors for misuse and strict operations
+- `Option[T]` for ordinary absence
+- `Result[T, E]` for selected recoverable filesystem and networking operations
+
+### `Option[T]`
+
+`Option[T]` is the language mechanism for ordinary absence.
+
+Construction:
+- `Some(value)`
+- `None()`
+- `some(value)`
+- `none()`
+
+Behavior:
+- `Option[T]` is a builtin generic enum-like type
+- `Some(value)` constructs an option containing a value
+- `None()` constructs an empty option
+- `Option[T]` values can be assigned, passed, returned, and compared with `==` / `!=`
+- `option.isSome(value)` and `option.isNone(value)` inspect option values
+- `match` supports `Some(x)` and `None` patterns with exhaustiveness checking
+- `None()` relies on surrounding typed context when the inner type cannot be inferred directly
+- lowercase `some` / `none` are aliases for the constructor forms
+
+Example:
+
+```sk
+import option;
+
+fn wrap(x: Int) -> Option[Int] {
+  return Some(x);
+}
+
+fn missing() -> Option[Int] {
+  return None();
+}
+
+fn main() -> Int {
+  let a: Option[Int] = wrap(7);
+  let b: Option[Int] = Some(7);
+  let c: Option[Int] = missing();
+  if (a == b && a != c && c == None() && option.isSome(a) && option.isNone(c)) {
+    return 0;
+  }
+  return 1;
+}
+```
+
+Pattern matching:
+
+```sk
+fn unwrapOrZero(x: Option[Int]) -> Int {
+  match (x) {
+    Some(v) => { return v; }
+    None => { return 0; }
+  }
+}
+```
+
+Propagation:
+
+- `expr?` on `Option[T]` unwraps `Some(value)` and yields `value`
+- if the value is `None`, the enclosing function-like body returns `None`
+- `?` on `Option[...]` is only valid inside a function-like body returning `Option[...]`
+
+Example:
+
+```sk
+fn doubleOrNone(x: Option[Int]) -> Option[Int] {
+  let value = x?;
+  return Some(value + value);
+}
+```
+
+### `Result[T, E]`
+
+`Result[T, E]` is the language mechanism for ordinary recoverable failure.
+
+Construction:
+- `Ok(value)`
+- `Err(error)`
+- `ok(value)`
+- `err(error)`
+
+Behavior:
+- `Result[T, E]` is a builtin generic enum-like type
+- `Ok(value)` constructs a success value
+- `Err(error)` constructs a failure value
+- `Result[T, E]` values can be assigned, passed, returned, and compared with `==` / `!=`
+- `result.isOk(value)` and `result.isErr(value)` inspect result values
+- `match` supports `Ok(v)` and `Err(e)` patterns with exhaustiveness checking
+- `Ok(...)` and `Err(...)` rely on surrounding typed context when the opposite side of the result cannot be inferred directly
+- `E` may be a builtin type or a user-defined named type such as a struct
+- lowercase `ok` / `err` are aliases for the constructor forms
+
+Example:
+
+```sk
+import result;
+
+fn wrap(x: Int) -> Result[Int, String] {
+  return Ok(x);
+}
+
+fn fail() -> Result[Int, String] {
+  return Err("bad");
+}
+
+fn main() -> Int {
+  let a: Result[Int, String] = wrap(7);
+  let b: Result[Int, String] = Ok(7);
+  let c: Result[Int, String] = fail();
+  let d: Result[Int, String] = Err("bad");
+  if (a == b && c == d && a != c && result.isOk(a) && result.isErr(c)) {
+    return 0;
+  }
+  return 1;
+}
+```
+
+Pattern matching:
+
+```sk
+fn intoCode(x: Result[Int, String]) -> Int {
+  match (x) {
+    Ok(v) => { return v; }
+    Err(msg) => {
+      if (msg == "bad") {
+        return 1;
+      }
+      return 2;
+    }
+  }
+}
+```
+
+Structured error payload example:
+```sk
+struct ParseError {
+  code: Int,
+  message: String,
+}
+
+fn fail() -> Result[Int, ParseError] {
+  return Err(ParseError { code: 7, message: "bad" });
+}
+
+fn main() -> Int {
+  match (fail()) {
+    Ok(v) => { return v; }
+    Err(err) => {
+      if ((err.code == 7) && (err.message == "bad")) {
+        return 0;
+      }
+      return 1;
+    }
+  }
+}
+```
+
+Propagation:
+
+- `expr?` on `Result[T, E]` unwraps `Ok(value)` and yields `value`
+- if the value is `Err(error)`, the enclosing function-like body returns `Err(error)`
+- `?` on `Result[...]` is only valid inside a function-like body returning a compatible `Result[..., E]`
+
+Example:
+
+```sk
+fn addBoth(a: Result[Int, String], b: Result[Int, String]) -> Result[Int, String] {
+  let left = a?;
+  let right = b?;
+  return Ok(left + right);
+}
+```
 
 ## 8. Builtin Packages (Current)
 
@@ -480,7 +801,7 @@ Signatures:
 - `os.arch() -> String`
 - `os.arg(index: Int) -> String`
 - `os.envHas(name: String) -> Bool`
-- `os.envGet(name: String) -> String`
+- `os.envGet(name: String) -> Option[String]`
 - `os.envSet(name: String, value: String) -> Void`
 - `os.envRemove(name: String) -> Void`
 - `os.sleep(ms: Int) -> Void`
@@ -494,7 +815,7 @@ Behavior:
 - `os.arch()` returns the host architecture string from the runtime environment.
 - `os.arg(index)` returns the process argument at `index`.
 - `os.envHas(name)` returns whether an environment variable is present.
-- `os.envGet(name)` returns the environment variable value.
+- `os.envGet(name)` returns `Some(value)` when the variable exists and `None()` when it does not.
 - `os.envSet(name, value)` sets an environment variable for the current process.
 - `os.envRemove(name)` removes an environment variable from the current process.
 - `os.sleep(ms)` requires non-negative milliseconds; negative values raise a runtime error.
@@ -504,7 +825,7 @@ Behavior:
 
 Notes:
 - `os.arg(index)` raises a runtime error for negative or out-of-range indices.
-- `os.envGet(name)` raises a runtime error if the variable is missing or not valid UTF-8.
+- `os.envGet(name)` raises a runtime error only for invalid non-UTF-8 environment data.
 - `os.exec*` raises a runtime error if the program cannot be spawned.
 - `os.execOut(program, args)` uses lossy UTF-8 decoding for stdout and trims trailing line endings.
 - If a process exits without a normal exit code, `os.exec(program, args)` returns `-1`.
@@ -513,29 +834,29 @@ Notes:
 
 Signatures:
 - `fs.exists(path: String) -> Bool`
-- `fs.readText(path: String) -> String`
-- `fs.writeText(path: String, data: String) -> Void`
-- `fs.appendText(path: String, data: String) -> Void`
-- `fs.mkdirAll(path: String) -> Void`
-- `fs.removeFile(path: String) -> Void`
-- `fs.removeDirAll(path: String) -> Void`
+- `fs.readText(path: String) -> Result[String, String]`
+- `fs.writeText(path: String, data: String) -> Result[Void, String]`
+- `fs.appendText(path: String, data: String) -> Result[Void, String]`
+- `fs.mkdirAll(path: String) -> Result[Void, String]`
+- `fs.removeFile(path: String) -> Result[Void, String]`
+- `fs.removeDirAll(path: String) -> Result[Void, String]`
 - `fs.join(a: String, b: String) -> String`
 
 Behavior:
 - All `fs` functions are synchronous/blocking.
 - `fs.exists` returns `true` for existing files/directories and `false` for missing paths.
 - `fs.exists` raises a runtime error if path existence cannot be checked due to a host filesystem error.
-- `fs.readText` reads the full file as UTF-8 text.
-- `fs.writeText` creates or overwrites a file.
-- `fs.appendText` appends to a file and creates it if missing.
-- `fs.mkdirAll` recursively creates directories and is safe on an existing directory.
-- `fs.removeFile` removes a file path.
-- `fs.removeDirAll` recursively removes a directory tree.
+- `fs.readText` reads the full file as UTF-8 text and returns `Ok(String)` on success.
+- `fs.writeText` creates or overwrites a file and returns `Ok(())` on success.
+- `fs.appendText` appends to a file and creates it if missing, returning `Ok(())` on success.
+- `fs.mkdirAll` recursively creates directories, is safe on an existing directory, and returns `Ok(())` on success.
+- `fs.removeFile` removes a file path and returns `Ok(())` on success.
+- `fs.removeDirAll` recursively removes a directory tree and returns `Ok(())` on success.
 - `fs.join` joins path segments using host path semantics and does not check existence.
 
 Notes:
-- `fs.readText` raises a runtime error on read failure or invalid UTF-8.
-- `fs.removeFile` / `fs.removeDirAll` raise runtime errors for missing paths.
+- `fs.readText` returns `Err(String)` on read failure or invalid UTF-8.
+- `fs.writeText`, `fs.appendText`, `fs.mkdirAll`, `fs.removeFile`, and `fs.removeDirAll` return `Err(String)` on filesystem failure.
 
 ### 8.9 `bytes`
 
@@ -567,19 +888,20 @@ Signatures:
 - `map.new() -> Map[String, T]` (typed context required)
 - `map.len(m: Map[String, T]) -> Int`
 - `map.has(m: Map[String, T], key: String) -> Bool`
-- `map.get(m: Map[String, T], key: String) -> T`
+- `map.get(m: Map[String, T], key: String) -> Option[T]`
 - `map.insert(m: Map[String, T], key: String, value: T) -> Void`
-- `map.remove(m: Map[String, T], key: String) -> T`
+- `map.remove(m: Map[String, T], key: String) -> Option[T]`
 
 Behavior:
 - Maps are runtime-sized, mutable, and keyed by `String`.
 - `map.insert` mutates the map in place, replacing any existing value for the key.
-- `map.remove` removes the key and returns the removed value.
+- `map.remove` removes the key and returns the removed value when present.
 
 Notes:
 - `map.new()` currently requires typed context (for example `let headers: Map[String, Int] = map.new();`).
 - Map values use shared handle semantics: assignment/pass/return aliases the same underlying map.
-- `map.get` and `map.remove` raise a runtime error for missing keys.
+- `map.get` returns `Some(value)` when the key exists and `None()` when it does not.
+- `map.remove` returns `Some(value)` when the key existed and `None()` when it did not.
 - `Map` values cannot currently be compared with `==` or `!=`.
 
 ### 8.11 `net`
@@ -591,9 +913,9 @@ Opaque types:
 Signatures:
 - `net.connect(address: String) -> net.Socket`
 - `net.tlsConnect(host: String, port: Int) -> net.Socket`
-- `net.resolve(host: String) -> String`
-- `net.parseUrl(url: String) -> Map[String, String]`
-- `net.fetch(url: String, options: Map[String, String]) -> Map[String, String]`
+- `net.resolve(host: String) -> Result[String, String]`
+- `net.parseUrl(url: String) -> Result[Map[String, String], String]`
+- `net.fetch(url: String, options: Map[String, String]) -> Result[Map[String, String], String]`
 - `net.listen(address: String) -> net.Listener`
 - `net.accept(listener: net.Listener) -> net.Socket`
 - `net.read(socket: net.Socket) -> String`
@@ -613,9 +935,9 @@ Behavior:
 - All `net` functions are synchronous/blocking.
 - `net.connect(address)` opens a blocking TCP client connection.
 - `net.tlsConnect(host, port)` opens a blocking TLS client connection with certificate and hostname verification.
-- `net.resolve(host)` resolves the host name and returns the first resolved IP address as text.
-- `net.parseUrl(url)` parses a URL and returns a `Map[String, String]` with keys: `scheme`, `host`, `port`, `path`, `query`, and `fragment`.
-- `net.fetch(url, options)` performs a blocking HTTP request and returns a response `Map[String, String]`.
+- `net.resolve(host)` resolves the host name and returns `Ok(String)` with the first resolved IP address as text, or `Err(String)` if resolution fails.
+- `net.parseUrl(url)` parses a URL and returns `Ok(Map[String, String])` with keys: `scheme`, `host`, `port`, `path`, `query`, and `fragment`, or `Err(String)` if parsing fails.
+- `net.fetch(url, options)` performs a blocking HTTP request and returns `Ok(Map[String, String])` on success or `Err(String)` on request failure.
 - `net.listen(address)` binds a blocking TCP listener. Using port `0` lets the OS choose an ephemeral port.
 - `net.accept(listener)` blocks until a client connects, then returns a new `net.Socket`.
 - `net.read(socket)` performs a single blocking read of up to 4096 bytes and returns a `String`.
@@ -644,7 +966,7 @@ Notes:
 - `net.read` is not a read-to-EOF helper; it returns one chunk from a single read call.
 - `net.tlsConnect` is client-side only in the current surface. There is no TLS listener/accept API yet.
 - `net.resolve` returns the first resolved address only. It is a convenience helper, not a full DNS result-set API.
-- `net.parseUrl` is a convenience parser for common URLs. Missing optional parts are returned as empty strings.
+- `net.parseUrl` is a convenience parser for common URLs. Missing optional parts are returned as empty strings in the success map, and invalid URLs return `Err(String)`.
 - `net.fetch` currently supports `http://` and `https://` URLs only.
 - `net.fetch` reads these option keys when present:
   - `method`
@@ -711,11 +1033,13 @@ Parse URL:
 ```sk
 import map;
 import net;
+import option;
 
 fn main() -> Int {
-  let parts: Map[String, String] = net.parseUrl("https://example.com:8443/api?q=1#frag");
-  let host: String = map.get(parts, "host");
-  let path: String = map.get(parts, "path");
+  import result;
+  let parts: Map[String, String] = result.unwrapOk(net.parseUrl("https://example.com:8443/api?q=1#frag"));
+  let host: String = option.unwrapSome(map.get(parts, "host"));
+  let path: String = option.unwrapSome(map.get(parts, "path"));
   if ((host == "example.com") && (path == "/api")) {
     return 0;
   }
@@ -727,12 +1051,14 @@ Fetch GET:
 ```sk
 import map;
 import net;
+import option;
 import str;
 
 fn main() -> Int {
   let options: Map[String, String] = map.new();
-  let response: Map[String, String] = net.fetch("https://example.com/", options);
-  let body: String = map.get(response, "body");
+  import result;
+  let response: Map[String, String] = result.unwrapOk(net.fetch("https://example.com/", options));
+  let body: String = option.unwrapSome(map.get(response, "body"));
   if (str.len(body) > 0) {
     return 0;
   }
@@ -744,6 +1070,7 @@ Fetch POST:
 ```sk
 import map;
 import net;
+import option;
 import str;
 
 fn main() -> Int {
@@ -751,8 +1078,9 @@ fn main() -> Int {
   map.insert(options, "method", "POST");
   map.insert(options, "body", "{\"ok\":true}");
   map.insert(options, "contentType", "application/json");
-  let response: Map[String, String] = net.fetch("https://example.com/api", options);
-  let body: String = map.get(response, "body");
+  import result;
+  let response: Map[String, String] = result.unwrapOk(net.fetch("https://example.com/api", options));
+  let body: String = option.unwrapSome(map.get(response, "body"));
   if (str.len(body) >= 0) {
     return 0;
   }
@@ -764,6 +1092,7 @@ Fetch:
 ```sk
 import map;
 import net;
+import option;
 
 fn main() -> Int {
   let options: Map[String, String] = map.new();
@@ -771,9 +1100,10 @@ fn main() -> Int {
   map.insert(options, "body", "{\"ok\":true}");
   map.insert(options, "contentType", "application/json");
 
-  let response: Map[String, String] = net.fetch("https://example.com/api", options);
-  let status: String = map.get(response, "status");
-  let body: String = map.get(response, "body");
+  import result;
+  let response: Map[String, String] = result.unwrapOk(net.fetch("https://example.com/api", options));
+  let status: String = option.unwrapSome(map.get(response, "status"));
+  let body: String = option.unwrapSome(map.get(response, "body"));
 
   if ((status == "200") && (body != "")) {
     return 0;

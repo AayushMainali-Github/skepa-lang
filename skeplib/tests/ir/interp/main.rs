@@ -1188,7 +1188,7 @@ fn main() -> Int {
   let server: net.Socket = net.accept(listener);
   let client: net.Socket = net.connect("127.0.0.1:8080");
   let secure: net.Socket = net.tlsConnect("example.com", 443);
-  let resolved: String = net.resolve("localhost");
+  let resolved: String = result.unwrapOk(net.resolve("localhost"));
   let msg = net.read(server);
   let host = option.unwrapSome(map.get(parts, "host"));
   let status = option.unwrapSome(map.get(response, "status"));

@@ -745,6 +745,12 @@ impl IrLowerer {
                     err: Box::new(IrType::String),
                 });
             }
+            ("net", "resolve") => {
+                return Some(IrType::Result {
+                    ok: Box::new(IrType::String),
+                    err: Box::new(IrType::String),
+                });
+            }
             ("fs", "readText") => {
                 return Some(IrType::Result {
                     ok: Box::new(IrType::String),

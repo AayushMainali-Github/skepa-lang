@@ -19,7 +19,14 @@ pub fn tls_connect(host: &mut dyn RtHost, host_name: &str, port: i64) -> RtResul
 }
 
 pub fn resolve(host: &mut dyn RtHost, host_name: &str) -> RtResult<RtValue> {
-    Ok(RtValue::String(host.net_resolve(host_name)?))
+    match host.net_resolve(host_name) {
+        Ok(ip) => Ok(RtValue::Result(crate::RtResultValue::ok(RtValue::String(
+            ip,
+        )))),
+        Err(err) => Ok(RtValue::Result(crate::RtResultValue::err(RtValue::String(
+            crate::RtString::from(err.to_string()),
+        )))),
+    }
 }
 
 pub fn parse_url(host: &mut dyn RtHost, url: &str) -> RtResult<RtValue> {

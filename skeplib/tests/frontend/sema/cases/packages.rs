@@ -1259,7 +1259,7 @@ fn main() -> Void {
   let socket: net.Socket = net.accept(listener);
   let client: net.Socket = net.connect("127.0.0.1:8080");
   let secure: net.Socket = net.tlsConnect("example.com", 443);
-  let resolved: String = net.resolve("localhost");
+  let resolved: String = result.unwrapOk(net.resolve("localhost"));
   let msg: String = net.read(socket);
   let host: String = option.unwrapSome(map.get(parts, "host"));
   let status: String = option.unwrapSome(map.get(response, "status"));
@@ -1293,7 +1293,7 @@ fn sema_rejects_net_resolve_wrong_arg_type() {
 import net;
 
 fn main() -> Void {
-  let ip: String = net.resolve(1);
+  let ip: Result[String, String] = net.resolve(1);
   let _ = ip;
   return;
 }

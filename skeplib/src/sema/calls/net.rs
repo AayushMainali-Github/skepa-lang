@@ -250,7 +250,10 @@ pub(super) fn check_net_builtin(
         }
         "resolve" => {
             checker.check_fixed_arity_builtin("net", method, args, scopes, sig);
-            TypeInfo::String
+            TypeInfo::Result {
+                ok: Box::new(TypeInfo::String),
+                err: Box::new(TypeInfo::String),
+            }
         }
         "parseUrl" => {
             checker.check_fixed_arity_builtin("net", method, args, scopes, sig);
