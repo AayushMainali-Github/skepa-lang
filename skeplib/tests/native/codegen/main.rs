@@ -2024,10 +2024,12 @@ fn codegen_builds_native_executable_for_net_parse_url() {
 import net;
 import map;
 import option;
+import result;
 import str;
 
 fn main() -> Int {
-  let parts: Map[String, String] = net.parseUrl("https://example.com:8443/api?q=1#frag");
+  let parsed: Result[Map[String, String], String] = net.parseUrl("https://example.com:8443/api?q=1#frag");
+  let parts: Map[String, String] = result.unwrapOk(parsed);
   let scheme: String = option.unwrapSome(map.get(parts, "scheme"));
   let host: String = option.unwrapSome(map.get(parts, "host"));
   let port: String = option.unwrapSome(map.get(parts, "port"));

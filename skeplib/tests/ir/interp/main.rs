@@ -1142,9 +1142,11 @@ import net;
 import bytes;
 import map;
 import option;
+import result;
 
 fn main() -> Int {
-  let parts: Map[String, String] = net.parseUrl("https://example.com:443/a?x=1#frag");
+  let parsed: Result[Map[String, String], String] = net.parseUrl("https://example.com:443/a?x=1#frag");
+  let parts: Map[String, String] = result.unwrapOk(parsed);
   let fetchOptions: Map[String, String] = map.new();
   map.insert(fetchOptions, "method", "POST");
   map.insert(fetchOptions, "body", "{}");

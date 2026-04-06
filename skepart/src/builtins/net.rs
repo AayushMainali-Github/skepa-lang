@@ -23,7 +23,14 @@ pub fn resolve(host: &mut dyn RtHost, host_name: &str) -> RtResult<RtValue> {
 }
 
 pub fn parse_url(host: &mut dyn RtHost, url: &str) -> RtResult<RtValue> {
-    Ok(RtValue::Map(host.net_parse_url(url)?))
+    match host.net_parse_url(url) {
+        Ok(parts) => Ok(RtValue::Result(crate::RtResultValue::ok(RtValue::Map(
+            parts,
+        )))),
+        Err(err) => Ok(RtValue::Result(crate::RtResultValue::err(RtValue::String(
+            crate::RtString::from(err.to_string()),
+        )))),
+    }
 }
 
 pub fn fetch(host: &mut dyn RtHost, url: &str, options: &crate::RtMap) -> RtResult<RtValue> {

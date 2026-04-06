@@ -863,10 +863,16 @@ fn builtins_cover_net_parse_url_and_errors() {
             "https://example.com:8443/api?x=1#frag",
         ))],
     )
-    .expect("parseUrl should return map");
+    .expect("parseUrl should return result");
 
-    let RtValue::Map(parsed) = parsed else {
-        panic!("net.parseUrl should return a map");
+    let RtValue::Result(parsed) = parsed else {
+        panic!("net.parseUrl should return a result");
+    };
+    let skepart::RtResultValue::Ok(parsed) = parsed else {
+        panic!("net.parseUrl should return Ok(map) on success");
+    };
+    let RtValue::Map(parsed) = *parsed else {
+        panic!("net.parseUrl should return Ok(map)");
     };
     assert_eq!(
         parsed.get("scheme").expect("scheme"),
@@ -890,17 +896,23 @@ fn builtins_cover_net_parse_url_and_errors() {
     let mut failing_host = RecordingHostBuilder::seeded()
         .net_parse_url_error("bad url")
         .build();
-    assert_eq!(
-        builtins::call_with_host(
-            &mut failing_host,
-            "net",
-            "parseUrl",
-            &[RtValue::String(RtString::from("bad"))],
-        )
-        .expect_err("parseUrl failure should surface")
-        .kind,
-        RtErrorKind::InvalidArgument
-    );
+    let failed = builtins::call_with_host(
+        &mut failing_host,
+        "net",
+        "parseUrl",
+        &[RtValue::String(RtString::from("bad"))],
+    )
+    .expect("parseUrl failure should return Err(string)");
+    let RtValue::Result(failed) = failed else {
+        panic!("net.parseUrl should return a result");
+    };
+    let skepart::RtResultValue::Err(failed) = failed else {
+        panic!("net.parseUrl should return Err(string) on failure");
+    };
+    let RtValue::String(failed) = *failed else {
+        panic!("net.parseUrl should return Err(string)");
+    };
+    assert!(failed.as_str().contains("bad url"));
 }
 
 #[test]

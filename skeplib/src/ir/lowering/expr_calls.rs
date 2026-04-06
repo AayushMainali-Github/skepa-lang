@@ -708,8 +708,11 @@ impl IrLowerer {
                 return Some(IrType::Opaque("net.Listener".to_string()));
             }
             ("net", "parseUrl") => {
-                return Some(IrType::Map {
-                    value: Box::new(IrType::String),
+                return Some(IrType::Result {
+                    ok: Box::new(IrType::Map {
+                        value: Box::new(IrType::String),
+                    }),
+                    err: Box::new(IrType::String),
                 });
             }
             ("ffi", "open") => {

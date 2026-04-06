@@ -1244,9 +1244,11 @@ import net;
 import bytes;
 import map;
 import option;
+import result;
 
 fn main() -> Void {
-  let parts: Map[String, String] = net.parseUrl("https://example.com:443/a?x=1#frag");
+  let parsed: Result[Map[String, String], String] = net.parseUrl("https://example.com:443/a?x=1#frag");
+  let parts: Map[String, String] = result.unwrapOk(parsed);
   let fetchOptions: Map[String, String] = map.new();
   map.insert(fetchOptions, "method", "POST");
   map.insert(fetchOptions, "body", "{}");
@@ -1301,8 +1303,8 @@ fn sema_rejects_net_parse_url_wrong_arg_type() {
 import net;
 
 fn main() -> Void {
-  let parts: Map[String, String] = net.parseUrl(false);
-  let _ = parts;
+  let parsed: Result[Map[String, String], String] = net.parseUrl(false);
+  let _ = parsed;
   return;
 }
 "#;
