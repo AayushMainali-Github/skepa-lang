@@ -951,6 +951,36 @@ fn main() -> Int {
     assert_eq!(value, IrValue::Int(0));
 }
 
+#[test]
+fn interpreter_supports_result_with_struct_error_values() {
+    let source = r#"
+struct ParseError {
+  code: Int,
+  message: String,
+}
+
+fn fail() -> Result[Int, ParseError] {
+  return Err(ParseError { code: 7, message: "bad" });
+}
+
+fn main() -> Int {
+  let res: Result[Int, ParseError] = fail();
+  match (res) {
+    Ok(v) => { return v; }
+    Err(err) => {
+      if ((err.code == 7) && (err.message == "bad")) {
+        return 0;
+      }
+      return 1;
+    }
+  }
+}
+"#;
+
+    let value = common::ir_run_ok(source);
+    assert_eq!(value, IrValue::Int(0));
+}
+
 fn missing() -> Option[Int] {
   return None();
 }

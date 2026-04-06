@@ -92,6 +92,35 @@ fn main() -> Int {
 }
 
 #[test]
+fn sema_accepts_result_with_user_defined_struct_error_type() {
+    let src = r#"
+struct ParseError {
+  code: Int,
+  message: String,
+}
+
+fn fail() -> Result[Int, ParseError] {
+  return Err(ParseError { code: 7, message: "bad" });
+}
+
+fn main() -> Int {
+  let res: Result[Int, ParseError] = fail();
+  match (res) {
+    Ok(v) => { return v; }
+    Err(err) => {
+      if ((err.code == 7) && (err.message == "bad")) {
+        return 0;
+      }
+      return 1;
+    }
+  }
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
+
+#[test]
 fn sema_rejects_bad_result_constructor_arity() {
     let src = r#"
 fn main() -> Int {

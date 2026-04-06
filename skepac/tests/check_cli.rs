@@ -976,6 +976,47 @@ fn main() -> Int {
 }
 
 #[test]
+fn run_executes_result_with_struct_error_program_end_to_end() {
+    let tmp = make_temp_dir("skepac_run_result_struct_error");
+    let source = tmp.join("main.sk");
+    fs::write(
+        &source,
+        r#"
+struct ParseError {
+  code: Int,
+  message: String,
+}
+
+fn fail() -> Result[Int, ParseError] {
+  return Err(ParseError { code: 7, message: "bad" });
+}
+
+fn main() -> Int {
+  let res: Result[Int, ParseError] = fail();
+  match (res) {
+    Ok(v) => { return v; }
+    Err(err) => {
+      if ((err.code == 7) && (err.message == "bad")) {
+        return 0;
+      }
+      return 1;
+    }
+  }
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("run")
+        .arg(&source)
+        .output()
+        .expect("run skepac run");
+
+    assert_eq!(output.status.code(), Some(0), "{:?}", output);
+}
+
+#[test]
 fn run_executes_option_program_end_to_end() {
     let tmp = make_temp_dir("skepac_run_option");
     let source = tmp.join("main.sk");

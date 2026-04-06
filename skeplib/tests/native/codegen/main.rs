@@ -1683,6 +1683,35 @@ fn main() -> Int {
     assert_eq!(common::native_run_structured(source).exit_code(), 0);
 }
 
+#[test]
+fn codegen_builds_native_executable_for_result_with_struct_error() {
+    let source = r#"
+struct ParseError {
+  code: Int,
+  message: String,
+}
+
+fn fail() -> Result[Int, ParseError] {
+  return Err(ParseError { code: 7, message: "bad" });
+}
+
+fn main() -> Int {
+  let res: Result[Int, ParseError] = fail();
+  match (res) {
+    Ok(v) => { return v; }
+    Err(err) => {
+      if ((err.code == 7) && (err.message == "bad")) {
+        return 0;
+      }
+      return 1;
+    }
+  }
+}
+"#;
+
+    assert_eq!(common::native_run_structured(source).exit_code(), 0);
+}
+
 fn missing() -> Option[Int] {
   return None();
 }
