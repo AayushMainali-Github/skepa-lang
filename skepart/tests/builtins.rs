@@ -1637,7 +1637,9 @@ fn builtins_cover_host_backed_fs_os_and_random_families_more_thoroughly() {
             &[RtValue::String(RtString::from("note.txt"))],
         )
         .expect("fs read"),
-        RtValue::String(RtString::from("seed-note"))
+        RtValue::Result(skepart::RtResultValue::ok(RtValue::String(RtString::from(
+            "seed-note",
+        ))))
     );
     builtins::call_with_host(
         &mut host,

@@ -1092,13 +1092,14 @@ import fs;
 import io;
 import os;
 import random;
+import result;
 import str;
 import vec;
 
 fn main() -> Int {
   let parts: [String; 2] = ["ab"; 2];
   let joined = arr.join(parts, "-");
-  let text = fs.readText("alpha.txt");
+  let text = result.unwrapOk(fs.readText("alpha.txt"));
   let path = fs.join("root", "leaf");
   let out = io.format("v=%d %b", 12, true);
   let args: Vec[String] = vec.new();

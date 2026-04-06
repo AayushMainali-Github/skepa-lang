@@ -13,5 +13,14 @@ pub(super) fn check_fs_builtin(
     scopes: &mut [HashMap<String, TypeInfo>],
     sig: &BuiltinSig,
 ) -> TypeInfo {
-    checker.check_fixed_arity_builtin("fs", method, args, scopes, sig)
+    match method {
+        "readText" => {
+            checker.check_fixed_arity_builtin("fs", method, args, scopes, sig);
+            TypeInfo::Result {
+                ok: Box::new(TypeInfo::String),
+                err: Box::new(TypeInfo::String),
+            }
+        }
+        _ => checker.check_fixed_arity_builtin("fs", method, args, scopes, sig),
+    }
 }

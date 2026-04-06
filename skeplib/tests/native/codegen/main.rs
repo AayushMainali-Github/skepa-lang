@@ -1549,13 +1549,14 @@ import fs;
 import io;
 import os;
 import option;
+import result;
 import str;
 import vec;
 
 fn main() -> Int {{
   fs.writeText("{path_text}", "a");
   fs.appendText("{path_text}", "b");
-  let text = fs.readText("{path_text}");
+  let text = result.unwrapOk(fs.readText("{path_text}"));
   let joined = fs.join("{joined_left}", "note.txt");
   let platform = os.platform();
   let arch = os.arch();

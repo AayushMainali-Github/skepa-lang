@@ -742,6 +742,12 @@ impl IrLowerer {
                     value: Box::new(IrType::String),
                 });
             }
+            ("fs", "readText") => {
+                return Some(IrType::Result {
+                    ok: Box::new(IrType::String),
+                    err: Box::new(IrType::String),
+                });
+            }
             ("os", "envGet") => {
                 return Some(IrType::Option {
                     value: Box::new(IrType::String),

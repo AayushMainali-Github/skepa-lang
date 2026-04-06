@@ -740,11 +740,12 @@ fn check_accepts_minimal_fs_builtins_program() {
         &file,
         r#"
 import fs;
+import result;
 import str;
 fn main() -> Int {
   let ex: Bool = fs.exists("a");
   let p: String = fs.join("a", "b");
-  let t: String = fs.readText("a.txt");
+  let t: String = result.unwrapOk(fs.readText("a.txt"));
   fs.writeText("a.txt", "x");
   fs.appendText("a.txt", "y");
   fs.mkdirAll("tmp/a/b");
