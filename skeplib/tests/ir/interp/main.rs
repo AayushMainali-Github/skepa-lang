@@ -1080,6 +1080,28 @@ fn main() -> Int {
 }
 
 #[test]
+fn interpreter_supports_datetime_parse_unix_result_surface() {
+    let source = r#"
+import datetime;
+import result;
+
+fn main() -> Int {
+  let ts: Int = result.unwrapOk(datetime.parseUnix("1970-01-01T00:00:00Z"));
+  if (ts == 10) {
+    return 0;
+  }
+  return 1;
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let value = IrInterpreter::with_host(&program, Box::new(TestHost::default()))
+        .run_main()
+        .expect("IR interpreter should run source");
+    assert_eq!(value, IrValue::Int(0));
+}
+
+#[test]
 fn interpreter_builtin_matrix_covers_new_os_host_helpers() {
     let source = r#"
 import os;

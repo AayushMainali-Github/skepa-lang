@@ -769,6 +769,32 @@ fn main() -> Int {
 }
 
 #[test]
+fn check_accepts_minimal_datetime_builtins_program() {
+    let tmp = make_temp_dir("skepac_check_datetime_minimal");
+    let file = tmp.join("datetime_minimal.sk");
+    fs::write(
+        &file,
+        r#"
+import datetime;
+import result;
+
+fn main() -> Int {
+  let ts: Int = result.unwrapOk(datetime.parseUnix("1970-01-01T00:00:00Z"));
+  return ts;
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("check")
+        .arg(&file)
+        .output()
+        .expect("run check");
+    assert_eq!(output.status.code(), Some(0), "{:?}", output);
+}
+
+#[test]
 fn check_accepts_minimal_net_builtins_program() {
     let tmp = make_temp_dir("skepac_check_net_minimal");
     let file = tmp.join("net_minimal.sk");

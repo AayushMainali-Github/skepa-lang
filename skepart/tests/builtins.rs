@@ -1837,7 +1837,7 @@ fn builtins_cover_datetime_component_and_parse_shapes() {
             &[RtValue::String(RtString::from("2025-03-17"))],
         )
         .expect("parse unix"),
-        RtValue::Int(10)
+        RtValue::Result(skepart::RtResultValue::ok(RtValue::Int(10)))
     );
     assert_eq!(
         builtins::call_with_host(&mut host, "datetime", "year", &[RtValue::Int(100)])

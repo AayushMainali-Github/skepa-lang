@@ -1012,8 +1012,9 @@ fn main() -> Int {
 fn sema_accepts_datetime_parse_unix() {
     let src = r#"
 import datetime;
+import result;
 fn main() -> Int {
-  let ts: Int = datetime.parseUnix("1970-01-01T00:00:00Z");
+  let ts: Int = result.unwrapOk(datetime.parseUnix("1970-01-01T00:00:00Z"));
   return ts;
 }
 "#;
@@ -1026,7 +1027,9 @@ fn sema_rejects_datetime_parse_unix_type_mismatch() {
     let src = r#"
 import datetime;
 fn main() -> Int {
-  return datetime.parseUnix(1);
+  let ts: Result[Int, String] = datetime.parseUnix(1);
+  let _ = ts;
+  return 0;
 }
 "#;
     let (result, diags) = analyze_source(src);

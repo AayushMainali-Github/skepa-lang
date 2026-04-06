@@ -751,6 +751,12 @@ impl IrLowerer {
                     err: Box::new(IrType::String),
                 });
             }
+            ("datetime", "parseUnix") => {
+                return Some(IrType::Result {
+                    ok: Box::new(IrType::Int),
+                    err: Box::new(IrType::String),
+                });
+            }
             ("fs", "readText") => {
                 return Some(IrType::Result {
                     ok: Box::new(IrType::String),

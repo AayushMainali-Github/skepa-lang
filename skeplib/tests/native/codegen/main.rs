@@ -1593,6 +1593,25 @@ fn main() -> Int {{
 }
 
 #[test]
+fn codegen_builds_native_executable_for_datetime_parse_unix_result() {
+    let source = r#"
+import datetime;
+import result;
+
+fn main() -> Int {
+  let ts: Int = result.unwrapOk(datetime.parseUnix("1970-01-01T00:00:00Z"));
+  if (ts == 0) {
+    return 0;
+  }
+  return 1;
+}
+"#;
+
+    let output = common::native_run_structured(source);
+    assert_eq!(output.exit_code(), 0, "stderr: {}", output.stderr_lossy());
+}
+
+#[test]
 fn codegen_builds_native_executable_for_bytes_equality() {
     let source = r#"
 import bytes;
