@@ -1,11 +1,21 @@
-use crate::{RtHost, RtResult, RtValue};
+use crate::{RtHost, RtResult, RtResultValue, RtString, RtValue};
 
 pub fn open(host: &mut dyn RtHost, path: &str) -> RtResult<RtValue> {
-    Ok(RtValue::Handle(host.ffi_open_library(path)?))
+    Ok(match host.ffi_open_library(path) {
+        Ok(handle) => RtValue::Result(RtResultValue::ok(RtValue::Handle(handle))),
+        Err(err) => RtValue::Result(RtResultValue::err(RtValue::String(RtString::from(
+            err.message.as_str(),
+        )))),
+    })
 }
 
 pub fn bind(host: &mut dyn RtHost, library: crate::RtHandle, symbol: &str) -> RtResult<RtValue> {
-    Ok(RtValue::Handle(host.ffi_bind_symbol(library, symbol)?))
+    Ok(match host.ffi_bind_symbol(library, symbol) {
+        Ok(handle) => RtValue::Result(RtResultValue::ok(RtValue::Handle(handle))),
+        Err(err) => RtValue::Result(RtResultValue::err(RtValue::String(RtString::from(
+            err.message.as_str(),
+        )))),
+    })
 }
 
 pub fn close_library(host: &mut dyn RtHost, library: crate::RtHandle) -> RtResult<RtValue> {

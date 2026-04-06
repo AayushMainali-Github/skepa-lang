@@ -932,9 +932,15 @@ fn builtins_cover_ffi_open_bind_and_errors() {
         "open",
         &[RtValue::String(RtString::from("test-lib"))],
     )
-    .expect("ffi.open should return handle");
-    let RtValue::Handle(library) = library.clone() else {
-        panic!("ffi.open should return a handle");
+    .expect("ffi.open should return result");
+    let RtValue::Result(library_result) = library.clone() else {
+        panic!("ffi.open should return a result");
+    };
+    let skepart::RtResultValue::Ok(library) = library_result else {
+        panic!("ffi.open should return Ok(handle)");
+    };
+    let RtValue::Handle(library) = *library else {
+        panic!("ffi.open should return Ok(handle)");
     };
     assert_eq!(library.kind, skepart::RtHandleKind::Library);
 
@@ -947,9 +953,15 @@ fn builtins_cover_ffi_open_bind_and_errors() {
             RtValue::String(RtString::from("puts")),
         ],
     )
-    .expect("ffi.bind should return handle");
-    let RtValue::Handle(symbol) = symbol.clone() else {
-        panic!("ffi.bind should return a handle");
+    .expect("ffi.bind should return result");
+    let RtValue::Result(symbol_result) = symbol.clone() else {
+        panic!("ffi.bind should return a result");
+    };
+    let skepart::RtResultValue::Ok(symbol) = symbol_result else {
+        panic!("ffi.bind should return Ok(handle)");
+    };
+    let RtValue::Handle(symbol) = *symbol else {
+        panic!("ffi.bind should return Ok(handle)");
     };
     assert_eq!(symbol.kind, skepart::RtHandleKind::Symbol);
     assert!(
@@ -983,9 +995,10 @@ fn builtins_cover_ffi_open_bind_and_errors() {
             "open",
             &[RtValue::String(RtString::from("bad-lib"))],
         )
-        .expect_err("ffi.open failure should surface")
-        .kind,
-        RtErrorKind::Io
+        .expect("ffi.open failure should return result"),
+        RtValue::Result(skepart::RtResultValue::err(RtValue::String(
+            RtString::from("open failed")
+        )))
     );
 
     let mut failing_bind = RecordingHostBuilder::seeded()
@@ -998,16 +1011,23 @@ fn builtins_cover_ffi_open_bind_and_errors() {
         &[RtValue::String(RtString::from("test-lib"))],
     )
     .expect("ffi.open");
+    let RtValue::Result(library) = library else {
+        panic!("ffi.open should return a result");
+    };
+    let skepart::RtResultValue::Ok(library) = library else {
+        panic!("ffi.open should return Ok(handle)");
+    };
     assert_eq!(
         builtins::call_with_host(
             &mut failing_bind,
             "ffi",
             "bind",
-            &[library, RtValue::String(RtString::from("puts"))],
+            &[*library, RtValue::String(RtString::from("puts"))],
         )
-        .expect_err("ffi.bind failure should surface")
-        .kind,
-        RtErrorKind::Io
+        .expect("ffi.bind failure should return result"),
+        RtValue::Result(skepart::RtResultValue::err(RtValue::String(
+            RtString::from("bind failed")
+        )))
     );
 }
 
@@ -1026,13 +1046,26 @@ fn builtins_cover_ffi_integer_calls_and_errors() {
         &[RtValue::String(RtString::from("test-lib"))],
     )
     .expect("ffi.open");
+    let RtValue::Result(library) = library else {
+        panic!("ffi.open should return a result");
+    };
+    let skepart::RtResultValue::Ok(library) = library else {
+        panic!("ffi.open should return Ok(handle)");
+    };
     let symbol = builtins::call_with_host(
         &mut host,
         "ffi",
         "bind",
-        &[library.clone(), RtValue::String(RtString::from("plus"))],
+        &[*library, RtValue::String(RtString::from("plus"))],
     )
     .expect("ffi.bind");
+    let RtValue::Result(symbol) = symbol else {
+        panic!("ffi.bind should return a result");
+    };
+    let skepart::RtResultValue::Ok(symbol) = symbol else {
+        panic!("ffi.bind should return Ok(handle)");
+    };
+    let symbol = *symbol;
 
     assert_eq!(
         builtins::call_with_host(&mut host, "ffi", "call0Int", std::slice::from_ref(&symbol))
@@ -1221,19 +1254,31 @@ fn builtins_cover_ffi_integer_calls_and_errors() {
         &[RtValue::String(RtString::from("test-lib"))],
     )
     .expect("ffi.open");
+    let RtValue::Result(library) = library else {
+        panic!("ffi.open should return a result");
+    };
+    let skepart::RtResultValue::Ok(library) = library else {
+        panic!("ffi.open should return Ok(handle)");
+    };
     let symbol = builtins::call_with_host(
         &mut failing_host,
         "ffi",
         "bind",
-        &[library, RtValue::String(RtString::from("plus"))],
+        &[*library, RtValue::String(RtString::from("plus"))],
     )
     .expect("ffi.bind");
+    let RtValue::Result(symbol) = symbol else {
+        panic!("ffi.bind should return a result");
+    };
+    let skepart::RtResultValue::Ok(symbol) = symbol else {
+        panic!("ffi.bind should return Ok(handle)");
+    };
     assert_eq!(
         builtins::call_with_host(
             &mut failing_host,
             "ffi",
             "call1BytesInt",
-            &[symbol, RtValue::Bytes(RtBytes::from(b"boom".to_vec()))],
+            &[*symbol, RtValue::Bytes(RtBytes::from(b"boom".to_vec()))],
         )
         .expect_err("ffi.call1BytesInt failure should surface")
         .kind,

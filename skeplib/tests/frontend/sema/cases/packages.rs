@@ -1347,10 +1347,11 @@ fn main() -> Void {
 fn sema_accepts_ffi_builtin_handles() {
     let src = r#"
 import ffi;
+import result;
 
 fn main() -> Void {
-  let lib: ffi.Library = ffi.open("test-lib");
-  let sym: ffi.Symbol = ffi.bind(lib, "puts");
+  let lib: ffi.Library = result.unwrapOk(ffi.open("test-lib"));
+  let sym: ffi.Symbol = result.unwrapOk(ffi.bind(lib, "puts"));
   ffi.closeSymbol(sym);
   ffi.closeLibrary(lib);
   return;
@@ -1364,10 +1365,11 @@ fn main() -> Void {
 fn sema_rejects_public_low_level_ffi_call_helpers() {
     let src = r#"
 import ffi;
+import result;
 
 fn main() -> Int {
-  let lib: ffi.Library = ffi.open("test-lib");
-  let sym: ffi.Symbol = ffi.bind(lib, "strlen");
+  let lib: ffi.Library = result.unwrapOk(ffi.open("test-lib"));
+  let sym: ffi.Symbol = result.unwrapOk(ffi.bind(lib, "strlen"));
   let a = ffi.call0Int(sym);
   let b = ffi.call1Int(sym, 7);
   let c = ffi.call1StringInt(sym, "hello");
@@ -1414,8 +1416,8 @@ fn sema_rejects_ffi_type_mismatches() {
 import ffi;
 
 fn main() -> Void {
-  let lib: ffi.Library = ffi.open(false);
-  let sym: ffi.Symbol = ffi.bind("bad", 1);
+  let lib: Result[ffi.Library, String] = ffi.open(false);
+  let sym: Result[ffi.Symbol, String] = ffi.bind("bad", 1);
   ffi.closeLibrary(sym);
   ffi.closeSymbol(lib);
   return;

@@ -282,6 +282,25 @@ impl IrLowerer {
             return None;
         };
 
+        let lib_result_ty = IrType::Result {
+            ok: Box::new(IrType::Opaque("ffi.Library".to_string())),
+            err: Box::new(IrType::String),
+        };
+        let lib_result_dst = self.builder.push_temp(func, lib_result_ty.clone());
+        self.builder.push_instr(
+            func,
+            block,
+            Instr::CallBuiltin {
+                dst: Some(lib_result_dst),
+                ret_ty: lib_result_ty,
+                builtin: crate::ir::BuiltinCall {
+                    package: "ffi".to_string(),
+                    name: "open".to_string(),
+                },
+                args: vec![Operand::Const(ConstValue::String(library.clone()))],
+            },
+        );
+
         let lib_ty = IrType::Opaque("ffi.Library".to_string());
         let lib_dst = self.builder.push_temp(func, lib_ty.clone());
         self.builder.push_instr(
@@ -289,12 +308,34 @@ impl IrLowerer {
             block,
             Instr::CallBuiltin {
                 dst: Some(lib_dst),
-                ret_ty: lib_ty,
+                ret_ty: lib_ty.clone(),
+                builtin: crate::ir::BuiltinCall {
+                    package: "result".to_string(),
+                    name: "unwrapOk".to_string(),
+                },
+                args: vec![Operand::Temp(lib_result_dst)],
+            },
+        );
+
+        let sym_result_ty = IrType::Result {
+            ok: Box::new(IrType::Opaque("ffi.Symbol".to_string())),
+            err: Box::new(IrType::String),
+        };
+        let sym_result_dst = self.builder.push_temp(func, sym_result_ty.clone());
+        self.builder.push_instr(
+            func,
+            block,
+            Instr::CallBuiltin {
+                dst: Some(sym_result_dst),
+                ret_ty: sym_result_ty,
                 builtin: crate::ir::BuiltinCall {
                     package: "ffi".to_string(),
-                    name: "open".to_string(),
+                    name: "bind".to_string(),
                 },
-                args: vec![Operand::Const(ConstValue::String(library.clone()))],
+                args: vec![
+                    Operand::Temp(lib_dst),
+                    Operand::Const(ConstValue::String(sig.symbol.clone())),
+                ],
             },
         );
 
@@ -305,15 +346,12 @@ impl IrLowerer {
             block,
             Instr::CallBuiltin {
                 dst: Some(sym_dst),
-                ret_ty: sym_ty,
+                ret_ty: sym_ty.clone(),
                 builtin: crate::ir::BuiltinCall {
-                    package: "ffi".to_string(),
-                    name: "bind".to_string(),
+                    package: "result".to_string(),
+                    name: "unwrapOk".to_string(),
                 },
-                args: vec![
-                    Operand::Temp(lib_dst),
-                    Operand::Const(ConstValue::String(sig.symbol.clone())),
-                ],
+                args: vec![Operand::Temp(sym_result_dst)],
             },
         );
 
@@ -716,10 +754,16 @@ impl IrLowerer {
                 });
             }
             ("ffi", "open") => {
-                return Some(IrType::Opaque("ffi.Library".to_string()));
+                return Some(IrType::Result {
+                    ok: Box::new(IrType::Opaque("ffi.Library".to_string())),
+                    err: Box::new(IrType::String),
+                });
             }
             ("ffi", "bind") => {
-                return Some(IrType::Opaque("ffi.Symbol".to_string()));
+                return Some(IrType::Result {
+                    ok: Box::new(IrType::Opaque("ffi.Symbol".to_string())),
+                    err: Box::new(IrType::String),
+                });
             }
             ("ffi", "call0Int")
             | ("ffi", "call1Int")

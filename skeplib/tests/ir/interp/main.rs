@@ -1253,10 +1253,11 @@ fn main() -> Int {
 fn interpreter_carries_ffi_library_and_symbol_handles() {
     let source = r#"
 import ffi;
+import result;
 
 fn main() -> Int {
-  let lib: ffi.Library = ffi.open("test-lib");
-  let sym: ffi.Symbol = ffi.bind(lib, "puts");
+  let lib: ffi.Library = result.unwrapOk(ffi.open("test-lib"));
+  let sym: ffi.Symbol = result.unwrapOk(ffi.bind(lib, "puts"));
   ffi.closeSymbol(sym);
   ffi.closeLibrary(lib);
   return 0;

@@ -11,7 +11,7 @@ pub(super) fn check_ffi_builtin(
     method: &str,
     args: &[Expr],
     scopes: &mut [HashMap<String, TypeInfo>],
-    sig: &BuiltinSig,
+    _sig: &BuiltinSig,
 ) -> TypeInfo {
     if matches!(
         method,
@@ -36,6 +36,27 @@ pub(super) fn check_ffi_builtin(
         return TypeInfo::Unknown;
     }
     match method {
+        "open" => {
+            if args.len() != 1 {
+                checker.error(format!(
+                    "ffi.open expects 1 argument(s), got {}",
+                    args.len()
+                ));
+                return TypeInfo::Unknown;
+            }
+            let path_ty = checker.check_expr(&args[0], scopes);
+            if path_ty != TypeInfo::Unknown && path_ty != TypeInfo::String {
+                checker.error(format!(
+                    "ffi.open argument 1 expects {:?}, got {:?}",
+                    TypeInfo::String,
+                    path_ty
+                ));
+            }
+            TypeInfo::Result {
+                ok: Box::new(TypeInfo::Opaque("ffi.Library".to_string())),
+                err: Box::new(TypeInfo::String),
+            }
+        }
         "bind" => {
             if args.len() != 2 {
                 checker.error(format!(
@@ -60,7 +81,10 @@ pub(super) fn check_ffi_builtin(
                     name_ty
                 ));
             }
-            TypeInfo::Opaque("ffi.Symbol".to_string())
+            TypeInfo::Result {
+                ok: Box::new(TypeInfo::Opaque("ffi.Symbol".to_string())),
+                err: Box::new(TypeInfo::String),
+            }
         }
         "closeLibrary" => {
             if args.len() != 1 {
@@ -313,10 +337,6 @@ pub(super) fn check_ffi_builtin(
                 ));
             }
             TypeInfo::Int
-        }
-        "open" => {
-            checker.check_fixed_arity_builtin("ffi", method, args, scopes, sig);
-            TypeInfo::Opaque("ffi.Library".to_string())
         }
         _ => TypeInfo::Unknown,
     }

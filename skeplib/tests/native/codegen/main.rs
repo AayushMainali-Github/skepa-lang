@@ -2157,10 +2157,11 @@ fn codegen_builds_native_executable_for_ffi_open_and_bind() {
     let source = format!(
         r#"
 import ffi;
+import result;
 
 fn main() -> Int {{
-  let lib: ffi.Library = ffi.open("{library}");
-  let sym: ffi.Symbol = ffi.bind(lib, "{symbol}");
+  let lib: ffi.Library = result.unwrapOk(ffi.open("{library}"));
+  let sym: ffi.Symbol = result.unwrapOk(ffi.bind(lib, "{symbol}"));
   ffi.closeSymbol(sym);
   ffi.closeLibrary(lib);
   return 0;

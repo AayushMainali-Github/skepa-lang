@@ -764,7 +764,7 @@ Signatures:
 - `datetime.nowMillis() -> Int`
 - `datetime.fromUnix(ts: Int) -> String`
 - `datetime.fromMillis(ms: Int) -> String`
-- `datetime.parseUnix(s: String) -> Int`
+- `datetime.parseUnix(s: String) -> Result[Int, String]`
 - `datetime.year(ts: Int) -> Int`
 - `datetime.month(ts: Int) -> Int`
 - `datetime.day(ts: Int) -> Int`
@@ -777,7 +777,8 @@ Behavior:
 - `datetime.nowUnix` / `nowMillis` read the host system clock.
 
 Notes:
-- `datetime.parseUnix` expects `YYYY-MM-DDTHH:MM:SSZ` and raises runtime errors on invalid input.
+- `datetime.parseUnix` expects `YYYY-MM-DDTHH:MM:SSZ`.
+- `datetime.parseUnix` returns `Ok(Int)` on valid input and `Err(String)` on invalid input.
 
 ### 8.6 `random`
 
@@ -1160,8 +1161,8 @@ Opaque types:
 - `ffi.Symbol`
 
 Signatures:
-- `ffi.open(path: String) -> ffi.Library`
-- `ffi.bind(lib: ffi.Library, symbol: String) -> ffi.Symbol`
+- `ffi.open(path: String) -> Result[ffi.Library, String]`
+- `ffi.bind(lib: ffi.Library, symbol: String) -> Result[ffi.Symbol, String]`
 - `ffi.closeLibrary(lib: ffi.Library) -> Void`
 - `ffi.closeSymbol(sym: ffi.Symbol) -> Void`
 
@@ -1173,8 +1174,8 @@ Preferred user-facing API:
 - User code should call linked extern declarations directly
 
 Behavior:
-- `ffi.open` loads a shared library from the host OS.
-- `ffi.bind` looks up a symbol within that library.
+- `ffi.open` loads a shared library from the host OS and returns `Ok(ffi.Library)` on success or `Err(String)` on load failure.
+- `ffi.bind` looks up a symbol within that library and returns `Ok(ffi.Symbol)` on success or `Err(String)` on lookup failure.
 - `ffi.closeLibrary` and `ffi.closeSymbol` close the corresponding handles.
 - Linked extern calls are lowered through the runtime FFI layer automatically.
 
