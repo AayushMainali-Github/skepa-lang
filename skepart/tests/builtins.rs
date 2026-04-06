@@ -1653,47 +1653,62 @@ fn builtins_cover_host_backed_fs_os_and_random_families_more_thoroughly() {
             "seed-note",
         ))))
     );
-    builtins::call_with_host(
-        &mut host,
-        "fs",
-        "writeText",
-        &[
-            RtValue::String(RtString::from("a.txt")),
-            RtValue::String(RtString::from("hello")),
-        ],
-    )
-    .expect("fs write");
-    builtins::call_with_host(
-        &mut host,
-        "fs",
-        "appendText",
-        &[
-            RtValue::String(RtString::from("a.txt")),
-            RtValue::String(RtString::from("!")),
-        ],
-    )
-    .expect("fs append");
-    builtins::call_with_host(
-        &mut host,
-        "fs",
-        "mkdirAll",
-        &[RtValue::String(RtString::from("tmp/dir"))],
-    )
-    .expect("mkdir");
-    builtins::call_with_host(
-        &mut host,
-        "fs",
-        "removeFile",
-        &[RtValue::String(RtString::from("a.txt"))],
-    )
-    .expect("rm file");
-    builtins::call_with_host(
-        &mut host,
-        "fs",
-        "removeDirAll",
-        &[RtValue::String(RtString::from("tmp/dir"))],
-    )
-    .expect("rm dir");
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "fs",
+            "writeText",
+            &[
+                RtValue::String(RtString::from("a.txt")),
+                RtValue::String(RtString::from("hello")),
+            ],
+        )
+        .expect("fs write"),
+        RtValue::Result(skepart::RtResultValue::ok(RtValue::Unit))
+    );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "fs",
+            "appendText",
+            &[
+                RtValue::String(RtString::from("a.txt")),
+                RtValue::String(RtString::from("!")),
+            ],
+        )
+        .expect("fs append"),
+        RtValue::Result(skepart::RtResultValue::ok(RtValue::Unit))
+    );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "fs",
+            "mkdirAll",
+            &[RtValue::String(RtString::from("tmp/dir"))],
+        )
+        .expect("mkdir"),
+        RtValue::Result(skepart::RtResultValue::ok(RtValue::Unit))
+    );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "fs",
+            "removeFile",
+            &[RtValue::String(RtString::from("a.txt"))],
+        )
+        .expect("rm file"),
+        RtValue::Result(skepart::RtResultValue::ok(RtValue::Unit))
+    );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "fs",
+            "removeDirAll",
+            &[RtValue::String(RtString::from("tmp/dir"))],
+        )
+        .expect("rm dir"),
+        RtValue::Result(skepart::RtResultValue::ok(RtValue::Unit))
+    );
 
     assert_eq!(
         builtins::call_with_host(&mut host, "os", "arch", &[]).expect("arch"),

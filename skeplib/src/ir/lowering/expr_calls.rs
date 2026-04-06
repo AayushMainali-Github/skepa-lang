@@ -751,6 +751,16 @@ impl IrLowerer {
                     err: Box::new(IrType::String),
                 });
             }
+            ("fs", "writeText")
+            | ("fs", "appendText")
+            | ("fs", "mkdirAll")
+            | ("fs", "removeFile")
+            | ("fs", "removeDirAll") => {
+                return Some(IrType::Result {
+                    ok: Box::new(IrType::Void),
+                    err: Box::new(IrType::String),
+                });
+            }
             ("os", "envGet") => {
                 return Some(IrType::Option {
                     value: Box::new(IrType::String),

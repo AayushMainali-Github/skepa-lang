@@ -746,11 +746,11 @@ fn main() -> Int {
   let ex: Bool = fs.exists("a");
   let p: String = fs.join("a", "b");
   let t: String = result.unwrapOk(fs.readText("a.txt"));
-  fs.writeText("a.txt", "x");
-  fs.appendText("a.txt", "y");
-  fs.mkdirAll("tmp/a/b");
-  fs.removeFile("a.txt");
-  fs.removeDirAll("tmp");
+  result.unwrapOk(fs.writeText("a.txt", "x"));
+  result.unwrapOk(fs.appendText("a.txt", "y"));
+  result.unwrapOk(fs.mkdirAll("tmp/a/b"));
+  result.unwrapOk(fs.removeFile("a.txt"));
+  result.unwrapOk(fs.removeDirAll("tmp"));
   if (ex || fs.exists(p) || (t == "") || str.len(p) >= 0) {
     return 0;
   }

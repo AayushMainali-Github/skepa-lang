@@ -21,6 +21,13 @@ pub(super) fn check_fs_builtin(
                 err: Box::new(TypeInfo::String),
             }
         }
+        "writeText" | "appendText" | "mkdirAll" | "removeFile" | "removeDirAll" => {
+            checker.check_fixed_arity_builtin("fs", method, args, scopes, sig);
+            TypeInfo::Result {
+                ok: Box::new(TypeInfo::Void),
+                err: Box::new(TypeInfo::String),
+            }
+        }
         _ => checker.check_fixed_arity_builtin("fs", method, args, scopes, sig),
     }
 }

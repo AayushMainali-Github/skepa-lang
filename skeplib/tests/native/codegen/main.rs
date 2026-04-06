@@ -1554,8 +1554,8 @@ import str;
 import vec;
 
 fn main() -> Int {{
-  fs.writeText("{path_text}", "a");
-  fs.appendText("{path_text}", "b");
+  result.unwrapOk(fs.writeText("{path_text}", "a"));
+  result.unwrapOk(fs.appendText("{path_text}", "b"));
   let text = result.unwrapOk(fs.readText("{path_text}"));
   let joined = fs.join("{joined_left}", "note.txt");
   let platform = os.platform();
