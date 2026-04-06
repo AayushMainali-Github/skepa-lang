@@ -34,7 +34,14 @@ pub fn parse_url(host: &mut dyn RtHost, url: &str) -> RtResult<RtValue> {
 }
 
 pub fn fetch(host: &mut dyn RtHost, url: &str, options: &crate::RtMap) -> RtResult<RtValue> {
-    Ok(RtValue::Map(host.net_fetch(url, options)?))
+    match host.net_fetch(url, options) {
+        Ok(response) => Ok(RtValue::Result(crate::RtResultValue::ok(RtValue::Map(
+            response,
+        )))),
+        Err(err) => Ok(RtValue::Result(crate::RtResultValue::err(RtValue::String(
+            crate::RtString::from(err.to_string()),
+        )))),
+    }
 }
 
 pub fn accept(host: &mut dyn RtHost, listener: crate::RtHandle) -> RtResult<RtValue> {

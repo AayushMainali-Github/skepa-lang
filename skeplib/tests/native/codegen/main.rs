@@ -2078,6 +2078,7 @@ fn codegen_builds_native_executable_for_net_fetch() {
 import map;
 import net;
 import option;
+import result;
 import str;
 
 fn main() -> Int {{
@@ -2085,7 +2086,7 @@ fn main() -> Int {{
   map.insert(options, "method", "POST");
   map.insert(options, "body", "{{\"ok\":true}}");
   map.insert(options, "contentType", "application/json");
-  let response: Map[String, String] = net.fetch("http://{addr}/fetch", options);
+  let response: Map[String, String] = result.unwrapOk(net.fetch("http://{addr}/fetch", options));
   let status: String = option.unwrapSome(map.get(response, "status"));
   let body: String = option.unwrapSome(map.get(response, "body"));
   let contentType: String = option.unwrapSome(map.get(response, "contentType"));

@@ -287,8 +287,11 @@ pub(super) fn check_net_builtin(
                     expected, options_ty
                 ));
             }
-            TypeInfo::Map {
-                value: Box::new(TypeInfo::String),
+            TypeInfo::Result {
+                ok: Box::new(TypeInfo::Map {
+                    value: Box::new(TypeInfo::String),
+                }),
+                err: Box::new(TypeInfo::String),
             }
         }
         "__testSocket" | "listen" | "connect" => {

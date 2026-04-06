@@ -738,8 +738,11 @@ impl IrLowerer {
                 return Some(IrType::Void);
             }
             ("net", "fetch") => {
-                return Some(IrType::Map {
-                    value: Box::new(IrType::String),
+                return Some(IrType::Result {
+                    ok: Box::new(IrType::Map {
+                        value: Box::new(IrType::String),
+                    }),
+                    err: Box::new(IrType::String),
                 });
             }
             ("fs", "readText") => {

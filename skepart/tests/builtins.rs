@@ -1255,10 +1255,16 @@ fn builtins_cover_net_fetch_and_errors() {
             RtValue::Map(options),
         ],
     )
-    .expect("fetch should return map");
+    .expect("fetch should return result");
 
-    let RtValue::Map(response) = response else {
-        panic!("net.fetch should return a map");
+    let RtValue::Result(response) = response else {
+        panic!("net.fetch should return a result");
+    };
+    let skepart::RtResultValue::Ok(response) = response else {
+        panic!("net.fetch should return Ok(map) on success");
+    };
+    let RtValue::Map(response) = *response else {
+        panic!("net.fetch should return Ok(map)");
     };
     assert_eq!(
         response.get("status").expect("status"),
@@ -1283,20 +1289,26 @@ fn builtins_cover_net_fetch_and_errors() {
         .net_fetch_error("fetch failed")
         .build();
     let empty_options = skepart::RtMap::new();
-    assert_eq!(
-        builtins::call_with_host(
-            &mut failing_host,
-            "net",
-            "fetch",
-            &[
-                RtValue::String(RtString::from("https://bad/")),
-                RtValue::Map(empty_options),
-            ],
-        )
-        .expect_err("fetch failure should surface")
-        .kind,
-        RtErrorKind::Io
-    );
+    let failed = builtins::call_with_host(
+        &mut failing_host,
+        "net",
+        "fetch",
+        &[
+            RtValue::String(RtString::from("https://bad/")),
+            RtValue::Map(empty_options),
+        ],
+    )
+    .expect("fetch failure should return Err(string)");
+    let RtValue::Result(failed) = failed else {
+        panic!("net.fetch should return a result");
+    };
+    let skepart::RtResultValue::Err(failed) = failed else {
+        panic!("net.fetch should return Err(string) on failure");
+    };
+    let RtValue::String(failed) = *failed else {
+        panic!("net.fetch should return Err(string)");
+    };
+    assert!(failed.as_str().contains("fetch failed"));
 }
 
 #[test]

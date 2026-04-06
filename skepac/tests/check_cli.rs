@@ -788,7 +788,8 @@ fn main() -> Int {
   map.insert(fetchOptions, "method", "POST");
   map.insert(fetchOptions, "body", "{}");
   map.insert(fetchOptions, "contentType", "application/json");
-  let response: Map[String, String] = net.fetch("https://example.com/api", fetchOptions);
+  let fetchResult: Result[Map[String, String], String] = net.fetch("https://example.com/api", fetchOptions);
+  let response: Map[String, String] = result.unwrapOk(fetchResult);
   let listener: net.Listener = net.listen("127.0.0.1:0");
   let socket: net.Socket = net.accept(listener);
   let client: net.Socket = net.connect("127.0.0.1:8080");
