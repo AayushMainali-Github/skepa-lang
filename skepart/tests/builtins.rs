@@ -1695,7 +1695,9 @@ fn builtins_cover_host_backed_fs_os_and_random_families_more_thoroughly() {
             &[RtValue::String(RtString::from("HOME"))],
         )
         .expect("envGet"),
-        RtValue::String(RtString::from("/tmp/home"))
+        RtValue::Option(skepart::RtOption::some(RtValue::String(RtString::from(
+            "/tmp/home",
+        ))))
     );
     builtins::call_with_host(
         &mut host,
@@ -1847,9 +1849,8 @@ fn builtins_reject_new_os_invalid_argument_shapes() {
             "envGet",
             &[RtValue::String(RtString::from("MISSING"))],
         )
-        .expect_err("missing env")
-        .kind,
-        RtErrorKind::InvalidArgument
+        .expect("missing env"),
+        RtValue::Option(skepart::RtOption::none())
     );
     let bad_args = skepart::RtVec::new();
     bad_args.push(RtValue::Int(1));

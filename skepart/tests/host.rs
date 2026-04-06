@@ -367,8 +367,9 @@ fn recording_host_captures_output_and_overrides_services() {
     assert!(host.os_env_has("HOME").expect("env has"));
     assert_eq!(
         host.os_env_get("HOME").expect("env get"),
-        RtString::from("/tmp/home")
+        Some(RtString::from("/tmp/home"))
     );
+    assert_eq!(host.os_env_get("MISSING").expect("missing env"), None);
     assert_eq!(
         host.fs_read_text("file.txt").expect("read"),
         RtString::from("read:file.txt")

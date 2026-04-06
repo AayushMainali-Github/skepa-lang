@@ -197,13 +197,10 @@ impl RtHost for TestHost {
         Ok(name == "HOME")
     }
 
-    fn os_env_get(&mut self, name: &str) -> RtResult<RtString> {
+    fn os_env_get(&mut self, name: &str) -> RtResult<Option<RtString>> {
         match name {
-            "HOME" => Ok(RtString::from("/tmp/home")),
-            _ => Err(skepart::RtError::new(
-                skepart::RtErrorKind::InvalidArgument,
-                format!("environment variable `{name}` is not set or not valid UTF-8"),
-            )),
+            "HOME" => Ok(Some(RtString::from("/tmp/home"))),
+            _ => Ok(None),
         }
     }
 
@@ -1056,6 +1053,7 @@ fn main() -> Int {
 fn interpreter_builtin_matrix_covers_new_os_host_helpers() {
     let source = r#"
 import os;
+import option;
 import str;
 import vec;
 
@@ -1063,7 +1061,7 @@ fn main() -> Int {
   let arch = os.arch();
   let arg0 = os.arg(0);
   let has = os.envHas("HOME");
-  let home = os.envGet("HOME");
+  let home = option.unwrapSome(os.envGet("HOME"));
   os.envSet("MODE", "debug");
   os.envRemove("MODE");
   os.sleep(1);

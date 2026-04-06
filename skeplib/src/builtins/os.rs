@@ -40,7 +40,7 @@ pub(super) const SIGS: &[BuiltinSig] = &[
         package: "os",
         name: "envGet",
         params: STRING_PARAM,
-        ret: TypeInfo::String,
+        ret: TypeInfo::Unknown,
         kind: BuiltinKind::FixedArity,
     },
     BuiltinSig {

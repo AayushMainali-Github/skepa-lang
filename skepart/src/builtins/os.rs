@@ -1,4 +1,4 @@
-use crate::{RtHost, RtResult, RtValue};
+use crate::{RtHost, RtOption, RtResult, RtValue};
 
 pub fn platform(host: &mut dyn RtHost) -> RtResult<RtValue> {
     Ok(RtValue::String(host.os_platform()?))
@@ -17,7 +17,10 @@ pub fn env_has(host: &mut dyn RtHost, name: &str) -> RtResult<RtValue> {
 }
 
 pub fn env_get(host: &mut dyn RtHost, name: &str) -> RtResult<RtValue> {
-    Ok(RtValue::String(host.os_env_get(name)?))
+    Ok(RtValue::Option(match host.os_env_get(name)? {
+        Some(value) => RtOption::some(RtValue::String(value)),
+        None => RtOption::none(),
+    }))
 }
 
 pub fn env_set(host: &mut dyn RtHost, name: &str, value: &str) -> RtResult<RtValue> {

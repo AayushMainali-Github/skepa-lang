@@ -13,6 +13,23 @@ pub(super) fn check_os_builtin(
     scopes: &mut [HashMap<String, TypeInfo>],
     sig: &BuiltinSig,
 ) -> TypeInfo {
+    if method == "envGet" {
+        if args.len() != 1 {
+            checker.error(format!(
+                "os.envGet expects 1 argument(s), got {}",
+                args.len()
+            ));
+            return TypeInfo::Unknown;
+        }
+        let got = checker.check_expr(&args[0], scopes);
+        if got != TypeInfo::String && got != TypeInfo::Unknown {
+            checker.error(format!("os.envGet argument 1 expects String"));
+        }
+        return TypeInfo::Option {
+            value: Box::new(TypeInfo::String),
+        };
+    }
+
     if matches!(method, "exec" | "execOut") {
         if args.len() != 2 {
             checker.error(format!(

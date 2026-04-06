@@ -699,6 +699,7 @@ fn check_accepts_minimal_os_builtins_program() {
     let src = format!(
         r#"
 import os;
+import option;
 import str;
 import vec;
 fn main() -> Int {{
@@ -706,7 +707,7 @@ fn main() -> Int {{
   let a = os.arch();
   let arg0 = os.arg(0);
   let has = os.envHas("PATH");
-  let path = os.envGet("PATH");
+  let path = option.unwrapSome(os.envGet("PATH"));
   os.envSet("SKEPA_TMP_ENV", "ok");
   os.envRemove("SKEPA_TMP_ENV");
   os.sleep(1);

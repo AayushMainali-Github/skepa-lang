@@ -1181,13 +1181,14 @@ fn sema_accepts_minimal_os_builtin_signatures() {
     let src = r#"
 import str;
 import os;
+import option;
 import vec;
 fn main() -> Int {
   let plat: String = os.platform();
   let arch: String = os.arch();
   let arg0: String = os.arg(0);
   let hasHome: Bool = os.envHas("HOME");
-  let home: String = os.envGet("HOME");
+  let home: Option[String] = os.envGet("HOME");
   os.envSet("MODE", "debug");
   os.envRemove("MODE");
   os.sleep(1);
@@ -1195,7 +1196,7 @@ fn main() -> Int {
   vec.push(args, "status");
   let code: Int = os.exec("git", args);
   let out: String = os.execOut("git", args);
-  if (str.len(plat) >= 0 && str.len(arch) >= 0 && str.len(arg0) >= 0 && hasHome && str.len(home) >= 0 && code >= 0 && str.len(out) >= 0) {
+  if (str.len(plat) >= 0 && str.len(arch) >= 0 && str.len(arg0) >= 0 && hasHome && option.isSome(home) && code >= 0 && str.len(out) >= 0) {
     return 0;
   }
   return 1;

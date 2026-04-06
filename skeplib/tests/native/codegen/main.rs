@@ -1548,6 +1548,7 @@ fn codegen_builds_native_executable_for_fs_and_os_builtins() {
 import fs;
 import io;
 import os;
+import option;
 import str;
 import vec;
 
@@ -1717,7 +1718,7 @@ fn main() -> Int {{
   let arch = os.arch();
   let arg0 = os.arg(0);
   os.envSet("SKEPA_TMP_ENV", "ok");
-  let tmp = os.envGet("SKEPA_TMP_ENV");
+  let tmp = option.unwrapSome(os.envGet("SKEPA_TMP_ENV"));
   let has = os.envHas("SKEPA_TMP_ENV");
   os.envRemove("SKEPA_TMP_ENV");
   let removed = !os.envHas("SKEPA_TMP_ENV");

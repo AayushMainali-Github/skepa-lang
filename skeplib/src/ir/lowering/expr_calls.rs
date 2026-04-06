@@ -739,6 +739,11 @@ impl IrLowerer {
                     value: Box::new(IrType::String),
                 });
             }
+            ("os", "envGet") => {
+                return Some(IrType::Option {
+                    value: Box::new(IrType::String),
+                });
+            }
             ("task", "__testTask") => {
                 let value = args.first()?;
                 return Some(IrType::Opaque(format!(

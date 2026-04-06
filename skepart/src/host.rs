@@ -398,7 +398,7 @@ pub trait RtHost {
         Err(RtError::unsupported_builtin("os.envHas"))
     }
 
-    fn os_env_get(&mut self, _name: &str) -> RtResult<RtString> {
+    fn os_env_get(&mut self, _name: &str) -> RtResult<Option<RtString>> {
         Err(RtError::unsupported_builtin("os.envGet"))
     }
 
@@ -872,13 +872,15 @@ impl RtHost for NoopHost {
         Ok(std::env::var_os(name).is_some())
     }
 
-    fn os_env_get(&mut self, name: &str) -> RtResult<RtString> {
-        std::env::var(name).map(RtString::from).map_err(|_| {
-            RtError::new(
+    fn os_env_get(&mut self, name: &str) -> RtResult<Option<RtString>> {
+        match std::env::var(name) {
+            Ok(value) => Ok(Some(RtString::from(value))),
+            Err(std::env::VarError::NotPresent) => Ok(None),
+            Err(std::env::VarError::NotUnicode(_)) => Err(RtError::new(
                 RtErrorKind::InvalidArgument,
-                format!("environment variable `{name}` is not set or not valid UTF-8"),
-            )
-        })
+                format!("environment variable `{name}` is not valid UTF-8"),
+            )),
+        }
     }
 
     fn os_env_set(&mut self, name: &str, value: &str) -> RtResult<()> {

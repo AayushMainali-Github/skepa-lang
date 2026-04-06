@@ -770,17 +770,8 @@ impl RtHost for RecordingHost {
         Ok(self.env.contains_key(name))
     }
 
-    fn os_env_get(&mut self, name: &str) -> RtResult<RtString> {
-        self.env
-            .get(name)
-            .cloned()
-            .map(RtString::from)
-            .ok_or_else(|| {
-                skepart::RtError::new(
-                    skepart::RtErrorKind::InvalidArgument,
-                    format!("environment variable `{name}` is not set or not valid UTF-8"),
-                )
-            })
+    fn os_env_get(&mut self, name: &str) -> RtResult<Option<RtString>> {
+        Ok(self.env.get(name).cloned().map(RtString::from))
     }
 
     fn os_env_set(&mut self, name: &str, value: &str) -> RtResult<()> {
