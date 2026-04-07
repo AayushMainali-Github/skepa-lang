@@ -2354,7 +2354,7 @@ import result;
 fn main() -> Int {{
   let socket: net.Socket = result.unwrapOk(net.connect("{addr}"));
   result.unwrapOk(net.write(socket, "ping"));
-  net.flush(socket);
+  result.unwrapOk(net.flush(socket));
   net.close(socket);
   return 0;
 }}
@@ -2384,12 +2384,12 @@ import result;
 
 fn main() -> Int {{
   let socket: net.Socket = result.unwrapOk(net.connect("{addr}"));
-  net.setReadTimeout(socket, 25);
-  net.setWriteTimeout(socket, 50);
+  result.unwrapOk(net.setReadTimeout(socket, 25));
+  result.unwrapOk(net.setWriteTimeout(socket, 50));
   result.unwrapOk(net.write(socket, "ping"));
-  net.flush(socket);
-  net.setReadTimeout(socket, 0);
-  net.setWriteTimeout(socket, 0);
+  result.unwrapOk(net.flush(socket));
+  result.unwrapOk(net.setReadTimeout(socket, 0));
+  result.unwrapOk(net.setWriteTimeout(socket, 0));
   net.close(socket);
   return 0;
 }}

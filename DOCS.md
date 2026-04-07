@@ -924,11 +924,11 @@ Signatures:
 - `net.readBytes(socket: net.Socket) -> Result[Bytes, String]`
 - `net.writeBytes(socket: net.Socket, data: Bytes) -> Result[Void, String]`
 - `net.readN(socket: net.Socket, count: Int) -> Result[Bytes, String]`
-- `net.localAddr(socket: net.Socket) -> String`
-- `net.peerAddr(socket: net.Socket) -> String`
-- `net.flush(socket: net.Socket) -> Void`
-- `net.setReadTimeout(socket: net.Socket, ms: Int) -> Void`
-- `net.setWriteTimeout(socket: net.Socket, ms: Int) -> Void`
+- `net.localAddr(socket: net.Socket) -> Result[String, String]`
+- `net.peerAddr(socket: net.Socket) -> Result[String, String]`
+- `net.flush(socket: net.Socket) -> Result[Void, String]`
+- `net.setReadTimeout(socket: net.Socket, ms: Int) -> Result[Void, String]`
+- `net.setWriteTimeout(socket: net.Socket, ms: Int) -> Result[Void, String]`
 - `net.close(socket: net.Socket) -> Void`
 - `net.closeListener(listener: net.Listener) -> Void`
 
@@ -946,11 +946,11 @@ Behavior:
 - `net.readBytes(socket)` performs a single blocking read of up to 4096 bytes and returns `Ok(Bytes)` on success or `Err(String)` on I/O failure.
 - `net.writeBytes(socket, data)` writes raw bytes to the socket and returns `Ok(())` on success or `Err(String)` on I/O failure.
 - `net.readN(socket, count)` performs a blocking exact read of `count` bytes and returns `Ok(Bytes)` on success or `Err(String)` on I/O failure.
-- `net.localAddr(socket)` returns the socket's local address as `host:port`.
-- `net.peerAddr(socket)` returns the socket's peer address as `host:port`.
-- `net.flush(socket)` flushes pending buffered socket/TLS writes.
-- `net.setReadTimeout(socket, ms)` sets the read timeout in milliseconds. `0` clears the timeout.
-- `net.setWriteTimeout(socket, ms)` sets the write timeout in milliseconds. `0` clears the timeout.
+- `net.localAddr(socket)` returns `Ok(String)` with the socket's local address as `host:port`, or `Err(String)` on failure.
+- `net.peerAddr(socket)` returns `Ok(String)` with the socket's peer address as `host:port`, or `Err(String)` on failure.
+- `net.flush(socket)` flushes pending buffered socket/TLS writes and returns `Ok(())` on success or `Err(String)` on failure.
+- `net.setReadTimeout(socket, ms)` sets the read timeout in milliseconds, returning `Ok(())` on success or `Err(String)` on failure. `0` clears the timeout.
+- `net.setWriteTimeout(socket, ms)` sets the write timeout in milliseconds, returning `Ok(())` on success or `Err(String)` on failure. `0` clears the timeout.
 - `net.close(socket)` closes a socket handle.
 - `net.closeListener(listener)` closes a listener handle.
 

@@ -409,12 +409,16 @@ fn builtins_cover_net_address_queries() {
     assert_eq!(
         builtins::call_with_host(&mut host, "net", "localAddr", std::slice::from_ref(&socket))
             .expect("net.localAddr"),
-        RtValue::String(RtString::from("127.0.0.1:7000"))
+        RtValue::Result(skepart::RtResultValue::ok(RtValue::String(RtString::from(
+            "127.0.0.1:7000"
+        ))))
     );
     assert_eq!(
         builtins::call_with_host(&mut host, "net", "peerAddr", std::slice::from_ref(&socket))
             .expect("net.peerAddr"),
-        RtValue::String(RtString::from("127.0.0.1:8000"))
+        RtValue::Result(skepart::RtResultValue::ok(RtValue::String(RtString::from(
+            "127.0.0.1:8000"
+        ))))
     );
     assert!(
         host.output.contains("[netlocaladdr 0]") && host.output.contains("[netpeeraddr 0]"),
@@ -523,7 +527,7 @@ fn builtins_cover_net_flush() {
     assert_eq!(
         builtins::call_with_host(&mut host, "net", "flush", std::slice::from_ref(&socket))
             .expect("net.flush"),
-        RtValue::Unit
+        RtValue::Result(skepart::RtResultValue::ok(RtValue::Unit))
     );
     assert!(
         host.output.contains("[netflush 0]"),
@@ -552,7 +556,7 @@ fn builtins_cover_net_timeout_setters() {
             &[socket.clone(), RtValue::Int(25)],
         )
         .expect("net.setReadTimeout"),
-        RtValue::Unit
+        RtValue::Result(skepart::RtResultValue::ok(RtValue::Unit))
     );
     assert_eq!(
         builtins::call_with_host(
@@ -562,7 +566,7 @@ fn builtins_cover_net_timeout_setters() {
             &[socket.clone(), RtValue::Int(0)],
         )
         .expect("net.setWriteTimeout"),
-        RtValue::Unit
+        RtValue::Result(skepart::RtResultValue::ok(RtValue::Unit))
     );
     assert!(
         host.output.contains("[netsetreadtimeout 0=25]")
@@ -577,9 +581,10 @@ fn builtins_cover_net_timeout_setters() {
             "setReadTimeout",
             &[socket.clone(), RtValue::Int(-1)],
         )
-        .expect_err("negative read timeout")
-        .kind,
-        RtErrorKind::InvalidArgument
+        .expect("negative read timeout should return result"),
+        RtValue::Result(skepart::RtResultValue::err(RtValue::String(RtString::from(
+            "InvalidArgument: net.setReadTimeout millis must be non-negative"
+        ))))
     );
     assert_eq!(
         builtins::call_with_host(
@@ -622,9 +627,9 @@ fn builtins_cover_net_read_n() {
     assert_eq!(
         builtins::call_with_host(&mut host, "net", "readN", &[socket, RtValue::Int(-1)])
             .expect("negative readN count should return result"),
-        RtValue::Result(skepart::RtResultValue::err(RtValue::String(RtString::from(
-            "InvalidArgument: net.readN count must be non-negative"
-        ))))
+        RtValue::Result(skepart::RtResultValue::err(RtValue::String(
+            RtString::from("InvalidArgument: net.readN count must be non-negative")
+        )))
     );
 }
 
@@ -1569,9 +1574,10 @@ fn builtins_surface_net_runtime_errors_consistently() {
             "flush",
             std::slice::from_ref(&socket),
         )
-        .expect_err("flush failure should surface")
-        .kind,
-        RtErrorKind::Io
+        .expect("flush failure should return result"),
+        RtValue::Result(skepart::RtResultValue::err(RtValue::String(
+            RtString::from("Io: flush failed")
+        )))
     );
 
     let mut failing_read_timeout = RecordingHostBuilder::seeded()
@@ -1586,9 +1592,10 @@ fn builtins_surface_net_runtime_errors_consistently() {
             "setReadTimeout",
             &[socket, RtValue::Int(1)],
         )
-        .expect_err("setReadTimeout failure should surface")
-        .kind,
-        RtErrorKind::Io
+        .expect("setReadTimeout failure should return result"),
+        RtValue::Result(skepart::RtResultValue::err(RtValue::String(
+            RtString::from("Io: set read timeout failed")
+        )))
     );
 
     let mut failing_write_timeout = RecordingHostBuilder::seeded()
@@ -1603,9 +1610,10 @@ fn builtins_surface_net_runtime_errors_consistently() {
             "setWriteTimeout",
             &[socket, RtValue::Int(1)],
         )
-        .expect_err("setWriteTimeout failure should surface")
-        .kind,
-        RtErrorKind::Io
+        .expect("setWriteTimeout failure should return result"),
+        RtValue::Result(skepart::RtResultValue::err(RtValue::String(
+            RtString::from("Io: set write timeout failed")
+        )))
     );
 }
 
@@ -1651,9 +1659,9 @@ fn builtins_reject_wrong_or_closed_net_handles_for_io() {
     assert_eq!(
         builtins::call_with_host(&mut host, "net", "read", std::slice::from_ref(&socket))
             .expect("closed socket read should now return Err result"),
-        RtValue::Result(skepart::RtResultValue::err(RtValue::String(RtString::from(
-            "InvalidArgument: unknown handle id 1"
-        ))))
+        RtValue::Result(skepart::RtResultValue::err(RtValue::String(
+            RtString::from("InvalidArgument: unknown handle id 1")
+        )))
     );
     assert_eq!(
         builtins::call_with_host(
@@ -1663,9 +1671,9 @@ fn builtins_reject_wrong_or_closed_net_handles_for_io() {
             &[socket.clone(), RtValue::String(RtString::from("ping"))],
         )
         .expect("closed socket write should now return Err result"),
-        RtValue::Result(skepart::RtResultValue::err(RtValue::String(RtString::from(
-            "InvalidArgument: unknown handle id 1"
-        ))))
+        RtValue::Result(skepart::RtResultValue::err(RtValue::String(
+            RtString::from("InvalidArgument: unknown handle id 1")
+        )))
     );
     assert_eq!(
         builtins::call_with_host(&mut host, "net", "flush", &[RtValue::Handle(listener)])
@@ -1675,9 +1683,10 @@ fn builtins_reject_wrong_or_closed_net_handles_for_io() {
     );
     assert_eq!(
         builtins::call_with_host(&mut host, "net", "flush", std::slice::from_ref(&socket))
-            .expect_err("closed socket flush should fail")
-            .kind,
-        RtErrorKind::InvalidArgument
+            .expect("closed socket flush should return Err result"),
+        RtValue::Result(skepart::RtResultValue::err(RtValue::String(
+            RtString::from("InvalidArgument: unknown handle id 1")
+        )))
     );
     assert_eq!(
         builtins::call_with_host(
@@ -1697,9 +1706,10 @@ fn builtins_reject_wrong_or_closed_net_handles_for_io() {
             "setWriteTimeout",
             &[socket, RtValue::Int(5)],
         )
-        .expect_err("closed socket setWriteTimeout should fail")
-        .kind,
-        RtErrorKind::InvalidArgument
+        .expect("closed socket setWriteTimeout should return Err result"),
+        RtValue::Result(skepart::RtResultValue::err(RtValue::String(
+            RtString::from("InvalidArgument: unknown handle id 1")
+        )))
     );
 }
 

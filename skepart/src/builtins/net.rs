@@ -125,16 +125,30 @@ pub fn read_n(host: &mut dyn RtHost, socket: crate::RtHandle, count: i64) -> RtR
 }
 
 pub fn local_addr(host: &mut dyn RtHost, socket: crate::RtHandle) -> RtResult<RtValue> {
-    Ok(RtValue::String(host.net_local_addr(socket)?))
+    Ok(match host.net_local_addr(socket) {
+        Ok(value) => RtValue::Result(RtResultValue::ok(RtValue::String(value))),
+        Err(err) => RtValue::Result(RtResultValue::err(RtValue::String(RtString::from(
+            err.to_string(),
+        )))),
+    })
 }
 
 pub fn peer_addr(host: &mut dyn RtHost, socket: crate::RtHandle) -> RtResult<RtValue> {
-    Ok(RtValue::String(host.net_peer_addr(socket)?))
+    Ok(match host.net_peer_addr(socket) {
+        Ok(value) => RtValue::Result(RtResultValue::ok(RtValue::String(value))),
+        Err(err) => RtValue::Result(RtResultValue::err(RtValue::String(RtString::from(
+            err.to_string(),
+        )))),
+    })
 }
 
 pub fn flush(host: &mut dyn RtHost, socket: crate::RtHandle) -> RtResult<RtValue> {
-    host.net_flush(socket)?;
-    Ok(RtValue::Unit)
+    Ok(match host.net_flush(socket) {
+        Ok(()) => RtValue::Result(RtResultValue::ok(RtValue::Unit)),
+        Err(err) => RtValue::Result(RtResultValue::err(RtValue::String(RtString::from(
+            err.to_string(),
+        )))),
+    })
 }
 
 pub fn set_read_timeout(
@@ -142,8 +156,12 @@ pub fn set_read_timeout(
     socket: crate::RtHandle,
     millis: i64,
 ) -> RtResult<RtValue> {
-    host.net_set_read_timeout(socket, millis)?;
-    Ok(RtValue::Unit)
+    Ok(match host.net_set_read_timeout(socket, millis) {
+        Ok(()) => RtValue::Result(RtResultValue::ok(RtValue::Unit)),
+        Err(err) => RtValue::Result(RtResultValue::err(RtValue::String(RtString::from(
+            err.to_string(),
+        )))),
+    })
 }
 
 pub fn set_write_timeout(
@@ -151,8 +169,12 @@ pub fn set_write_timeout(
     socket: crate::RtHandle,
     millis: i64,
 ) -> RtResult<RtValue> {
-    host.net_set_write_timeout(socket, millis)?;
-    Ok(RtValue::Unit)
+    Ok(match host.net_set_write_timeout(socket, millis) {
+        Ok(()) => RtValue::Result(RtResultValue::ok(RtValue::Unit)),
+        Err(err) => RtValue::Result(RtResultValue::err(RtValue::String(RtString::from(
+            err.to_string(),
+        )))),
+    })
 }
 
 pub fn close(host: &mut dyn RtHost, socket: crate::RtHandle) -> RtResult<RtValue> {

@@ -772,6 +772,18 @@ impl IrLowerer {
                     err: Box::new(IrType::String),
                 });
             }
+            ("net", "localAddr") | ("net", "peerAddr") => {
+                return Some(IrType::Result {
+                    ok: Box::new(IrType::String),
+                    err: Box::new(IrType::String),
+                });
+            }
+            ("net", "flush") | ("net", "setReadTimeout") | ("net", "setWriteTimeout") => {
+                return Some(IrType::Result {
+                    ok: Box::new(IrType::Void),
+                    err: Box::new(IrType::String),
+                });
+            }
             ("net", "parseUrl") => {
                 return Some(IrType::Result {
                     ok: Box::new(IrType::Map {

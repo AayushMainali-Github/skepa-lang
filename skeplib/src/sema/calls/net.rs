@@ -180,7 +180,10 @@ pub(super) fn check_net_builtin(
                     expected, got
                 ));
             }
-            TypeInfo::String
+            TypeInfo::Result {
+                ok: Box::new(TypeInfo::String),
+                err: Box::new(TypeInfo::String),
+            }
         }
         "flush" => {
             if args.len() != 1 {
@@ -198,7 +201,10 @@ pub(super) fn check_net_builtin(
                     expected, got
                 ));
             }
-            TypeInfo::Void
+            TypeInfo::Result {
+                ok: Box::new(TypeInfo::Void),
+                err: Box::new(TypeInfo::String),
+            }
         }
         "setReadTimeout" | "setWriteTimeout" => {
             if args.len() != 2 {
@@ -224,7 +230,10 @@ pub(super) fn check_net_builtin(
                     millis_ty
                 ));
             }
-            TypeInfo::Void
+            TypeInfo::Result {
+                ok: Box::new(TypeInfo::Void),
+                err: Box::new(TypeInfo::String),
+            }
         }
         "close" => {
             if args.len() != 1 {
