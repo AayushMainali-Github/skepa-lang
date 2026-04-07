@@ -397,7 +397,13 @@ impl Checker {
                     }
                 };
                 if let Some(scope) = scopes.last_mut() {
-                    scope.insert(name.clone(), var_ty);
+                    if scope.contains_key(name) {
+                        self.error(format!(
+                            "Duplicate local binding `{name}` in the same scope"
+                        ));
+                    } else {
+                        scope.insert(name.clone(), var_ty);
+                    }
                 }
             }
             Stmt::Assign { target, value } => {

@@ -332,7 +332,15 @@ impl Checker {
                 let outer_scope_len = inner_scopes.len();
                 inner_scopes.push(HashMap::<String, TypeInfo>::new());
                 for p in params {
-                    inner_scopes[outer_scope_len].insert(p.name.clone(), TypeInfo::from_ast(&p.ty));
+                    if inner_scopes[outer_scope_len].contains_key(&p.name) {
+                        self.error(format!(
+                            "Duplicate parameter `{}` in function literal",
+                            p.name
+                        ));
+                    } else {
+                        inner_scopes[outer_scope_len]
+                            .insert(p.name.clone(), TypeInfo::from_ast(&p.ty));
+                    }
                 }
                 self.fn_lit_scope_floors.push(outer_scope_len);
                 self.return_types.push(expected_ret.clone());

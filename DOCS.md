@@ -430,7 +430,9 @@ Examples:
 
 Lexical scope is block-based.
 
+- function parameters and local `let` bindings occupy the same function-local scope level
 - same-scope duplicate local bindings are rejected
+- duplicate parameter names are rejected
 - inner blocks may shadow outer bindings
 - loop bodies may shadow outer bindings
 - function parameters introduce bindings in the function-local scope
@@ -438,6 +440,12 @@ Lexical scope is block-based.
 - import/export alias collisions are rejected at module scope
 
 Shadowing is allowed only across nested scopes, not within the same scope.
+
+Examples:
+- this is rejected:
+  - `fn f(x: Int) -> Int { let x: Int = 1; return x; }`
+- this is allowed:
+  - `fn f(x: Int) -> Int { if (true) { let x: Int = 1; return x; } return x; }`
 
 ### Function Values
 

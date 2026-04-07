@@ -655,6 +655,33 @@ fn main() -> Int {
 }
 
 #[test]
+fn sema_rejects_duplicate_local_binding_in_same_scope() {
+    let src = r#"
+fn main() -> Int {
+  let x: Int = 1;
+  let x: Int = 2;
+  return x;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert_has_diag(&diags, "Duplicate local binding `x` in the same scope");
+}
+
+#[test]
+fn sema_rejects_local_binding_that_collides_with_parameter_in_same_scope() {
+    let src = r#"
+fn main(x: Int) -> Int {
+  let x: Int = 2;
+  return x;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert_has_diag(&diags, "Duplicate local binding `x` in the same scope");
+}
+
+#[test]
 fn sema_reports_let_declared_type_mismatch() {
     let src = r#"
 fn main() -> Int {
@@ -1195,6 +1222,33 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert_sema_success(&result, &diags);
+}
+
+#[test]
+fn sema_rejects_duplicate_function_parameters() {
+    let src = r#"
+fn main(x: Int, x: Int) -> Int {
+  return x;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert_has_diag(&diags, "Duplicate parameter `x` in function `main`");
+}
+
+#[test]
+fn sema_rejects_duplicate_function_literal_parameters() {
+    let src = r#"
+fn main() -> Int {
+  let f: Fn(Int, Int) -> Int = fn(x: Int, x: Int) -> Int {
+    return x;
+  };
+  return f(1, 2);
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert_has_diag(&diags, "Duplicate parameter `x` in function literal");
 }
 
 #[test]

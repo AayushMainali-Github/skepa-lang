@@ -692,7 +692,14 @@ impl Checker {
             .unwrap_or(TypeInfo::Void);
         let mut scopes = vec![HashMap::<String, TypeInfo>::new()];
         for p in &f.params {
-            scopes[0].insert(p.name.clone(), TypeInfo::from_ast(&p.ty));
+            if scopes[0].contains_key(&p.name) {
+                self.error(format!(
+                    "Duplicate parameter `{}` in function `{}`",
+                    p.name, f.name
+                ));
+            } else {
+                scopes[0].insert(p.name.clone(), TypeInfo::from_ast(&p.ty));
+            }
         }
 
         self.return_types.push(expected_ret.clone());
@@ -716,7 +723,14 @@ impl Checker {
             .unwrap_or(TypeInfo::Void);
         let mut scopes = vec![HashMap::<String, TypeInfo>::new()];
         for p in &m.params {
-            scopes[0].insert(p.name.clone(), TypeInfo::from_ast(&p.ty));
+            if scopes[0].contains_key(&p.name) {
+                self.error(format!(
+                    "Duplicate parameter `{}` in method `{}.{}`",
+                    p.name, target, m.name
+                ));
+            } else {
+                scopes[0].insert(p.name.clone(), TypeInfo::from_ast(&p.ty));
+            }
         }
         if !scopes[0].contains_key("self") {
             scopes[0].insert("self".to_string(), TypeInfo::Named(target.to_string()));
@@ -739,7 +753,14 @@ impl Checker {
         let expected_ret = TypeInfo::from_ast(&operator.return_type);
         let mut scopes = vec![HashMap::<String, TypeInfo>::new()];
         for p in &operator.params {
-            scopes[0].insert(p.name.clone(), TypeInfo::from_ast(&p.ty));
+            if scopes[0].contains_key(&p.name) {
+                self.error(format!(
+                    "Duplicate parameter `{}` in operator `{}`",
+                    p.name, operator.name
+                ));
+            } else {
+                scopes[0].insert(p.name.clone(), TypeInfo::from_ast(&p.ty));
+            }
         }
         self.return_types.push(expected_ret.clone());
         for stmt in &operator.body {
