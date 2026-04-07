@@ -145,7 +145,9 @@ fn main() -> Int {
     assert!(result.has_errors);
     assert!(diags.as_slice().iter().any(|d| {
         d.message
-            .contains("Invalid namespace call `string.toUpper`")
+            .contains(
+                "Invalid namespace call `string.toUpper`: `import string` introduces a folder namespace"
+            )
     }));
 }
 

@@ -29,8 +29,9 @@ impl Checker {
         };
         if prefix.len() == 1 && parts.len() < 3 {
             return Err(format!(
-                "Invalid namespace call `{}`: expected `{}.<file>.<symbol>(...)`",
+                "Invalid namespace call `{}`: `import {}` introduces a folder namespace, so calls must use the form `{}.<file>.<symbol>(...)`",
                 parts.join("."),
+                parts[0],
                 parts[0]
             ));
         }
@@ -149,8 +150,8 @@ impl Checker {
             }
             if self.has_external_context {
                 self.error(format!(
-                    "Imported function binding `{name}` resolved to missing target `{target}`"
-                ));
+                            "Imported function binding `{name}` resolved to missing target `{target}`; check that the target module exports it"
+                        ));
             }
             return TypeInfo::Unknown;
         }
@@ -166,7 +167,7 @@ impl Checker {
                     }
                     if self.has_external_context {
                         self.error(format!(
-                            "Qualified function call `{}` resolved to missing target `{target}`",
+                            "Qualified function call `{}` resolved to missing target `{target}`; check that the target module exports it",
                             parts.join(".")
                         ));
                     }
