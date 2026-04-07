@@ -1570,6 +1570,66 @@ fn main() -> Int {
 }
 
 #[test]
+fn sema_accepts_match_expression_on_option_and_result() {
+    let src = r#"
+fn unwrap_or_zero(value: Option[Int]) -> Int {
+  return match (value) {
+    Some(v) => v,
+    None => 0,
+  };
+}
+
+#[test]
+fn sema_accepts_variant_payload_wildcard_patterns() {
+    let src = r#"
+fn main() -> Int {
+  let opt: Option[Int] = some(1);
+  let res: Result[Int, String] = ok(2);
+  let a: Int = match (opt) {
+    Some(_) => 1,
+    None => 0,
+  };
+  let b: Int = match (res) {
+    Ok(_) => 2,
+    Err(_) => 0,
+  };
+  return a + b;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
+
+fn main() -> Int {
+  let res: Result[Int, String] = ok(7);
+  let out: Int = match (res) {
+    Ok(v) => v,
+    Err(e) => 0,
+  };
+  return unwrap_or_zero(some(out));
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
+
+#[test]
+fn sema_rejects_match_expression_arm_type_mismatch() {
+    let src = r#"
+fn main() -> Int {
+  let x: Int = match (some(1)) {
+    Some(v) => v,
+    None => "bad",
+  };
+  return x;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert_has_diag(&diags, "Match expression arm type mismatch");
+}
+
+#[test]
 fn sema_rejects_try_in_incompatible_contexts() {
     let src = r#"
 fn bad_option(x: Option[Int]) -> Int {

@@ -143,6 +143,12 @@ pub struct MatchArm {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MatchExprArm {
+    pub pattern: MatchPattern,
+    pub expr: Expr,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MatchPattern {
     Wildcard,
     Literal(MatchLiteral),
@@ -216,6 +222,10 @@ pub enum Expr {
     Call {
         callee: Box<Expr>,
         args: Vec<Expr>,
+    },
+    Match {
+        expr: Box<Expr>,
+        arms: Vec<MatchExprArm>,
     },
     Try(Box<Expr>),
     Group(Box<Expr>),
@@ -676,6 +686,20 @@ fn pretty_expr(expr: &Expr) -> String {
         Expr::Call { callee, args } => {
             let args = args.iter().map(pretty_expr).collect::<Vec<_>>().join(", ");
             format!("{}({})", pretty_expr(callee), args)
+        }
+        Expr::Match { expr, arms } => {
+            let arms = arms
+                .iter()
+                .map(|arm| {
+                    format!(
+                        "{} => {}",
+                        pretty_match_pattern(&arm.pattern),
+                        pretty_expr(&arm.expr)
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("match ({}) {{ {} }}", pretty_expr(expr), arms)
         }
         Expr::Try(inner) => format!("{}?", pretty_expr(inner)),
         Expr::Group(inner) => format!("({})", pretty_expr(inner)),

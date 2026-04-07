@@ -463,7 +463,7 @@ impl IrLowerer {
         true
     }
 
-    fn compile_match_condition(
+    pub(super) fn compile_match_condition(
         &mut self,
         func: &mut crate::ir::IrFunction,
         block: BlockId,
@@ -558,7 +558,7 @@ impl IrLowerer {
         }
     }
 
-    fn bind_match_pattern(
+    pub(super) fn bind_match_pattern(
         &mut self,
         func: &mut crate::ir::IrFunction,
         lowering: &mut FunctionLowering,

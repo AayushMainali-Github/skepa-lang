@@ -105,7 +105,10 @@ impl Checker {
         }
     }
 
-    fn match_variant_binding_type(pat: &MatchPattern, target_ty: &TypeInfo) -> Option<TypeInfo> {
+    pub(super) fn match_variant_binding_type(
+        pat: &MatchPattern,
+        target_ty: &TypeInfo,
+    ) -> Option<TypeInfo> {
         match (pat, target_ty) {
             (MatchPattern::Variant { name, .. }, TypeInfo::Option { value }) if name == "Some" => {
                 Some((**value).clone())
@@ -137,7 +140,7 @@ impl Checker {
         }
     }
 
-    fn check_match_exhaustiveness(
+    pub(super) fn check_match_exhaustiveness(
         &mut self,
         target_ty: &TypeInfo,
         seen_wildcard: bool,
@@ -173,7 +176,7 @@ impl Checker {
         }
     }
 
-    fn check_match_pattern(
+    pub(super) fn check_match_pattern(
         &mut self,
         pat: &MatchPattern,
         target_ty: &TypeInfo,

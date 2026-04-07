@@ -1763,3 +1763,27 @@ fn main() -> Int {
     let value = common::ir_run_ok(source);
     assert_eq!(value, IrValue::Int(0));
 }
+
+#[test]
+fn interpreter_supports_match_expression() {
+    let source = r#"
+fn unwrap_or_zero(value: Option[Int]) -> Int {
+  return match (value) {
+    Some(v) => v,
+    None => 0,
+  };
+}
+
+fn main() -> Int {
+  let res: Result[Int, String] = ok(7);
+  let out: Int = match (res) {
+    Ok(v) => v,
+    Err(e) => 0,
+  };
+  return unwrap_or_zero(some(out));
+}
+"#;
+
+    let value = common::ir_run_ok(source);
+    assert_eq!(value, IrValue::Int(7));
+}

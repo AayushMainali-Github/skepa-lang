@@ -192,6 +192,7 @@ impl IrLowerer {
                 return_type,
                 body,
             } => self.compile_fn_lit(func, lowering.current_block, params, return_type, body),
+            Expr::Match { expr, arms } => self.compile_match_expr(func, lowering, expr, arms),
             Expr::Index { base, index } => {
                 let array = self.compile_expr(func, lowering, base)?;
                 let index = self.compile_expr(func, lowering, index)?;
@@ -551,6 +552,128 @@ impl IrLowerer {
                 self.unsupported("`?` lowering requires Option/Result-compatible function return");
                 None
             }
+        }
+    }
+
+    fn compile_match_expr(
+        &mut self,
+        func: &mut crate::ir::IrFunction,
+        lowering: &mut FunctionLowering,
+        expr: &Expr,
+        arms: &[crate::ast::MatchExprArm],
+    ) -> Option<Operand> {
+        let target = self.compile_expr(func, lowering, expr)?;
+        let target_ty = self.infer_operand_type(func, &target);
+        let saved_block = lowering.current_block;
+        let match_local = self.builder.push_local(
+            func,
+            format!("__match_expr{}", lowering.scratch_counter),
+            target_ty.clone(),
+        );
+        lowering.scratch_counter += 1;
+        self.builder.push_instr(
+            func,
+            saved_block,
+            Instr::StoreLocal {
+                local: match_local,
+                ty: target_ty.clone(),
+                value: target,
+            },
+        );
+
+        let result_ty = arms
+            .first()
+            .map(|arm| self.expr_type(func, lowering, &arm.expr))
+            .unwrap_or(IrType::Unknown);
+        let result_local = self.builder.push_local(
+            func,
+            format!("__match_expr_result{}", lowering.scratch_counter),
+            result_ty.clone(),
+        );
+        lowering.scratch_counter += 1;
+
+        let join_block = self.builder.push_block(func, "match_expr_join");
+        let fail_block = self.builder.push_block(func, "match_expr_unreachable");
+        let mut dispatch_block = saved_block;
+
+        for (index, arm) in arms.iter().enumerate() {
+            let body_block = self
+                .builder
+                .push_block(func, format!("match_expr_arm_{index}"));
+            let next_block = if index + 1 == arms.len() {
+                fail_block
+            } else {
+                self.builder
+                    .push_block(func, format!("match_expr_next_{index}"))
+            };
+
+            if matches!(arm.pattern, crate::ast::MatchPattern::Wildcard) {
+                self.builder
+                    .set_terminator(func, dispatch_block, Terminator::Jump(body_block));
+            } else {
+                let cond = self.compile_match_condition(
+                    func,
+                    dispatch_block,
+                    match_local,
+                    &target_ty,
+                    &arm.pattern,
+                )?;
+                self.builder.set_terminator(
+                    func,
+                    dispatch_block,
+                    Terminator::Branch(BranchTerminator {
+                        cond,
+                        then_block: body_block,
+                        else_block: next_block,
+                    }),
+                );
+            }
+
+            lowering.current_block = body_block;
+            let saved_locals = lowering.locals.clone();
+            if !self.bind_match_pattern(func, lowering, match_local, &target_ty, &arm.pattern) {
+                return None;
+            }
+            let arm_value = self.compile_expr(func, lowering, &arm.expr)?;
+            self.builder.push_instr(
+                func,
+                lowering.current_block,
+                Instr::StoreLocal {
+                    local: result_local,
+                    ty: result_ty.clone(),
+                    value: arm_value,
+                },
+            );
+            self.ensure_fallthrough_jump(func, lowering.current_block, join_block);
+            lowering.locals = saved_locals;
+            dispatch_block = next_block;
+        }
+
+        self.builder
+            .set_terminator(func, fail_block, Terminator::Unreachable);
+        lowering.current_block = join_block;
+        Some(Operand::Local(result_local))
+    }
+
+    fn expr_type(
+        &self,
+        func: &crate::ir::IrFunction,
+        lowering: &FunctionLowering,
+        expr: &Expr,
+    ) -> IrType {
+        match expr {
+            Expr::IntLit(_) => IrType::Int,
+            Expr::FloatLit(_) => IrType::Float,
+            Expr::BoolLit(_) => IrType::Bool,
+            Expr::StringLit(_) => IrType::String,
+            Expr::Ident(name) => lowering
+                .locals
+                .get(name)
+                .and_then(|local| func.locals.iter().find(|entry| entry.id == *local))
+                .map(|entry| entry.ty.clone())
+                .unwrap_or(IrType::Unknown),
+            Expr::Group(inner) => self.expr_type(func, lowering, inner),
+            _ => IrType::Unknown,
         }
     }
 

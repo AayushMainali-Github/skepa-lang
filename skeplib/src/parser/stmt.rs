@@ -282,7 +282,7 @@ impl Parser {
         }
     }
 
-    fn parse_match_pattern(&mut self) -> Option<MatchPattern> {
+    pub(super) fn parse_match_pattern(&mut self) -> Option<MatchPattern> {
         let mut parts = vec![self.parse_match_simple_pattern()?];
         while self.at(TokenKind::Pipe) {
             self.bump();
@@ -306,16 +306,28 @@ impl Parser {
                 let mut binding = None;
                 if self.at(TokenKind::LParen) {
                     self.bump();
-                    if self.at(TokenKind::Ident) {
-                        let ident = self.bump().lexeme;
-                        if ident != "_" {
-                            binding = Some(ident);
-                        }
+                    if self.at(TokenKind::RParen) {
+                        self.error_here_expected(
+                            "Expected identifier or `_` inside variant match pattern",
+                        );
+                        return None;
+                    }
+                    if !self.at(TokenKind::Ident) {
+                        self.error_here_expected(
+                            "Expected identifier or `_` inside variant match pattern",
+                        );
+                        return None;
+                    }
+                    let ident = self.bump().lexeme;
+                    if ident != "_" {
+                        binding = Some(ident);
                     }
                     self.expect(
                         TokenKind::RParen,
                         "Expected `)` after variant match pattern",
                     )?;
+                } else if matches!(name.as_str(), "None") {
+                    // `None` is written without a payload pattern.
                 }
                 return Some(MatchPattern::Variant { name, binding });
             }

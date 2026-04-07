@@ -1,4 +1,4 @@
-use crate::ast::{BinaryOp, Expr, UnaryOp};
+use crate::ast::{BinaryOp, Expr, MatchExprArm, UnaryOp};
 use crate::token::TokenKind;
 
 use super::Parser;
@@ -210,6 +210,41 @@ impl Parser {
     }
 
     fn parse_primary(&mut self) -> Option<Expr> {
+        if self.at(TokenKind::KwMatch) {
+            self.bump();
+            self.expect(TokenKind::LParen, "Expected `(` after `match`")?;
+            let expr = self.parse_expr()?;
+            self.expect(TokenKind::RParen, "Expected `)` after match target")?;
+            self.expect(TokenKind::LBrace, "Expected `{` before match arms")?;
+            let mut arms = Vec::new();
+            if self.at(TokenKind::RBrace) {
+                self.error_here_expected("Expected at least one match arm");
+                return None;
+            }
+            while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
+                let pattern = self.parse_match_pattern()?;
+                self.expect(TokenKind::FatArrow, "Expected `=>` after match pattern")?;
+                let arm_expr = self.parse_expr()?;
+                arms.push(MatchExprArm {
+                    pattern,
+                    expr: arm_expr,
+                });
+                if self.at(TokenKind::Comma) {
+                    self.bump();
+                    if self.at(TokenKind::RBrace) {
+                        break;
+                    }
+                } else if !self.at(TokenKind::RBrace) {
+                    self.error_here_expected("Expected `,` or `}` after match arm expression");
+                    return None;
+                }
+            }
+            self.expect(TokenKind::RBrace, "Expected `}` after match expression")?;
+            return Some(Expr::Match {
+                expr: Box::new(expr),
+                arms,
+            });
+        }
         if self.at(TokenKind::KwFn) {
             self.bump();
             self.expect(

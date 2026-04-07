@@ -327,20 +327,21 @@ Short-circuit:
 
 ### 6.3 `match` 
 
-Status:
-- Statement only (not a match-expression yet).
-
 Syntax:
-- `match (expr) { pattern => { ... } ... }`
+- statement form: `match (expr) { pattern => { ... } ... }`
+- expression form: `match (expr) { pattern => expr, ... }`
 
 Pattern forms:
 - wildcard: `_`
 - literals: `Int`, `Float`, `Bool`, `String`
 - builtin sum-type variants:
   - `Some(x)`
+  - `Some(_)`
   - `None`
   - `Ok(v)`
+  - `Ok(_)`
   - `Err(e)`
+  - `Err(_)`
 - OR-patterns with literals or non-binding variants:
   - `1 | 2`
   - `"y" | "Y"`
@@ -351,6 +352,7 @@ Behavior:
 - Arms are checked top-to-bottom.
 - First matching arm executes.
 - No fallthrough.
+- Match expressions require every arm expression to have a compatible result type.
 - `Option[T]` matches are exhaustive only when they contain:
   - both `Some(...)` and `None`
   - or a wildcard arm `_`
@@ -360,8 +362,31 @@ Behavior:
 
 Notes:
 - Variant bindings destructure the payload into a local visible only inside that arm.
+- `Some(_)`, `Ok(_)`, and `Err(_)` match the variant while explicitly discarding the payload.
 - `None` is written without payload binding in patterns.
+- `Some()`, `Ok()`, `Err()`, and `None()` are invalid pattern forms.
 - OR-pattern variant alternatives cannot bind payload names. Use separate arms when binding is needed.
+
+Examples:
+
+```sk
+let x: Int = match (some(1)) {
+  Some(v) => v,
+  None => 0,
+};
+
+let y: Int = match (ok(7)) {
+  Ok(_) => 1,
+  Err(_) => 0,
+};
+```
+
+```sk
+match (x) {
+  0 => { return 10; }
+  _ => { return 20; }
+}
+```
 
 ## 7. Type System Notes
 

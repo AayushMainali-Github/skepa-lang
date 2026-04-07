@@ -364,8 +364,71 @@ impl Checker {
                     ret: Box::new(expected_ret),
                 }
             }
+            Expr::Match { expr, arms } => self.check_match_expr(expr, arms, scopes),
             Expr::Try(inner) => self.check_try_expr(inner, scopes),
         }
+    }
+
+    fn check_match_expr(
+        &mut self,
+        expr: &Expr,
+        arms: &[crate::ast::MatchExprArm],
+        scopes: &mut [HashMap<String, TypeInfo>],
+    ) -> TypeInfo {
+        let target_ty = self.check_expr(expr, scopes);
+        let mut seen_wildcard = false;
+        let mut seen_literals = std::collections::HashSet::<String>::new();
+        let mut result_ty = TypeInfo::Unknown;
+
+        if arms.is_empty() {
+            self.error("Match expression must have at least one arm".to_string());
+            return TypeInfo::Unknown;
+        }
+
+        for (idx, arm) in arms.iter().enumerate() {
+            if matches!(arm.pattern, crate::ast::MatchPattern::Wildcard)
+                || matches!(
+                    &arm.pattern,
+                    crate::ast::MatchPattern::Or(parts)
+                    if parts.iter().any(|part| matches!(part, crate::ast::MatchPattern::Wildcard))
+                )
+            {
+                if seen_wildcard {
+                    self.error("Match expression can contain only one wildcard arm".to_string());
+                }
+                if idx + 1 != arms.len() {
+                    self.error("Wildcard match arm `_` must be last".to_string());
+                }
+                seen_wildcard = true;
+            }
+
+            self.check_match_pattern(&arm.pattern, &target_ty, &mut seen_literals);
+
+            let mut arm_scopes = scopes.to_vec();
+            arm_scopes.push(HashMap::new());
+            if let crate::ast::MatchPattern::Variant {
+                binding: Some(binding),
+                ..
+            } = &arm.pattern
+                && let Some(binding_ty) = Self::match_variant_binding_type(&arm.pattern, &target_ty)
+                && let Some(scope) = arm_scopes.last_mut()
+            {
+                scope.insert(binding.clone(), binding_ty);
+            }
+
+            let arm_ty = self.check_expr(&arm.expr, &mut arm_scopes);
+            if matches!(result_ty, TypeInfo::Unknown) {
+                result_ty = arm_ty;
+            } else if !Self::types_compatible(&arm_ty, &result_ty) {
+                self.error(format!(
+                    "Match expression arm type mismatch: expected {:?}, got {:?}",
+                    result_ty, arm_ty
+                ));
+            }
+        }
+
+        Self::check_match_exhaustiveness(self, &target_ty, seen_wildcard, &seen_literals);
+        result_ty
     }
 
     fn check_try_expr(

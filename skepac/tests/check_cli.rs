@@ -1117,6 +1117,40 @@ fn main() -> Int {
 }
 
 #[test]
+fn check_accepts_match_expression_program() {
+    let tmp = make_temp_dir("skepac_check_match_expr");
+    let file = tmp.join("match_expr_ok.sk");
+    fs::write(
+        &file,
+        r#"
+fn unwrap_or_zero(value: Option[Int]) -> Int {
+  return match (value) {
+    Some(v) => v,
+    None => 0,
+  };
+}
+
+fn main() -> Int {
+  let res: Result[Int, String] = Ok(7);
+  let out: Int = match (res) {
+    Ok(v) => v,
+    Err(e) => 0,
+  };
+  return unwrap_or_zero(Some(out));
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("check")
+        .arg(&file)
+        .output()
+        .expect("run check");
+    assert_eq!(output.status.code(), Some(0), "{:?}", output);
+}
+
+#[test]
 fn run_executes_option_and_result_inspection_program_end_to_end() {
     let tmp = make_temp_dir("skepac_run_option_result_inspect");
     let source = tmp.join("main.sk");

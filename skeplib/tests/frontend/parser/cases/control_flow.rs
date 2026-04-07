@@ -156,6 +156,99 @@ fn main() -> Int {
 }
 
 #[test]
+fn parses_match_expression_with_variant_arms() {
+    let src = r#"
+fn main() -> Int {
+  let x: Int = match (some(1)) {
+    Some(v) => v,
+    None => 0,
+  };
+  return x;
+}
+
+#[test]
+fn parses_variant_pattern_with_payload_wildcard() {
+    let src = r#"
+fn main() -> Int {
+  match (some(1)) {
+    Some(_) => { return 1; }
+    None => { return 0; }
+  }
+}
+"#;
+    let program = parse_ok(src);
+    match &program.functions[0].body[0] {
+        Stmt::Match { arms, .. } => {
+            assert_eq!(
+                arms[0].pattern,
+                MatchPattern::Variant {
+                    name: "Some".to_string(),
+                    binding: None,
+                }
+            );
+        }
+        _ => panic!("expected match statement"),
+    }
+}
+
+#[test]
+fn reports_empty_variant_pattern_payload() {
+    let src = r#"
+fn main() -> Int {
+  match (some(1)) {
+    Some() => { return 1; }
+    None => { return 0; }
+  }
+}
+"#;
+    let diags = parse_err(src);
+    assert_has_diag(
+        &diags,
+        "Expected identifier or `_` inside variant match pattern",
+    );
+}
+
+#[test]
+fn reports_empty_none_variant_pattern_payload() {
+    let src = r#"
+fn main() -> Int {
+  match (none()) {
+    None() => { return 1; }
+    _ => { return 0; }
+  }
+}
+"#;
+    let diags = parse_err(src);
+    assert_has_diag(
+        &diags,
+        "Expected identifier or `_` inside variant match pattern",
+    );
+}
+"#;
+    let program = parse_ok(src);
+    match &program.functions[0].body[0] {
+        Stmt::Let { value, .. } => match value {
+            Expr::Match { arms, .. } => {
+                assert_eq!(arms.len(), 2);
+                assert_eq!(
+                    arms[0].pattern,
+                    MatchPattern::Variant {
+                        name: "Some".to_string(),
+                        binding: Some("v".to_string())
+                    }
+                );
+                assert_eq!(arms[1].pattern, MatchPattern::Variant {
+                    name: "None".to_string(),
+                    binding: None
+                });
+            }
+            _ => panic!("expected match expression"),
+        },
+        _ => panic!("expected let statement"),
+    }
+}
+
+#[test]
 fn parses_while_statement() {
     let src = r#"
 fn main() -> Int {

@@ -2578,3 +2578,26 @@ fn main() -> Int {
 
     assert_eq!(common::native_run_structured(source).exit_code(), 0);
 }
+
+#[test]
+fn codegen_builds_native_executable_for_match_expression() {
+    let source = r#"
+fn unwrap_or_zero(value: Option[Int]) -> Int {
+  return match (value) {
+    Some(v) => v,
+    None => 0,
+  };
+}
+
+fn main() -> Int {
+  let res: Result[Int, String] = ok(7);
+  let out: Int = match (res) {
+    Ok(v) => v,
+    Err(e) => 0,
+  };
+  return unwrap_or_zero(some(out));
+}
+"#;
+
+    assert_eq!(common::native_run_structured(source).exit_code(), 7);
+}
