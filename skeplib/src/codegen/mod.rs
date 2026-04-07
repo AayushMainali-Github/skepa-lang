@@ -287,7 +287,16 @@ fn runtime_library_path_in_target_dir(target_dir: &Path) -> Result<PathBuf, Code
 }
 
 fn runtime_native_libraries() -> Vec<&'static str> {
-    if cfg!(windows) {
+    if cfg!(all(windows, target_env = "msvc")) {
+        vec![
+            "-lkernel32",
+            "-lntdll",
+            "-luserenv",
+            "-lws2_32",
+            "-ldbghelp",
+            "-lucrt",
+        ]
+    } else if cfg!(windows) {
         vec![
             "-lkernel32",
             "-lntdll",
@@ -347,21 +356,31 @@ fn main() -> Int {
         let args = link_args_for_executable("input.o", "libskepart.a", "out");
         let has_kernel = args.iter().any(|arg| arg == "-lkernel32");
         let has_dbghelp = args.iter().any(|arg| arg == "-ldbghelp");
+        let has_ucrt = args.iter().any(|arg| arg == "-lucrt");
         let has_security_framework = args.iter().any(|arg| arg == "Security");
         let has_core_foundation_framework = args.iter().any(|arg| arg == "CoreFoundation");
-        if cfg!(windows) {
+        if cfg!(all(windows, target_env = "msvc")) {
             assert!(has_kernel);
             assert!(has_dbghelp);
+            assert!(has_ucrt);
+            assert!(!has_security_framework);
+            assert!(!has_core_foundation_framework);
+        } else if cfg!(windows) {
+            assert!(has_kernel);
+            assert!(has_dbghelp);
+            assert!(!has_ucrt);
             assert!(!has_security_framework);
             assert!(!has_core_foundation_framework);
         } else if cfg!(target_os = "macos") {
             assert!(!has_kernel);
             assert!(!has_dbghelp);
+            assert!(!has_ucrt);
             assert!(has_security_framework);
             assert!(has_core_foundation_framework);
         } else {
             assert!(!has_kernel);
             assert!(!has_dbghelp);
+            assert!(!has_ucrt);
             assert!(!has_security_framework);
             assert!(!has_core_foundation_framework);
         }
