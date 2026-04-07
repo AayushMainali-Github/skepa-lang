@@ -295,6 +295,8 @@ fn runtime_native_libraries() -> Vec<&'static str> {
             "-lws2_32",
             "-ldbghelp",
         ]
+    } else if cfg!(target_os = "macos") {
+        vec!["-framework", "Security", "-framework", "CoreFoundation"]
     } else {
         Vec::new()
     }
@@ -345,12 +347,23 @@ fn main() -> Int {
         let args = link_args_for_executable("input.o", "libskepart.a", "out");
         let has_kernel = args.iter().any(|arg| arg == "-lkernel32");
         let has_dbghelp = args.iter().any(|arg| arg == "-ldbghelp");
+        let has_security_framework = args.iter().any(|arg| arg == "Security");
+        let has_core_foundation_framework = args.iter().any(|arg| arg == "CoreFoundation");
         if cfg!(windows) {
             assert!(has_kernel);
             assert!(has_dbghelp);
+            assert!(!has_security_framework);
+            assert!(!has_core_foundation_framework);
+        } else if cfg!(target_os = "macos") {
+            assert!(!has_kernel);
+            assert!(!has_dbghelp);
+            assert!(has_security_framework);
+            assert!(has_core_foundation_framework);
         } else {
             assert!(!has_kernel);
             assert!(!has_dbghelp);
+            assert!(!has_security_framework);
+            assert!(!has_core_foundation_framework);
         }
     }
 
