@@ -457,6 +457,13 @@ Function values are first-class, but function literals are non-capturing.
 
 This means the language supports first-class function values, not general capturing closures.
 
+Practical consequences:
+- `let f: Fn(Int) -> Int = add;` is valid
+- `let f: Fn(Int) -> Int = fn(x: Int) -> Int { return x + 1; };` is valid
+- `let y = 1; let f: Fn(Int) -> Int = fn(x: Int) -> Int { return x + y; };` is rejected
+- passing function values, storing them in arrays/vectors, and returning them is supported
+- closure-style environment capture is not part of the language model
+
 ### Strict Vs Typed Failure
 
 The core rule is:
