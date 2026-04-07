@@ -1055,6 +1055,7 @@ fn interpreter_builtin_matrix_covers_random_fs_and_os_with_deterministic_host() 
 import fs;
 import os;
 import random;
+import result;
 import str;
 import vec;
 
@@ -1064,7 +1065,7 @@ fn main() -> Int {
   let plat = os.platform();
   let args: Vec[String] = vec.new();
   vec.push(args, "status");
-  let out = os.execOut("git", args);
+  let out = result.unwrapOk(os.execOut("git", args));
   if (fs.exists("exists.txt")) {
     return total + str.len(plat) + str.len(out);
   }
@@ -1106,6 +1107,7 @@ fn interpreter_builtin_matrix_covers_new_os_host_helpers() {
     let source = r#"
 import os;
 import option;
+import result;
 import str;
 import vec;
 
@@ -1120,8 +1122,8 @@ fn main() -> Int {
   os.exit(0);
   let args: Vec[String] = vec.new();
   vec.push(args, "status");
-  let code = os.exec("git", args);
-  let out = os.execOut("git", args);
+  let code = result.unwrapOk(os.exec("git", args));
+  let out = result.unwrapOk(os.execOut("git", args));
   if (has && str.len(arch) > 0 && str.len(arg0) > 0 && str.len(home) > 0 && code > 0 && str.len(out) > 0) {
     return 1;
   }
@@ -1156,7 +1158,7 @@ fn main() -> Int {
   let out = io.format("v=%d %b", 12, true);
   let args: Vec[String] = vec.new();
   vec.push(args, "status");
-  let code = os.exec("git", args);
+  let code = result.unwrapOk(os.exec("git", args));
   let bonus = random.int(1, 2);
   return str.len(joined) + str.len(text) + str.len(path) + str.len(out) + code + bonus;
 "#;

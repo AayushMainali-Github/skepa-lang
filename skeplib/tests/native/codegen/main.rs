@@ -1562,7 +1562,7 @@ fn main() -> Int {{
   let arch = os.arch();
   let args: Vec[String] = vec.new();
   vec.push(args, "{exec_arg}");
-  let out = os.execOut("{exec_name}", args);
+  let out = result.unwrapOk(os.execOut("{exec_name}", args));
   io.print(text);
   io.println("");
   io.print(out);
@@ -1773,8 +1773,8 @@ fn main() -> Int {{
   let removed = !os.envHas("SKEPA_TMP_ENV");
   let args: Vec[String] = vec.new();
   vec.push(args, "{exec_arg}");
-  let code = os.exec("{exec_name}", args);
-  let out = os.execOut("{exec_name}", args);
+  let code = result.unwrapOk(os.exec("{exec_name}", args));
+  let out = result.unwrapOk(os.execOut("{exec_name}", args));
   if (str.len(plat) > 0 && str.len(arch) > 0 && str.len(arg0) > 0 && tmp == "ok" && has && removed && code == 0 && str.len(out) > 0) {{
     return 0;
   }}

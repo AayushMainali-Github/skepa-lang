@@ -1185,6 +1185,7 @@ fn sema_accepts_minimal_os_builtin_signatures() {
 import str;
 import os;
 import option;
+import result;
 import vec;
 fn main() -> Int {
   let plat: String = os.platform();
@@ -1197,8 +1198,8 @@ fn main() -> Int {
   os.sleep(1);
   let args: Vec[String] = vec.new();
   vec.push(args, "status");
-  let code: Int = os.exec("git", args);
-  let out: String = os.execOut("git", args);
+  let code: Int = result.unwrapOk(os.exec("git", args));
+  let out: String = result.unwrapOk(os.execOut("git", args));
   if (str.len(plat) >= 0 && str.len(arch) >= 0 && str.len(arg0) >= 0 && hasHome && option.isSome(home) && code >= 0 && str.len(out) >= 0) {
     return 0;
   }
@@ -2068,10 +2069,12 @@ fn main() -> Int {
 fn sema_rejects_os_exec_vec_type_mismatch() {
     let src = r#"
 import os;
+import result;
 import vec;
 fn main() -> Int {
   let args: Vec[Int] = vec.new();
-  return os.exec("git", args);
+  let _x = result.unwrapOk(os.exec("git", args));
+  return 0;
 }
 "#;
     let (result, diags) = analyze_source(src);
@@ -2434,6 +2437,7 @@ import datetime;
 import random;
 import fs;
 import os;
+import result;
 import vec;
 
 fn main() -> Int {
@@ -2448,7 +2452,7 @@ fn main() -> Int {
   let exists: Bool = fs.exists("a");
   let args: Vec[String] = vec.new();
   vec.push(args, "status");
-  let code: Int = os.exec("git", args);
+  let code: Int = result.unwrapOk(os.exec("git", args));
       if (bytes.len(raw) == 1 && (b || exists || code >= 0 || r >= 0.0 || str.len(now) >= 0 || first >= 0 || str.len(s) >= 0)) {
         return vec.len(xs);
       }

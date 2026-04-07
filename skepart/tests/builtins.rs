@@ -582,9 +582,9 @@ fn builtins_cover_net_timeout_setters() {
             &[socket.clone(), RtValue::Int(-1)],
         )
         .expect("negative read timeout should return result"),
-        RtValue::Result(skepart::RtResultValue::err(RtValue::String(RtString::from(
-            "InvalidArgument: net.setReadTimeout millis must be non-negative"
-        ))))
+        RtValue::Result(skepart::RtResultValue::err(RtValue::String(
+            RtString::from("InvalidArgument: net.setReadTimeout millis must be non-negative")
+        )))
     );
     assert_eq!(
         builtins::call_with_host(
@@ -1925,7 +1925,7 @@ fn builtins_cover_host_backed_fs_os_and_random_families_more_thoroughly() {
             ],
         )
         .expect("exec"),
-        RtValue::Int(9)
+        RtValue::Result(skepart::RtResultValue::ok(RtValue::Int(9)))
     );
     assert_eq!(
         builtins::call_with_host(
@@ -1938,7 +1938,9 @@ fn builtins_cover_host_backed_fs_os_and_random_families_more_thoroughly() {
             ],
         )
         .expect("execOut"),
-        RtValue::String(RtString::from("exec-out"))
+        RtValue::Result(skepart::RtResultValue::ok(RtValue::String(RtString::from(
+            "exec-out"
+        ),)))
     );
 
     builtins::call_with_host(&mut host, "random", "seed", &[RtValue::Int(123)]).expect("seed");

@@ -75,14 +75,14 @@ pub(super) const SIGS: &[BuiltinSig] = &[
         package: "os",
         name: "exec",
         params: STRING2_PARAMS,
-        ret: TypeInfo::Int,
+        ret: TypeInfo::Unknown,
         kind: BuiltinKind::FixedArity,
     },
     BuiltinSig {
         package: "os",
         name: "execOut",
         params: STRING2_PARAMS,
-        ret: TypeInfo::String,
+        ret: TypeInfo::Unknown,
         kind: BuiltinKind::FixedArity,
     },
 ];

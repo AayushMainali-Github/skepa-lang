@@ -702,6 +702,7 @@ fn check_accepts_minimal_os_builtins_program() {
         r#"
 import os;
 import option;
+import result;
 import str;
 import vec;
 fn main() -> Int {{
@@ -715,8 +716,8 @@ fn main() -> Int {{
   os.sleep(1);
   let args: Vec[String] = vec.new();
   vec.push(args, "{exec_arg}");
-  let code = os.exec("{exec_name}", args);
-  let out = os.execOut("{exec_name}", args);
+  let code = result.unwrapOk(os.exec("{exec_name}", args));
+  let out = result.unwrapOk(os.execOut("{exec_name}", args));
   if (str.len(p) > 0 && str.len(a) > 0 && str.len(arg0) > 0 && has && str.len(path) > 0 && code == 0 && str.len(out) > 0) {{
     return 0;
   }}

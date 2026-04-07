@@ -861,6 +861,18 @@ impl IrLowerer {
                     value: Box::new(IrType::String),
                 });
             }
+            ("os", "exec") => {
+                return Some(IrType::Result {
+                    ok: Box::new(IrType::Int),
+                    err: Box::new(IrType::String),
+                });
+            }
+            ("os", "execOut") => {
+                return Some(IrType::Result {
+                    ok: Box::new(IrType::String),
+                    err: Box::new(IrType::String),
+                });
+            }
             ("task", "__testTask") => {
                 let value = args.first()?;
                 return Some(IrType::Opaque(format!(

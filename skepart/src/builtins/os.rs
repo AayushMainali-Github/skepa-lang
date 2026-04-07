@@ -1,4 +1,4 @@
-use crate::{RtHost, RtOption, RtResult, RtValue};
+use crate::{RtHost, RtOption, RtResult, RtResultValue, RtValue};
 
 pub fn platform(host: &mut dyn RtHost) -> RtResult<RtValue> {
     Ok(RtValue::String(host.os_platform()?))
@@ -44,9 +44,15 @@ pub fn exit(host: &mut dyn RtHost, code: i64) -> RtResult<RtValue> {
 }
 
 pub fn exec(host: &mut dyn RtHost, program: &str, args: &[String]) -> RtResult<RtValue> {
-    Ok(RtValue::Int(host.os_exec(program, args)?))
+    Ok(RtValue::Result(match host.os_exec(program, args) {
+        Ok(code) => RtResultValue::ok(RtValue::Int(code)),
+        Err(err) => RtResultValue::err(RtValue::String(err.to_string().into())),
+    }))
 }
 
 pub fn exec_out(host: &mut dyn RtHost, program: &str, args: &[String]) -> RtResult<RtValue> {
-    Ok(RtValue::String(host.os_exec_out(program, args)?))
+    Ok(RtValue::Result(match host.os_exec_out(program, args) {
+        Ok(output) => RtResultValue::ok(RtValue::String(output)),
+        Err(err) => RtResultValue::err(RtValue::String(err.to_string().into())),
+    }))
 }

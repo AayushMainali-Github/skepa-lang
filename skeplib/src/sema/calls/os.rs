@@ -52,7 +52,17 @@ pub(super) fn check_os_builtin(
             checker.error(format!("os.{method} argument 2 expects Vec[String]"));
         }
 
-        return sig.ret.clone();
+        return match method {
+            "exec" => TypeInfo::Result {
+                ok: Box::new(TypeInfo::Int),
+                err: Box::new(TypeInfo::String),
+            },
+            "execOut" => TypeInfo::Result {
+                ok: Box::new(TypeInfo::String),
+                err: Box::new(TypeInfo::String),
+            },
+            _ => sig.ret.clone(),
+        };
     }
 
     checker.check_fixed_arity_builtin("os", method, args, scopes, sig)

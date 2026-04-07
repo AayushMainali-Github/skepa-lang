@@ -807,8 +807,8 @@ Signatures:
 - `os.envRemove(name: String) -> Void`
 - `os.sleep(ms: Int) -> Void`
 - `os.exit(code: Int) -> Void`
-- `os.exec(program: String, args: Vec[String]) -> Int`
-- `os.execOut(program: String, args: Vec[String]) -> String`
+- `os.exec(program: String, args: Vec[String]) -> Result[Int, String]`
+- `os.execOut(program: String, args: Vec[String]) -> Result[String, String]`
 
 Behavior:
 - All `os` functions are synchronous/blocking.
@@ -821,15 +821,14 @@ Behavior:
 - `os.envRemove(name)` removes an environment variable from the current process.
 - `os.sleep(ms)` requires non-negative milliseconds; negative values raise a runtime error.
 - `os.exit(code)` terminates the current process with the provided exit code.
-- `os.exec(program, args)` runs the program directly with argv arguments and returns the process exit code.
-- `os.execOut(program, args)` runs the program directly with argv arguments and returns stdout as `String`.
+- `os.exec(program, args)` runs the program directly with argv arguments and returns `Ok(exitCode)` on success or `Err(String)` if the process cannot be spawned.
+- `os.execOut(program, args)` runs the program directly with argv arguments and returns `Ok(stdout)` on success or `Err(String)` if the process cannot be spawned.
 
 Notes:
 - `os.arg(index)` raises a runtime error for negative or out-of-range indices.
 - `os.envGet(name)` raises a runtime error only for invalid non-UTF-8 environment data.
-- `os.exec*` raises a runtime error if the program cannot be spawned.
 - `os.execOut(program, args)` uses lossy UTF-8 decoding for stdout and trims trailing line endings.
-- If a process exits without a normal exit code, `os.exec(program, args)` returns `-1`.
+- If a process exits without a normal exit code, `os.exec(program, args)` returns `Ok(-1)`.
 
 ### 8.8 `fs`
 
