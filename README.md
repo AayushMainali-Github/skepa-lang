@@ -51,6 +51,23 @@ skepac build-llvm-ir app.sk app.ll
 
 For full language/module reference, see `DOCS.md`.
 
+Builtin package roots include:
+- `io`
+- `str`
+- `option`
+- `result`
+- `bytes`
+- `map`
+- `arr`
+- `datetime`
+- `random`
+- `os`
+- `fs`
+- `net`
+- `vec`
+- `task`
+- `ffi`
+
 ## Contributing
 
 See [`.github/CONTRIBUTING.md`](./.github/CONTRIBUTING.md) for contribution workflow and commit message guidance.

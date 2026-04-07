@@ -233,7 +233,7 @@ These are available through namespace paths (`string.case.up(...)`).
 - Wildcard imports can conflict with prior bindings; conflict is an error.
 - Export target names collide after aliasing, not before.
 - If same target name appears from multiple export blocks, it is an error.
-- Builtin package names (`io`, `str`, `bytes`, `map`, `arr`, `datetime`, `random`, `os`, `fs`, `net`, `vec`, `task`, `ffi`) are reserved package roots.
+- Builtin package names (`io`, `str`, `option`, `result`, `bytes`, `map`, `arr`, `datetime`, `random`, `os`, `fs`, `net`, `vec`, `task`, `ffi`) are reserved package roots.
 - `import ns; ns.f(...)` works only when `f` is exported exactly under that namespace level. Example: `import string; string.toUpper(...)` is invalid if only `string.case.toUpper` exists.
 
 ## 5. Operators
@@ -684,6 +684,8 @@ fn addBoth(a: Result[Int, String], b: Result[Int, String]) -> Result[Int, String
 
 - `io`: print/read and formatting helpers
 - `str`: string utilities (`len`, `contains`, `startsWith`, `endsWith`, `trim`, `toLower`, `toUpper`, `indexOf`, `lastIndexOf`, `slice`, `replace`, `repeat`, `isEmpty`)
+- `option`: option helpers (`isSome`, `isNone`, `unwrapSome`) for `Option[T]`
+- `result`: result helpers (`isOk`, `isErr`, `unwrapOk`, `unwrapErr`) for `Result[T, E]`
 - `bytes`: byte-string helpers (`fromString`, `toString`, `len`, `get`, `slice`, `concat`, `push`, `append`)
 - `map`: string-keyed map helpers (`new`, `len`, `has`, `get`, `insert`, `remove`)
 - `arr`: static-array helpers (`len`, `isEmpty`, `contains`, `indexOf`, `count`, `first`, `last`, `join`)
@@ -751,7 +753,87 @@ Notes:
 - `str.slice` returns `Ok(String)` on valid bounds and `Err(String)` on invalid bounds.
 - Exact `str.len` semantics follow runtime string helper behavior used by the implementation/tests.
 
-### 8.4 `arr`
+### 8.4 `option`
+
+Signatures:
+- `option.isSome(value: Option[T]) -> Bool`
+- `option.isNone(value: Option[T]) -> Bool`
+- `option.unwrapSome(value: Option[T]) -> T`
+
+Behavior:
+- `Option[T]` is the language mechanism for ordinary absence.
+- `Some(value)` / `some(value)` construct present option values.
+- `None()` / `none()` construct absent option values.
+- `option.isSome` returns `true` when the value is `Some(...)`.
+- `option.isNone` returns `true` when the value is `None()`.
+- `option.unwrapSome` returns the inner value for `Some(...)`.
+
+Notes:
+- `option.unwrapSome` is a strict helper and raises a runtime error when given `None()`.
+- `Option[T]` values support language-level `==` / `!=`.
+- `match` supports `Some(x)` and `None` patterns directly.
+- `expr?` on `Option[T]` unwraps `Some(value)` or returns `None()` from a compatible function-like body.
+
+Example:
+
+```sk
+import option;
+
+fn main() -> Int {
+  let value: Option[Int] = Some(7);
+  if (option.isSome(value) && option.unwrapSome(value) == 7) {
+    return 0;
+  }
+  return 1;
+}
+```
+
+### 8.5 `result`
+
+Signatures:
+- `result.isOk(value: Result[T, E]) -> Bool`
+- `result.isErr(value: Result[T, E]) -> Bool`
+- `result.unwrapOk(value: Result[T, E]) -> T`
+- `result.unwrapErr(value: Result[T, E]) -> E`
+
+Behavior:
+- `Result[T, E]` is the language mechanism for ordinary recoverable failure.
+- `Ok(value)` / `ok(value)` construct success values.
+- `Err(error)` / `err(error)` construct failure values.
+- `result.isOk` returns `true` for `Ok(...)`.
+- `result.isErr` returns `true` for `Err(...)`.
+- `result.unwrapOk` returns the success payload.
+- `result.unwrapErr` returns the error payload.
+
+Notes:
+- `result.unwrapOk` and `result.unwrapErr` are strict helpers and raise runtime errors when used on the wrong variant.
+- `Result[T, E]` values support language-level `==` / `!=`.
+- `match` supports `Ok(v)` and `Err(e)` patterns directly.
+- `expr?` on `Result[T, E]` unwraps `Ok(value)` or returns `Err(error)` from a compatible function-like body.
+- `E` may be a builtin type or a user-defined named type such as a struct.
+
+Example:
+
+```sk
+import result;
+
+fn parse(flag: Bool) -> Result[Int, String] {
+  if (flag) {
+    return Ok(7);
+  }
+  return Err("bad");
+}
+
+fn main() -> Int {
+  let value: Result[Int, String] = parse(true);
+  if (result.isOk(value) && result.unwrapOk(value) == 7) {
+    return 0;
+  }
+  return 1;
+}
+```
+
+### 8.6 `arr`
 
 Signatures:
 - `arr.len(a: [T; N]) -> Int`
@@ -771,7 +853,7 @@ Notes:
 - `arr.first` / `arr.last` return `Some(value)` on non-empty arrays and `None()` on empty arrays.
 - `arr.join` is defined for `Array[String]`.
 
-### 8.5 `datetime`
+### 8.7 `datetime`
 
 Signatures:
 - `datetime.nowUnix() -> Int`
@@ -794,7 +876,7 @@ Notes:
 - `datetime.parseUnix` expects `YYYY-MM-DDTHH:MM:SSZ`.
 - `datetime.parseUnix` returns `Ok(Int)` on valid input and `Err(String)` on invalid input.
 
-### 8.6 `random`
+### 8.8 `random`
 
 Signatures:
 - `random.seed(seed: Int) -> Void`
@@ -809,7 +891,7 @@ Behavior:
 Notes:
 - Random behavior is deterministic for a given seed within the same runtime implementation.
 
-### 8.7 `os`
+### 8.9 `os`
 
 Signatures:
 - `os.platform() -> String`
@@ -844,7 +926,7 @@ Notes:
 - `os.execOut(program, args)` uses lossy UTF-8 decoding for stdout and trims trailing line endings.
 - If a process exits without a normal exit code, `os.exec(program, args)` returns `Ok(-1)`.
 
-### 8.8 `fs`
+### 8.10 `fs`
 
 Signatures:
 - `fs.exists(path: String) -> Result[Bool, String]`
@@ -873,7 +955,7 @@ Notes:
 - `fs.readText` returns `Err(String)` on read failure or invalid UTF-8.
 - `fs.writeText`, `fs.appendText`, `fs.mkdirAll`, `fs.removeFile`, and `fs.removeDirAll` return `Err(String)` on filesystem failure.
 
-### 8.9 `bytes`
+### 8.11 `bytes`
 
 Signatures:
 - `bytes.fromString(s: String) -> Bytes`
@@ -898,7 +980,7 @@ Notes:
 - `bytes.slice` requires valid non-negative bounds with `start <= end`.
 - `Bytes` supports language-level `==` / `!=` by content.
 
-### 8.10 `map`
+### 8.12 `map`
 
 Signatures:
 - `map.new() -> Map[String, T]` (typed context required)
@@ -920,7 +1002,7 @@ Notes:
 - `map.remove` returns `Some(value)` when the key existed and `None()` when it did not.
 - `Map` values cannot currently be compared with `==` or `!=`.
 
-### 8.11 `net`
+### 8.13 `net`
 
 Opaque types:
 - `net.Socket`
@@ -1145,7 +1227,7 @@ fn main() -> Int {
 }
 ```
 
-### 8.12 `task`
+### 8.14 `task`
 
 Opaque types:
 - `task.Task[T]`
@@ -1171,7 +1253,7 @@ Notes:
 - `task.join` on the same task more than once raises a runtime error.
 - The interpreter keeps a deterministic inline fallback for task execution; native and CLI paths use real background threads.
 
-### 8.13 `ffi`
+### 8.15 `ffi`
 
 Opaque types:
 - `ffi.Library`
@@ -1229,7 +1311,7 @@ Notes:
 - Calling a symbol with the wrong ABI or signature is undefined behavior at the foreign boundary.
 - The runtime still uses low-level `ffi.call...` helpers internally when lowering linked extern calls, but they are not the intended user-facing API.
 
-### 8.14 `vec`
+### 8.16 `vec`
 
 Signatures:
 - `vec.new() -> Vec[T]` (typed context required)
