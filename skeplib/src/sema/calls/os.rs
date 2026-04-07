@@ -30,6 +30,20 @@ pub(super) fn check_os_builtin(
         };
     }
 
+    if method == "arg" {
+        if args.len() != 1 {
+            checker.error(format!("os.arg expects 1 argument(s), got {}", args.len()));
+            return TypeInfo::Unknown;
+        }
+        let got = checker.check_expr(&args[0], scopes);
+        if got != TypeInfo::Int && got != TypeInfo::Unknown {
+            checker.error("os.arg argument 1 expects Int".to_string());
+        }
+        return TypeInfo::Option {
+            value: Box::new(TypeInfo::String),
+        };
+    }
+
     if matches!(method, "exec" | "execOut") {
         if args.len() != 2 {
             checker.error(format!(

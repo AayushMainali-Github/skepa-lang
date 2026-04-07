@@ -871,7 +871,7 @@ import str;
 fn main() -> Int {
   let now = datetime.nowUnix();
   let platform = os.platform();
-  if (fs.exists("missing.txt")) {
+  if (result.unwrapOk(fs.exists("missing.txt"))) {
     return now + str.len(platform);
   }
   return now;
@@ -1355,7 +1355,7 @@ struct Pair {
 
 fn main() -> Int {
   let p = Pair { a: 3, b: 4 };
-  if (fs.exists("missing.txt")) {
+  if (result.unwrapOk(fs.exists("missing.txt"))) {
     return p.a;
   }
   return p.b;
@@ -1567,7 +1567,7 @@ fn main() -> Int {{
   io.println("");
   io.print(out);
   io.println("");
-  if (fs.exists("{path_text}") && str.len(text) == 2 && str.contains(joined, "note.txt") && str.len(platform) > 0 && str.len(arch) > 0) {{
+  if (result.unwrapOk(fs.exists("{path_text}")) && str.len(text) == 2 && str.contains(joined, "note.txt") && str.len(platform) > 0 && str.len(arch) > 0) {{
     return 0;
   }}
   return 1;
@@ -1765,7 +1765,7 @@ import vec;
 fn main() -> Int {{
   let plat = os.platform();
   let arch = os.arch();
-  let arg0 = os.arg(0);
+  let arg0 = option.unwrapSome(os.arg(0));
   os.envSet("SKEPA_TMP_ENV", "ok");
   let tmp = option.unwrapSome(os.envGet("SKEPA_TMP_ENV"));
   let has = os.envHas("SKEPA_TMP_ENV");

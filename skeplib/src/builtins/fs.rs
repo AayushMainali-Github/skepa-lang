@@ -10,7 +10,7 @@ pub(super) const SIGS: &[BuiltinSig] = &[
         package: "fs",
         name: "exists",
         params: STRING1,
-        ret: TypeInfo::Bool,
+        ret: TypeInfo::Unknown,
         kind: BuiltinKind::FixedArity,
     },
     BuiltinSig {

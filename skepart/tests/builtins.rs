@@ -1794,7 +1794,7 @@ fn builtins_cover_host_backed_fs_os_and_random_families_more_thoroughly() {
             &[RtValue::String(RtString::from("exists.txt"))],
         )
         .expect("fs exists"),
-        RtValue::Bool(true)
+        RtValue::Result(skepart::RtResultValue::ok(RtValue::Bool(true)))
     );
     assert_eq!(
         builtins::call_with_host(
@@ -1871,7 +1871,9 @@ fn builtins_cover_host_backed_fs_os_and_random_families_more_thoroughly() {
     );
     assert_eq!(
         builtins::call_with_host(&mut host, "os", "arg", &[RtValue::Int(1)]).expect("arg"),
-        RtValue::String(RtString::from("--flag"))
+        RtValue::Option(skepart::RtOption::some(RtValue::String(RtString::from(
+            "--flag",
+        ))))
     );
     assert_eq!(
         builtins::call_with_host(
@@ -2030,15 +2032,13 @@ fn builtins_reject_new_os_invalid_argument_shapes() {
     let mut host = RecordingHostBuilder::seeded().build();
     assert_eq!(
         builtins::call_with_host(&mut host, "os", "arg", &[RtValue::Int(-1)])
-            .expect_err("negative arg index")
-            .kind,
-        RtErrorKind::InvalidArgument
+            .expect("negative arg index"),
+        RtValue::Option(skepart::RtOption::none())
     );
     assert_eq!(
         builtins::call_with_host(&mut host, "os", "arg", &[RtValue::Int(99)],)
-            .expect_err("oob arg index")
-            .kind,
-        RtErrorKind::IndexOutOfBounds
+            .expect("oob arg index"),
+        RtValue::Option(skepart::RtOption::none())
     );
     assert_eq!(
         builtins::call_with_host(

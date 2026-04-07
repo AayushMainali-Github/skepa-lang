@@ -800,7 +800,7 @@ Notes:
 Signatures:
 - `os.platform() -> String`
 - `os.arch() -> String`
-- `os.arg(index: Int) -> String`
+- `os.arg(index: Int) -> Option[String]`
 - `os.envHas(name: String) -> Bool`
 - `os.envGet(name: String) -> Option[String]`
 - `os.envSet(name: String, value: String) -> Void`
@@ -814,7 +814,7 @@ Behavior:
 - All `os` functions are synchronous/blocking.
 - `os.platform()` returns one of `windows`, `linux`, `macos`.
 - `os.arch()` returns the host architecture string from the runtime environment.
-- `os.arg(index)` returns the process argument at `index`.
+- `os.arg(index)` returns `Some(value)` when the process argument exists and `None()` when it does not.
 - `os.envHas(name)` returns whether an environment variable is present.
 - `os.envGet(name)` returns `Some(value)` when the variable exists and `None()` when it does not.
 - `os.envSet(name, value)` sets an environment variable for the current process.
@@ -825,7 +825,7 @@ Behavior:
 - `os.execOut(program, args)` runs the program directly with argv arguments and returns `Ok(stdout)` on success or `Err(String)` if the process cannot be spawned.
 
 Notes:
-- `os.arg(index)` raises a runtime error for negative or out-of-range indices.
+- `os.arg(index)` returns `None()` for negative or out-of-range indices.
 - `os.envGet(name)` raises a runtime error only for invalid non-UTF-8 environment data.
 - `os.execOut(program, args)` uses lossy UTF-8 decoding for stdout and trims trailing line endings.
 - If a process exits without a normal exit code, `os.exec(program, args)` returns `Ok(-1)`.
@@ -833,7 +833,7 @@ Notes:
 ### 8.8 `fs`
 
 Signatures:
-- `fs.exists(path: String) -> Bool`
+- `fs.exists(path: String) -> Result[Bool, String]`
 - `fs.readText(path: String) -> Result[String, String]`
 - `fs.writeText(path: String, data: String) -> Result[Void, String]`
 - `fs.appendText(path: String, data: String) -> Result[Void, String]`

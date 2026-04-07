@@ -26,7 +26,7 @@ pub(super) const SIGS: &[BuiltinSig] = &[
         package: "os",
         name: "arg",
         params: INT_PARAM,
-        ret: TypeInfo::String,
+        ret: TypeInfo::Unknown,
         kind: BuiltinKind::FixedArity,
     },
     BuiltinSig {

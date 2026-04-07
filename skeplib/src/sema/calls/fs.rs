@@ -14,6 +14,13 @@ pub(super) fn check_fs_builtin(
     sig: &BuiltinSig,
 ) -> TypeInfo {
     match method {
+        "exists" => {
+            checker.check_fixed_arity_builtin("fs", method, args, scopes, sig);
+            TypeInfo::Result {
+                ok: Box::new(TypeInfo::Bool),
+                err: Box::new(TypeInfo::String),
+            }
+        }
         "readText" => {
             checker.check_fixed_arity_builtin("fs", method, args, scopes, sig);
             TypeInfo::Result {

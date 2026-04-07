@@ -846,6 +846,12 @@ impl IrLowerer {
                     err: Box::new(IrType::String),
                 });
             }
+            ("fs", "exists") => {
+                return Some(IrType::Result {
+                    ok: Box::new(IrType::Bool),
+                    err: Box::new(IrType::String),
+                });
+            }
             ("fs", "writeText")
             | ("fs", "appendText")
             | ("fs", "mkdirAll")
@@ -857,6 +863,11 @@ impl IrLowerer {
                 });
             }
             ("os", "envGet") => {
+                return Some(IrType::Option {
+                    value: Box::new(IrType::String),
+                });
+            }
+            ("os", "arg") => {
                 return Some(IrType::Option {
                     value: Box::new(IrType::String),
                 });

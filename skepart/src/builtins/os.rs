@@ -9,7 +9,10 @@ pub fn arch(host: &mut dyn RtHost) -> RtResult<RtValue> {
 }
 
 pub fn arg(host: &mut dyn RtHost, index: i64) -> RtResult<RtValue> {
-    Ok(RtValue::String(host.os_arg(index)?))
+    Ok(RtValue::Option(match host.os_arg(index) {
+        Ok(value) => RtOption::some(RtValue::String(value)),
+        Err(_) => RtOption::none(),
+    }))
 }
 
 pub fn env_has(host: &mut dyn RtHost, name: &str) -> RtResult<RtValue> {

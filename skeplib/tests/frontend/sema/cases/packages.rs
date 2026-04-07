@@ -1190,7 +1190,7 @@ import vec;
 fn main() -> Int {
   let plat: String = os.platform();
   let arch: String = os.arch();
-  let arg0: String = os.arg(0);
+  let arg0: String = option.unwrapSome(os.arg(0));
   let hasHome: Bool = os.envHas("HOME");
   let home: Option[String] = os.envGet("HOME");
   os.envSet("MODE", "debug");
@@ -2145,7 +2145,7 @@ fn sema_accepts_minimal_fs_builtin_signatures() {
 import fs;
 import result;
 fn main() -> Int {
-  let ex: Bool = fs.exists("a");
+  let ex: Bool = result.unwrapOk(fs.exists("a"));
   let p: String = fs.join("a", "b");
   let t: String = result.unwrapOk(fs.readText("a.txt"));
   result.unwrapOk(fs.writeText("a.txt", "x"));
@@ -2153,7 +2153,7 @@ fn main() -> Int {
   result.unwrapOk(fs.mkdirAll("tmp/a/b"));
   result.unwrapOk(fs.removeFile("a.txt"));
   result.unwrapOk(fs.removeDirAll("tmp"));
-  if (ex || fs.exists(p) || (t == "")) {
+  if (ex || result.unwrapOk(fs.exists(p)) || (t == "")) {
     return 0;
   }
   return 0;
@@ -2449,7 +2449,7 @@ fn main() -> Int {
   let xs: Vec[Int] = vec.new();
   let now: String = datetime.fromUnix(0);
   let r: Float = random.float();
-  let exists: Bool = fs.exists("a");
+  let exists: Bool = result.unwrapOk(fs.exists("a"));
   let args: Vec[String] = vec.new();
   vec.push(args, "status");
   let code: Int = result.unwrapOk(os.exec("git", args));

@@ -1,7 +1,12 @@
-use crate::{RtHost, RtResult, RtValue};
+use crate::{RtHost, RtResult, RtResultValue, RtString, RtValue};
 
 pub fn exists(host: &mut dyn RtHost, path: &str) -> RtResult<RtValue> {
-    Ok(RtValue::Bool(host.fs_exists(path)?))
+    match host.fs_exists(path) {
+        Ok(value) => Ok(RtValue::Result(RtResultValue::ok(RtValue::Bool(value)))),
+        Err(err) => Ok(RtValue::Result(RtResultValue::err(RtValue::String(
+            RtString::from(err.to_string()),
+        )))),
+    }
 }
 
 pub fn read_text(host: &mut dyn RtHost, path: &str) -> RtResult<RtValue> {

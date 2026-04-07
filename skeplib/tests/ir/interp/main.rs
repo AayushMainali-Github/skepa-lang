@@ -1066,7 +1066,7 @@ fn main() -> Int {
   let args: Vec[String] = vec.new();
   vec.push(args, "status");
   let out = result.unwrapOk(os.execOut("git", args));
-  if (fs.exists("exists.txt")) {
+  if (result.unwrapOk(fs.exists("exists.txt"))) {
     return total + str.len(plat) + str.len(out);
   }
   return 0;
@@ -1113,7 +1113,7 @@ import vec;
 
 fn main() -> Int {
   let arch = os.arch();
-  let arg0 = os.arg(0);
+  let arg0 = option.unwrapSome(os.arg(0));
   let has = os.envHas("HOME");
   let home = option.unwrapSome(os.envGet("HOME"));
   os.envSet("MODE", "debug");

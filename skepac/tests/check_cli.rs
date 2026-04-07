@@ -708,7 +708,7 @@ import vec;
 fn main() -> Int {{
   let p = os.platform();
   let a = os.arch();
-  let arg0 = os.arg(0);
+  let arg0 = option.unwrapSome(os.arg(0));
   let has = os.envHas("PATH");
   let path = option.unwrapSome(os.envGet("PATH"));
   os.envSet("SKEPA_TMP_ENV", "ok");
@@ -746,7 +746,7 @@ import fs;
 import result;
 import str;
 fn main() -> Int {
-  let ex: Bool = fs.exists("a");
+  let ex: Bool = result.unwrapOk(fs.exists("a"));
   let p: String = fs.join("a", "b");
   let t: String = result.unwrapOk(fs.readText("a.txt"));
   result.unwrapOk(fs.writeText("a.txt", "x"));
@@ -754,7 +754,7 @@ fn main() -> Int {
   result.unwrapOk(fs.mkdirAll("tmp/a/b"));
   result.unwrapOk(fs.removeFile("a.txt"));
   result.unwrapOk(fs.removeDirAll("tmp"));
-  if (ex || fs.exists(p) || (t == "") || str.len(p) >= 0) {
+  if (ex || result.unwrapOk(fs.exists(p)) || (t == "") || str.len(p) >= 0) {
     return 0;
   }
   return 0;
