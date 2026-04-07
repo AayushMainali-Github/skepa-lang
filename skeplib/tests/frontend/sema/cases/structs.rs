@@ -526,10 +526,11 @@ struct Profile { score: Int }
 struct User { profile: Profile }
 
 fn main() -> Int {
+  import option;
   let users: [User; 1] = [User { profile: Profile { score: 7 } }];
   let cache: Vec[User] = vec.new();
   vec.push(cache, users[0]);
-  return vec.get(cache, 0).profile.score;
+  return option.unwrapSome(vec.get(cache, 0)).profile.score;
 }
 "#;
     let (result, diags) = analyze_source(src);

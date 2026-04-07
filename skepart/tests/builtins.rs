@@ -142,7 +142,7 @@ fn builtins_cover_bytes_roundtrip_and_type_errors() {
             ],
         )
         .expect("bytes.get"),
-        RtValue::Int(101)
+        RtValue::Option(skepart::RtOption::some(RtValue::Int(101)))
     );
     assert_eq!(
         builtins::call(
@@ -218,9 +218,8 @@ fn builtins_cover_bytes_roundtrip_and_type_errors() {
                 RtValue::Int(-1)
             ],
         )
-        .expect_err("bytes.get negative index")
-        .kind,
-        RtErrorKind::IndexOutOfBounds
+        .expect("bytes.get negative index should return none"),
+        RtValue::Option(skepart::RtOption::none())
     );
     assert_eq!(
         builtins::call(

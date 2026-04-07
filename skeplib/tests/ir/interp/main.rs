@@ -769,12 +769,13 @@ fn add1(x: Int) -> Int {
 }
 
 fn main() -> Int {
+  import option;
   let arr: [Int; 2] = [1; 2];
   let xs: Vec[Int] = vec.new();
   let p = Pair { a: arr[0], b: 3 };
   let f: Fn(Int) -> Int = add1;
   vec.push(xs, p.mix(4));
-  return f(vec.get(xs, 0));
+  return f(option.unwrapSome(vec.get(xs, 0)));
 }
 "#;
 
@@ -790,12 +791,13 @@ struct Boxed {
 }
 
 fn main() -> Int {
+  import option;
   let outer: [Int; 2] = [4; 2];
   let xs: Vec[Int] = vec.new();
   vec.push(xs, outer[0]);
   vec.push(xs, outer[1] + 3);
   let boxed = Boxed { items: xs };
-  return vec.get(boxed.items, 0) + vec.get(boxed.items, 1);
+  return option.unwrapSome(vec.get(boxed.items, 0)) + option.unwrapSome(vec.get(boxed.items, 1));
 }
 "#;
 
@@ -807,11 +809,12 @@ fn main() -> Int {
 fn interpreter_preserves_shared_aliasing_for_vecs_and_struct_handles() {
     let source = r#"
 fn main() -> Int {
+  import option;
   let xs: Vec[Int] = vec.new();
   let ys = xs;
   vec.push(xs, 3);
   vec.set(ys, 0, 9);
-  return vec.get(xs, 0);
+  return option.unwrapSome(vec.get(xs, 0));
 }
 "#;
 
@@ -898,6 +901,7 @@ fn main() -> Int {
 fn interpreter_supports_bytes_builtins_through_runtime() {
     let source = r#"
 import bytes;
+import option;
 
 fn main() -> Int {
   let raw: Bytes = bytes.fromString("net");
@@ -906,7 +910,7 @@ fn main() -> Int {
   let joined: Bytes = bytes.concat(mid, bytes.fromString("t"));
   let grown: Bytes = bytes.push(joined, 33);
   let same: Bool = bytes.append(mid, bytes.fromString("t")) == joined;
-  if (text == "net" && bytes.get(raw, 0) == 110 && bytes.toString(grown) == "ett!" && same) {
+  if (text == "net" && option.unwrapSome(bytes.get(raw, 0)) == 110 && bytes.toString(grown) == "ett!" && same) {
     return bytes.len(raw);
   }
   return 0;
@@ -1621,27 +1625,37 @@ fn main() -> String {
 "#,
         ExpectedErrorKind::IndexOutOfBounds,
     );
-    assert_ir_rejects_source(
+    assert_eq!(
+        common::ir_run_ok(
         r#"
 import arr;
 
 fn main() -> Int {
   let xs: [Int; 0] = [];
-  return arr.first(xs);
+  if (arr.first(xs) == None()) {
+    return 0;
+  }
+  return 1;
 }
 "#,
-        ExpectedErrorKind::IndexOutOfBounds,
+        ),
+        IrValue::Int(0)
     );
-    assert_ir_rejects_source(
+    assert_eq!(
+        common::ir_run_ok(
         r#"
 import vec;
 
 fn main() -> Int {
   let xs: Vec[Int] = vec.new();
-  return vec.get(xs, 0);
+  if (vec.get(xs, 0) == None()) {
+    return 0;
+  }
+  return 1;
 }
 "#,
-        ExpectedErrorKind::IndexOutOfBounds,
+        ),
+        IrValue::Int(0)
     );
 }
 

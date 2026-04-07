@@ -865,6 +865,7 @@ fn check_accepts_minimal_bytes_builtins_program() {
         &file,
         r#"
 import bytes;
+import option;
 import str;
 
 fn main() -> Int {
@@ -872,7 +873,7 @@ fn main() -> Int {
   let text: String = bytes.toString(raw);
   let n: Int = bytes.len(raw);
   let piece: Bytes = bytes.slice(raw, 1, 4);
-  let first: Int = bytes.get(raw, 0);
+  let first: Int = option.unwrapSome(bytes.get(raw, 0));
   let joined: Bytes = bytes.concat(piece, bytes.fromString("lo"));
   let pushed: Bytes = bytes.push(joined, 33);
   let appended: Bytes = bytes.append(piece, bytes.fromString("lo"));
@@ -1551,12 +1552,13 @@ fn check_accepts_vec_program() {
         &file,
         r#"
 import vec;
+import option;
 fn main() -> Int {
   let xs: Vec[Int] = vec.new();
   vec.push(xs, 10);
   vec.push(xs, 20);
   vec.set(xs, 1, 30);
-  let y: Int = vec.get(xs, 0);
+  let y: Int = option.unwrapSome(vec.get(xs, 0));
   let z: Int = vec.delete(xs, 1);
   if (vec.len(xs) == 1 && y == 10 && z == 30) {
     return 0;

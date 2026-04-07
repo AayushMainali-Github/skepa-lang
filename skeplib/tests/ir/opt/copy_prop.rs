@@ -26,12 +26,14 @@ fn main() -> Int {
 #[test]
 fn copy_prop_does_not_cross_runtime_managed_mutations() {
     let source = r#"
+import option;
+
 fn main() -> Int {
   let xs: Vec[Int] = vec.new();
   let alias = xs;
   vec.push(xs, 4);
   vec.set(alias, 0, 9);
-  return vec.get(xs, 0);
+  return option.unwrapSome(vec.get(xs, 0));
 }
 "#;
 

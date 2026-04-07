@@ -70,13 +70,15 @@ fn main() -> Int {
 #[test]
 fn ir_interpreter_runs_array_and_vec_program_for_runtime_validation() {
     let src = r#"
+import option;
+
 fn main() -> Int {
   let arr: [Int; 3] = [1; 3];
   arr[1] = 5;
   let xs: Vec[Int] = vec.new();
   vec.push(xs, arr[0]);
   vec.push(xs, arr[1]);
-  return vec.get(xs, 0) + vec.get(xs, 1) + arr[2];
+  return option.unwrapSome(vec.get(xs, 0)) + option.unwrapSome(vec.get(xs, 1)) + arr[2];
 }
 "#;
 

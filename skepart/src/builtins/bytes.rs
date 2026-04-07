@@ -1,4 +1,4 @@
-use crate::{RtBytes, RtError, RtErrorKind, RtResult, RtString, RtValue};
+use crate::{RtBytes, RtError, RtErrorKind, RtOption, RtResult, RtString, RtValue};
 
 pub fn from_string(value: &str) -> RtResult<RtValue> {
     Ok(RtValue::Bytes(RtBytes::from(value.as_bytes())))
@@ -18,13 +18,14 @@ pub fn len(value: &RtBytes) -> RtValue {
     RtValue::Int(value.len() as i64)
 }
 
-pub fn get(value: &RtBytes, index: i64) -> RtResult<RtValue> {
-    let index = usize::try_from(index)
-        .map_err(|_| RtError::new(RtErrorKind::IndexOutOfBounds, "negative bytes index"))?;
-    let byte = value
-        .get(index)
-        .ok_or_else(|| RtError::index_out_of_bounds(index, value.len()))?;
-    Ok(RtValue::Int(i64::from(byte)))
+pub fn get(value: &RtBytes, index: i64) -> RtValue {
+    let Ok(index) = usize::try_from(index) else {
+        return RtValue::Option(RtOption::none());
+    };
+    match value.get(index) {
+        Some(byte) => RtValue::Option(RtOption::some(RtValue::Int(i64::from(byte)))),
+        None => RtValue::Option(RtOption::none()),
+    }
 }
 
 pub fn slice(value: &RtBytes, start: i64, end: i64) -> RtResult<RtValue> {

@@ -65,7 +65,7 @@ pub(super) fn check_vec_builtin(
                 checker.error(format!("vec.get argument 2 expects Int, got {:?}", idx_ty));
             }
             match vec_ty {
-                TypeInfo::Vec { elem } => *elem,
+                TypeInfo::Vec { elem } => TypeInfo::Option { value: elem },
                 TypeInfo::Unknown => TypeInfo::Unknown,
                 got => {
                     checker.error(format!("vec.get argument 1 expects Vec, got {:?}", got));

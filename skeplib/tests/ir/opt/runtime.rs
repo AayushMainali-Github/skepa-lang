@@ -5,6 +5,7 @@ use super::common;
 #[test]
 fn optimizer_preserves_runtime_managed_semantics_across_arrays_vecs_structs_and_strings() {
     let source = r#"
+import option;
 import str;
 
 struct Boxed {
@@ -13,7 +14,7 @@ struct Boxed {
 
 impl Boxed {
   fn total(self) -> Int {
-    return vec.get(self.items, 0) + vec.get(self.items, 1);
+    return option.unwrapSome(vec.get(self.items, 0)) + option.unwrapSome(vec.get(self.items, 1));
   }
 }
 

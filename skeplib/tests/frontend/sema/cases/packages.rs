@@ -141,13 +141,14 @@ fn main() -> Int {
 fn sema_accepts_bytes_builtins() {
     let src = r#"
 import bytes;
+import option;
 import str;
 
 fn main() -> Int {
   let b: Bytes = bytes.fromString("hello");
   let s: String = bytes.toString(b);
   let n: Int = bytes.len(b);
-  let first: Int = bytes.get(b, 1);
+  let first: Int = option.unwrapSome(bytes.get(b, 1));
   let cut: Bytes = bytes.slice(b, 1, 4);
   let joined: Bytes = bytes.concat(cut, bytes.fromString("o"));
   let pushed: Bytes = bytes.push(joined, 33);
@@ -787,11 +788,12 @@ fn main() -> Int {
 fn sema_accepts_arr_count_first_last() {
     let src = r#"
 import arr;
+import option;
 fn main() -> Int {
   let a: [Int; 5] = [2, 9, 2, 3, 2];
   let c = arr.count(a, 2);
-  let f = arr.first(a);
-  let l = arr.last(a);
+  let f = option.unwrapSome(arr.first(a));
+  let l = option.unwrapSome(arr.last(a));
   if (c == 3 && f == 2 && l == 2) {
     return 1;
   }
@@ -2445,7 +2447,7 @@ fn main() -> Int {
       let s: String = io.format("%d", 1);
   let b: Bool = str.isEmpty("");
   let a: [Int; 2] = [1, 2];
-  let first: Int = arr.first(a);
+  let first: Int = option.unwrapSome(arr.first(a));
   let xs: Vec[Int] = vec.new();
   let now: String = datetime.fromUnix(0);
   let r: Float = random.float();

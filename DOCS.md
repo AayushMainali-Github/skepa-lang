@@ -745,8 +745,8 @@ Signatures:
 - `arr.contains(a: [T; N], x: T) -> Bool`
 - `arr.indexOf(a: [T; N], x: T) -> Int`
 - `arr.count(a: [T; N], x: T) -> Int`
-- `arr.first(a: [T; N]) -> T`
-- `arr.last(a: [T; N]) -> T`
+- `arr.first(a: [T; N]) -> Option[T]`
+- `arr.last(a: [T; N]) -> Option[T]`
 - `arr.join(a: [String; N], sep: String) -> String`
 
 Behavior:
@@ -754,7 +754,7 @@ Behavior:
 - Arrays remain statically-sized in the language type system.
 
 Notes:
-- `arr.first` / `arr.last` on empty arrays raise runtime errors.
+- `arr.first` / `arr.last` return `Some(value)` on non-empty arrays and `None()` on empty arrays.
 - `arr.join` is defined for `Array[String]`.
 
 ### 8.5 `datetime`
@@ -864,7 +864,7 @@ Signatures:
 - `bytes.fromString(s: String) -> Bytes`
 - `bytes.toString(b: Bytes) -> String`
 - `bytes.len(b: Bytes) -> Int`
-- `bytes.get(b: Bytes, i: Int) -> Int`
+- `bytes.get(b: Bytes, i: Int) -> Option[Int]`
 - `bytes.slice(b: Bytes, start: Int, end: Int) -> Bytes`
 - `bytes.concat(a: Bytes, b: Bytes) -> Bytes`
 - `bytes.push(b: Bytes, x: Int) -> Bytes`
@@ -877,7 +877,7 @@ Behavior:
 - `bytes.toString` decodes UTF-8 and raises a runtime error on invalid data.
 
 Notes:
-- `bytes.get` returns the byte value as `Int` in `0..=255`.
+- `bytes.get` returns `Some(byte)` in `0..=255` for in-range access and `None()` otherwise.
 - `bytes.push` requires the appended byte value to be in `0..=255`.
 - `bytes.slice` requires valid non-negative bounds with `start <= end`.
 - `Bytes` supports language-level `==` / `!=` by content.
@@ -1221,7 +1221,7 @@ Signatures:
 - `vec.new() -> Vec[T]` (typed context required)
 - `vec.len(v: Vec[T]) -> Int`
 - `vec.push(v: Vec[T], x: T) -> Void`
-- `vec.get(v: Vec[T], i: Int) -> T`
+- `vec.get(v: Vec[T], i: Int) -> Option[T]`
 - `vec.set(v: Vec[T], i: Int, x: T) -> Void`
 - `vec.delete(v: Vec[T], i: Int) -> T`
 
@@ -1230,6 +1230,7 @@ Behavior:
 - `vec.push`, `vec.set`, and `vec.delete` mutate the vector in place.
 - `vec.delete` removes the element at `i`, shifts later elements left, and returns the removed value.
 - Index operations (`get`, `set`, `delete`) require `Int` indices.
+- `vec.get` returns `Some(value)` for in-range access and `None()` otherwise.
 
 Notes:
 - `vec.new()` currently requires typed context (for example `let xs: Vec[Int] = vec.new();`).

@@ -835,12 +835,14 @@ fn main() -> Int {
 #[test]
 fn llvm_codegen_emits_vec_runtime_calls() {
     let source = r#"
+import option;
+
 fn main() -> Int {
   let xs: Vec[Int] = vec.new();
   vec.push(xs, 10);
   vec.push(xs, 20);
   vec.set(xs, 1, 30);
-  let first = vec.get(xs, 0);
+  let first = option.unwrapSome(vec.get(xs, 0));
   let removed = vec.delete(xs, 1);
   return first + removed + vec.len(xs);
 }
@@ -1056,11 +1058,12 @@ fn pick(flag: Bool) -> Bool {
 }
 
 fn main() -> Int {
+  import option;
   let xs: Vec[Int] = vec.new();
   vec.push(xs, 2);
   let ok = pick(true);
   if (ok) {
-    return vec.get(xs, 0);
+    return option.unwrapSome(vec.get(xs, 0));
   }
   return 0;
 }
@@ -1089,12 +1092,13 @@ struct Pair {
 }
 
 fn main() -> Int {
+  import option;
   let arr: [Int; 2] = [1, 2];
   let xs: Vec[Int] = vec.new();
   let p = Pair { a: 3, b: 4 };
   vec.push(xs, arr[0]);
   vec.set(xs, 0, p.a);
-  return vec.get(xs, 0);
+  return option.unwrapSome(vec.get(xs, 0));
 }
 "#;
 
@@ -1460,11 +1464,12 @@ impl Pair {
 }
 
 fn main() -> Int {
+  import option;
   let arr: [Int; 2] = [2; 2];
   let xs: Vec[Int] = vec.new();
   vec.push(xs, arr[0]);
   vec.push(xs, arr[1] + 3);
-  let p = Pair { a: vec.get(xs, 0), b: vec.get(xs, 1) };
+  let p = Pair { a: option.unwrapSome(vec.get(xs, 0)), b: option.unwrapSome(vec.get(xs, 1)) };
   return p.total();
 }
 "#;
@@ -1615,11 +1620,12 @@ fn main() -> Int {
 fn codegen_builds_native_executable_for_bytes_equality() {
     let source = r#"
 import bytes;
+import option;
 
 fn main() -> Int {
   let a: Bytes = bytes.append(bytes.fromString("he"), bytes.fromString("llo"));
   let b: Bytes = bytes.push(bytes.fromString("hell"), 111);
-  if (a == b && bytes.get(a, 0) == 104) {
+  if (a == b && option.unwrapSome(bytes.get(a, 0)) == 104) {
     return 0;
   }
   return 1;
@@ -1913,6 +1919,7 @@ fn codegen_builds_native_executable_for_net_connect_readbytes_writebytes() {
         r#"
 import net;
 import bytes;
+import option;
 import result;
 
 fn main() -> Int {{
@@ -1925,7 +1932,7 @@ fn main() -> Int {{
   result.unwrapOk(net.writeBytes(socket, payload4));
   let raw: Bytes = result.unwrapOk(net.readBytes(socket));
   net.close(socket);
-  if (bytes.len(raw) == 3 && bytes.get(raw, 0) == 5 && bytes.get(raw, 2) == 7) {{
+  if (bytes.len(raw) == 3 && option.unwrapSome(bytes.get(raw, 0)) == 5 && option.unwrapSome(bytes.get(raw, 2)) == 7) {{
     return 0;
   }}
   return 1;
@@ -1989,6 +1996,7 @@ fn codegen_builds_native_executable_for_net_listen_accept_byte_roundtrip() {
         r#"
 import net;
 import bytes;
+import option;
 import result;
 
 fn main() -> Int {{
@@ -2001,7 +2009,7 @@ fn main() -> Int {{
   result.unwrapOk(net.writeBytes(socket, out2));
   net.close(socket);
   net.closeListener(listener);
-  if (bytes.len(raw) == 4 && bytes.get(raw, 0) == 1 && bytes.get(raw, 3) == 4) {{
+  if (bytes.len(raw) == 4 && option.unwrapSome(bytes.get(raw, 0)) == 1 && option.unwrapSome(bytes.get(raw, 3)) == 4) {{
     return 0;
   }}
   return 1;
@@ -2035,13 +2043,14 @@ fn codegen_builds_native_executable_for_net_read_n() {
         r#"
 import net;
 import bytes;
+import option;
 import result;
 
 fn main() -> Int {{
   let socket: net.Socket = result.unwrapOk(net.connect("{addr}"));
   let raw: Bytes = result.unwrapOk(net.readN(socket, 3));
   net.close(socket);
-  if (bytes.len(raw) == 3 && bytes.get(raw, 0) == 4 && bytes.get(raw, 2) == 6) {{
+  if (bytes.len(raw) == 3 && option.unwrapSome(bytes.get(raw, 0)) == 4 && option.unwrapSome(bytes.get(raw, 2)) == 6) {{
     return 0;
   }}
   return 1;

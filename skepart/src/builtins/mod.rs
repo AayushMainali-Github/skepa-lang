@@ -108,7 +108,9 @@ pub fn call_with_context(
         ("bytes", "fromString", [value]) => bytes::from_string(value.expect_string()?.as_str()),
         ("bytes", "toString", [value]) => bytes::to_string(&value.expect_bytes()?),
         ("bytes", "len", [value]) => Ok(bytes::len(&value.expect_bytes()?)),
-        ("bytes", "get", [value, index]) => bytes::get(&value.expect_bytes()?, index.expect_int()?),
+        ("bytes", "get", [value, index]) => {
+            Ok(bytes::get(&value.expect_bytes()?, index.expect_int()?))
+        }
         ("bytes", "slice", [value, start, end]) => bytes::slice(
             &value.expect_bytes()?,
             start.expect_int()?,
@@ -172,8 +174,8 @@ pub fn call_with_context(
         )?)),
         ("arr", "len", [array]) => Ok(RtValue::Int(arr::len(&array.expect_array()?))),
         ("arr", "isEmpty", [array]) => Ok(RtValue::Bool(arr::is_empty(&array.expect_array()?))),
-        ("arr", "first", [array]) => arr::first(&array.expect_array()?),
-        ("arr", "last", [array]) => arr::last(&array.expect_array()?),
+        ("arr", "first", [array]) => Ok(arr::first(&array.expect_array()?)),
+        ("arr", "last", [array]) => Ok(arr::last(&array.expect_array()?)),
         ("arr", "join", [array, sep]) => Ok(RtValue::String(arr::join(
             &array.expect_array()?,
             &sep.expect_string()?,
@@ -184,11 +186,9 @@ pub fn call_with_context(
             vec::push(&vec_value.expect_vec()?, value.clone());
             Ok(RtValue::Unit)
         }
-        ("vec", "get", [vec_value, index]) => vec::get(
-            &vec_value.expect_vec()?,
-            usize::try_from(index.expect_int()?)
-                .map_err(|_| RtError::new(RtErrorKind::IndexOutOfBounds, "negative vec index"))?,
-        ),
+        ("vec", "get", [vec_value, index]) => {
+            Ok(vec::get(&vec_value.expect_vec()?, index.expect_int()?))
+        }
         ("vec", "set", [vec_value, index, value]) => {
             vec::set(
                 &vec_value.expect_vec()?,

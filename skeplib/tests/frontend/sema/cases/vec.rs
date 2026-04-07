@@ -4,11 +4,12 @@ use super::*;
 fn sema_accepts_vec_type_and_typed_vec_new() {
     let src = r#"
 import vec;
+import option;
 fn main() -> Int {
   let xs: Vec[Int] = vec.new();
   vec.push(xs, 10);
   vec.set(xs, 0, 20);
-  return vec.get(xs, 0) + vec.len(xs);
+  return option.unwrapSome(vec.get(xs, 0)) + vec.len(xs);
 }
 "#;
     let (result, diags) = analyze_source(src);
@@ -211,6 +212,7 @@ fn main() -> Int {
 fn sema_accepts_function_values_stored_in_vecs() {
     let src = r#"
 import vec;
+import option;
 
 struct Op {
   apply: Fn(Int) -> Int
@@ -221,7 +223,7 @@ fn inc(x: Int) -> Int { return x + 1; }
 fn main() -> Int {
   let ops: Vec[Fn(Int) -> Int] = vec.new();
   vec.push(ops, inc);
-  let op: Op = Op { apply: vec.get(ops, 0) };
+  let op: Op = Op { apply: option.unwrapSome(vec.get(ops, 0)) };
   return (op.apply)(41);
 }
 "#;

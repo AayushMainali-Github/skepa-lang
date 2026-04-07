@@ -131,13 +131,15 @@ fn main() -> String {
 fn native_and_ir_accept_same_array_vec_struct_method_and_builtin_sources() {
     assert_native_and_ir_accept_same_int_source(
         r#"
+import option;
+
 fn main() -> Int {
   let arr: [Int; 3] = [1; 3];
   arr[1] = 5;
   let xs: Vec[Int] = vec.new();
   vec.push(xs, arr[0]);
   vec.push(xs, arr[1]);
-  return vec.get(xs, 0) + vec.get(xs, 1) + arr[2];
+  return option.unwrapSome(vec.get(xs, 0)) + option.unwrapSome(vec.get(xs, 1)) + arr[2];
 }
 "#,
         7,

@@ -33,7 +33,7 @@ pub(super) fn check_arr_builtin(
             match method {
                 "len" => TypeInfo::Int,
                 "isEmpty" => TypeInfo::Bool,
-                "first" | "last" => *elem,
+                "first" | "last" => TypeInfo::Option { value: elem },
                 _ => unreachable!(),
             }
         }

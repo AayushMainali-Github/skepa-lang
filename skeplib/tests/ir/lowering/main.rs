@@ -103,13 +103,14 @@ fn inc(x: Int) -> Int {
 }
 
 fn main() -> Int {
+  import option;
   let arr: [Int; 4] = [0; 4];
   let xs: Vec[Int] = vec.new();
   let p = Pair { a: 2, b: 3 };
   let f: Fn(Int) -> Int = inc;
   arr[1] = 7;
   vec.push(xs, arr[1]);
-  return f(p.mix(vec.get(xs, 0)));
+  return f(p.mix(option.unwrapSome(vec.get(xs, 0))));
 }
 "#;
 

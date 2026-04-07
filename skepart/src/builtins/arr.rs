@@ -1,4 +1,4 @@
-use crate::{RtArray, RtResult, RtString, RtValue};
+use crate::{RtArray, RtOption, RtResult, RtString, RtValue};
 
 pub fn len(array: &RtArray) -> i64 {
     array.len() as i64
@@ -8,18 +8,21 @@ pub fn is_empty(array: &RtArray) -> bool {
     array.is_empty()
 }
 
-pub fn first(array: &RtArray) -> RtResult<RtValue> {
-    array.get(0)
+pub fn first(array: &RtArray) -> RtValue {
+    match array.get(0) {
+        Ok(value) => RtValue::Option(RtOption::some(value)),
+        Err(_) => RtValue::Option(RtOption::none()),
+    }
 }
 
-pub fn last(array: &RtArray) -> RtResult<RtValue> {
+pub fn last(array: &RtArray) -> RtValue {
     if array.is_empty() {
-        return Err(crate::RtError::new(
-            crate::RtErrorKind::InvalidArgument,
-            "arr.last requires a non-empty array",
-        ));
+        return RtValue::Option(RtOption::none());
     }
-    array.get(array.len() - 1)
+    match array.get(array.len() - 1) {
+        Ok(value) => RtValue::Option(RtOption::some(value)),
+        Err(_) => RtValue::Option(RtOption::none()),
+    }
 }
 
 pub fn join(array: &RtArray, sep: &RtString) -> RtResult<RtString> {
