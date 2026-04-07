@@ -845,12 +845,13 @@ fn interpreter_runs_globals_module_init_and_core_builtins() {
     let source = r#"
 import datetime;
 import str;
+import result;
 
 let base: String = "skepa-language-runtime";
 
 fn main() -> Int {
   let total = str.len(base) + str.indexOf(base, "time");
-  let cut = str.slice(base, 6, 14);
+  let cut = result.unwrapOk(str.slice(base, 6, 14));
   if (str.contains(cut, "language")) {
     return total + 1;
   }
@@ -902,15 +903,16 @@ fn interpreter_supports_bytes_builtins_through_runtime() {
     let source = r#"
 import bytes;
 import option;
+import result;
 
 fn main() -> Int {
   let raw: Bytes = bytes.fromString("net");
-  let text: String = bytes.toString(raw);
+  let text: String = result.unwrapOk(bytes.toString(raw));
   let mid: Bytes = bytes.slice(raw, 1, 3);
   let joined: Bytes = bytes.concat(mid, bytes.fromString("t"));
   let grown: Bytes = bytes.push(joined, 33);
   let same: Bool = bytes.append(mid, bytes.fromString("t")) == joined;
-  if (text == "net" && option.unwrapSome(bytes.get(raw, 0)) == 110 && bytes.toString(grown) == "ett!" && same) {
+  if (text == "net" && option.unwrapSome(bytes.get(raw, 0)) == 110 && result.unwrapOk(bytes.toString(grown)) == "ett!" && same) {
     return bytes.len(raw);
   }
   return 0;
@@ -1618,9 +1620,10 @@ fn main() -> Int {
     assert_ir_rejects_source(
         r#"
 import str;
+import result;
 
 fn main() -> String {
-  return str.slice("abc", 0, 99);
+  return result.unwrapOk(str.slice("abc", 0, 99));
 }
 "#,
         ExpectedErrorKind::IndexOutOfBounds,

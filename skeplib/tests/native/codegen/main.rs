@@ -499,6 +499,7 @@ fn main() -> String {
 #[test]
 fn llvm_codegen_emits_str_builtin_runtime_calls() {
     let source = r#"
+import result;
 import str;
 
 fn main() -> Int {
@@ -530,7 +531,7 @@ fn main() -> Int {
     let s = "skepa-language";
     total = total + str.len(s);
     total = total + str.indexOf(s, "lang");
-    let cut = str.slice(s, 0, 5);
+    let cut = result.unwrapOk(str.slice(s, 0, 5));
     if (str.contains(cut, "ske")) {
       total = total + 1;
     }

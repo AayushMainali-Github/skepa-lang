@@ -129,9 +129,12 @@ fn main() -> Int {
 #[test]
 fn ir_interpreter_runs_string_and_float_shapes_for_internal_validation() {
     let string_src = r#"
+import result;
+import str;
+
 fn main() -> String {
   let s = "alpha-beta";
-  let cut = str.slice(s, 0, 5);
+  let cut = result.unwrapOk(str.slice(s, 0, 5));
   if (str.contains(s, "beta")) {
     return cut + "-ok";
   }

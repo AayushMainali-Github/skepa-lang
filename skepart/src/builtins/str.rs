@@ -1,4 +1,4 @@
-use crate::{RtResult, RtString};
+use crate::{RtResult, RtResultValue, RtString, RtValue};
 
 pub fn len(value: &RtString) -> i64 {
     value.len_chars() as i64
@@ -12,6 +12,11 @@ pub fn index_of(haystack: &RtString, needle: &RtString) -> i64 {
     haystack.index_of(needle)
 }
 
-pub fn slice(value: &RtString, start: usize, end: usize) -> RtResult<RtString> {
-    value.slice_chars(start..end)
+pub fn slice(value: &RtString, start: usize, end: usize) -> RtResult<RtValue> {
+    match value.slice_chars(start..end) {
+        Ok(sliced) => Ok(RtValue::Result(RtResultValue::ok(RtValue::String(sliced)))),
+        Err(err) => Ok(RtValue::Result(RtResultValue::err(RtValue::String(
+            RtString::from(err.to_string()),
+        )))),
+    }
 }

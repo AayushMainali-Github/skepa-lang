@@ -461,24 +461,33 @@ Builtins that stay runtime-error style:
 - explicit process termination APIs like `os.exit`
 
 Builtins that use `Option[T]` for absence:
+- `os.arg`
 - `os.envGet`
+- `bytes.get`
+- `arr.first`
+- `arr.last`
+- `vec.get`
 - `map.get`
 - `map.remove`
 
 Builtins that use `Result[T, E]` for recoverable failure:
+- `datetime.parseUnix`
+- `fs.exists`
 - `fs.readText`
 - `fs.writeText`
 - `fs.appendText`
 - `fs.mkdirAll`
 - `fs.removeFile`
 - `fs.removeDirAll`
-- `net.parseUrl`
-- `net.fetch`
-
-Builtins that use runtime-fatal behavior today and are natural candidates for future `Result[T, E]` surfaces:
-- `datetime.parseUnix`
+- `os.exec`
+- `os.execOut`
 - `net.connect`
 - `net.tlsConnect`
+- `net.resolve`
+- `net.parseUrl`
+- `net.fetch`
+- `ffi.open`
+- `ffi.bind`
 - `net.listen`
 - `net.accept`
 - `net.read`
@@ -486,14 +495,18 @@ Builtins that use runtime-fatal behavior today and are natural candidates for fu
 - `net.readBytes`
 - `net.writeBytes`
 - `net.readN`
-- `net.resolve`
-- `ffi.open`
-- `ffi.bind`
+- `net.localAddr`
+- `net.peerAddr`
+- `net.flush`
+- `net.setReadTimeout`
+- `net.setWriteTimeout`
+- `bytes.toString`
+- `str.slice`
 
 The language and standard library use a mixed model:
 - runtime errors for misuse and strict operations
 - `Option[T]` for ordinary absence
-- `Result[T, E]` for selected recoverable filesystem and networking operations
+- `Result[T, E]` for recoverable operational failure
 
 ### `Option[T]`
 
@@ -724,7 +737,7 @@ Signatures:
 - `str.toUpper(s: String) -> String`
 - `str.indexOf(s: String, needle: String) -> Int`
 - `str.lastIndexOf(s: String, needle: String) -> Int`
-- `str.slice(s: String, start: Int, end: Int) -> String`
+- `str.slice(s: String, start: Int, end: Int) -> Result[String, String]`
 - `str.replace(s: String, from: String, to: String) -> String`
 - `str.repeat(s: String, count: Int) -> String`
 - `str.isEmpty(s: String) -> Bool`
@@ -735,6 +748,7 @@ Behavior:
 
 Notes:
 - `str.repeat` validates repeat count at runtime.
+- `str.slice` returns `Ok(String)` on valid bounds and `Err(String)` on invalid bounds.
 - Exact `str.len` semantics follow runtime string helper behavior used by the implementation/tests.
 
 ### 8.4 `arr`
@@ -845,7 +859,7 @@ Signatures:
 Behavior:
 - All `fs` functions are synchronous/blocking.
 - `fs.exists` returns `true` for existing files/directories and `false` for missing paths.
-- `fs.exists` raises a runtime error if path existence cannot be checked due to a host filesystem error.
+- `fs.exists` returns `Ok(Bool)` when path existence can be checked.
 - `fs.readText` reads the full file as UTF-8 text and returns `Ok(String)` on success.
 - `fs.writeText` creates or overwrites a file and returns `Ok(())` on success.
 - `fs.appendText` appends to a file and creates it if missing, returning `Ok(())` on success.
@@ -855,6 +869,7 @@ Behavior:
 - `fs.join` joins path segments using host path semantics and does not check existence.
 
 Notes:
+- `fs.exists` returns `Err(String)` if path existence cannot be checked due to a host filesystem error.
 - `fs.readText` returns `Err(String)` on read failure or invalid UTF-8.
 - `fs.writeText`, `fs.appendText`, `fs.mkdirAll`, `fs.removeFile`, and `fs.removeDirAll` return `Err(String)` on filesystem failure.
 
@@ -862,7 +877,7 @@ Notes:
 
 Signatures:
 - `bytes.fromString(s: String) -> Bytes`
-- `bytes.toString(b: Bytes) -> String`
+- `bytes.toString(b: Bytes) -> Result[String, String]`
 - `bytes.len(b: Bytes) -> Int`
 - `bytes.get(b: Bytes, i: Int) -> Option[Int]`
 - `bytes.slice(b: Bytes, start: Int, end: Int) -> Bytes`
@@ -874,10 +889,11 @@ Behavior:
 - `Bytes` is an immutable runtime-managed byte container.
 - All `bytes` helpers are non-mutating and return derived values.
 - `bytes.fromString` encodes UTF-8 bytes from a `String`.
-- `bytes.toString` decodes UTF-8 and raises a runtime error on invalid data.
+- `bytes.toString` decodes UTF-8 and returns `Ok(String)` on valid data.
 
 Notes:
 - `bytes.get` returns `Some(byte)` in `0..=255` for in-range access and `None()` otherwise.
+- `bytes.toString` returns `Err(String)` on invalid UTF-8.
 - `bytes.push` requires the appended byte value to be in `0..=255`.
 - `bytes.slice` requires valid non-negative bounds with `start <= end`.
 - `Bytes` supports language-level `==` / `!=` by content.
@@ -961,7 +977,7 @@ Handle semantics:
 
 Notes:
 - `net` supports both text and byte-oriented I/O.
-- `net.read` requires valid UTF-8. Non-UTF-8 payloads raise a runtime error.
+- `net.read` requires valid UTF-8. Non-UTF-8 payloads return `Err(String)`.
 - `net.readBytes` / `net.readN` are the correct APIs for binary protocols and arbitrary payloads.
 - `net.read` is not a read-to-EOF helper; it returns one chunk from a single read call.
 - `net.tlsConnect` is client-side only in the current surface. There is no TLS listener/accept API yet.
@@ -982,8 +998,7 @@ Notes:
 - Passing the wrong handle kind to a builtin raises a runtime error.
 - Using a closed handle raises a runtime error.
 - Double-close raises a runtime error.
-- Address parse/bind/connect/read/write failures raise runtime errors.
-- TLS handshake and certificate validation failures raise runtime errors.
+- Ordinary address, bind, connect, read, write, timeout, resolve, fetch, and TLS handshake failures return `Err(String)`.
 - Resources are also cleaned up when the process/runtime exits, but explicit close is still the intended ownership model.
 
 Examples:
@@ -1037,9 +1052,9 @@ Parse URL:
 import map;
 import net;
 import option;
+import result;
 
 fn main() -> Int {
-  import result;
   let parts: Map[String, String] = result.unwrapOk(net.parseUrl("https://example.com:8443/api?q=1#frag"));
   let host: String = option.unwrapSome(map.get(parts, "host"));
   let path: String = option.unwrapSome(map.get(parts, "path"));
@@ -1056,10 +1071,10 @@ import map;
 import net;
 import option;
 import str;
+import result;
 
 fn main() -> Int {
   let options: Map[String, String] = map.new();
-  import result;
   let response: Map[String, String] = result.unwrapOk(net.fetch("https://example.com/", options));
   let body: String = option.unwrapSome(map.get(response, "body"));
   if (str.len(body) > 0) {
@@ -1075,13 +1090,13 @@ import map;
 import net;
 import option;
 import str;
+import result;
 
 fn main() -> Int {
   let options: Map[String, String] = map.new();
   map.insert(options, "method", "POST");
   map.insert(options, "body", "{\"ok\":true}");
   map.insert(options, "contentType", "application/json");
-  import result;
   let response: Map[String, String] = result.unwrapOk(net.fetch("https://example.com/api", options));
   let body: String = option.unwrapSome(map.get(response, "body"));
   if (str.len(body) >= 0) {
@@ -1096,14 +1111,13 @@ Fetch:
 import map;
 import net;
 import option;
+import result;
 
 fn main() -> Int {
   let options: Map[String, String] = map.new();
   map.insert(options, "method", "POST");
   map.insert(options, "body", "{\"ok\":true}");
   map.insert(options, "contentType", "application/json");
-
-  import result;
   let response: Map[String, String] = result.unwrapOk(net.fetch("https://example.com/api", options));
   let status: String = option.unwrapSome(map.get(response, "status"));
   let body: String = option.unwrapSome(map.get(response, "body"));
@@ -1235,7 +1249,8 @@ Behavior:
 Notes:
 - `vec.new()` currently requires typed context (for example `let xs: Vec[Int] = vec.new();`).
 - Vector values use shared handle semantics: assignment/pass/return aliases the same underlying vector.
-- Negative or out-of-bounds indices raise runtime errors.
+- `vec.get` returns `None()` for negative or out-of-bounds indices.
+- `vec.set` and `vec.delete` remain strict and raise runtime errors for invalid indices.
 
 ## 9. Diagnostics (Module/Import/Export)
 

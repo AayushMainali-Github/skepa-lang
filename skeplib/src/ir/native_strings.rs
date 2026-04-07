@@ -346,9 +346,12 @@ mod tests {
     #[test]
     fn native_string_plan_tracks_foldable_string_builtins() {
         let source = r#"
+import result;
+import str;
+
 fn main() -> Int {
   let s = "skepa";
-  let cut = str.slice(s, 1, 4);
+  let cut = result.unwrapOk(str.slice(s, 1, 4));
   return str.indexOf(cut, "e");
 }
 "#;

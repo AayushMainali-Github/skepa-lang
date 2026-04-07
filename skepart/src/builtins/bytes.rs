@@ -5,13 +5,14 @@ pub fn from_string(value: &str) -> RtResult<RtValue> {
 }
 
 pub fn to_string(value: &RtBytes) -> RtResult<RtValue> {
-    let text = std::str::from_utf8(value.as_slice()).map_err(|_| {
-        RtError::new(
-            RtErrorKind::InvalidArgument,
-            "bytes.toString expected valid UTF-8 data",
-        )
-    })?;
-    Ok(RtValue::String(RtString::from(text)))
+    match std::str::from_utf8(value.as_slice()) {
+        Ok(text) => Ok(RtValue::Result(crate::RtResultValue::ok(RtValue::String(
+            RtString::from(text),
+        )))),
+        Err(_) => Ok(RtValue::Result(crate::RtResultValue::err(RtValue::String(
+            RtString::from("bytes.toString expected valid UTF-8 data"),
+        )))),
+    }
 }
 
 pub fn len(value: &RtBytes) -> RtValue {

@@ -67,7 +67,7 @@ pub(super) const SIGS: &[BuiltinSig] = &[
         package: "str",
         name: "slice",
         params: STR_SLICE_PARAMS,
-        ret: TypeInfo::String,
+        ret: TypeInfo::Unknown,
         kind: BuiltinKind::FixedArity,
     },
     BuiltinSig {

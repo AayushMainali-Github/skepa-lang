@@ -14,7 +14,7 @@ pub(super) const SIGS: &[BuiltinSig] = &[
         package: "bytes",
         name: "toString",
         params: &[TypeInfo::Bytes],
-        ret: TypeInfo::String,
+        ret: TypeInfo::Unknown,
         kind: BuiltinKind::FixedArity,
     },
     BuiltinSig {

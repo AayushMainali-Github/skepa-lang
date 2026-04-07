@@ -114,9 +114,12 @@ fn main() -> Bool {
     );
     assert_native_and_ir_accept_same_source(
         r#"
+import result;
+import str;
+
 fn main() -> String {
   let s = "alpha-beta";
-  let cut = str.slice(s, 0, 5);
+  let cut = result.unwrapOk(str.slice(s, 0, 5));
   if (str.contains(s, "beta")) {
     return cut + "-ok";
   }
@@ -169,13 +172,14 @@ fn main() -> Int {
         r#"
 import datetime;
 import str;
+import result;
 
 fn main() -> Int {
   let s = "skepa-language-runtime";
   let total = 0;
   total = total + str.len(s);
   total = total + str.indexOf(s, "time");
-  let cut = str.slice(s, 6, 14);
+  let cut = result.unwrapOk(str.slice(s, 6, 14));
   if (str.contains(cut, "language")) {
     return total + 1;
   }
@@ -356,9 +360,10 @@ fn main() -> Int {
     assert_ir_rejects_source(
         r#"
 import str;
+import result;
 
 fn main() -> String {
-  return str.slice("abc", 0, 99);
+  return result.unwrapOk(str.slice("abc", 0, 99));
 }
 "#,
         RtErrorKind::IndexOutOfBounds,

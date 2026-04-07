@@ -165,13 +165,13 @@ pub fn call_with_context(
             &haystack.expect_string()?,
             &needle.expect_string()?,
         ))),
-        ("str", "slice", [value, start, end]) => Ok(RtValue::String(str::slice(
+        ("str", "slice", [value, start, end]) => str::slice(
             &value.expect_string()?,
             usize::try_from(start.expect_int()?)
                 .map_err(|_| RtError::new(RtErrorKind::IndexOutOfBounds, "negative slice start"))?,
             usize::try_from(end.expect_int()?)
                 .map_err(|_| RtError::new(RtErrorKind::IndexOutOfBounds, "negative slice end"))?,
-        )?)),
+        ),
         ("arr", "len", [array]) => Ok(RtValue::Int(arr::len(&array.expect_array()?))),
         ("arr", "isEmpty", [array]) => Ok(RtValue::Bool(arr::is_empty(&array.expect_array()?))),
         ("arr", "first", [array]) => Ok(arr::first(&array.expect_array()?)),

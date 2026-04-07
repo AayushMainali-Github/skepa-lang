@@ -7,6 +7,7 @@ fn optimizer_preserves_runtime_managed_semantics_across_arrays_vecs_structs_and_
     let source = r#"
 import option;
 import str;
+import result;
 
 struct Boxed {
   items: Vec[Int]
@@ -51,7 +52,7 @@ fn main() -> Int {
   let total = 0;
   while (i < 5) {
     let s = "skepa-language-runtime";
-    let cut = str.slice(s, 6, 14);
+    let cut = result.unwrapOk(str.slice(s, 6, 14));
     total = total + str.len(s);
     total = total + str.indexOf(s, "time");
     if (str.contains(cut, "language")) {
@@ -76,6 +77,7 @@ fn optimizer_handles_mixed_runtime_program_without_changing_result() {
     let source = r#"
 import io;
 import str;
+import result;
 
 struct Pair {
   a: Int,
@@ -130,7 +132,7 @@ fn string_work(n: Int) -> Int {
     let s = "skepa-language-runtime";
     total = total + str.len(s);
     total = total + str.indexOf(s, "time");
-    let cut = str.slice(s, 6, 18);
+    let cut = result.unwrapOk(str.slice(s, 6, 18));
     if (str.contains(cut, "language")) {
       total = total + 1;
     }

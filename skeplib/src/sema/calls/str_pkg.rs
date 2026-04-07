@@ -13,10 +13,17 @@ pub(super) fn check_str_builtin(
     scopes: &mut [HashMap<String, TypeInfo>],
     sig: &BuiltinSig,
 ) -> TypeInfo {
-    match sig.kind {
+    let ty = match sig.kind {
         BuiltinKind::FixedArity => {
             checker.check_fixed_arity_builtin("str", method, args, scopes, sig)
         }
         BuiltinKind::FormatVariadic | BuiltinKind::ArrayOps => sig.ret.clone(),
+    };
+    match method {
+        "slice" => TypeInfo::Result {
+            ok: Box::new(TypeInfo::String),
+            err: Box::new(TypeInfo::String),
+        },
+        _ => ty,
     }
 }

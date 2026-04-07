@@ -130,7 +130,9 @@ fn builtins_cover_bytes_roundtrip_and_type_errors() {
     );
     assert_eq!(
         builtins::call("bytes", "toString", &[bytes_value]).expect("bytes.toString"),
-        RtValue::String(RtString::from("hello"))
+        RtValue::Result(skepart::RtResultValue::ok(RtValue::String(RtString::from(
+            "hello"
+        ))))
     );
     assert_eq!(
         builtins::call(
@@ -208,6 +210,17 @@ fn builtins_cover_bytes_roundtrip_and_type_errors() {
         .expect_err("bytes.toString type mismatch")
         .kind,
         RtErrorKind::TypeMismatch
+    );
+    assert_eq!(
+        builtins::call(
+            "bytes",
+            "toString",
+            &[RtValue::Bytes(RtBytes::from(vec![0xFF_u8, 0xFE]))]
+        )
+        .expect("bytes.toString invalid utf8 should return result"),
+        RtValue::Result(skepart::RtResultValue::err(RtValue::String(
+            RtString::from("bytes.toString expected valid UTF-8 data")
+        )))
     );
     assert_eq!(
         builtins::call(

@@ -866,18 +866,19 @@ fn check_accepts_minimal_bytes_builtins_program() {
         r#"
 import bytes;
 import option;
+import result;
 import str;
 
 fn main() -> Int {
   let raw: Bytes = bytes.fromString("hello");
-  let text: String = bytes.toString(raw);
+  let text: String = result.unwrapOk(bytes.toString(raw));
   let n: Int = bytes.len(raw);
   let piece: Bytes = bytes.slice(raw, 1, 4);
   let first: Int = option.unwrapSome(bytes.get(raw, 0));
   let joined: Bytes = bytes.concat(piece, bytes.fromString("lo"));
   let pushed: Bytes = bytes.push(joined, 33);
   let appended: Bytes = bytes.append(piece, bytes.fromString("lo"));
-  if (text == "hello" && str.len(text) == n && first == 104 && bytes.toString(pushed) == "ello!" && appended == joined) {
+  if (text == "hello" && str.len(text) == n && first == 104 && result.unwrapOk(bytes.toString(pushed)) == "ello!" && appended == joined) {
     return 0;
   }
   return 1;

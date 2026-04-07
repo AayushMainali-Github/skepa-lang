@@ -14,11 +14,14 @@ pub(super) fn check_bytes_builtin(
     sig: &BuiltinSig,
 ) -> TypeInfo {
     let ty = checker.check_fixed_arity_builtin("bytes", method, args, scopes, sig);
-    if method == "get" {
-        TypeInfo::Option {
+    match method {
+        "get" => TypeInfo::Option {
             value: Box::new(TypeInfo::Int),
-        }
-    } else {
-        ty
+        },
+        "toString" => TypeInfo::Result {
+            ok: Box::new(TypeInfo::String),
+            err: Box::new(TypeInfo::String),
+        },
+        _ => ty,
     }
 }

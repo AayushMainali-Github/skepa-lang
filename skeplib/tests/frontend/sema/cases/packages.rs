@@ -142,11 +142,12 @@ fn sema_accepts_bytes_builtins() {
     let src = r#"
 import bytes;
 import option;
+import result;
 import str;
 
 fn main() -> Int {
   let b: Bytes = bytes.fromString("hello");
-  let s: String = bytes.toString(b);
+  let s: String = result.unwrapOk(bytes.toString(b));
   let n: Int = bytes.len(b);
   let first: Int = option.unwrapSome(bytes.get(b, 1));
   let cut: Bytes = bytes.slice(b, 1, 4);
@@ -154,7 +155,7 @@ fn main() -> Int {
   let pushed: Bytes = bytes.push(joined, 33);
   let appended: Bytes = bytes.append(cut, bytes.fromString("lo"));
   let same: Bool = appended == bytes.fromString("ello");
-  if (s == "hello" && str.len(s) == n && first == 101 && bytes.toString(pushed) == "ello!" && same) {
+  if (s == "hello" && str.len(s) == n && first == 101 && result.unwrapOk(bytes.toString(pushed)) == "ello!" && same) {
     return 1;
   }
   return 0;
@@ -485,10 +486,11 @@ fn main() -> Int {
 fn sema_accepts_str_indexof_slice_isempty() {
     let src = r#"
 import str;
+import result;
 fn main() -> Int {
   let s = "skepa";
   let idx = str.indexOf(s, "ep");
-  let cut = str.slice(s, 1, 4);
+  let cut = result.unwrapOk(str.slice(s, 1, 4));
   if (idx == 2 && cut == "kep" && !str.isEmpty(cut) && str.isEmpty("")) {
     return 1;
   }

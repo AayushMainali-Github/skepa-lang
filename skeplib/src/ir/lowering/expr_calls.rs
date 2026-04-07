@@ -948,6 +948,12 @@ impl IrLowerer {
                     value: Box::new(IrType::Int),
                 });
             }
+            ("bytes", "toString") => {
+                return Some(IrType::Result {
+                    ok: Box::new(IrType::String),
+                    err: Box::new(IrType::String),
+                });
+            }
             ("vec", "get") => {
                 let vec = args.first()?;
                 if let IrType::Vec { elem } = self.infer_operand_type(func, vec) {
@@ -959,6 +965,12 @@ impl IrLowerer {
                 if let IrType::Array { elem, .. } = self.infer_operand_type(func, array) {
                     return Some(IrType::Option { value: elem });
                 }
+            }
+            ("str", "slice") => {
+                return Some(IrType::Result {
+                    ok: Box::new(IrType::String),
+                    err: Box::new(IrType::String),
+                });
             }
             _ => {}
         }
