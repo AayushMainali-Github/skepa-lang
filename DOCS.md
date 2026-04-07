@@ -912,13 +912,13 @@ Opaque types:
 - `net.Listener`
 
 Signatures:
-- `net.connect(address: String) -> net.Socket`
-- `net.tlsConnect(host: String, port: Int) -> net.Socket`
+- `net.connect(address: String) -> Result[net.Socket, String]`
+- `net.tlsConnect(host: String, port: Int) -> Result[net.Socket, String]`
 - `net.resolve(host: String) -> Result[String, String]`
 - `net.parseUrl(url: String) -> Result[Map[String, String], String]`
 - `net.fetch(url: String, options: Map[String, String]) -> Result[Map[String, String], String]`
-- `net.listen(address: String) -> net.Listener`
-- `net.accept(listener: net.Listener) -> net.Socket`
+- `net.listen(address: String) -> Result[net.Listener, String]`
+- `net.accept(listener: net.Listener) -> Result[net.Socket, String]`
 - `net.read(socket: net.Socket) -> String`
 - `net.write(socket: net.Socket, data: String) -> Void`
 - `net.readBytes(socket: net.Socket) -> Bytes`
@@ -934,13 +934,13 @@ Signatures:
 
 Behavior:
 - All `net` functions are synchronous/blocking.
-- `net.connect(address)` opens a blocking TCP client connection.
-- `net.tlsConnect(host, port)` opens a blocking TLS client connection with certificate and hostname verification.
+- `net.connect(address)` opens a blocking TCP client connection and returns `Ok(net.Socket)` on success or `Err(String)` on connection failure.
+- `net.tlsConnect(host, port)` opens a blocking TLS client connection with certificate and hostname verification, returning `Ok(net.Socket)` on success or `Err(String)` on failure.
 - `net.resolve(host)` resolves the host name and returns `Ok(String)` with the first resolved IP address as text, or `Err(String)` if resolution fails.
 - `net.parseUrl(url)` parses a URL and returns `Ok(Map[String, String])` with keys: `scheme`, `host`, `port`, `path`, `query`, and `fragment`, or `Err(String)` if parsing fails.
 - `net.fetch(url, options)` performs a blocking HTTP request and returns `Ok(Map[String, String])` on success or `Err(String)` on request failure.
-- `net.listen(address)` binds a blocking TCP listener. Using port `0` lets the OS choose an ephemeral port.
-- `net.accept(listener)` blocks until a client connects, then returns a new `net.Socket`.
+- `net.listen(address)` binds a blocking TCP listener, returning `Ok(net.Listener)` on success or `Err(String)` on bind failure. Using port `0` lets the OS choose an ephemeral port.
+- `net.accept(listener)` blocks until a client connects, then returns `Ok(net.Socket)` on success or `Err(String)` on accept failure.
 - `net.read(socket)` performs a single blocking read of up to 4096 bytes and returns a `String`.
 - `net.write(socket, data)` writes the UTF-8 bytes of `data` to the socket.
 - `net.readBytes(socket)` performs a single blocking read of up to 4096 bytes and returns raw `Bytes`.
@@ -992,9 +992,10 @@ Examples:
 Client:
 ```sk
 import net;
+import result;
 
 fn main() -> Int {
-  let socket: net.Socket = net.connect("127.0.0.1:8080");
+  let socket: net.Socket = result.unwrapOk(net.connect("127.0.0.1:8080"));
   net.write(socket, "ping");
   net.close(socket);
   return 0;
@@ -1004,9 +1005,10 @@ fn main() -> Int {
 TLS client:
 ```sk
 import net;
+import result;
 
 fn main() -> Int {
-  let socket: net.Socket = net.tlsConnect("example.com", 443);
+  let socket: net.Socket = result.unwrapOk(net.tlsConnect("example.com", 443));
   net.write(socket, "GET / HTTP/1.0\r\nHost: example.com\r\n\r\n");
   let body = net.read(socket);
   net.close(socket);
@@ -1020,9 +1022,10 @@ fn main() -> Int {
 Resolve:
 ```sk
 import net;
+import result;
 
 fn main() -> Int {
-  let ip: String = net.resolve("example.com");
+  let ip: String = result.unwrapOk(net.resolve("example.com"));
   if (ip != "") {
     return 0;
   }
@@ -1116,10 +1119,11 @@ fn main() -> Int {
 Server:
 ```sk
 import net;
+import result;
 
 fn main() -> Int {
-  let listener: net.Listener = net.listen("127.0.0.1:8080");
-  let socket: net.Socket = net.accept(listener);
+  let listener: net.Listener = result.unwrapOk(net.listen("127.0.0.1:8080"));
+  let socket: net.Socket = result.unwrapOk(net.accept(listener));
   let req = net.read(socket);
   net.write(socket, "ok");
   net.close(socket);

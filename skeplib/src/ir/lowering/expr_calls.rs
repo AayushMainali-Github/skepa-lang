@@ -739,11 +739,20 @@ impl IrLowerer {
                     err: Box::new(self.infer_operand_type(func, value)),
                 });
             }
-            ("net", "__testSocket") | ("net", "connect") | ("net", "accept") => {
+            ("net", "__testSocket") => {
                 return Some(IrType::Opaque("net.Socket".to_string()));
             }
+            ("net", "connect") | ("net", "accept") | ("net", "tlsConnect") => {
+                return Some(IrType::Result {
+                    ok: Box::new(IrType::Opaque("net.Socket".to_string())),
+                    err: Box::new(IrType::String),
+                });
+            }
             ("net", "listen") => {
-                return Some(IrType::Opaque("net.Listener".to_string()));
+                return Some(IrType::Result {
+                    ok: Box::new(IrType::Opaque("net.Listener".to_string())),
+                    err: Box::new(IrType::String),
+                });
             }
             ("net", "parseUrl") => {
                 return Some(IrType::Result {

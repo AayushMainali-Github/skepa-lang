@@ -1,4 +1,4 @@
-use crate::{RtHost, RtResult, RtValue};
+use crate::{RtHost, RtResult, RtResultValue, RtString, RtValue};
 
 pub fn test_socket(host: &mut dyn RtHost) -> RtResult<RtValue> {
     Ok(RtValue::Handle(
@@ -7,15 +7,30 @@ pub fn test_socket(host: &mut dyn RtHost) -> RtResult<RtValue> {
 }
 
 pub fn listen(host: &mut dyn RtHost, address: &str) -> RtResult<RtValue> {
-    Ok(RtValue::Handle(host.net_listen(address)?))
+    Ok(match host.net_listen(address) {
+        Ok(handle) => RtValue::Result(RtResultValue::ok(RtValue::Handle(handle))),
+        Err(err) => RtValue::Result(RtResultValue::err(RtValue::String(RtString::from(
+            err.to_string(),
+        )))),
+    })
 }
 
 pub fn connect(host: &mut dyn RtHost, address: &str) -> RtResult<RtValue> {
-    Ok(RtValue::Handle(host.net_connect(address)?))
+    Ok(match host.net_connect(address) {
+        Ok(handle) => RtValue::Result(RtResultValue::ok(RtValue::Handle(handle))),
+        Err(err) => RtValue::Result(RtResultValue::err(RtValue::String(RtString::from(
+            err.to_string(),
+        )))),
+    })
 }
 
 pub fn tls_connect(host: &mut dyn RtHost, host_name: &str, port: i64) -> RtResult<RtValue> {
-    Ok(RtValue::Handle(host.net_tls_connect(host_name, port)?))
+    Ok(match host.net_tls_connect(host_name, port) {
+        Ok(handle) => RtValue::Result(RtResultValue::ok(RtValue::Handle(handle))),
+        Err(err) => RtValue::Result(RtResultValue::err(RtValue::String(RtString::from(
+            err.to_string(),
+        )))),
+    })
 }
 
 pub fn resolve(host: &mut dyn RtHost, host_name: &str) -> RtResult<RtValue> {
@@ -52,7 +67,12 @@ pub fn fetch(host: &mut dyn RtHost, url: &str, options: &crate::RtMap) -> RtResu
 }
 
 pub fn accept(host: &mut dyn RtHost, listener: crate::RtHandle) -> RtResult<RtValue> {
-    Ok(RtValue::Handle(host.net_accept(listener)?))
+    Ok(match host.net_accept(listener) {
+        Ok(handle) => RtValue::Result(RtResultValue::ok(RtValue::Handle(handle))),
+        Err(err) => RtValue::Result(RtResultValue::err(RtValue::String(RtString::from(
+            err.to_string(),
+        )))),
+    })
 }
 
 pub fn read(host: &mut dyn RtHost, socket: crate::RtHandle) -> RtResult<RtValue> {

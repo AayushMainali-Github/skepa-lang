@@ -478,9 +478,10 @@ fn run_executes_net_client_program_on_loopback() {
         format!(
             r#"
 import net;
+import result;
 
 fn main() -> Int {{
-  let client: net.Socket = net.connect("{addr}");
+  let client: net.Socket = result.unwrapOk(net.connect("{addr}"));
   net.write(client, "ping");
   net.close(client);
   return 0;
@@ -518,6 +519,7 @@ fn run_executes_net_byte_client_program_on_loopback() {
             r#"
 import net;
 import bytes;
+import result;
 
 fn main() -> Int {{
   let raw0: Bytes = bytes.fromString("");
@@ -525,7 +527,7 @@ fn main() -> Int {{
   let raw2: Bytes = bytes.push(raw1, 2);
   let raw3: Bytes = bytes.push(raw2, 3);
   let raw4: Bytes = bytes.push(raw3, 4);
-  let client: net.Socket = net.connect("{addr}");
+  let client: net.Socket = result.unwrapOk(net.connect("{addr}"));
   net.writeBytes(client, raw4);
   net.close(client);
   return 0;
@@ -816,10 +818,10 @@ fn main() -> Int {
   map.insert(fetchOptions, "contentType", "application/json");
   let fetchResult: Result[Map[String, String], String] = net.fetch("https://example.com/api", fetchOptions);
   let response: Map[String, String] = result.unwrapOk(fetchResult);
-  let listener: net.Listener = net.listen("127.0.0.1:0");
-  let socket: net.Socket = net.accept(listener);
-  let client: net.Socket = net.connect("127.0.0.1:8080");
-  let secure: net.Socket = net.tlsConnect("example.com", 443);
+  let listener: net.Listener = result.unwrapOk(net.listen("127.0.0.1:0"));
+  let socket: net.Socket = result.unwrapOk(net.accept(listener));
+  let client: net.Socket = result.unwrapOk(net.connect("127.0.0.1:8080"));
+  let secure: net.Socket = result.unwrapOk(net.tlsConnect("example.com", 443));
   let resolved: String = result.unwrapOk(net.resolve("localhost"));
   let msg: String = net.read(socket);
   let host: String = option.unwrapSome(map.get(parts, "host"));

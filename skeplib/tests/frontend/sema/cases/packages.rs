@@ -1258,10 +1258,10 @@ fn main() -> Void {
   map.insert(fetchOptions, "contentType", "application/json");
   let fetchResult: Result[Map[String, String], String] = net.fetch("https://example.com/api", fetchOptions);
   let response: Map[String, String] = result.unwrapOk(fetchResult);
-  let listener: net.Listener = net.listen("127.0.0.1:0");
-  let socket: net.Socket = net.accept(listener);
-  let client: net.Socket = net.connect("127.0.0.1:8080");
-  let secure: net.Socket = net.tlsConnect("example.com", 443);
+  let listener: net.Listener = result.unwrapOk(net.listen("127.0.0.1:0"));
+  let socket: net.Socket = result.unwrapOk(net.accept(listener));
+  let client: net.Socket = result.unwrapOk(net.connect("127.0.0.1:8080"));
+  let secure: net.Socket = result.unwrapOk(net.tlsConnect("example.com", 443));
   let resolved: String = result.unwrapOk(net.resolve("localhost"));
   let msg: String = net.read(socket);
   let host: String = option.unwrapSome(map.get(parts, "host"));
@@ -1625,10 +1625,11 @@ fn main() -> Int {
 fn sema_rejects_net_readbytes_and_writebytes_type_mismatches() {
     let src = r#"
 import net;
+import result;
 import bytes;
 
 fn main() -> Void {
-  let listener: net.Listener = net.listen("127.0.0.1:0");
+  let listener: net.Listener = result.unwrapOk(net.listen("127.0.0.1:0"));
   let socket: net.Socket = net.__testSocket();
   let _x = net.readBytes(listener);
   net.writeBytes(socket, "bad");
@@ -1651,9 +1652,10 @@ fn main() -> Void {
 fn sema_rejects_net_localaddr_and_peeraddr_type_mismatches() {
     let src = r#"
 import net;
+import result;
 
 fn main() -> Void {
-  let listener: net.Listener = net.listen("127.0.0.1:0");
+  let listener: net.Listener = result.unwrapOk(net.listen("127.0.0.1:0"));
   let _a = net.localAddr(listener);
   let _b = net.peerAddr(listener);
   return;
@@ -1675,9 +1677,10 @@ fn main() -> Void {
 fn sema_rejects_net_readn_type_mismatches() {
     let src = r#"
 import net;
+import result;
 
 fn main() -> Void {
-  let listener: net.Listener = net.listen("127.0.0.1:0");
+  let listener: net.Listener = result.unwrapOk(net.listen("127.0.0.1:0"));
   let socket: net.Socket = net.__testSocket();
   let _a = net.readN(listener, 4);
   let _b = net.readN(socket, false);
@@ -1699,9 +1702,10 @@ fn main() -> Void {
 fn sema_rejects_net_flush_type_mismatch() {
     let src = r#"
 import net;
+import result;
 
 fn main() -> Void {
-  let listener: net.Listener = net.listen("127.0.0.1:0");
+  let listener: net.Listener = result.unwrapOk(net.listen("127.0.0.1:0"));
   net.flush(listener);
   return;
 }
@@ -1718,9 +1722,10 @@ fn main() -> Void {
 fn sema_rejects_net_timeout_type_mismatches() {
     let src = r#"
 import net;
+import result;
 
 fn main() -> Void {
-  let listener: net.Listener = net.listen("127.0.0.1:0");
+  let listener: net.Listener = result.unwrapOk(net.listen("127.0.0.1:0"));
   let socket: net.Socket = net.__testSocket();
   net.setReadTimeout(listener, 5);
   net.setWriteTimeout(socket, false);
@@ -1761,9 +1766,10 @@ fn main() -> Void {
 fn sema_rejects_net_tls_connect_type_mismatch() {
     let src = r#"
 import net;
+import result;
 
 fn main() -> Void {
-  let _x = net.tlsConnect(1, false);
+  let _x: Result[net.Socket, String] = net.tlsConnect(1, false);
   return;
 }
 "#;
@@ -1785,7 +1791,7 @@ fn sema_rejects_net_connect_argument_type_mismatch() {
 import net;
 
 fn main() -> Void {
-  let _x = net.connect(1);
+  let _x: Result[net.Socket, String] = net.connect(1);
   return;
 }
 "#;
@@ -1801,9 +1807,10 @@ fn main() -> Void {
 fn sema_rejects_net_close_type_mismatch() {
     let src = r#"
 import net;
+import result;
 
 fn main() -> Void {
-  let listener: net.Listener = net.listen("127.0.0.1:0");
+  let listener: net.Listener = result.unwrapOk(net.listen("127.0.0.1:0"));
   net.close(listener);
   return;
 }
@@ -1820,9 +1827,10 @@ fn main() -> Void {
 fn sema_rejects_net_read_type_mismatch() {
     let src = r#"
 import net;
+import result;
 
 fn main() -> Void {
-  let listener: net.Listener = net.listen("127.0.0.1:0");
+  let listener: net.Listener = result.unwrapOk(net.listen("127.0.0.1:0"));
   let _x = net.read(listener);
   return;
 }

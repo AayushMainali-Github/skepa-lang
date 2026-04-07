@@ -30,7 +30,10 @@ pub(super) fn check_net_builtin(
                     expected, got
                 ));
             }
-            TypeInfo::Opaque("net.Socket".to_string())
+            TypeInfo::Result {
+                ok: Box::new(TypeInfo::Opaque("net.Socket".to_string())),
+                err: Box::new(TypeInfo::String),
+            }
         }
         "read" => {
             if args.len() != 1 {
@@ -246,7 +249,10 @@ pub(super) fn check_net_builtin(
         }
         "tlsConnect" => {
             checker.check_fixed_arity_builtin("net", method, args, scopes, sig);
-            TypeInfo::Opaque("net.Socket".to_string())
+            TypeInfo::Result {
+                ok: Box::new(TypeInfo::Opaque("net.Socket".to_string())),
+                err: Box::new(TypeInfo::String),
+            }
         }
         "resolve" => {
             checker.check_fixed_arity_builtin("net", method, args, scopes, sig);
@@ -301,8 +307,14 @@ pub(super) fn check_net_builtin(
             checker.check_fixed_arity_builtin("net", method, args, scopes, sig);
             match method {
                 "__testSocket" => TypeInfo::Opaque("net.Socket".to_string()),
-                "listen" => TypeInfo::Opaque("net.Listener".to_string()),
-                "connect" => TypeInfo::Opaque("net.Socket".to_string()),
+                "listen" => TypeInfo::Result {
+                    ok: Box::new(TypeInfo::Opaque("net.Listener".to_string())),
+                    err: Box::new(TypeInfo::String),
+                },
+                "connect" => TypeInfo::Result {
+                    ok: Box::new(TypeInfo::Opaque("net.Socket".to_string())),
+                    err: Box::new(TypeInfo::String),
+                },
                 _ => unreachable!(),
             }
         }

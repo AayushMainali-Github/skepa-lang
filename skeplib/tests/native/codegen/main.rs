@@ -1850,9 +1850,10 @@ fn main() -> Int {
 fn codegen_builds_native_executable_for_minimal_net_listener_builtin() {
     let source = r#"
 import net;
+import result;
 
 fn main() -> Int {
-  let listener: net.Listener = net.listen("127.0.0.1:0");
+  let listener: net.Listener = result.unwrapOk(net.listen("127.0.0.1:0"));
   return 0;
 }
 "#;
@@ -1875,10 +1876,11 @@ fn codegen_builds_native_executable_for_net_connect_read_write() {
     let source = format!(
         r#"
 import net;
+import result;
 import str;
 
 fn main() -> Int {{
-  let socket: net.Socket = net.connect("{addr}");
+  let socket: net.Socket = result.unwrapOk(net.connect("{addr}"));
   net.write(socket, "ping");
   let msg = net.read(socket);
   net.close(socket);
@@ -1911,9 +1913,10 @@ fn codegen_builds_native_executable_for_net_connect_readbytes_writebytes() {
         r#"
 import net;
 import bytes;
+import result;
 
 fn main() -> Int {{
-  let socket: net.Socket = net.connect("{addr}");
+  let socket: net.Socket = result.unwrapOk(net.connect("{addr}"));
   let payload0: Bytes = bytes.fromString("");
   let payload1: Bytes = bytes.push(payload0, 1);
   let payload2: Bytes = bytes.push(payload1, 2);
@@ -1944,11 +1947,12 @@ fn codegen_builds_native_executable_for_net_listen_accept_roundtrip() {
     let source = format!(
         r#"
 import net;
+import result;
 import str;
 
 fn main() -> Int {{
-  let listener: net.Listener = net.listen("{addr}");
-  let socket: net.Socket = net.accept(listener);
+  let listener: net.Listener = result.unwrapOk(net.listen("{addr}"));
+  let socket: net.Socket = result.unwrapOk(net.accept(listener));
   let msg = net.read(socket);
   net.write(socket, "pong");
   net.close(socket);
@@ -1985,10 +1989,11 @@ fn codegen_builds_native_executable_for_net_listen_accept_byte_roundtrip() {
         r#"
 import net;
 import bytes;
+import result;
 
 fn main() -> Int {{
-  let listener: net.Listener = net.listen("{addr}");
-  let socket: net.Socket = net.accept(listener);
+  let listener: net.Listener = result.unwrapOk(net.listen("{addr}"));
+  let socket: net.Socket = result.unwrapOk(net.accept(listener));
   let raw: Bytes = net.readBytes(socket);
   let out0: Bytes = bytes.fromString("");
   let out1: Bytes = bytes.push(out0, 9);
@@ -2030,9 +2035,10 @@ fn codegen_builds_native_executable_for_net_read_n() {
         r#"
 import net;
 import bytes;
+import result;
 
 fn main() -> Int {{
-  let socket: net.Socket = net.connect("{addr}");
+  let socket: net.Socket = result.unwrapOk(net.connect("{addr}"));
   let raw: Bytes = net.readN(socket, 3);
   net.close(socket);
   if (bytes.len(raw) == 3 && bytes.get(raw, 0) == 4 && bytes.get(raw, 2) == 6) {{
@@ -2343,9 +2349,10 @@ fn codegen_builds_native_executable_for_net_flush() {
     let source = format!(
         r#"
 import net;
+import result;
 
 fn main() -> Int {{
-  let socket: net.Socket = net.connect("{addr}");
+  let socket: net.Socket = result.unwrapOk(net.connect("{addr}"));
   net.write(socket, "ping");
   net.flush(socket);
   net.close(socket);
@@ -2373,9 +2380,10 @@ fn codegen_builds_native_executable_for_net_timeout_setters() {
     let source = format!(
         r#"
 import net;
+import result;
 
 fn main() -> Int {{
-  let socket: net.Socket = net.connect("{addr}");
+  let socket: net.Socket = result.unwrapOk(net.connect("{addr}"));
   net.setReadTimeout(socket, 25);
   net.setWriteTimeout(socket, 50);
   net.write(socket, "ping");
@@ -2407,9 +2415,10 @@ fn codegen_reports_runtime_failure_for_non_utf8_net_reads() {
     let source = format!(
         r#"
 import net;
+import result;
 
 fn main() -> Int {{
-  let socket: net.Socket = net.connect("{addr}");
+  let socket: net.Socket = result.unwrapOk(net.connect("{addr}"));
   let _msg = net.read(socket);
   net.close(socket);
   return 0;

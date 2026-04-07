@@ -63,6 +63,27 @@ fn string_vec(items: &[&str]) -> RtValue {
     RtValue::Vec(value)
 }
 
+fn expect_ok_handle(
+    value: RtValue,
+    expected_kind: skepart::RtHandleKind,
+    context: &str,
+) -> skepart::RtHandle {
+    let RtValue::Result(result) = value else {
+        panic!("{context} should return a result");
+    };
+    let skepart::RtResultValue::Ok(value) = result else {
+        panic!("{context} should return Ok(handle)");
+    };
+    let RtValue::Handle(handle) = *value else {
+        panic!("{context} should return Ok(handle)");
+    };
+    assert_eq!(
+        handle.kind, expected_kind,
+        "{context} returned wrong handle kind"
+    );
+    handle
+}
+
 #[test]
 fn builtins_dispatch_valid_core_families() {
     let mut host = RecordingHostBuilder::seeded().build();
@@ -670,10 +691,12 @@ fn builtins_map_host_backed_results_consistently() {
             &[RtValue::String(RtString::from("127.0.0.1:0"))],
         )
         .expect("net listener"),
-        RtValue::Handle(skepart::RtHandle {
-            id: 1,
-            kind: skepart::RtHandleKind::Listener,
-        })
+        RtValue::Result(skepart::RtResultValue::ok(RtValue::Handle(
+            skepart::RtHandle {
+                id: 1,
+                kind: skepart::RtHandleKind::Listener,
+            }
+        )))
     );
     assert_eq!(
         builtins::call_with_host(
@@ -756,58 +779,74 @@ fn builtins_preserve_net_handle_kinds_across_connect_listen_and_accept() {
     let mut host = RecordingHostBuilder::seeded().build();
 
     assert_eq!(
-        builtins::call_with_host(
-            &mut host,
-            "net",
-            "connect",
-            &[RtValue::String(RtString::from("127.0.0.1:8080"))],
-        )
-        .expect("connect should return socket"),
-        RtValue::Handle(skepart::RtHandle {
+        expect_ok_handle(
+            builtins::call_with_host(
+                &mut host,
+                "net",
+                "connect",
+                &[RtValue::String(RtString::from("127.0.0.1:8080"))],
+            )
+            .expect("connect should return socket"),
+            skepart::RtHandleKind::Socket,
+            "net.connect",
+        ),
+        skepart::RtHandle {
             id: 0,
             kind: skepart::RtHandleKind::Socket,
-        })
+        }
     );
 
     assert_eq!(
+        expect_ok_handle(
+            builtins::call_with_host(
+                &mut host,
+                "net",
+                "tlsConnect",
+                &[
+                    RtValue::String(RtString::from("example.com")),
+                    RtValue::Int(443)
+                ],
+            )
+            .expect("tlsConnect should return socket"),
+            skepart::RtHandleKind::Socket,
+            "net.tlsConnect",
+        ),
+        skepart::RtHandle {
+            id: 1,
+            kind: skepart::RtHandleKind::Socket,
+        }
+    );
+
+    let listener = expect_ok_handle(
         builtins::call_with_host(
             &mut host,
             "net",
-            "tlsConnect",
-            &[
-                RtValue::String(RtString::from("example.com")),
-                RtValue::Int(443)
-            ],
+            "listen",
+            &[RtValue::String(RtString::from("127.0.0.1:0"))],
         )
-        .expect("tlsConnect should return socket"),
-        RtValue::Handle(skepart::RtHandle {
-            id: 1,
-            kind: skepart::RtHandleKind::Socket,
-        })
+        .expect("listen should return listener"),
+        skepart::RtHandleKind::Listener,
+        "net.listen",
     );
-
-    let listener = builtins::call_with_host(
-        &mut host,
-        "net",
-        "listen",
-        &[RtValue::String(RtString::from("127.0.0.1:0"))],
-    )
-    .expect("listen should return listener");
     assert_eq!(
         listener,
-        RtValue::Handle(skepart::RtHandle {
+        skepart::RtHandle {
             id: 2,
             kind: skepart::RtHandleKind::Listener,
-        })
+        }
     );
 
     assert_eq!(
-        builtins::call_with_host(&mut host, "net", "accept", &[listener])
-            .expect("accept should return socket"),
-        RtValue::Handle(skepart::RtHandle {
+        expect_ok_handle(
+            builtins::call_with_host(&mut host, "net", "accept", &[RtValue::Handle(listener)])
+                .expect("accept should return socket"),
+            skepart::RtHandleKind::Socket,
+            "net.accept",
+        ),
+        skepart::RtHandle {
             id: 3,
             kind: skepart::RtHandleKind::Socket,
-        })
+        }
     );
 }
 
@@ -1407,9 +1446,10 @@ fn builtins_surface_net_runtime_errors_consistently() {
             "listen",
             &[RtValue::String(RtString::from("bad"))],
         )
-        .expect_err("listen failure should surface")
-        .kind,
-        RtErrorKind::Io
+        .expect("listen failure should return result"),
+        RtValue::Result(skepart::RtResultValue::err(RtValue::String(
+            RtString::from("Io: bad listen address")
+        )))
     );
 
     let mut failing_connect = RecordingHostBuilder::seeded()
@@ -1422,9 +1462,10 @@ fn builtins_surface_net_runtime_errors_consistently() {
             "connect",
             &[RtValue::String(RtString::from("127.0.0.1:1"))],
         )
-        .expect_err("connect failure should surface")
-        .kind,
-        RtErrorKind::Io
+        .expect("connect failure should return result"),
+        RtValue::Result(skepart::RtResultValue::err(RtValue::String(
+            RtString::from("Io: connect failed")
+        )))
     );
 
     let mut failing_tls_connect = RecordingHostBuilder::seeded()
@@ -1440,9 +1481,37 @@ fn builtins_surface_net_runtime_errors_consistently() {
                 RtValue::Int(443)
             ],
         )
-        .expect_err("tlsConnect failure should surface")
-        .kind,
-        RtErrorKind::Io
+        .expect("tlsConnect failure should return result"),
+        RtValue::Result(skepart::RtResultValue::err(RtValue::String(
+            RtString::from("Io: tls connect failed")
+        )))
+    );
+
+    let mut failing_accept = RecordingHostBuilder::seeded()
+        .net_accept_error("accept failed")
+        .build();
+    let listener = expect_ok_handle(
+        builtins::call_with_host(
+            &mut failing_accept,
+            "net",
+            "listen",
+            &[RtValue::String(RtString::from("127.0.0.1:0"))],
+        )
+        .expect("listen should return result"),
+        skepart::RtHandleKind::Listener,
+        "net.listen",
+    );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut failing_accept,
+            "net",
+            "accept",
+            &[RtValue::Handle(listener)],
+        )
+        .expect("accept failure should return result"),
+        RtValue::Result(skepart::RtResultValue::err(RtValue::String(
+            RtString::from("Io: accept failed")
+        )))
     );
 
     let mut failing_read = RecordingHostBuilder::seeded()
@@ -1534,17 +1603,21 @@ fn builtins_surface_net_runtime_errors_consistently() {
 #[test]
 fn builtins_reject_wrong_or_closed_net_handles_for_io() {
     let mut host = RecordingHostBuilder::seeded().build();
-    let listener = builtins::call_with_host(
-        &mut host,
-        "net",
-        "listen",
-        &[RtValue::String(RtString::from("127.0.0.1:0"))],
-    )
-    .expect("listener");
+    let listener = expect_ok_handle(
+        builtins::call_with_host(
+            &mut host,
+            "net",
+            "listen",
+            &[RtValue::String(RtString::from("127.0.0.1:0"))],
+        )
+        .expect("listener"),
+        skepart::RtHandleKind::Listener,
+        "net.listen",
+    );
     let socket = builtins::call_with_host(&mut host, "net", "__testSocket", &[]).expect("socket");
 
     assert_eq!(
-        builtins::call_with_host(&mut host, "net", "read", std::slice::from_ref(&listener))
+        builtins::call_with_host(&mut host, "net", "read", &[RtValue::Handle(listener)],)
             .expect_err("listener passed to read should fail")
             .kind,
         RtErrorKind::InvalidArgument
@@ -1554,7 +1627,10 @@ fn builtins_reject_wrong_or_closed_net_handles_for_io() {
             &mut host,
             "net",
             "write",
-            &[listener.clone(), RtValue::String(RtString::from("ping"))],
+            &[
+                RtValue::Handle(listener),
+                RtValue::String(RtString::from("ping"))
+            ],
         )
         .expect_err("listener passed to write should fail")
         .kind,
@@ -1581,7 +1657,7 @@ fn builtins_reject_wrong_or_closed_net_handles_for_io() {
         RtErrorKind::InvalidArgument
     );
     assert_eq!(
-        builtins::call_with_host(&mut host, "net", "flush", std::slice::from_ref(&listener))
+        builtins::call_with_host(&mut host, "net", "flush", &[RtValue::Handle(listener)])
             .expect_err("listener passed to flush should fail")
             .kind,
         RtErrorKind::InvalidArgument
@@ -1597,7 +1673,7 @@ fn builtins_reject_wrong_or_closed_net_handles_for_io() {
             &mut host,
             "net",
             "setReadTimeout",
-            &[listener.clone(), RtValue::Int(5)],
+            &[RtValue::Handle(listener), RtValue::Int(5)],
         )
         .expect_err("listener passed to setReadTimeout should fail")
         .kind,
@@ -1620,13 +1696,17 @@ fn builtins_reject_wrong_or_closed_net_handles_for_io() {
 fn builtins_reject_wrong_or_closed_net_handles_for_accept() {
     let mut host = RecordingHostBuilder::seeded().build();
     let socket = builtins::call_with_host(&mut host, "net", "__testSocket", &[]).expect("socket");
-    let listener = builtins::call_with_host(
-        &mut host,
-        "net",
-        "listen",
-        &[RtValue::String(RtString::from("127.0.0.1:0"))],
-    )
-    .expect("listener");
+    let listener = expect_ok_handle(
+        builtins::call_with_host(
+            &mut host,
+            "net",
+            "listen",
+            &[RtValue::String(RtString::from("127.0.0.1:0"))],
+        )
+        .expect("listener"),
+        skepart::RtHandleKind::Listener,
+        "net.listen",
+    );
 
     assert_eq!(
         builtins::call_with_host(&mut host, "net", "accept", std::slice::from_ref(&socket))
@@ -1639,14 +1719,15 @@ fn builtins_reject_wrong_or_closed_net_handles_for_accept() {
         &mut host,
         "net",
         "closeListener",
-        std::slice::from_ref(&listener),
+        &[RtValue::Handle(listener)],
     )
     .expect("close listener");
     assert_eq!(
-        builtins::call_with_host(&mut host, "net", "accept", std::slice::from_ref(&listener))
-            .expect_err("closed listener passed to accept should fail")
-            .kind,
-        RtErrorKind::InvalidArgument
+        builtins::call_with_host(&mut host, "net", "accept", &[RtValue::Handle(listener)])
+            .expect("closed listener should return Err result"),
+        RtValue::Result(skepart::RtResultValue::err(RtValue::String(
+            RtString::from("InvalidArgument: unknown handle id 1")
+        )))
     );
 }
 
