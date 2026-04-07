@@ -1841,6 +1841,52 @@ fn main() -> Int {
 }
 
 #[test]
+fn codegen_reports_runtime_failure_for_vec_set_out_of_bounds_natively() {
+    let source = r#"
+import vec;
+
+fn main() -> Int {
+  let xs: Vec[Int] = vec.new();
+  vec.push(xs, 1);
+  vec.set(xs, 9, 2);
+  return 0;
+}
+"#;
+
+    let output = common::native_run_structured(source);
+    assert_ne!(output.exit_code(), 0);
+    assert!(
+        output.stderr_lossy().contains("out of bounds")
+            || output.stderr_lossy().contains("index"),
+        "expected vec.set bounds runtime failure, got: {}",
+        output.stderr_lossy()
+    );
+}
+
+#[test]
+fn codegen_reports_runtime_failure_for_invalid_byte_push_natively() {
+    let source = r#"
+import bytes;
+
+fn main() -> Int {
+  let raw: Bytes = bytes.fromString("a");
+  let _bad: Bytes = bytes.push(raw, 999);
+  return 0;
+}
+"#;
+
+    let output = common::native_run_structured(source);
+    assert_ne!(output.exit_code(), 0);
+    assert!(
+        output.stderr_lossy().contains("byte")
+            || output.stderr_lossy().contains("InvalidArgument")
+            || output.stderr_lossy().contains("runtime"),
+        "expected bytes.push invalid-byte runtime failure, got: {}",
+        output.stderr_lossy()
+    );
+}
+
+#[test]
 fn codegen_matches_interpreter_for_large_shift_counts() {
     let source = r#"
 fn main() -> Int {

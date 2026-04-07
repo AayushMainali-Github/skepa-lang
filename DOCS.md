@@ -1124,6 +1124,7 @@ Notes:
 - `bytes.toString` returns `Err(String)` on invalid UTF-8.
 - `bytes.push` requires the appended byte value to be in `0..=255`.
 - `bytes.slice` requires valid non-negative bounds with `start <= end`.
+- `bytes.slice` and `bytes.push` are deliberate strict operations. Invalid bounds or invalid byte values raise runtime errors instead of returning `Result`.
 - `Bytes` supports language-level `==` / `!=` by content.
 
 ### 8.12 `map`
@@ -1481,6 +1482,7 @@ Notes:
 - `Vec[T]` follows the shared-reference rules from the core semantics section.
 - `vec.get` returns `None()` for negative or out-of-bounds indices.
 - `vec.set` and `vec.delete` remain strict and raise runtime errors for invalid indices.
+- This split is intentional: `vec.get` models ordinary absence with `Option`, while mutating invalid indices is treated as strict misuse.
 
 ## 9. Diagnostics (Module/Import/Export)
 

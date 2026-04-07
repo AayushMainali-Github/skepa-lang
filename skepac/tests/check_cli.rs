@@ -435,6 +435,61 @@ fn main() -> Int {
 }
 
 #[test]
+fn run_reports_runtime_failure_for_vec_set_out_of_bounds() {
+    let tmp = make_temp_dir("skepac_run_vec_set_oob");
+    let source = tmp.join("main.sk");
+    fs::write(
+        &source,
+        r#"
+import vec;
+
+fn main() -> Int {
+  let xs: Vec[Int] = vec.new();
+  vec.push(xs, 1);
+  vec.set(xs, 9, 2);
+  return 0;
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("run")
+        .arg(&source)
+        .output()
+        .expect("run skepac run");
+
+    assert_cli_failure_class(&output, CliFailureClass::Runtime);
+}
+
+#[test]
+fn run_reports_runtime_failure_for_invalid_byte_push() {
+    let tmp = make_temp_dir("skepac_run_bytes_push_invalid");
+    let source = tmp.join("main.sk");
+    fs::write(
+        &source,
+        r#"
+import bytes;
+
+fn main() -> Int {
+  let raw: Bytes = bytes.fromString("a");
+  let _bad: Bytes = bytes.push(raw, 999);
+  return 0;
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("run")
+        .arg(&source)
+        .output()
+        .expect("run skepac run");
+
+    assert_cli_failure_class(&output, CliFailureClass::Runtime);
+}
+
+#[test]
 fn run_executes_user_defined_operator_program_end_to_end() {
     let tmp = make_temp_dir("skepac_run_user_operator");
     let source = tmp.join("main.sk");

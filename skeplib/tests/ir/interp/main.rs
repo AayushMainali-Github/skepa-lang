@@ -1628,6 +1628,31 @@ fn main() -> String {
 "#,
         ExpectedErrorKind::IndexOutOfBounds,
     );
+    assert_ir_rejects_source(
+        r#"
+import vec;
+
+fn main() -> Int {
+  let xs: Vec[Int] = vec.new();
+  vec.push(xs, 1);
+  vec.set(xs, 9, 2);
+  return 0;
+}
+"#,
+        ExpectedErrorKind::IndexOutOfBounds,
+    );
+    assert_ir_rejects_source(
+        r#"
+import bytes;
+
+fn main() -> Int {
+  let raw: Bytes = bytes.fromString("a");
+  let _bad: Bytes = bytes.push(raw, 999);
+  return 0;
+}
+"#,
+        ExpectedErrorKind::InvalidArgument,
+    );
     assert_eq!(
         common::ir_run_ok(
         r#"
