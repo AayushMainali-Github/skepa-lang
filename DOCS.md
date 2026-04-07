@@ -373,6 +373,92 @@ Notes:
 - Struct methods: first parameter must be `self: StructName`.
 - Function literals are non-capturing.
 
+## 7.0 Core Semantics
+
+### Value Categories
+
+The language has two important runtime categories:
+
+- value-like types
+- shared-reference types
+
+Value-like types behave like ordinary values when assigned, passed, or returned.
+
+Examples:
+- `Int`
+- `Float`
+- `Bool`
+- `String`
+- `Bytes`
+- fixed arrays
+- structs made only of value-like fields
+- `Option[T]`
+- `Result[T, E]`
+
+Shared-reference types alias shared underlying runtime state when assigned, passed, or returned.
+
+Examples:
+- `Vec[T]`
+- `Map[String, T]`
+- `task.Channel[T]`
+- `task.Task[T]`
+- `net.Socket`
+- `net.Listener`
+- `ffi.Library`
+- `ffi.Symbol`
+
+For shared-reference types:
+- assignment does not duplicate the underlying object
+- passing to a function does not duplicate the underlying object
+- returning from a function does not duplicate the underlying object
+- mutation through one alias is visible through every alias
+- closing one resource alias closes the shared underlying resource for every alias
+
+### Mutation Visibility
+
+Mutation follows the runtime category of the value:
+
+- mutating a value-like aggregate affects only that value
+- mutating a shared-reference value affects the shared underlying object
+
+Examples:
+- `vec.push`, `vec.set`, and `vec.delete` mutate the shared vector object
+- `map.insert` and `map.remove` mutate the shared map object
+- `net.close` closes the shared socket resource, not only one local variable name
+
+### Shadowing And Scope
+
+Lexical scope is block-based.
+
+- same-scope duplicate local bindings are rejected
+- inner blocks may shadow outer bindings
+- loop bodies may shadow outer bindings
+- function parameters introduce bindings in the function-local scope
+- match-arm variant bindings exist only inside that arm
+- import/export alias collisions are rejected at module scope
+
+Shadowing is allowed only across nested scopes, not within the same scope.
+
+### Function Values
+
+Function values are first-class, but function literals are non-capturing.
+
+- named functions may be used as `Fn(...) -> ...` values
+- function literals may be used as `Fn(...) -> ...` values
+- function literals cannot capture outer locals or parameters
+
+This means the language supports first-class function values, not general capturing closures.
+
+### Strict Vs Typed Failure
+
+The core rule is:
+
+- use runtime errors for misuse, invariant violations, and deliberate strict operations
+- use `Option[T]` for ordinary absence
+- use `Result[T, E]` for ordinary recoverable failure
+
+Package docs may still call out specific strict operations, but the split above is the language-wide rule.
+
 ## 7.1 Error Model
 
 The language error model has three categories:
