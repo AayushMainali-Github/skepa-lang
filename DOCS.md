@@ -474,6 +474,32 @@ The core rule is:
 
 Package docs may still call out specific strict operations, but the split above is the language-wide rule.
 
+### Equality And Comparison
+
+The comparison operators `<`, `<=`, `>`, and `>=` are numeric/string comparisons only where the operand types support them.
+
+The equality operators `==` and `!=` require compatible operand types.
+
+Structural equality is supported for ordinary value-like types, including:
+- `Int`
+- `Float`
+- `Bool`
+- `String`
+- `Bytes`
+- fixed arrays
+- structs
+- `Option[T]`
+- `Result[T, E]`
+
+Equality is intentionally not supported for:
+- `Fn(...) -> ...` values
+- `Vec[T]`
+- `Map[String, T]`
+
+Reason:
+- function values do not have a meaningful language-level equality notion
+- vectors and maps are mutable shared-reference types, so structural equality is intentionally not part of the current language model
+
 ## 7.1 Error Model
 
 The language error model has three categories:
