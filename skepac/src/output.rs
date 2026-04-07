@@ -8,16 +8,17 @@ pub fn print_diag(phase: &str, d: &Diagnostic) {
 pub fn print_resolve_errors(errs: &[ResolveError]) {
     for e in errs {
         if let Some(path) = &e.path {
-            let line = e.line.unwrap_or(0);
-            let col = e.col.unwrap_or(0);
-            eprintln!(
-                "[{}][resolve] {}:{}:{}: {}",
-                e.code,
-                path.display(),
-                line,
-                col,
-                e.message
-            );
+            match (e.line, e.col) {
+                (Some(line), Some(col)) => eprintln!(
+                    "[{}][resolve] {}:{}:{}: {}",
+                    e.code,
+                    path.display(),
+                    line,
+                    col,
+                    e.message
+                ),
+                _ => eprintln!("[{}][resolve] {}: {}", e.code, path.display(), e.message),
+            }
         } else {
             eprintln!("[{}][resolve] {}", e.code, e.message);
         }
