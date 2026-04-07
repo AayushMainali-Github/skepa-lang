@@ -127,7 +127,7 @@ fn main() -> Int {
 fn parses_match_statement_with_option_and_result_variant_patterns() {
     let src = r#"
 fn main() -> Int {
-  match (some(1)) {
+  match (Some(1)) {
     Some(x) => { return x; }
     None => { return 0; }
   }
@@ -159,7 +159,7 @@ fn main() -> Int {
 fn parses_match_expression_with_variant_arms() {
     let src = r#"
 fn main() -> Int {
-  let x: Int = match (some(1)) {
+  let x: Int = match (Some(1)) {
     Some(v) => v,
     None => 0,
   };
@@ -170,7 +170,7 @@ fn main() -> Int {
 fn parses_variant_pattern_with_payload_wildcard() {
     let src = r#"
 fn main() -> Int {
-  match (some(1)) {
+  match (Some(1)) {
     Some(_) => { return 1; }
     None => { return 0; }
   }
@@ -195,7 +195,7 @@ fn main() -> Int {
 fn reports_empty_variant_pattern_payload() {
     let src = r#"
 fn main() -> Int {
-  match (some(1)) {
+  match (Some(1)) {
     Some() => { return 1; }
     None => { return 0; }
   }
@@ -212,7 +212,7 @@ fn main() -> Int {
 fn reports_empty_none_variant_pattern_payload() {
     let src = r#"
 fn main() -> Int {
-  match (none()) {
+  match (None()) {
     None() => { return 1; }
     _ => { return 0; }
   }

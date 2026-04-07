@@ -1685,31 +1685,22 @@ fn main() -> Int {
 }
 
 #[test]
-fn interpreter_supports_lowercase_option_and_result_constructor_aliases() {
+fn interpreter_rejects_lowercase_option_and_result_constructor_aliases() {
     let source = r#"
-fn wrap(x: Int) -> Option[Int] {
-  return some(x);
-}
-
-fn fail() -> Result[Int, String] {
-  return err("bad");
-}
-
 fn main() -> Int {
-  let a: Option[Int] = wrap(7);
-  let b: Option[Int] = some(7);
-  let c: Option[Int] = none();
-  let d: Result[Int, String] = ok(7);
-  let e: Result[Int, String] = fail();
-  if (a == b && c == none() && d == ok(7) && e == err("bad")) {
-    return 0;
-  }
-  return 1;
+  let a: Option[Int] = some(7);
+  let b: Option[Int] = none();
+  let c: Result[Int, String] = ok(7);
+  let d: Result[Int, String] = err("bad");
+  return 0;
 }
 "#;
-
-    let value = common::ir_run_ok(source);
-    assert_eq!(value, IrValue::Int(0));
+    let (result, diags) = common::sema_err(source);
+    assert!(result.has_errors);
+    assert_has_diag(&diags, "Unknown function `some`");
+    assert_has_diag(&diags, "Unknown function `none`");
+    assert_has_diag(&diags, "Unknown function `ok`");
+    assert_has_diag(&diags, "Unknown function `err`");
 }
 
 #[test]
@@ -1723,9 +1714,9 @@ fn unwrap_or_zero(value: Option[Int]) -> Int {
 }
 
 fn main() -> Int {
-  let res: Result[Int, String] = ok(7);
+  let res: Result[Int, String] = Ok(7);
   match (res) {
-    Ok(v) => { return unwrap_or_zero(some(v)); }
+    Ok(v) => { return unwrap_or_zero(Some(v)); }
     Err(e) => { return 0; }
   }
 }
@@ -1775,12 +1766,12 @@ fn unwrap_or_zero(value: Option[Int]) -> Int {
 }
 
 fn main() -> Int {
-  let res: Result[Int, String] = ok(7);
+  let res: Result[Int, String] = Ok(7);
   let out: Int = match (res) {
     Ok(v) => v,
     Err(e) => 0,
   };
-  return unwrap_or_zero(some(out));
+  return unwrap_or_zero(Some(out));
 }
 "#;
 

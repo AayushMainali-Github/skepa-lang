@@ -498,7 +498,7 @@ fn main() -> Int {
 fn parses_try_postfix_expression() {
     let src = r#"
 fn main() -> Option[Int] {
-  let value = some(7)?;
+  let value = Some(7)?;
   return Some(value);
 }
 "#;

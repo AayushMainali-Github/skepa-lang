@@ -60,53 +60,53 @@ impl Checker {
     ) -> TypeInfo {
         if let Expr::Ident(name) = callee {
             match (name.as_str(), args) {
-                ("Some" | "some", [value]) => {
+                ("Some", [value]) => {
                     let value_ty = self.check_expr(value, scopes);
                     return TypeInfo::Option {
                         value: Box::new(value_ty),
                     };
                 }
-                ("Some" | "some", _) => {
+                ("Some", _) => {
                     for arg in args {
                         self.check_expr(arg, scopes);
                     }
                     self.error(format!("{name} expects 1 argument, got {}", args.len()));
                     return TypeInfo::Unknown;
                 }
-                ("None" | "none", []) => {
+                ("None", []) => {
                     return TypeInfo::Option {
                         value: Box::new(TypeInfo::Unknown),
                     };
                 }
-                ("None" | "none", _) => {
+                ("None", _) => {
                     for arg in args {
                         self.check_expr(arg, scopes);
                     }
                     self.error(format!("{name} expects 0 arguments, got {}", args.len()));
                     return TypeInfo::Unknown;
                 }
-                ("Ok" | "ok", [value]) => {
+                ("Ok", [value]) => {
                     let value_ty = self.check_expr(value, scopes);
                     return TypeInfo::Result {
                         ok: Box::new(value_ty),
                         err: Box::new(TypeInfo::Unknown),
                     };
                 }
-                ("Ok" | "ok", _) => {
+                ("Ok", _) => {
                     for arg in args {
                         self.check_expr(arg, scopes);
                     }
                     self.error(format!("{name} expects 1 argument, got {}", args.len()));
                     return TypeInfo::Unknown;
                 }
-                ("Err" | "err", [value]) => {
+                ("Err", [value]) => {
                     let err_ty = self.check_expr(value, scopes);
                     return TypeInfo::Result {
                         ok: Box::new(TypeInfo::Unknown),
                         err: Box::new(err_ty),
                     };
                 }
-                ("Err" | "err", _) => {
+                ("Err", _) => {
                     for arg in args {
                         self.check_expr(arg, scopes);
                     }
@@ -391,6 +391,15 @@ impl Checker {
         scopes: &mut [HashMap<String, TypeInfo>],
     ) -> TypeInfo {
         match method {
+            "some" | "none" => {
+                for arg in args {
+                    self.check_expr(arg, scopes);
+                }
+                self.error(format!(
+                    "`option.{method}` is not part of the user-facing language surface; use `Some(...)` or `None()`"
+                ));
+                TypeInfo::Unknown
+            }
             "isSome" | "isNone" => {
                 if args.len() != 1 {
                     self.error(format!(
@@ -449,6 +458,15 @@ impl Checker {
         scopes: &mut [HashMap<String, TypeInfo>],
     ) -> TypeInfo {
         match method {
+            "ok" | "err" => {
+                for arg in args {
+                    self.check_expr(arg, scopes);
+                }
+                self.error(format!(
+                    "`result.{method}` is not part of the user-facing language surface; use `Ok(...)` or `Err(...)`"
+                ));
+                TypeInfo::Unknown
+            }
             "isOk" | "isErr" => {
                 if args.len() != 1 {
                     self.error(format!(

@@ -370,12 +370,12 @@ Notes:
 Examples:
 
 ```sk
-let x: Int = match (some(1)) {
+let x: Int = match (Some(1)) {
   Some(v) => v,
   None => 0,
 };
 
-let y: Int = match (ok(7)) {
+let y: Int = match (Ok(7)) {
   Ok(_) => 1,
   Err(_) => 0,
 };
@@ -667,8 +667,6 @@ The language and standard library use a mixed model:
 Construction:
 - `Some(value)`
 - `None()`
-- `some(value)`
-- `none()`
 
 Behavior:
 - `Option[T]` is a builtin generic enum-like type
@@ -678,7 +676,6 @@ Behavior:
 - `option.isSome(value)` and `option.isNone(value)` inspect option values
 - `match` supports `Some(x)` and `None` patterns with exhaustiveness checking
 - `None()` relies on surrounding typed context when the inner type cannot be inferred directly
-- lowercase `some` / `none` are aliases for the constructor forms
 
 Example:
 
@@ -737,8 +734,6 @@ fn doubleOrNone(x: Option[Int]) -> Option[Int] {
 Construction:
 - `Ok(value)`
 - `Err(error)`
-- `ok(value)`
-- `err(error)`
 
 Behavior:
 - `Result[T, E]` is a builtin generic enum-like type
@@ -749,7 +744,6 @@ Behavior:
 - `match` supports `Ok(v)` and `Err(e)` patterns with exhaustiveness checking
 - `Ok(...)` and `Err(...)` rely on surrounding typed context when the opposite side of the result cannot be inferred directly
 - `E` may be a builtin type or a user-defined named type such as a struct
-- lowercase `ok` / `err` are aliases for the constructor forms
 
 Example:
 
@@ -914,8 +908,8 @@ Signatures:
 
 Behavior:
 - `Option[T]` is the language mechanism for ordinary absence.
-- `Some(value)` / `some(value)` construct present option values.
-- `None()` / `none()` construct absent option values.
+- `Some(value)` constructs present option values.
+- `None()` constructs absent option values.
 - `option.isSome` returns `true` when the value is `Some(...)`.
 - `option.isNone` returns `true` when the value is `None()`.
 - `option.unwrapSome` returns the inner value for `Some(...)`.
@@ -950,8 +944,8 @@ Signatures:
 
 Behavior:
 - `Result[T, E]` is the language mechanism for ordinary recoverable failure.
-- `Ok(value)` / `ok(value)` construct success values.
-- `Err(error)` / `err(error)` construct failure values.
+- `Ok(value)` constructs success values.
+- `Err(error)` constructs failure values.
 - `result.isOk` returns `true` for `Ok(...)`.
 - `result.isErr` returns `true` for `Err(...)`.
 - `result.unwrapOk` returns the success payload.

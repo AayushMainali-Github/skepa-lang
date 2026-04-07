@@ -1473,30 +1473,22 @@ fn main() -> Int {
 }
 
 #[test]
-fn sema_accepts_lowercase_option_and_result_constructor_aliases() {
+fn sema_rejects_lowercase_option_and_result_constructor_aliases() {
     let src = r#"
-fn wrap(x: Int) -> Option[Int] {
-  return some(x);
-}
-
-fn fail() -> Result[Int, String] {
-  return err("bad");
-}
-
 fn main() -> Int {
-  let a: Option[Int] = wrap(7);
-  let b: Option[Int] = some(7);
-  let c: Option[Int] = none();
-  let d: Result[Int, String] = ok(7);
-  let e: Result[Int, String] = fail();
-  if (a == b && c == none() && d == ok(7) && e == err("bad")) {
-    return 0;
-  }
-  return 1;
+  let a: Option[Int] = some(7);
+  let b: Option[Int] = none();
+  let c: Result[Int, String] = ok(7);
+  let d: Result[Int, String] = err("bad");
+  return 0;
 }
 "#;
     let (result, diags) = analyze_source(src);
-    assert_sema_success(&result, &diags);
+    assert!(result.has_errors);
+    assert_has_diag(&diags, "Unknown function `some`");
+    assert_has_diag(&diags, "Unknown function `none`");
+    assert_has_diag(&diags, "Unknown function `ok`");
+    assert_has_diag(&diags, "Unknown function `err`");
 }
 
 #[test]
@@ -1510,9 +1502,9 @@ fn unwrap_or_zero(value: Option[Int]) -> Int {
 }
 
 fn main() -> Int {
-  let res: Result[Int, String] = ok(7);
+  let res: Result[Int, String] = Ok(7);
   match (res) {
-    Ok(v) => { return unwrap_or_zero(some(v)); }
+    Ok(v) => { return unwrap_or_zero(Some(v)); }
     Err(e) => { return 0; }
   }
 }
@@ -1525,8 +1517,8 @@ fn main() -> Int {
 fn sema_rejects_non_exhaustive_option_and_result_match() {
     let src = r#"
 fn main() -> Int {
-  let opt: Option[Int] = some(1);
-  let res: Result[Int, String] = ok(2);
+  let opt: Option[Int] = Some(1);
+  let res: Result[Int, String] = Ok(2);
   match (opt) {
     Some(x) => { return x; }
   }
@@ -1583,8 +1575,8 @@ fn unwrap_or_zero(value: Option[Int]) -> Int {
 fn sema_accepts_variant_payload_wildcard_patterns() {
     let src = r#"
 fn main() -> Int {
-  let opt: Option[Int] = some(1);
-  let res: Result[Int, String] = ok(2);
+  let opt: Option[Int] = Some(1);
+  let res: Result[Int, String] = Ok(2);
   let a: Int = match (opt) {
     Some(_) => 1,
     None => 0,
@@ -1601,12 +1593,12 @@ fn main() -> Int {
 }
 
 fn main() -> Int {
-  let res: Result[Int, String] = ok(7);
+  let res: Result[Int, String] = Ok(7);
   let out: Int = match (res) {
     Ok(v) => v,
     Err(e) => 0,
   };
-  return unwrap_or_zero(some(out));
+  return unwrap_or_zero(Some(out));
 }
 "#;
     let (result, diags) = analyze_source(src);
@@ -1617,7 +1609,7 @@ fn main() -> Int {
 fn sema_rejects_match_expression_arm_type_mismatch() {
     let src = r#"
 fn main() -> Int {
-  let x: Int = match (some(1)) {
+  let x: Int = match (Some(1)) {
     Some(v) => v,
     None => "bad",
   };
