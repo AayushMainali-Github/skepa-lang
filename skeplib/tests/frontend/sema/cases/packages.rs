@@ -164,6 +164,33 @@ fn main() -> Int {
 }
 
 #[test]
+fn sema_accepts_safe_access_variants_for_bytes_arr_and_vec() {
+    let src = r#"
+import arr;
+import bytes;
+import option;
+import vec;
+
+fn main() -> Int {
+  let raw: Bytes = bytes.fromString("abc");
+  let xs: Vec[Int] = vec.new();
+  vec.push(xs, 7);
+  let arrv: [Int; 2] = [1, 2];
+  let a: Option[Int] = bytes.tryGet(raw, 1);
+  let b: Option[Int] = vec.tryGet(xs, 0);
+  let c: Option[Int] = arr.tryFirst(arrv);
+  let d: Option[Int] = arr.tryLast(arrv);
+  if (option.isSome(a) && option.isSome(b) && option.isSome(c) && option.isSome(d)) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
+
+#[test]
 fn sema_accepts_map_builtins() {
     let src = r#"
 import map;

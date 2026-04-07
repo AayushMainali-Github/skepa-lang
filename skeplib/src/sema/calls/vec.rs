@@ -54,21 +54,36 @@ pub(super) fn check_vec_builtin(
             }
             TypeInfo::Void
         }
-        "get" => {
+        "get" | "tryGet" => {
             if args.len() != 2 {
-                checker.error(format!("vec.get expects 2 argument(s), got {}", args.len()));
+                checker.error(format!(
+                    "vec.{method} expects 2 argument(s), got {}",
+                    args.len()
+                ));
                 return TypeInfo::Unknown;
             }
             let vec_ty = checker.check_expr(&args[0], scopes);
             let idx_ty = checker.check_expr(&args[1], scopes);
             if idx_ty != TypeInfo::Int && idx_ty != TypeInfo::Unknown {
-                checker.error(format!("vec.get argument 2 expects Int, got {:?}", idx_ty));
+                checker.error(format!(
+                    "vec.{method} argument 2 expects Int, got {:?}",
+                    idx_ty
+                ));
             }
             match vec_ty {
-                TypeInfo::Vec { elem } => *elem,
+                TypeInfo::Vec { elem } => {
+                    if method == "tryGet" {
+                        TypeInfo::Option { value: elem }
+                    } else {
+                        *elem
+                    }
+                }
                 TypeInfo::Unknown => TypeInfo::Unknown,
                 got => {
-                    checker.error(format!("vec.get argument 1 expects Vec, got {:?}", got));
+                    checker.error(format!(
+                        "vec.{method} argument 1 expects Vec, got {:?}",
+                        got
+                    ));
                     TypeInfo::Unknown
                 }
             }

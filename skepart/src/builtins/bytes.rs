@@ -1,3 +1,4 @@
+use crate::RtOption;
 use crate::{RtBytes, RtError, RtErrorKind, RtResult, RtString, RtValue};
 
 pub fn from_string(value: &str) -> RtResult<RtValue> {
@@ -25,6 +26,16 @@ pub fn get(value: &RtBytes, index: i64) -> RtResult<RtValue> {
         .get(index)
         .ok_or_else(|| RtError::index_out_of_bounds(index, value.len()))?;
     Ok(RtValue::Int(i64::from(byte)))
+}
+
+pub fn try_get(value: &RtBytes, index: i64) -> RtValue {
+    let Ok(index) = usize::try_from(index) else {
+        return RtValue::Option(RtOption::none());
+    };
+    match value.get(index) {
+        Some(byte) => RtValue::Option(RtOption::some(RtValue::Int(i64::from(byte)))),
+        None => RtValue::Option(RtOption::none()),
+    }
 }
 
 pub fn slice(value: &RtBytes, start: i64, end: i64) -> RtResult<RtValue> {

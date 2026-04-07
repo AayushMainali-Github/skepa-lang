@@ -747,6 +747,8 @@ Signatures:
 - `arr.count(a: [T; N], x: T) -> Int`
 - `arr.first(a: [T; N]) -> T`
 - `arr.last(a: [T; N]) -> T`
+- `arr.tryFirst(a: [T; N]) -> Option[T]`
+- `arr.tryLast(a: [T; N]) -> Option[T]`
 - `arr.join(a: [String; N], sep: String) -> String`
 
 Behavior:
@@ -755,6 +757,7 @@ Behavior:
 
 Notes:
 - `arr.first` / `arr.last` on empty arrays raise runtime errors.
+- `arr.tryFirst` / `arr.tryLast` return `None()` on empty arrays.
 - `arr.join` is defined for `Array[String]`.
 
 ### 8.5 `datetime`
@@ -865,6 +868,7 @@ Signatures:
 - `bytes.toString(b: Bytes) -> String`
 - `bytes.len(b: Bytes) -> Int`
 - `bytes.get(b: Bytes, i: Int) -> Int`
+- `bytes.tryGet(b: Bytes, i: Int) -> Option[Int]`
 - `bytes.slice(b: Bytes, start: Int, end: Int) -> Bytes`
 - `bytes.concat(a: Bytes, b: Bytes) -> Bytes`
 - `bytes.push(b: Bytes, x: Int) -> Bytes`
@@ -878,6 +882,7 @@ Behavior:
 
 Notes:
 - `bytes.get` returns the byte value as `Int` in `0..=255`.
+- `bytes.tryGet` returns `Some(byte)` for in-range access and `None()` for negative or out-of-range indices.
 - `bytes.push` requires the appended byte value to be in `0..=255`.
 - `bytes.slice` requires valid non-negative bounds with `start <= end`.
 - `Bytes` supports language-level `==` / `!=` by content.
@@ -1222,6 +1227,7 @@ Signatures:
 - `vec.len(v: Vec[T]) -> Int`
 - `vec.push(v: Vec[T], x: T) -> Void`
 - `vec.get(v: Vec[T], i: Int) -> T`
+- `vec.tryGet(v: Vec[T], i: Int) -> Option[T]`
 - `vec.set(v: Vec[T], i: Int, x: T) -> Void`
 - `vec.delete(v: Vec[T], i: Int) -> T`
 
@@ -1230,6 +1236,7 @@ Behavior:
 - `vec.push`, `vec.set`, and `vec.delete` mutate the vector in place.
 - `vec.delete` removes the element at `i`, shifts later elements left, and returns the removed value.
 - Index operations (`get`, `set`, `delete`) require `Int` indices.
+- `vec.tryGet` returns `Some(value)` for in-range access and `None()` for negative or out-of-range indices.
 
 Notes:
 - `vec.new()` currently requires typed context (for example `let xs: Vec[Int] = vec.new();`).

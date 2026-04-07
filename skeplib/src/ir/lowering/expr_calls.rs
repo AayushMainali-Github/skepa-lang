@@ -943,6 +943,23 @@ impl IrLowerer {
                     return Some(IrType::Option { value });
                 }
             }
+            ("bytes", "tryGet") => {
+                return Some(IrType::Option {
+                    value: Box::new(IrType::Int),
+                });
+            }
+            ("vec", "tryGet") => {
+                let vec = args.first()?;
+                if let IrType::Vec { elem } = self.infer_operand_type(func, vec) {
+                    return Some(IrType::Option { value: elem });
+                }
+            }
+            ("arr", "tryFirst") | ("arr", "tryLast") => {
+                let array = args.first()?;
+                if let IrType::Array { elem, .. } = self.infer_operand_type(func, array) {
+                    return Some(IrType::Option { value: elem });
+                }
+            }
             _ => {}
         }
         let spec = find_builtin_spec(package, name)?;

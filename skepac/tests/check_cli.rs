@@ -894,6 +894,44 @@ fn main() -> Int {
 }
 
 #[test]
+fn check_accepts_safe_access_variants_program() {
+    let tmp = make_temp_dir("skepac_check_safe_access");
+    let file = tmp.join("safe_access.sk");
+    fs::write(
+        &file,
+        r#"
+import arr;
+import bytes;
+import vec;
+
+fn main() -> Int {
+  let raw: Bytes = bytes.fromString("abc");
+  let xs: Vec[Int] = vec.new();
+  vec.push(xs, 7);
+  let arrv: [Int; 2] = [1, 2];
+  if (bytes.tryGet(raw, 1) == Some(98)
+      && bytes.tryGet(raw, 9) == None()
+      && vec.tryGet(xs, 0) == Some(7)
+      && vec.tryGet(xs, 9) == None()
+      && arr.tryFirst(arrv) == Some(1)
+      && arr.tryLast(arrv) == Some(2)) {
+    return 0;
+  }
+  return 1;
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("check")
+        .arg(&file)
+        .output()
+        .expect("run check");
+    assert_eq!(output.status.code(), Some(0), "{:?}", output);
+}
+
+#[test]
 fn check_accepts_minimal_option_program() {
     let tmp = make_temp_dir("skepac_check_option_minimal");
     let file = tmp.join("option_minimal.sk");

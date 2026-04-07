@@ -1668,6 +1668,34 @@ fn main() -> Int {
 }
 
 #[test]
+fn interpreter_supports_safe_access_variants_for_bytes_arr_and_vec() {
+    let source = r#"
+import arr;
+import bytes;
+import vec;
+
+fn main() -> Int {
+  let raw: Bytes = bytes.fromString("abc");
+  let xs: Vec[Int] = vec.new();
+  vec.push(xs, 7);
+  let arrv: [Int; 2] = [1, 2];
+  if (bytes.tryGet(raw, 1) == Some(98)
+      && bytes.tryGet(raw, 9) == None()
+      && vec.tryGet(xs, 0) == Some(7)
+      && vec.tryGet(xs, 9) == None()
+      && arr.tryFirst(arrv) == Some(1)
+      && arr.tryLast(arrv) == Some(2)) {
+    return 0;
+  }
+  return 1;
+}
+"#;
+
+    let value = common::ir_run_ok(source);
+    assert_eq!(value, IrValue::Int(0));
+}
+
+#[test]
 fn interpreter_supports_lowercase_option_and_result_constructor_aliases() {
     let source = r#"
 fn wrap(x: Int) -> Option[Int] {

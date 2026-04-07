@@ -2122,3 +2122,45 @@ fn builtins_cover_option_and_result_inspection_helpers() {
         RtErrorKind::TypeMismatch
     );
 }
+
+#[test]
+fn builtins_cover_safe_access_variants_for_bytes_arr_and_vec() {
+    let bytes_value = RtValue::Bytes(skepart::RtBytes::from("abc".as_bytes()));
+    let vec_value = RtValue::Vec({
+        let value = skepart::RtVec::new();
+        value.push(RtValue::Int(7));
+        value
+    });
+    let array_value = RtValue::Array(skepart::RtArray::new(vec![
+        RtValue::Int(1),
+        RtValue::Int(2),
+    ]));
+
+    assert_eq!(
+        builtins::call("bytes", "tryGet", &[bytes_value.clone(), RtValue::Int(1)])
+            .expect("bytes tryGet"),
+        RtValue::Option(skepart::RtOption::some(RtValue::Int(98)))
+    );
+    assert_eq!(
+        builtins::call("bytes", "tryGet", &[bytes_value, RtValue::Int(99)])
+            .expect("bytes tryGet miss"),
+        RtValue::Option(skepart::RtOption::none())
+    );
+    assert_eq!(
+        builtins::call("vec", "tryGet", &[vec_value.clone(), RtValue::Int(0)]).expect("vec tryGet"),
+        RtValue::Option(skepart::RtOption::some(RtValue::Int(7)))
+    );
+    assert_eq!(
+        builtins::call("vec", "tryGet", &[vec_value, RtValue::Int(-1)]).expect("vec tryGet miss"),
+        RtValue::Option(skepart::RtOption::none())
+    );
+    assert_eq!(
+        builtins::call("arr", "tryFirst", std::slice::from_ref(&array_value))
+            .expect("arr tryFirst"),
+        RtValue::Option(skepart::RtOption::some(RtValue::Int(1)))
+    );
+    assert_eq!(
+        builtins::call("arr", "tryLast", &[array_value]).expect("arr tryLast"),
+        RtValue::Option(skepart::RtOption::some(RtValue::Int(2)))
+    );
+}
