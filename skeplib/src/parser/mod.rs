@@ -459,10 +459,17 @@ impl Parser {
 
     fn parse_import(&mut self) -> Option<ImportDecl> {
         self.expect(TokenKind::KwImport, "Expected `import`")?;
-        let path = self.parse_dotted_path("Expected module path after `import`")?;
+        let path = self.parse_dotted_path(
+            "Expected module path after `import`, for example `import utils.math;`",
+        )?;
         let alias = if self.at(TokenKind::KwAs) {
             self.bump();
-            Some(self.expect_ident("Expected alias name after `as`")?.lexeme)
+            Some(
+                self.expect_ident(
+                    "Expected alias name after `as`, for example `import utils.math as m;`",
+                )?
+                .lexeme,
+            )
         } else {
             None
         };
@@ -472,7 +479,9 @@ impl Parser {
 
     fn parse_from_import(&mut self) -> Option<ImportDecl> {
         self.expect(TokenKind::KwFrom, "Expected `from`")?;
-        let path = self.parse_dotted_path("Expected module path after `from`")?;
+        let path = self.parse_dotted_path(
+            "Expected module path after `from`, for example `from utils.math import add;`",
+        )?;
         self.expect(
             TokenKind::KwImport,
             "Expected `import` after module path in from-import",
@@ -495,11 +504,18 @@ impl Parser {
         }
         loop {
             let name = self
-                .expect_ident("Expected imported symbol name after `import`")?
+                .expect_ident(
+                    "Expected imported symbol name after `import`, for example `from utils.math import add;`",
+                )?
                 .lexeme;
             let alias = if self.at(TokenKind::KwAs) {
                 self.bump();
-                Some(self.expect_ident("Expected alias name after `as`")?.lexeme)
+                Some(
+                    self.expect_ident(
+                        "Expected alias name after `as`, for example `from utils.math import add as plus;`",
+                    )?
+                    .lexeme,
+                )
             } else {
                 None
             };
@@ -557,7 +573,9 @@ impl Parser {
         if self.at(TokenKind::Star) {
             self.bump();
             self.expect(TokenKind::KwFrom, "Expected `from` after `export *`")?;
-            let path = self.parse_dotted_path("Expected module path after `from`")?;
+            let path = self.parse_dotted_path(
+                "Expected module path after `from`, for example `export * from utils.math;`",
+            )?;
             self.expect(TokenKind::Semi, "Expected `;` after export declaration")?;
             return Some(ExportDecl::FromAll { path });
         }
@@ -575,7 +593,12 @@ impl Parser {
             let name = self.expect_ident("Expected export symbol name")?.lexeme;
             let alias = if self.at(TokenKind::KwAs) {
                 self.bump();
-                Some(self.expect_ident("Expected alias name after `as`")?.lexeme)
+                Some(
+                    self.expect_ident(
+                        "Expected alias name after `as`, for example `export { add as plus };`",
+                    )?
+                    .lexeme,
+                )
             } else {
                 None
             };
@@ -597,7 +620,9 @@ impl Parser {
         self.expect(TokenKind::RBrace, "Expected `}` after export list")?;
         if self.at(TokenKind::KwFrom) {
             self.bump();
-            let path = self.parse_dotted_path("Expected module path after `from`")?;
+            let path = self.parse_dotted_path(
+                "Expected module path after `from`, for example `export { add } from utils.math;`",
+            )?;
             self.expect(TokenKind::Semi, "Expected `;` after export declaration")?;
             return Some(ExportDecl::From { path, items });
         }

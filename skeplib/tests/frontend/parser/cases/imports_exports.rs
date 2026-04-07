@@ -349,7 +349,10 @@ import .a;
 fn main() -> Int { return 0; }
 "#;
     let diags = parse_err(src);
-    assert_has_diag(&diags, "Expected module path after `import`");
+    assert_has_diag(
+        &diags,
+        "Expected module path after `import`, for example `import utils.math;`",
+    );
 }
 
 #[test]
@@ -379,7 +382,10 @@ from a.b import;
 fn main() -> Int { return 0; }
 "#;
     let diags = parse_err(src);
-    assert_has_diag(&diags, "Expected imported symbol name after `import`");
+    assert_has_diag(
+        &diags,
+        "Expected imported symbol name after `import`, for example `from utils.math import add;`",
+    );
 }
 
 #[test]
@@ -389,7 +395,10 @@ import a.b as;
 fn main() -> Int { return 0; }
 "#;
     let diags = parse_err(src);
-    assert_has_diag(&diags, "Expected alias name after `as`");
+    assert_has_diag(
+        &diags,
+        "Expected alias name after `as`, for example `import utils.math as m;`",
+    );
 }
 
 #[test]
@@ -399,7 +408,10 @@ export { a as };
 fn main() -> Int { return 0; }
 "#;
     let diags = parse_err(src);
-    assert_has_diag(&diags, "Expected alias name after `as`");
+    assert_has_diag(
+        &diags,
+        "Expected alias name after `as`, for example `export { add as plus };`",
+    );
 }
 
 #[test]
@@ -453,7 +465,10 @@ export * from ;
 fn main() -> Int { return 0; }
 "#;
     let diags = parse_err(src);
-    assert_has_diag(&diags, "Expected module path after `from`");
+    assert_has_diag(
+        &diags,
+        "Expected module path after `from`, for example `export * from utils.math;`",
+    );
 }
 
 #[test]

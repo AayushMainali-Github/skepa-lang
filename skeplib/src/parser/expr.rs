@@ -256,7 +256,9 @@ impl Parser {
                 loop {
                     let name = self.expect_ident("Expected parameter name in function literal")?;
                     self.expect(TokenKind::Colon, "Expected `:` after parameter name")?;
-                    let ty = self.expect_type_name("Expected parameter type")?;
+                    let ty = self.expect_type_name(
+                        "Expected function literal parameter type after `:`, for example `fn(x: Int) -> Int { ... }`",
+                    )?;
                     params.push(crate::ast::Param {
                         name: name.lexeme,
                         ty,
@@ -279,7 +281,9 @@ impl Parser {
                 TokenKind::Arrow,
                 "Expected `->` after function literal parameters",
             )?;
-            let return_type = self.expect_type_name("Expected function literal return type")?;
+            let return_type = self.expect_type_name(
+                "Expected function literal return type after `->`, for example `fn(x: Int) -> Int { ... }`",
+            )?;
             let body = self.parse_block("Expected `{` before function literal body")?;
             return Some(Expr::FnLit {
                 params,
