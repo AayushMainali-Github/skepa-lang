@@ -754,6 +754,24 @@ impl IrLowerer {
                     err: Box::new(IrType::String),
                 });
             }
+            ("net", "read") => {
+                return Some(IrType::Result {
+                    ok: Box::new(IrType::String),
+                    err: Box::new(IrType::String),
+                });
+            }
+            ("net", "readBytes") | ("net", "readN") => {
+                return Some(IrType::Result {
+                    ok: Box::new(IrType::Bytes),
+                    err: Box::new(IrType::String),
+                });
+            }
+            ("net", "write") | ("net", "writeBytes") => {
+                return Some(IrType::Result {
+                    ok: Box::new(IrType::Void),
+                    err: Box::new(IrType::String),
+                });
+            }
             ("net", "parseUrl") => {
                 return Some(IrType::Result {
                     ok: Box::new(IrType::Map {

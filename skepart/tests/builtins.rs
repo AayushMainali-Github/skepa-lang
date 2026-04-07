@@ -362,7 +362,9 @@ fn builtins_cover_net_bytes_roundtrip_and_errors() {
     assert_eq!(
         builtins::call_with_host(&mut host, "net", "readBytes", std::slice::from_ref(&socket))
             .expect("net.readBytes"),
-        RtValue::Bytes(RtBytes::from(vec![0xDE, 0xAD, 0xBE, 0xEF]))
+        RtValue::Result(skepart::RtResultValue::ok(RtValue::Bytes(RtBytes::from(
+            vec![0xDE, 0xAD, 0xBE, 0xEF]
+        ))))
     );
     assert_eq!(
         builtins::call_with_host(
@@ -375,7 +377,7 @@ fn builtins_cover_net_bytes_roundtrip_and_errors() {
             ],
         )
         .expect("net.writeBytes"),
-        RtValue::Unit
+        RtValue::Result(skepart::RtResultValue::ok(RtValue::Unit))
     );
     assert!(
         host.output.contains("[netreadbytes 0]") && host.output.contains("[netwritebytes 0 len=3]"),
@@ -608,7 +610,9 @@ fn builtins_cover_net_read_n() {
             &[socket.clone(), RtValue::Int(3)],
         )
         .expect("net.readN"),
-        RtValue::Bytes(RtBytes::from(vec![9_u8, 8, 7]))
+        RtValue::Result(skepart::RtResultValue::ok(RtValue::Bytes(RtBytes::from(
+            vec![9_u8, 8, 7]
+        ))))
     );
     assert!(
         host.output.contains("[netreadn 0 count=3]"),
@@ -617,9 +621,10 @@ fn builtins_cover_net_read_n() {
     );
     assert_eq!(
         builtins::call_with_host(&mut host, "net", "readN", &[socket, RtValue::Int(-1)])
-            .expect_err("negative readN count")
-            .kind,
-        RtErrorKind::InvalidArgument
+            .expect("negative readN count should return result"),
+        RtValue::Result(skepart::RtResultValue::err(RtValue::String(RtString::from(
+            "InvalidArgument: net.readN count must be non-negative"
+        ))))
     );
 }
 
@@ -709,7 +714,9 @@ fn builtins_map_host_backed_results_consistently() {
             })],
         )
         .expect("net read"),
-        RtValue::String(RtString::from("net-read"))
+        RtValue::Result(skepart::RtResultValue::ok(RtValue::String(RtString::from(
+            "net-read"
+        ))))
     );
     assert_eq!(
         builtins::call_with_host(
@@ -725,7 +732,7 @@ fn builtins_map_host_backed_results_consistently() {
             ],
         )
         .expect("net write"),
-        RtValue::Unit
+        RtValue::Result(skepart::RtResultValue::ok(RtValue::Unit))
     );
     assert_eq!(
         builtins::call_with_host(
@@ -1526,9 +1533,10 @@ fn builtins_surface_net_runtime_errors_consistently() {
             "read",
             std::slice::from_ref(&socket)
         )
-        .expect_err("read failure should surface")
-        .kind,
-        RtErrorKind::Io
+        .expect("read failure should return result"),
+        RtValue::Result(skepart::RtResultValue::err(RtValue::String(
+            RtString::from("Io: read failed")
+        )))
     );
 
     let mut failing_write = RecordingHostBuilder::seeded()
@@ -1543,9 +1551,10 @@ fn builtins_surface_net_runtime_errors_consistently() {
             "write",
             &[socket, RtValue::String(RtString::from("ping"))],
         )
-        .expect_err("write failure should surface")
-        .kind,
-        RtErrorKind::Io
+        .expect("write failure should return result"),
+        RtValue::Result(skepart::RtResultValue::err(RtValue::String(
+            RtString::from("Io: write failed")
+        )))
     );
 
     let mut failing_flush = RecordingHostBuilder::seeded()
@@ -1641,9 +1650,10 @@ fn builtins_reject_wrong_or_closed_net_handles_for_io() {
         .expect("close socket");
     assert_eq!(
         builtins::call_with_host(&mut host, "net", "read", std::slice::from_ref(&socket))
-            .expect_err("closed socket read should fail")
-            .kind,
-        RtErrorKind::InvalidArgument
+            .expect("closed socket read should now return Err result"),
+        RtValue::Result(skepart::RtResultValue::err(RtValue::String(RtString::from(
+            "InvalidArgument: unknown handle id 1"
+        ))))
     );
     assert_eq!(
         builtins::call_with_host(
@@ -1652,9 +1662,10 @@ fn builtins_reject_wrong_or_closed_net_handles_for_io() {
             "write",
             &[socket.clone(), RtValue::String(RtString::from("ping"))],
         )
-        .expect_err("closed socket write should fail")
-        .kind,
-        RtErrorKind::InvalidArgument
+        .expect("closed socket write should now return Err result"),
+        RtValue::Result(skepart::RtResultValue::err(RtValue::String(RtString::from(
+            "InvalidArgument: unknown handle id 1"
+        ))))
     );
     assert_eq!(
         builtins::call_with_host(&mut host, "net", "flush", &[RtValue::Handle(listener)])

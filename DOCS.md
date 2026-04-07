@@ -919,11 +919,11 @@ Signatures:
 - `net.fetch(url: String, options: Map[String, String]) -> Result[Map[String, String], String]`
 - `net.listen(address: String) -> Result[net.Listener, String]`
 - `net.accept(listener: net.Listener) -> Result[net.Socket, String]`
-- `net.read(socket: net.Socket) -> String`
-- `net.write(socket: net.Socket, data: String) -> Void`
-- `net.readBytes(socket: net.Socket) -> Bytes`
-- `net.writeBytes(socket: net.Socket, data: Bytes) -> Void`
-- `net.readN(socket: net.Socket, count: Int) -> Bytes`
+- `net.read(socket: net.Socket) -> Result[String, String]`
+- `net.write(socket: net.Socket, data: String) -> Result[Void, String]`
+- `net.readBytes(socket: net.Socket) -> Result[Bytes, String]`
+- `net.writeBytes(socket: net.Socket, data: Bytes) -> Result[Void, String]`
+- `net.readN(socket: net.Socket, count: Int) -> Result[Bytes, String]`
 - `net.localAddr(socket: net.Socket) -> String`
 - `net.peerAddr(socket: net.Socket) -> String`
 - `net.flush(socket: net.Socket) -> Void`
@@ -941,11 +941,11 @@ Behavior:
 - `net.fetch(url, options)` performs a blocking HTTP request and returns `Ok(Map[String, String])` on success or `Err(String)` on request failure.
 - `net.listen(address)` binds a blocking TCP listener, returning `Ok(net.Listener)` on success or `Err(String)` on bind failure. Using port `0` lets the OS choose an ephemeral port.
 - `net.accept(listener)` blocks until a client connects, then returns `Ok(net.Socket)` on success or `Err(String)` on accept failure.
-- `net.read(socket)` performs a single blocking read of up to 4096 bytes and returns a `String`.
-- `net.write(socket, data)` writes the UTF-8 bytes of `data` to the socket.
-- `net.readBytes(socket)` performs a single blocking read of up to 4096 bytes and returns raw `Bytes`.
-- `net.writeBytes(socket, data)` writes raw bytes to the socket.
-- `net.readN(socket, count)` performs a blocking exact read of `count` bytes and returns `Bytes`.
+- `net.read(socket)` performs a single blocking read of up to 4096 bytes and returns `Ok(String)` on success or `Err(String)` on I/O failure.
+- `net.write(socket, data)` writes the UTF-8 bytes of `data` to the socket and returns `Ok(())` on success or `Err(String)` on I/O failure.
+- `net.readBytes(socket)` performs a single blocking read of up to 4096 bytes and returns `Ok(Bytes)` on success or `Err(String)` on I/O failure.
+- `net.writeBytes(socket, data)` writes raw bytes to the socket and returns `Ok(())` on success or `Err(String)` on I/O failure.
+- `net.readN(socket, count)` performs a blocking exact read of `count` bytes and returns `Ok(Bytes)` on success or `Err(String)` on I/O failure.
 - `net.localAddr(socket)` returns the socket's local address as `host:port`.
 - `net.peerAddr(socket)` returns the socket's peer address as `host:port`.
 - `net.flush(socket)` flushes pending buffered socket/TLS writes.
@@ -996,7 +996,7 @@ import result;
 
 fn main() -> Int {
   let socket: net.Socket = result.unwrapOk(net.connect("127.0.0.1:8080"));
-  net.write(socket, "ping");
+  result.unwrapOk(net.write(socket, "ping"));
   net.close(socket);
   return 0;
 }
@@ -1009,8 +1009,8 @@ import result;
 
 fn main() -> Int {
   let socket: net.Socket = result.unwrapOk(net.tlsConnect("example.com", 443));
-  net.write(socket, "GET / HTTP/1.0\r\nHost: example.com\r\n\r\n");
-  let body = net.read(socket);
+  result.unwrapOk(net.write(socket, "GET / HTTP/1.0\r\nHost: example.com\r\n\r\n"));
+  let body = result.unwrapOk(net.read(socket));
   net.close(socket);
   if (body != "") {
     return 0;
@@ -1124,8 +1124,8 @@ import result;
 fn main() -> Int {
   let listener: net.Listener = result.unwrapOk(net.listen("127.0.0.1:8080"));
   let socket: net.Socket = result.unwrapOk(net.accept(listener));
-  let req = net.read(socket);
-  net.write(socket, "ok");
+  let req = result.unwrapOk(net.read(socket));
+  result.unwrapOk(net.write(socket, "ok"));
   net.close(socket);
   net.closeListener(listener);
   return 0;

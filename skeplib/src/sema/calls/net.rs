@@ -51,7 +51,10 @@ pub(super) fn check_net_builtin(
                     expected, got
                 ));
             }
-            TypeInfo::String
+            TypeInfo::Result {
+                ok: Box::new(TypeInfo::String),
+                err: Box::new(TypeInfo::String),
+            }
         }
         "readBytes" => {
             if args.len() != 1 {
@@ -69,7 +72,10 @@ pub(super) fn check_net_builtin(
                     expected, got
                 ));
             }
-            TypeInfo::Bytes
+            TypeInfo::Result {
+                ok: Box::new(TypeInfo::Bytes),
+                err: Box::new(TypeInfo::String),
+            }
         }
         "write" => {
             if args.len() != 2 {
@@ -95,7 +101,10 @@ pub(super) fn check_net_builtin(
                     data_ty
                 ));
             }
-            TypeInfo::Void
+            TypeInfo::Result {
+                ok: Box::new(TypeInfo::Void),
+                err: Box::new(TypeInfo::String),
+            }
         }
         "writeBytes" => {
             if args.len() != 2 {
@@ -121,7 +130,10 @@ pub(super) fn check_net_builtin(
                     data_ty
                 ));
             }
-            TypeInfo::Void
+            TypeInfo::Result {
+                ok: Box::new(TypeInfo::Void),
+                err: Box::new(TypeInfo::String),
+            }
         }
         "readN" => {
             if args.len() != 2 {
@@ -147,7 +159,10 @@ pub(super) fn check_net_builtin(
                     count_ty
                 ));
             }
-            TypeInfo::Bytes
+            TypeInfo::Result {
+                ok: Box::new(TypeInfo::Bytes),
+                err: Box::new(TypeInfo::String),
+            }
         }
         "localAddr" | "peerAddr" => {
             if args.len() != 1 {

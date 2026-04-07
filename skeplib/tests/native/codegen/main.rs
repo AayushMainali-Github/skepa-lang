@@ -1881,8 +1881,8 @@ import str;
 
 fn main() -> Int {{
   let socket: net.Socket = result.unwrapOk(net.connect("{addr}"));
-  net.write(socket, "ping");
-  let msg = net.read(socket);
+  result.unwrapOk(net.write(socket, "ping"));
+  let msg = result.unwrapOk(net.read(socket));
   net.close(socket);
   if (msg == "pong" && str.len(msg) == 4) {{
     return 0;
@@ -1922,8 +1922,8 @@ fn main() -> Int {{
   let payload2: Bytes = bytes.push(payload1, 2);
   let payload3: Bytes = bytes.push(payload2, 3);
   let payload4: Bytes = bytes.push(payload3, 4);
-  net.writeBytes(socket, payload4);
-  let raw: Bytes = net.readBytes(socket);
+  result.unwrapOk(net.writeBytes(socket, payload4));
+  let raw: Bytes = result.unwrapOk(net.readBytes(socket));
   net.close(socket);
   if (bytes.len(raw) == 3 && bytes.get(raw, 0) == 5 && bytes.get(raw, 2) == 7) {{
     return 0;
@@ -1953,8 +1953,8 @@ import str;
 fn main() -> Int {{
   let listener: net.Listener = result.unwrapOk(net.listen("{addr}"));
   let socket: net.Socket = result.unwrapOk(net.accept(listener));
-  let msg = net.read(socket);
-  net.write(socket, "pong");
+  let msg = result.unwrapOk(net.read(socket));
+  result.unwrapOk(net.write(socket, "pong"));
   net.close(socket);
   net.closeListener(listener);
   if (msg == "ping" && str.len(msg) == 4) {{
@@ -1994,11 +1994,11 @@ import result;
 fn main() -> Int {{
   let listener: net.Listener = result.unwrapOk(net.listen("{addr}"));
   let socket: net.Socket = result.unwrapOk(net.accept(listener));
-  let raw: Bytes = net.readBytes(socket);
+  let raw: Bytes = result.unwrapOk(net.readBytes(socket));
   let out0: Bytes = bytes.fromString("");
   let out1: Bytes = bytes.push(out0, 9);
   let out2: Bytes = bytes.push(out1, 8);
-  net.writeBytes(socket, out2);
+  result.unwrapOk(net.writeBytes(socket, out2));
   net.close(socket);
   net.closeListener(listener);
   if (bytes.len(raw) == 4 && bytes.get(raw, 0) == 1 && bytes.get(raw, 3) == 4) {{
@@ -2039,7 +2039,7 @@ import result;
 
 fn main() -> Int {{
   let socket: net.Socket = result.unwrapOk(net.connect("{addr}"));
-  let raw: Bytes = net.readN(socket, 3);
+  let raw: Bytes = result.unwrapOk(net.readN(socket, 3));
   net.close(socket);
   if (bytes.len(raw) == 3 && bytes.get(raw, 0) == 4 && bytes.get(raw, 2) == 6) {{
     return 0;
@@ -2353,7 +2353,7 @@ import result;
 
 fn main() -> Int {{
   let socket: net.Socket = result.unwrapOk(net.connect("{addr}"));
-  net.write(socket, "ping");
+  result.unwrapOk(net.write(socket, "ping"));
   net.flush(socket);
   net.close(socket);
   return 0;
@@ -2386,7 +2386,7 @@ fn main() -> Int {{
   let socket: net.Socket = result.unwrapOk(net.connect("{addr}"));
   net.setReadTimeout(socket, 25);
   net.setWriteTimeout(socket, 50);
-  net.write(socket, "ping");
+  result.unwrapOk(net.write(socket, "ping"));
   net.flush(socket);
   net.setReadTimeout(socket, 0);
   net.setWriteTimeout(socket, 0);
@@ -2419,7 +2419,7 @@ import result;
 
 fn main() -> Int {{
   let socket: net.Socket = result.unwrapOk(net.connect("{addr}"));
-  let _msg = net.read(socket);
+  let _msg = result.unwrapOk(net.read(socket));
   net.close(socket);
   return 0;
 }}

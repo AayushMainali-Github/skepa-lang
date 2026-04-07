@@ -76,16 +76,30 @@ pub fn accept(host: &mut dyn RtHost, listener: crate::RtHandle) -> RtResult<RtVa
 }
 
 pub fn read(host: &mut dyn RtHost, socket: crate::RtHandle) -> RtResult<RtValue> {
-    Ok(RtValue::String(host.net_read(socket)?))
+    Ok(match host.net_read(socket) {
+        Ok(value) => RtValue::Result(RtResultValue::ok(RtValue::String(value))),
+        Err(err) => RtValue::Result(RtResultValue::err(RtValue::String(RtString::from(
+            err.to_string(),
+        )))),
+    })
 }
 
 pub fn write(host: &mut dyn RtHost, socket: crate::RtHandle, data: &str) -> RtResult<RtValue> {
-    host.net_write(socket, data)?;
-    Ok(RtValue::Unit)
+    Ok(match host.net_write(socket, data) {
+        Ok(()) => RtValue::Result(RtResultValue::ok(RtValue::Unit)),
+        Err(err) => RtValue::Result(RtResultValue::err(RtValue::String(RtString::from(
+            err.to_string(),
+        )))),
+    })
 }
 
 pub fn read_bytes(host: &mut dyn RtHost, socket: crate::RtHandle) -> RtResult<RtValue> {
-    Ok(RtValue::Bytes(host.net_read_bytes(socket)?))
+    Ok(match host.net_read_bytes(socket) {
+        Ok(value) => RtValue::Result(RtResultValue::ok(RtValue::Bytes(value))),
+        Err(err) => RtValue::Result(RtResultValue::err(RtValue::String(RtString::from(
+            err.to_string(),
+        )))),
+    })
 }
 
 pub fn write_bytes(
@@ -93,12 +107,21 @@ pub fn write_bytes(
     socket: crate::RtHandle,
     data: &crate::RtBytes,
 ) -> RtResult<RtValue> {
-    host.net_write_bytes(socket, data)?;
-    Ok(RtValue::Unit)
+    Ok(match host.net_write_bytes(socket, data) {
+        Ok(()) => RtValue::Result(RtResultValue::ok(RtValue::Unit)),
+        Err(err) => RtValue::Result(RtResultValue::err(RtValue::String(RtString::from(
+            err.to_string(),
+        )))),
+    })
 }
 
 pub fn read_n(host: &mut dyn RtHost, socket: crate::RtHandle, count: i64) -> RtResult<RtValue> {
-    Ok(RtValue::Bytes(host.net_read_n(socket, count)?))
+    Ok(match host.net_read_n(socket, count) {
+        Ok(value) => RtValue::Result(RtResultValue::ok(RtValue::Bytes(value))),
+        Err(err) => RtValue::Result(RtResultValue::err(RtValue::String(RtString::from(
+            err.to_string(),
+        )))),
+    })
 }
 
 pub fn local_addr(host: &mut dyn RtHost, socket: crate::RtHandle) -> RtResult<RtValue> {

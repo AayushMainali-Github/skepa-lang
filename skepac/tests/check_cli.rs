@@ -482,7 +482,7 @@ import result;
 
 fn main() -> Int {{
   let client: net.Socket = result.unwrapOk(net.connect("{addr}"));
-  net.write(client, "ping");
+  result.unwrapOk(net.write(client, "ping"));
   net.close(client);
   return 0;
 }}
@@ -528,7 +528,7 @@ fn main() -> Int {{
   let raw3: Bytes = bytes.push(raw2, 3);
   let raw4: Bytes = bytes.push(raw3, 4);
   let client: net.Socket = result.unwrapOk(net.connect("{addr}"));
-  net.writeBytes(client, raw4);
+  result.unwrapOk(net.writeBytes(client, raw4));
   net.close(client);
   return 0;
 }}
@@ -823,16 +823,16 @@ fn main() -> Int {
   let client: net.Socket = result.unwrapOk(net.connect("127.0.0.1:8080"));
   let secure: net.Socket = result.unwrapOk(net.tlsConnect("example.com", 443));
   let resolved: String = result.unwrapOk(net.resolve("localhost"));
-  let msg: String = net.read(socket);
+  let msg: String = result.unwrapOk(net.read(socket));
   let host: String = option.unwrapSome(map.get(parts, "host"));
   let status: String = option.unwrapSome(map.get(response, "status"));
-  let raw: Bytes = net.readBytes(socket);
-  let exact: Bytes = net.readN(socket, 4);
+  let raw: Bytes = result.unwrapOk(net.readBytes(socket));
+  let exact: Bytes = result.unwrapOk(net.readN(socket, 4));
   let local: String = net.localAddr(client);
   let peer: String = net.peerAddr(secure);
-  net.write(client, msg);
-  net.writeBytes(client, raw);
-  net.writeBytes(client, exact);
+  result.unwrapOk(net.write(client, msg));
+  result.unwrapOk(net.writeBytes(client, raw));
+  result.unwrapOk(net.writeBytes(client, exact));
   net.flush(client);
   net.setReadTimeout(client, 25);
   net.setWriteTimeout(client, 50);
