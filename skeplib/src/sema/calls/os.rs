@@ -23,7 +23,7 @@ pub(super) fn check_os_builtin(
         }
         let got = checker.check_expr(&args[0], scopes);
         if got != TypeInfo::String && got != TypeInfo::Unknown {
-            checker.error(format!("os.envGet argument 1 expects String"));
+            checker.error("os.envGet argument 1 expects String".to_string());
         }
         return TypeInfo::Option {
             value: Box::new(TypeInfo::String),

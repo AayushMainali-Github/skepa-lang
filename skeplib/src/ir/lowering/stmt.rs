@@ -401,12 +401,11 @@ impl IrLowerer {
         let mut dispatch_block = lowering.current_block;
 
         for (index, arm) in arms.iter().enumerate() {
-            let body_block = self.builder.push_block(func, &format!("match_arm_{index}"));
+            let body_block = self.builder.push_block(func, format!("match_arm_{index}"));
             let next_block = if index + 1 == arms.len() {
                 join_block
             } else {
-                self.builder
-                    .push_block(func, &format!("match_next_{index}"))
+                self.builder.push_block(func, format!("match_next_{index}"))
             };
 
             if matches!(arm.pattern, MatchPattern::Wildcard) {
@@ -469,7 +468,7 @@ impl IrLowerer {
         func: &mut crate::ir::IrFunction,
         block: BlockId,
         match_local: crate::ir::LocalId,
-        target_ty: &IrType,
+        _target_ty: &IrType,
         pattern: &MatchPattern,
     ) -> Option<Operand> {
         match pattern {
@@ -534,13 +533,13 @@ impl IrLowerer {
                     func,
                     block,
                     match_local,
-                    target_ty,
+                    _target_ty,
                     parts.next()?,
                 )?;
                 let mut acc = first;
                 for part in parts {
                     let rhs =
-                        self.compile_match_condition(func, block, match_local, target_ty, part)?;
+                        self.compile_match_condition(func, block, match_local, _target_ty, part)?;
                     let dst = self.builder.push_temp(func, IrType::Bool);
                     self.builder.push_instr(
                         func,

@@ -529,19 +529,15 @@ impl Checker {
                     self.check_match_pattern(&arm.pattern, &target_ty, &mut seen_literals);
 
                     scopes.push(HashMap::new());
-                    match &arm.pattern {
-                        MatchPattern::Variant {
-                            binding: Some(binding),
-                            ..
-                        } => {
-                            if let Some(binding_ty) =
-                                Self::match_variant_binding_type(&arm.pattern, &target_ty)
-                                && let Some(scope) = scopes.last_mut()
-                            {
-                                scope.insert(binding.clone(), binding_ty);
-                            }
-                        }
-                        _ => {}
+                    if let MatchPattern::Variant {
+                        binding: Some(binding),
+                        ..
+                    } = &arm.pattern
+                        && let Some(binding_ty) =
+                            Self::match_variant_binding_type(&arm.pattern, &target_ty)
+                        && let Some(scope) = scopes.last_mut()
+                    {
+                        scope.insert(binding.clone(), binding_ty);
                     }
                     for s in &arm.body {
                         self.check_stmt(s, scopes, expected_ret);
