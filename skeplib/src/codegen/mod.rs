@@ -151,6 +151,20 @@ fn link_args_for_executable(object: &str, runtime: &str, output: &str) -> Vec<St
     let mut args = vec![object.to_string()];
     if cfg!(all(windows, target_env = "msvc")) {
         args.push(runtime.to_string());
+        args.extend([
+            "-Xlinker".to_string(),
+            "/NODEFAULTLIB:libucrt".to_string(),
+            "-Xlinker".to_string(),
+            "/DEFAULTLIB:ucrt".to_string(),
+            "-Xlinker".to_string(),
+            "/DEFAULTLIB:vcruntime".to_string(),
+            "-Xlinker".to_string(),
+            "/DEFAULTLIB:msvcrt".to_string(),
+            "-Xlinker".to_string(),
+            "/DEFAULTLIB:legacy_stdio_definitions".to_string(),
+            "-Xlinker".to_string(),
+            "/DEFAULTLIB:oldnames".to_string(),
+        ]);
     } else if cfg!(windows) {
         args.extend([
             "-Wl,--start-group".to_string(),
@@ -349,15 +363,19 @@ fn main() -> Int {
         let args = link_args_for_executable("input.o", "libskepart.a", "out");
         let has_start_group = args.iter().any(|arg| arg == "-Wl,--start-group");
         let has_end_group = args.iter().any(|arg| arg == "-Wl,--end-group");
+        let has_nodefaultlib_libucrt = args.iter().any(|arg| arg == "/NODEFAULTLIB:libucrt");
         if cfg!(all(windows, target_env = "msvc")) {
             assert!(!has_start_group);
             assert!(!has_end_group);
+            assert!(has_nodefaultlib_libucrt);
         } else if cfg!(windows) {
             assert!(has_start_group);
             assert!(has_end_group);
+            assert!(!has_nodefaultlib_libucrt);
         } else {
             assert!(!has_start_group);
             assert!(!has_end_group);
+            assert!(!has_nodefaultlib_libucrt);
         }
     }
 
