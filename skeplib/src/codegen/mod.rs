@@ -149,7 +149,9 @@ fn link_object_file_to_executable_with_tool(
 
 fn link_args_for_executable(object: &str, runtime: &str, output: &str) -> Vec<String> {
     let mut args = vec![object.to_string()];
-    if cfg!(windows) {
+    if cfg!(all(windows, target_env = "msvc")) {
+        args.push(runtime.to_string());
+    } else if cfg!(windows) {
         args.extend([
             "-Wl,--start-group".to_string(),
             runtime.to_string(),
@@ -287,16 +289,7 @@ fn runtime_library_path_in_target_dir(target_dir: &Path) -> Result<PathBuf, Code
 }
 
 fn runtime_native_libraries() -> Vec<&'static str> {
-    if cfg!(all(windows, target_env = "msvc")) {
-        vec![
-            "-lkernel32",
-            "-lntdll",
-            "-luserenv",
-            "-lws2_32",
-            "-ldbghelp",
-            "-lucrt",
-        ]
-    } else if cfg!(windows) {
+    if cfg!(windows) {
         vec![
             "-lkernel32",
             "-lntdll",
@@ -352,35 +345,42 @@ fn main() -> Int {
     }
 
     #[test]
+    fn native_link_args_use_gnu_group_flags_only_on_windows_gnu() {
+        let args = link_args_for_executable("input.o", "libskepart.a", "out");
+        let has_start_group = args.iter().any(|arg| arg == "-Wl,--start-group");
+        let has_end_group = args.iter().any(|arg| arg == "-Wl,--end-group");
+        if cfg!(all(windows, target_env = "msvc")) {
+            assert!(!has_start_group);
+            assert!(!has_end_group);
+        } else if cfg!(windows) {
+            assert!(has_start_group);
+            assert!(has_end_group);
+        } else {
+            assert!(!has_start_group);
+            assert!(!has_end_group);
+        }
+    }
+
+    #[test]
     fn native_link_args_include_windows_runtime_libraries_only_on_windows() {
         let args = link_args_for_executable("input.o", "libskepart.a", "out");
         let has_kernel = args.iter().any(|arg| arg == "-lkernel32");
         let has_dbghelp = args.iter().any(|arg| arg == "-ldbghelp");
-        let has_ucrt = args.iter().any(|arg| arg == "-lucrt");
         let has_security_framework = args.iter().any(|arg| arg == "Security");
         let has_core_foundation_framework = args.iter().any(|arg| arg == "CoreFoundation");
-        if cfg!(all(windows, target_env = "msvc")) {
+        if cfg!(windows) {
             assert!(has_kernel);
             assert!(has_dbghelp);
-            assert!(has_ucrt);
-            assert!(!has_security_framework);
-            assert!(!has_core_foundation_framework);
-        } else if cfg!(windows) {
-            assert!(has_kernel);
-            assert!(has_dbghelp);
-            assert!(!has_ucrt);
             assert!(!has_security_framework);
             assert!(!has_core_foundation_framework);
         } else if cfg!(target_os = "macos") {
             assert!(!has_kernel);
             assert!(!has_dbghelp);
-            assert!(!has_ucrt);
             assert!(has_security_framework);
             assert!(has_core_foundation_framework);
         } else {
             assert!(!has_kernel);
             assert!(!has_dbghelp);
-            assert!(!has_ucrt);
             assert!(!has_security_framework);
             assert!(!has_core_foundation_framework);
         }
