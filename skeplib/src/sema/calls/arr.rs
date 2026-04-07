@@ -12,7 +12,7 @@ pub(super) fn check_arr_builtin(
     scopes: &mut [HashMap<String, TypeInfo>],
 ) -> TypeInfo {
     match method {
-        "len" | "isEmpty" | "first" | "last" | "tryFirst" | "tryLast" => {
+        "len" | "isEmpty" | "first" | "last" => {
             if args.len() != 1 {
                 checker.error(format!(
                     "arr.{method} expects 1 argument(s), got {}",
@@ -34,7 +34,6 @@ pub(super) fn check_arr_builtin(
                 "len" => TypeInfo::Int,
                 "isEmpty" => TypeInfo::Bool,
                 "first" | "last" => *elem,
-                "tryFirst" | "tryLast" => TypeInfo::Option { value: elem },
                 _ => unreachable!(),
             }
         }

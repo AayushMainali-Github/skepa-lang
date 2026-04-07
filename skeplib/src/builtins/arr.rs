@@ -54,20 +54,6 @@ pub(super) const SIGS: &[BuiltinSig] = &[
     },
     BuiltinSig {
         package: "arr",
-        name: "tryFirst",
-        params: &[],
-        ret: TypeInfo::Unknown,
-        kind: BuiltinKind::ArrayOps,
-    },
-    BuiltinSig {
-        package: "arr",
-        name: "tryLast",
-        params: &[],
-        ret: TypeInfo::Unknown,
-        kind: BuiltinKind::ArrayOps,
-    },
-    BuiltinSig {
-        package: "arr",
         name: "join",
         params: &[],
         ret: TypeInfo::Unknown,

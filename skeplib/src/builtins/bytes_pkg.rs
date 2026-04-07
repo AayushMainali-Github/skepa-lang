@@ -33,13 +33,6 @@ pub(super) const SIGS: &[BuiltinSig] = &[
     },
     BuiltinSig {
         package: "bytes",
-        name: "tryGet",
-        params: &[TypeInfo::Bytes, TypeInfo::Int],
-        ret: TypeInfo::Unknown,
-        kind: BuiltinKind::FixedArity,
-    },
-    BuiltinSig {
-        package: "bytes",
         name: "slice",
         params: &[TypeInfo::Bytes, TypeInfo::Int, TypeInfo::Int],
         ret: TypeInfo::Bytes,

@@ -2484,33 +2484,6 @@ fn main() -> Int {
     assert_eq!(common::native_run_structured(source).exit_code(), 0);
 }
 
-#[test]
-fn codegen_builds_native_executable_for_safe_access_variants() {
-    let source = r#"
-import arr;
-import bytes;
-import vec;
-
-fn main() -> Int {
-  let raw: Bytes = bytes.fromString("abc");
-  let xs: Vec[Int] = vec.new();
-  vec.push(xs, 7);
-  let arrv: [Int; 2] = [1, 2];
-  if (bytes.tryGet(raw, 1) == Some(98)
-      && bytes.tryGet(raw, 9) == None()
-      && vec.tryGet(xs, 0) == Some(7)
-      && vec.tryGet(xs, 9) == None()
-      && arr.tryFirst(arrv) == Some(1)
-      && arr.tryLast(arrv) == Some(2)) {
-    return 0;
-  }
-  return 1;
-}
-"#;
-
-    assert_eq!(common::native_run_structured(source).exit_code(), 0);
-}
-
 fn object_ext() -> &'static str {
     if cfg!(windows) { "obj" } else { "o" }
 }

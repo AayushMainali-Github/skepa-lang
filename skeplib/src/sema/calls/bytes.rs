@@ -13,11 +13,5 @@ pub(super) fn check_bytes_builtin(
     scopes: &mut [HashMap<String, TypeInfo>],
     sig: &BuiltinSig,
 ) -> TypeInfo {
-    if method == "tryGet" {
-        checker.check_fixed_arity_builtin("bytes", method, args, scopes, sig);
-        return TypeInfo::Option {
-            value: Box::new(TypeInfo::Int),
-        };
-    }
     checker.check_fixed_arity_builtin("bytes", method, args, scopes, sig)
 }

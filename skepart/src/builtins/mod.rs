@@ -109,9 +109,6 @@ pub fn call_with_context(
         ("bytes", "toString", [value]) => bytes::to_string(&value.expect_bytes()?),
         ("bytes", "len", [value]) => Ok(bytes::len(&value.expect_bytes()?)),
         ("bytes", "get", [value, index]) => bytes::get(&value.expect_bytes()?, index.expect_int()?),
-        ("bytes", "tryGet", [value, index]) => {
-            Ok(bytes::try_get(&value.expect_bytes()?, index.expect_int()?))
-        }
         ("bytes", "slice", [value, start, end]) => bytes::slice(
             &value.expect_bytes()?,
             start.expect_int()?,
@@ -177,8 +174,6 @@ pub fn call_with_context(
         ("arr", "isEmpty", [array]) => Ok(RtValue::Bool(arr::is_empty(&array.expect_array()?))),
         ("arr", "first", [array]) => arr::first(&array.expect_array()?),
         ("arr", "last", [array]) => arr::last(&array.expect_array()?),
-        ("arr", "tryFirst", [array]) => Ok(arr::try_first(&array.expect_array()?)),
-        ("arr", "tryLast", [array]) => Ok(arr::try_last(&array.expect_array()?)),
         ("arr", "join", [array, sep]) => Ok(RtValue::String(arr::join(
             &array.expect_array()?,
             &sep.expect_string()?,
@@ -194,9 +189,6 @@ pub fn call_with_context(
             usize::try_from(index.expect_int()?)
                 .map_err(|_| RtError::new(RtErrorKind::IndexOutOfBounds, "negative vec index"))?,
         ),
-        ("vec", "tryGet", [vec_value, index]) => {
-            Ok(vec::try_get(&vec_value.expect_vec()?, index.expect_int()?))
-        }
         ("vec", "set", [vec_value, index, value]) => {
             vec::set(
                 &vec_value.expect_vec()?,
