@@ -1532,11 +1532,11 @@ fn main() -> Int {
     assert!(result.has_errors);
     assert_has_diag(
         &diags,
-        "Match on Option requires `Some(...)` and `None` arms or a wildcard arm `_`",
+        "Non-exhaustive match on Option: add both `Some(...)` and `None` arms, or add a wildcard arm `_`",
     );
     assert_has_diag(
         &diags,
-        "Match on Result requires `Ok(...)` and `Err(...)` arms or a wildcard arm `_`",
+        "Non-exhaustive match on Result: add both `Ok(...)` and `Err(...)` arms, or add a wildcard arm `_`",
     );
 }
 
@@ -1642,8 +1642,11 @@ fn bad_value(x: Int) -> Int {
     assert!(result.has_errors);
     assert_has_diag(
         &diags,
-        "`?` on Option requires a function returning Option",
+        "`?` on Option is only allowed inside a function returning Option[...]",
     );
     assert_has_diag(&diags, "`?` result error type mismatch");
-    assert_has_diag(&diags, "`?` expects Option or Result expression");
+    assert_has_diag(
+        &diags,
+        "`?` expects an Option[...] or Result[..., ...] expression",
+    );
 }

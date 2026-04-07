@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::ast::{AssignTarget, Expr, MatchLiteral, MatchPattern, Stmt};
-use crate::types::TypeInfo;
+use crate::types::{TypeInfo, display_type};
 
 use super::Checker;
 
@@ -155,7 +155,7 @@ impl Checker {
                 let has_none = seen_literals.contains("variant:None");
                 if !(has_some && has_none) {
                     self.error(
-                        "Match on Option requires `Some(...)` and `None` arms or a wildcard arm `_`"
+                        "Non-exhaustive match on Option: add both `Some(...)` and `None` arms, or add a wildcard arm `_`"
                             .to_string(),
                     );
                 }
@@ -165,13 +165,16 @@ impl Checker {
                 let has_err = seen_literals.contains("variant:Err");
                 if !(has_ok && has_err) {
                     self.error(
-                        "Match on Result requires `Ok(...)` and `Err(...)` arms or a wildcard arm `_`"
+                        "Non-exhaustive match on Result: add both `Ok(...)` and `Err(...)` arms, or add a wildcard arm `_`"
                             .to_string(),
                     );
                 }
             }
             _ => {
-                self.error("Match statement requires a wildcard arm `_`".to_string());
+                self.error(format!(
+                    "Non-exhaustive match on {}: add a wildcard arm `_`",
+                    display_type(target_ty)
+                ));
             }
         }
     }
@@ -206,8 +209,8 @@ impl Checker {
             MatchPattern::Variant { name, binding } => {
                 if !Self::match_variant_allowed(name, target_ty) {
                     self.error(format!(
-                        "Match variant `{name}` is not valid for target type {:?}",
-                        target_ty
+                        "Match variant `{name}` is not valid for target type {}",
+                        display_type(target_ty)
                     ));
                 }
                 if matches!(name.as_str(), "None" | "Some" | "Ok" | "Err")

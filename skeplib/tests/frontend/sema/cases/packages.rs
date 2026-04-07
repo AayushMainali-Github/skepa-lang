@@ -409,7 +409,7 @@ fn main() -> Int {
         diags
             .as_slice()
             .iter()
-            .any(|d| d.message.contains("Invalid equality operands: left Bytes, right Int"))
+            .any(|d| d.message.contains("Cannot compare Bytes and Int with `==` or `!=`"))
     );
 }
 "#;

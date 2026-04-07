@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::ast::{BinaryOp, Expr, UnaryOp};
-use crate::types::TypeInfo;
+use crate::types::{TypeInfo, display_type};
 
 use super::Checker;
 
@@ -354,8 +354,8 @@ impl Checker {
                 self.fn_lit_scope_floors.pop();
                 if expected_ret != TypeInfo::Void && !Self::block_must_return(body) {
                     self.error(format!(
-                        "Function literal may exit without returning {:?}",
-                        expected_ret
+                        "Function literal may exit without returning {}",
+                        display_type(&expected_ret)
                     ));
                 }
 
@@ -421,8 +421,9 @@ impl Checker {
                 result_ty = arm_ty;
             } else if !Self::types_compatible(&arm_ty, &result_ty) {
                 self.error(format!(
-                    "Match expression arm type mismatch: expected {:?}, got {:?}",
-                    result_ty, arm_ty
+                    "Match expression arm type mismatch: expected {}, got {}",
+                    display_type(&result_ty),
+                    display_type(&arm_ty)
                 ));
             }
         }
@@ -453,8 +454,9 @@ impl Checker {
             ) => {
                 if !Self::types_compatible(&err, &expected_err) {
                     self.error(format!(
-                        "`?` result error type mismatch: expression has {:?}, function returns {:?}",
-                        err, expected_err
+                        "`?` result error type mismatch: expression has {}, but the enclosing function returns {}",
+                        display_type(&err),
+                        display_type(&expected_err)
                     ));
                     return TypeInfo::Unknown;
                 }
@@ -462,22 +464,22 @@ impl Checker {
             }
             (TypeInfo::Option { .. }, other) => {
                 self.error(format!(
-                    "`?` on Option requires a function returning Option, got {:?}",
-                    other
+                    "`?` on Option is only allowed inside a function returning Option[...], but this function returns {}",
+                    display_type(&other)
                 ));
                 TypeInfo::Unknown
             }
             (TypeInfo::Result { .. }, other) => {
                 self.error(format!(
-                    "`?` on Result requires a function returning Result, got {:?}",
-                    other
+                    "`?` on Result is only allowed inside a function returning Result[..., ...], but this function returns {}",
+                    display_type(&other)
                 ));
                 TypeInfo::Unknown
             }
             (other, _) => {
                 self.error(format!(
-                    "`?` expects Option or Result expression, got {:?}",
-                    other
+                    "`?` expects an Option[...] or Result[..., ...] expression, got {}",
+                    display_type(&other)
                 ));
                 TypeInfo::Unknown
             }
@@ -574,8 +576,9 @@ impl Checker {
                     TypeInfo::Bool
                 } else {
                     self.error(format!(
-                        "Invalid equality operands: left {:?}, right {:?}",
-                        lt, rt
+                        "Cannot compare {} and {} with `==` or `!=`",
+                        display_type(&lt),
+                        display_type(&rt)
                     ));
                     TypeInfo::Unknown
                 }

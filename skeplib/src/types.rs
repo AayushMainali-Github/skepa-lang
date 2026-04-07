@@ -101,7 +101,7 @@ pub fn task_task_value_type(name: &str) -> Option<TypeInfo> {
     parse_display_type(inner)
 }
 
-fn display_type(value: &TypeInfo) -> String {
+pub fn display_type(value: &TypeInfo) -> String {
     match value {
         TypeInfo::Int => "Int".to_string(),
         TypeInfo::Float => "Float".to_string(),
