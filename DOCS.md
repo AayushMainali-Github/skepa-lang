@@ -1091,7 +1091,7 @@ Behavior:
 
 Notes:
 - `map.new()` currently requires typed context (for example `let headers: Map[String, Int] = map.new();`).
-- Map values use shared handle semantics: assignment/pass/return aliases the same underlying map.
+- `Map[String, T]` follows the shared-reference rules from the core semantics section.
 - `map.get` returns `Some(value)` when the key exists and `None()` when it does not.
 - `map.remove` returns `Some(value)` when the key existed and `None()` when it did not.
 - `Map` values cannot currently be compared with `==` or `!=`.
@@ -1148,8 +1148,8 @@ Behavior:
 Handle semantics:
 - `net.Socket` and `net.Listener` are opaque builtin handle types, not structs.
 - Users cannot construct or inspect these types directly.
-- Handle assignment/pass/return aliases the same underlying resource; it does not duplicate the socket/listener.
-- Closing one alias closes the shared underlying resource for all aliases.
+- `net.Socket` and `net.Listener` follow the shared-reference rules from the core semantics section.
+- Closing any alias closes the shared underlying resource for all aliases.
 
 Notes:
 - `net` supports both text and byte-oriented I/O.
@@ -1343,6 +1343,7 @@ Behavior:
 
 Notes:
 - `task.channel()` currently requires typed context (for example `let jobs: task.Channel[Int] = task.channel();`).
+- `task.Channel[T]` and `task.Task[T]` follow the shared-reference rules from the core semantics section.
 - `task.recv` on an empty channel raises a runtime error.
 - `task.join` on the same task more than once raises a runtime error.
 - The interpreter keeps a deterministic inline fallback for task execution; native and CLI paths use real background threads.
@@ -1374,6 +1375,7 @@ Behavior:
 
 Borrowing and ownership rules:
 - `ffi.Library` and `ffi.Symbol` are opaque runtime-managed handles, not structs.
+- `ffi.Library` and `ffi.Symbol` follow the shared-reference rules from the core semantics section.
 - Closing a library or symbol invalidates that handle for all aliases.
 - Supported linked extern ABI shapes currently lower to borrowed-only calls:
   - `extern("lib") fn foo() -> Int`
@@ -1424,7 +1426,7 @@ Behavior:
 
 Notes:
 - `vec.new()` currently requires typed context (for example `let xs: Vec[Int] = vec.new();`).
-- Vector values use shared handle semantics: assignment/pass/return aliases the same underlying vector.
+- `Vec[T]` follows the shared-reference rules from the core semantics section.
 - `vec.get` returns `None()` for negative or out-of-bounds indices.
 - `vec.set` and `vec.delete` remain strict and raise runtime errors for invalid indices.
 
