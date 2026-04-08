@@ -441,6 +441,34 @@ Practical rule:
 - if a type shape differs, it does not typecheck
 - if the type family matches, Skepa recursively checks the contained types
 
+### Type Inference Scope
+
+Skepa uses local, syntax-directed inference.
+
+That means:
+- literal expressions usually infer their obvious type
+- ordinary expression composition infers from the operators and builtin signatures involved
+- explicit type annotations always win when present
+
+Skepa does not try to perform broad global inference.
+
+In particular:
+- empty container literals do not infer an element type by themselves
+- generic constructor-style builtins may require surrounding typed context
+- there is no Hindley-Milner-style whole-program inference
+- there is no implicit fallback from one generic shape to another
+
+Current inference boundaries:
+- `[]` is rejected because the element type cannot be inferred
+- `vec.new()` requires typed context such as `let xs: Vec[Int] = vec.new();`
+- `map.new()` requires typed context such as `let m: Map[String, Int] = map.new();`
+- `task.channel()` requires typed context such as `let ch: task.Channel[Int] = task.channel();`
+- `None()` relies on surrounding typed context when the option payload type is not otherwise known
+- `Ok(...)` and `Err(...)` may rely on surrounding typed context when the opposite side of `Result[T, E]` is not otherwise known
+
+Practical rule:
+- if the compiler cannot determine a missing generic payload/value type from the local expression and the surrounding annotation context, you must annotate it explicitly
+
 ## 7.0 Core Semantics
 
 ### Value Categories
