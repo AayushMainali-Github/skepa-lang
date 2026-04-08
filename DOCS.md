@@ -469,6 +469,107 @@ Current inference boundaries:
 Practical rule:
 - if the compiler cannot determine a missing generic payload/value type from the local expression and the surrounding annotation context, you must annotate it explicitly
 
+### `Map[String, T]`
+
+`Map` is intentionally a string-keyed map type.
+
+That means:
+- the key type is always `String`
+- only the value type is generic
+- the language does not currently provide a general `Map[K, V]`
+
+So when the docs say `Map[String, T]`, that is the full current language type, not shorthand for a more general map system.
+
+Practical consequences:
+- `map.has`, `map.get`, `map.insert`, and `map.remove` all take `String` keys
+- type compatibility for maps checks only the value type because the key type is fixed by the language
+- this is a deliberate design choice in the current type system, not implicit partial generic support
+
+### `Fn(A, B, ...) -> R`
+
+`Fn(...) -> ...` is the language type for first-class function values.
+
+Function values may come from:
+- named functions
+- non-capturing function literals
+
+Function values may be:
+- assigned to locals
+- passed as arguments
+- returned from functions
+- stored in arrays, structs, and other compatible value containers
+
+Compatibility rules:
+- arity must match exactly
+- parameter types must match compatibly in order
+- return types must match compatibly
+- no implicit adaptation is performed
+
+Examples:
+- `Fn(Int) -> Int` is compatible with another `Fn(Int) -> Int`
+- `Fn(Int) -> Int` is not compatible with `Fn(Float) -> Int`
+- `Fn(Int) -> Int` is not compatible with `Fn(Int) -> Float`
+
+Function literals:
+- function literals must declare parameter types and a return type
+- function literals are non-capturing
+- function literals may call named functions, but they may not capture outer locals or parameters
+
+Call behavior:
+- calling a function value uses the same exact-match argument checking as ordinary function calls
+- wrong arity is a sema error
+- incompatible argument types are a sema error
+
+Intentional limits:
+- Skepa supports first-class function values, not general closures
+- function values do not support `==` or `!=`
+
+### Comparability
+
+Comparability is a type capability in Skepa.
+
+There are two comparison categories:
+- equality comparison with `==` and `!=`
+- ordered comparison with `<`, `<=`, `>`, and `>=`
+
+#### Equality comparison
+
+`==` and `!=` require:
+- operand types to be compatible
+- the operand type family to support equality
+
+Equality is supported for ordinary value-like types, including:
+- `Int`
+- `Float`
+- `Bool`
+- `String`
+- `Bytes`
+- fixed arrays
+- structs
+- `Option[T]`
+- `Result[T, E]`
+
+Equality is intentionally not supported for:
+- `Fn(...) -> ...`
+- `Vec[T]`
+- `Map[String, T]`
+
+Reason:
+- function values do not have a meaningful language-level equality notion
+- vectors and maps are mutable shared-reference types, and structural equality is not part of the current language model
+
+#### Ordered comparison
+
+`<`, `<=`, `>`, and `>=` are currently supported only where the operand types have an ordered comparison model.
+
+In the current language surface, that means:
+- `Int`
+- `Float`
+
+Practical rule:
+- equality support is broader than ordering support
+- compatible operand types are still required even when the operator family is supported
+
 ## 7.0 Core Semantics
 
 ### Value Categories
