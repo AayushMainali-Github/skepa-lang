@@ -398,6 +398,49 @@ match (x) {
 - Struct methods: first parameter must be `self: StructName`.
 - Function literals are non-capturing.
 
+### Type Compatibility
+
+Skepa uses exact-match static typing by default.
+
+That means:
+- no implicit numeric widening
+- no implicit numeric narrowing
+- no subtyping
+- no implicit container conversion
+- no implicit function-signature adaptation
+
+Assignments, returns, parameter passing, and match-expression arm unification all use type compatibility rules.
+
+Two types are compatible when:
+- they are exactly the same type
+- one side is an internal unknown/error-recovery type during sema
+- they are structurally compatible instances of the same builtin type family
+
+Structural compatibility currently exists for:
+- `Option[T]`
+  - compatible when the inner value types are compatible
+- `Result[T, E]`
+  - compatible when both the `Ok` and `Err` payload types are compatible
+- `[T; N]`
+  - compatible when both element types are compatible and the sizes are equal
+- `Vec[T]`
+  - compatible when the element types are compatible
+- `Map[String, T]`
+  - compatible when the value types are compatible
+- `Fn(A, B, ...) -> R`
+  - compatible when arity matches, each parameter type is compatible in order, and the return type is compatible
+
+Examples:
+- `Int` is not compatible with `Float`
+- `Option[Int]` is not compatible with `Option[String]`
+- `Result[Int, String]` is not compatible with `Result[Int, Bool]`
+- `[Int; 2]` is not compatible with `[Int; 3]`
+- `Fn(Int) -> Int` is not compatible with `Fn(Float) -> Int`
+
+Practical rule:
+- if a type shape differs, it does not typecheck
+- if the type family matches, Skepa recursively checks the contained types
+
 ## 7.0 Core Semantics
 
 ### Value Categories
