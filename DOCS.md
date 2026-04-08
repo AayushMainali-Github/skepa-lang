@@ -570,6 +570,58 @@ Practical rule:
 - equality support is broader than ordering support
 - compatible operand types are still required even when the operator family is supported
 
+### Construction And Typed Context
+
+Skepa uses two broad construction styles:
+- language constructors
+- builtin package constructors
+
+#### Language constructors
+
+These construct typed values directly in the language surface:
+- `Some(value)`
+- `None()`
+- `Ok(value)`
+- `Err(error)`
+- array literals like `[1, 2, 3]`
+- array repeat literals like `[0; 4]`
+- struct literals like `User { name: "a" }`
+- function literals like `fn(x: Int) -> Int { return x + 1; }`
+
+Rules:
+- `Some(value)` infers `Option[T]` from `value`
+- `None()` may require surrounding typed context because it carries no payload type by itself
+- `Ok(value)` infers the `Ok` side of `Result[T, E]`
+- `Err(error)` infers the `Err` side of `Result[T, E]`
+- `Ok(...)` and `Err(...)` may require surrounding typed context for the opposite side of the result
+
+Examples:
+- `let x: Option[Int] = None();`
+- `let ok: Result[Int, String] = Ok(7);`
+- `let bad: Result[Int, String] = Err("bad");`
+
+#### Builtin package constructors
+
+These create runtime-managed container/handle values:
+- `vec.new()`
+- `map.new()`
+- `task.channel()`
+
+Rules:
+- these constructors do not carry enough information to infer their generic payload type by themselves
+- they therefore require surrounding typed context
+
+Examples:
+- `let xs: Vec[Int] = vec.new();`
+- `let headers: Map[String, String] = map.new();`
+- `let jobs: task.Channel[Int] = task.channel();`
+
+#### Practical rule
+
+If a constructor carries the needed type information in its explicit payload, local inference usually works.
+
+If a constructor does not carry enough type information by itself, Skepa requires an explicit surrounding annotation context.
+
 ## 7.0 Core Semantics
 
 ### Value Categories
@@ -670,6 +722,63 @@ The core rule is:
 - use `Result[T, E]` for ordinary recoverable failure
 
 Package docs may still call out specific strict operations, but the split above is the language-wide rule.
+
+### Runtime Execution Model
+
+Skepa aims for the same language-level behavior across interpreter, native, and CLI execution modes.
+
+In ordinary user-visible semantics:
+
+- value-like values mean the same thing across execution modes
+- shared-reference values mean the same thing across execution modes
+- `Option[T]` / `Result[T, E]` behavior is the same across execution modes
+- handle lifetime rules are the same across execution modes
+- strict runtime misuse remains strict across execution modes
+
+The main intentional execution-model difference today is task scheduling:
+
+- interpreter execution may use a simpler inline or deterministic fallback model in tests and non-native paths
+- native and CLI execution use the host runtime's real thread-backed task behavior
+
+That difference may affect scheduling timing, but it should not change the meaning of successful programs.
+
+Cross-mode consistency guarantees:
+
+- value semantics do not change across execution modes
+- shared-reference aliasing rules do not change across execution modes
+- `Option[T]` / `Result[T, E]` success and failure shapes do not change across execution modes
+- opaque handle kind checks and lifetime rules do not change across execution modes
+- documented strict operations remain strict across execution modes
+
+If an execution-mode difference is observable today, it should be treated as a runtime implementation detail unless the docs call it out explicitly.
+
+### Runtime Handles And Lifetime
+
+Opaque runtime-backed handles include:
+
+- `net.Socket`
+- `net.Listener`
+- `task.Channel[T]`
+- `task.Task[T]`
+- `ffi.Library`
+- `ffi.Symbol`
+
+These follow the shared-reference rules from the core semantics section.
+
+The runtime handle model is:
+
+- a handle refers to a live underlying runtime resource
+- aliases refer to that same underlying resource
+- closing or consuming that resource changes the state observed through every alias
+
+The runtime treats these as fatal misuse cases:
+
+- using the wrong handle kind with a builtin
+- using a closed resource
+- closing the same resource twice
+- joining the same task more than once
+
+These are runtime errors, not `Option` or `Result` values.
 
 ### Equality And Comparison
 
@@ -783,6 +892,20 @@ Builtins that stay runtime-error style:
 - double-close on handle resources
 - invalid ABI use in FFI
 - explicit process termination APIs like `os.exit`
+
+Important deliberate strict operations include:
+- `option.unwrapSome`
+- `result.unwrapOk`
+- `result.unwrapErr`
+- `bytes.slice`
+- `bytes.push`
+- `vec.set`
+- `vec.delete`
+- `task.recv`
+- `task.join` when reused after completion
+- `net.close`
+- `net.closeListener`
+- `os.sleep` with a negative duration
 
 Builtins that use `Option[T]` for absence:
 - `os.arg`
@@ -1290,6 +1413,8 @@ Behavior:
 - All `bytes` helpers are non-mutating and return derived values.
 - `bytes.fromString` encodes UTF-8 bytes from a `String`.
 - `bytes.toString` decodes UTF-8 and returns `Ok(String)` on valid data.
+- `Bytes` behaves as a value-like runtime type, not as a shared-reference handle type.
+- Assigning, passing, or returning a `Bytes` value does not expose mutable shared state.
 
 Notes:
 - `bytes.get` returns `Some(byte)` in `0..=255` for in-range access and `None()` otherwise.
@@ -1298,6 +1423,10 @@ Notes:
 - `bytes.slice` requires valid non-negative bounds with `start <= end`.
 - `bytes.slice` and `bytes.push` are deliberate strict operations. Invalid bounds or invalid byte values raise runtime errors instead of returning `Result`.
 - `Bytes` supports language-level `==` / `!=` by content.
+- The current split is intentional:
+  - `bytes.get` models ordinary missing-index access with `Option[Int]`
+  - `bytes.toString` models recoverable UTF-8 decoding failure with `Result[String, String]`
+  - `bytes.slice` and `bytes.push` remain strict operations
 
 ### 8.12 `map`
 
@@ -1374,7 +1503,12 @@ Handle semantics:
 - `net.Socket` and `net.Listener` are opaque builtin handle types, not structs.
 - Users cannot construct or inspect these types directly.
 - `net.Socket` and `net.Listener` follow the shared-reference rules from the core semantics section.
+- Aliases refer to the same underlying live socket or listener resource.
 - Closing any alias closes the shared underlying resource for all aliases.
+- Using a socket builtin with a listener handle is a runtime error.
+- Using a listener builtin with a socket handle is a runtime error.
+- Using a closed socket or listener handle is a runtime error.
+- Closing the same socket or listener more than once is a runtime error.
 
 Notes:
 - `net` supports both text and byte-oriented I/O.
@@ -1384,6 +1518,7 @@ Notes:
 - `net.tlsConnect` is client-side only in the current surface. There is no TLS listener/accept API yet.
 - `net.resolve` returns the first resolved address only. It is a convenience helper, not a full DNS result-set API.
 - `net.parseUrl` is a convenience parser for common URLs. Missing optional parts are returned as empty strings in the success map, and invalid URLs return `Err(String)`.
+- `net.fetch` is a synchronous convenience helper layered on top of the runtime networking stack, not a full HTTP client framework.
 - `net.fetch` currently supports `http://` and `https://` URLs only.
 - `net.fetch` reads these option keys when present:
   - `method`
@@ -1394,6 +1529,8 @@ Notes:
   - `body`
   - `contentType`
 - `net.fetch` defaults to `GET` when `method` is missing.
+- `net.fetch` is text-oriented today. It does not expose response headers as a first-class map and does not currently expose a binary-body response surface.
+- `net.parseUrl`, `net.resolve`, and `net.fetch` are intended as lightweight helpers. Raw socket and TLS APIs remain the base networking layer for protocol work.
 - `net.tlsConnect` validates the peer certificate chain and hostname through the host TLS implementation.
 - Timeout setters require non-negative millisecond values. `0` means no timeout.
 - Passing the wrong handle kind to a builtin raises a runtime error.
@@ -1566,12 +1703,26 @@ Behavior:
 - `task.spawn` starts a background task in native/CLI execution paths.
 - `task.join` waits for task completion and returns the task result exactly once.
 
+Handle semantics:
+- `task.Channel[T]` and `task.Task[T]` are opaque builtin handle types, not structs.
+- Users cannot construct or inspect these types directly.
+- `task.Channel[T]` and `task.Task[T]` follow the shared-reference rules from the core semantics section.
+- Aliases refer to the same underlying runtime-managed channel or task.
+- Receiving from one channel alias consumes from the shared queue seen by every alias.
+- Joining through one task alias consumes the shared completion result for every alias.
+
 Notes:
 - `task.channel()` currently requires typed context (for example `let jobs: task.Channel[Int] = task.channel();`).
-- `task.Channel[T]` and `task.Task[T]` follow the shared-reference rules from the core semantics section.
+- `task.send` is queue-based and preserves send order within the same channel.
 - `task.recv` on an empty channel raises a runtime error.
 - `task.join` on the same task more than once raises a runtime error.
-- The interpreter keeps a deterministic inline fallback for task execution; native and CLI paths use real background threads.
+- Using a channel builtin with a task handle is a runtime error.
+- Using a task builtin with a channel handle is a runtime error.
+- `task.join` is a one-shot consume of the shared completion result, not a repeatable read.
+- `task.recv` is currently a strict receive operation, not a blocking wait primitive and not an `Option`/`Result`-returning poll API.
+- `task.spawn` starts execution immediately in native and CLI paths through the host runtime.
+- The interpreter keeps a simpler deterministic inline fallback for task execution; native and CLI paths use real background threads.
+- Programs should not rely on interpreter scheduling details matching native thread timing exactly.
 
 ### 8.15 `ffi`
 
@@ -1598,10 +1749,18 @@ Behavior:
 - `ffi.closeLibrary` and `ffi.closeSymbol` close the corresponding handles.
 - Linked extern calls are lowered through the runtime FFI layer automatically.
 
-Borrowing and ownership rules:
-- `ffi.Library` and `ffi.Symbol` are opaque runtime-managed handles, not structs.
+Handle semantics:
+- `ffi.Library` and `ffi.Symbol` are opaque runtime-managed handle types, not structs.
+- Users cannot construct or inspect these types directly.
 - `ffi.Library` and `ffi.Symbol` follow the shared-reference rules from the core semantics section.
-- Closing a library or symbol invalidates that handle for all aliases.
+- Aliases refer to the same underlying loaded library or bound symbol.
+- Closing a library or symbol handle invalidates that handle for all aliases.
+- Using a library handle where a symbol handle is required is a runtime error.
+- Using a symbol handle where a library handle is required is a runtime error.
+- Using a closed library or symbol handle is a runtime error.
+- Closing the same library or symbol more than once is a runtime error.
+
+Borrowing and ownership rules:
 - Supported linked extern ABI shapes currently lower to borrowed-only calls:
   - `extern("lib") fn foo() -> Int`
   - `extern("lib") fn foo() -> Bool`
@@ -1621,6 +1780,8 @@ Borrowing and ownership rules:
 - `Int` arguments are passed by value.
 - Foreign code must not retain borrowed string or byte pointers after the call returns.
 - No ownership transfer APIs exist yet for strings, bytes, or raw pointers.
+- The runtime does not guarantee pointer stability beyond the active foreign call.
+- Linked extern declarations are intentionally a narrow borrowed interop layer, not a general unsafe pointer API.
 
 String and buffer rules:
 - Any linked extern call that borrows `String` rejects embedded NUL bytes at runtime.
@@ -1630,6 +1791,9 @@ String and buffer rules:
 Notes:
 - Symbol ABI/signature correctness is the caller's responsibility.
 - Calling a symbol with the wrong ABI or signature is undefined behavior at the foreign boundary.
+- Foreign code must treat borrowed `String` and `Bytes` arguments as read-only for the duration of the call.
+- Returning newly allocated foreign memory is not part of the current FFI ownership model.
+- Callbacks, raw pointers, and ownership-transfer APIs are intentionally outside the current runtime contract.
 - The runtime still uses low-level `ffi.call...` helpers internally when lowering linked extern calls, but they are not the intended user-facing API.
 
 ### 8.16 `vec`
