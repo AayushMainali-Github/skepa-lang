@@ -1521,6 +1521,7 @@ Notes:
 - `net.tlsConnect` is client-side only in the current surface. There is no TLS listener/accept API yet.
 - `net.resolve` returns the first resolved address only. It is a convenience helper, not a full DNS result-set API.
 - `net.parseUrl` is a convenience parser for common URLs. Missing optional parts are returned as empty strings in the success map, and invalid URLs return `Err(String)`.
+- `net.parseUrl` rejects URL components containing control characters, including CR and LF.
 - `net.fetch` is a synchronous convenience helper layered on top of the runtime networking stack, not a full HTTP client framework.
 - `net.fetch` currently supports `http://` and `https://` URLs only.
 - `net.fetch` reads these option keys when present:
@@ -1532,6 +1533,7 @@ Notes:
   - `body`
   - `contentType`
 - `net.fetch` defaults to `GET` when `method` is missing.
+- `net.fetch` rejects URLs whose parsed components contain control characters, including CR and LF.
 - `net.fetch` is text-oriented today. It does not expose response headers as a first-class map and does not currently expose a binary-body response surface.
 - `net.parseUrl`, `net.resolve`, and `net.fetch` are intended as lightweight helpers. Raw socket and TLS APIs remain the base networking layer for protocol work.
 - `net.tlsConnect` validates the peer certificate chain and hostname through the host TLS implementation.

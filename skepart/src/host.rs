@@ -1554,6 +1554,13 @@ fn parse_url_parts(url: &str) -> RtResult<ParsedUrlParts> {
         path = tail.to_string();
     }
 
+    reject_http_control_chars("scheme", scheme)?;
+    reject_http_control_chars("host", &host)?;
+    reject_http_control_chars("port", &port)?;
+    reject_http_control_chars("path", &path)?;
+    reject_http_control_chars("query", &query)?;
+    reject_http_control_chars("fragment", &fragment)?;
+
     Ok(ParsedUrlParts {
         scheme: scheme.to_string(),
         host,
@@ -1562,6 +1569,19 @@ fn parse_url_parts(url: &str) -> RtResult<ParsedUrlParts> {
         query,
         fragment,
     })
+}
+
+fn reject_http_control_chars(component: &str, value: &str) -> RtResult<()> {
+    if value
+        .chars()
+        .any(|ch| ch.is_control() || matches!(ch, '\u{7f}'))
+    {
+        return Err(RtError::new(
+            RtErrorKind::InvalidArgument,
+            format!("net.parseUrl {component} must not contain control characters"),
+        ));
+    }
+    Ok(())
 }
 
 struct HttpResponseParts {

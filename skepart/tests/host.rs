@@ -1245,6 +1245,38 @@ fn noop_host_rejects_invalid_urls() {
 }
 
 #[test]
+fn noop_host_rejects_urls_with_http_control_character_injection() {
+    let mut host = NoopHost::default();
+
+    let injected_path = host
+        .net_parse_url("http://example.com/ok\r\nInjected: yes")
+        .expect_err("control characters in path should fail");
+    assert_eq!(injected_path.kind, skepart::RtErrorKind::InvalidArgument);
+    assert!(
+        injected_path
+            .message
+            .contains("path must not contain control characters"),
+        "unexpected message: {}",
+        injected_path.message
+    );
+
+    let injected_host = host
+        .net_fetch(
+            "http://example.com\r\nInjected: yes/",
+            &skepart::RtMap::new(),
+        )
+        .expect_err("control characters in host should fail");
+    assert_eq!(injected_host.kind, skepart::RtErrorKind::InvalidArgument);
+    assert!(
+        injected_host
+            .message
+            .contains("host must not contain control characters"),
+        "unexpected message: {}",
+        injected_host.message
+    );
+}
+
+#[test]
 fn noop_host_supports_basic_fetch_over_loopback() {
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind http listener");
     let addr = listener.local_addr().expect("listener addr");
