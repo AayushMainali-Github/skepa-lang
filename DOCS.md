@@ -1696,13 +1696,15 @@ Signatures:
 - `task.recv(ch: task.Channel[T]) -> T`
 - `task.spawn(f: Fn() -> T) -> task.Task[T]`
 - `task.join(task: task.Task[T]) -> T`
+- `task.close(handle: task.Task[T] | task.Channel[T]) -> Void`
 
 Behavior:
 - `task.channel()` creates a typed runtime-managed channel.
 - `task.send` appends a value to the channel queue.
 - `task.recv` removes and returns the next queued value.
 - `task.spawn` starts a background task in native/CLI execution paths.
-- `task.join` waits for task completion and returns the task result exactly once.
+- `task.join` waits for task completion, returns the task result exactly once, and reclaims the joined task handle.
+- `task.close` explicitly closes a task or channel handle and reclaims the underlying handle-table entry.
 
 Handle semantics:
 - `task.Channel[T]` and `task.Task[T]` are opaque builtin handle types, not structs.
@@ -1711,15 +1713,17 @@ Handle semantics:
 - Aliases refer to the same underlying runtime-managed channel or task.
 - Receiving from one channel alias consumes from the shared queue seen by every alias.
 - Joining through one task alias consumes the shared completion result for every alias.
+- Closing through any alias closes the shared task/channel handle for every alias.
 
 Notes:
 - `task.channel()` currently requires typed context (for example `let jobs: task.Channel[Int] = task.channel();`).
 - `task.send` is queue-based and preserves send order within the same channel.
 - `task.recv` on an empty channel raises a runtime error.
-- `task.join` on the same task more than once raises a runtime error.
+- `task.join` consumes the task handle. Reusing the same joined handle raises a runtime error because the handle is no longer live.
 - Using a channel builtin with a task handle is a runtime error.
 - Using a task builtin with a channel handle is a runtime error.
 - `task.join` is a one-shot consume of the shared completion result, not a repeatable read.
+- `task.close` is the explicit reclaim path for channels and for tasks you do not intend to join.
 - `task.recv` is currently a strict receive operation, not a blocking wait primitive and not an `Option`/`Result`-returning poll API.
 - `task.spawn` starts execution immediately in native and CLI paths through the host runtime.
 - The interpreter keeps a simpler deterministic inline fallback for task execution; native and CLI paths use real background threads.

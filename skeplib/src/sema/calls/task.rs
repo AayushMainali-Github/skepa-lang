@@ -146,6 +146,30 @@ pub(super) fn check_task_builtin(
                 }
             }
         }
+        "close" => {
+            if args.len() != 1 {
+                checker.error(format!(
+                    "task.close expects 1 argument(s), got {}",
+                    args.len()
+                ));
+                return TypeInfo::Void;
+            }
+            match checker.check_expr(&args[0], scopes) {
+                TypeInfo::Opaque(name)
+                    if task_task_value_type(&name).is_some()
+                        || task_channel_value_type(&name).is_some() => {}
+                TypeInfo::Opaque(name) => checker.error(format!(
+                    "task.close argument 1 expects Task or Channel, got {:?}",
+                    TypeInfo::Opaque(name)
+                )),
+                TypeInfo::Unknown => {}
+                got => checker.error(format!(
+                    "task.close argument 1 expects Task or Channel, got {:?}",
+                    got
+                )),
+            }
+            TypeInfo::Void
+        }
         _ => {
             checker.check_fixed_arity_builtin("task", method, args, scopes, sig);
             TypeInfo::Unknown

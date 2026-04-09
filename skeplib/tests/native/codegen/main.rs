@@ -2540,6 +2540,27 @@ fn main() -> Int {
     assert_eq!(common::native_run_structured(source).exit_code(), 0);
 }
 
+#[test]
+fn codegen_builds_native_executable_for_task_close() {
+    let source = r#"
+import task;
+
+fn job() -> Int {
+  return 4;
+}
+
+fn main() -> Int {
+  let jobs: task.Channel[Int] = task.channel();
+  let t: task.Task[Int] = task.spawn(job);
+  task.close(jobs);
+  task.close(t);
+  return 0;
+}
+"#;
+
+    assert_eq!(common::native_run_structured(source).exit_code(), 0);
+}
+
 fn object_ext() -> &'static str {
     if cfg!(windows) { "obj" } else { "o" }
 }

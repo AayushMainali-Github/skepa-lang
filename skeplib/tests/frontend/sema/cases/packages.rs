@@ -1567,6 +1567,20 @@ fn main() -> Int {
   task.send(jobs, "bad");
   return task.recv(jobs);
 }
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d
+            .message
+            .contains("Cannot infer channel value type for let `inferred`; annotate as `task.Channel[T]`")));
+    assert!(diags
+        .as_slice()
+        .iter()
+        .any(|d| d.message.contains("task.send argument 2 expects Int")));
+}
 
 #[test]
 fn sema_accepts_task_spawn_and_join_flow() {
@@ -1581,6 +1595,27 @@ fn main() -> Int {
   let t: task.Task[Int] = task.spawn(job);
   let value: Int = task.join(t);
   return value;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
+
+#[test]
+fn sema_accepts_task_close_for_task_and_channel_handles() {
+    let src = r#"
+import task;
+
+fn job() -> Int {
+  return 1;
+}
+
+fn main() -> Void {
+  let jobs: task.Channel[Int] = task.channel();
+  let t: task.Task[Int] = task.spawn(job);
+  task.close(jobs);
+  task.close(t);
+  return;
 }
 "#;
     let (result, diags) = analyze_source(src);
@@ -1614,16 +1649,23 @@ fn main() -> Int {
         .iter()
         .any(|d| d.message.contains("task.join argument 1 expects Task")));
 }
+
+#[test]
+fn sema_rejects_task_close_type_mismatches() {
+    let src = r#"
+import task;
+
+fn main() -> Void {
+  task.close(1);
+  return;
+}
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags.as_slice().iter().any(|d| d
-        .message
-        .contains("Cannot infer channel value type for let `inferred`; annotate as `task.Channel[T]`")));
     assert!(diags
         .as_slice()
         .iter()
-        .any(|d| d.message.contains("task.send argument 2 expects Int")));
+        .any(|d| d.message.contains("task.close argument 1 expects Task or Channel")));
 }
 
 #[test]

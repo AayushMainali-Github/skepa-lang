@@ -187,6 +187,16 @@ impl RtNetResourceTable {
         }
     }
 
+    pub fn remove_task(&mut self, handle: RtHandle) -> RtResult<Arc<Mutex<RtTaskState>>> {
+        match self.remove(handle)? {
+            RtNetResource::Task(value) => Ok(value),
+            other => Err(RtError::invalid_handle_kind(
+                RtHandleKind::Task.type_name(),
+                other.kind().type_name(),
+            )),
+        }
+    }
+
     pub fn foreign_library(&self, handle: RtHandle) -> RtResult<Arc<RtForeignLibrary>> {
         self.kind_of(handle)?;
         match self.resources.get(&handle.id) {
@@ -1018,7 +1028,7 @@ impl RtHost for NoopHost {
     }
 
     fn task_join(&mut self, task: RtHandle) -> RtResult<crate::RtValue> {
-        let state = self.net_resources.task(task)?;
+        let state = self.net_resources.remove_task(task)?;
         let running = {
             let mut state = state
                 .lock()

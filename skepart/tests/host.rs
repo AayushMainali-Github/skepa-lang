@@ -820,6 +820,37 @@ fn noop_host_joins_running_tasks_once() {
             .kind,
         skepart::RtErrorKind::InvalidArgument
     );
+    assert_eq!(
+        host.net_lookup_handle_kind(task)
+            .expect_err("joined task handle should be reclaimed")
+            .kind,
+        skepart::RtErrorKind::InvalidArgument
+    );
+}
+
+#[test]
+fn noop_host_can_close_task_and_channel_handles_explicitly() {
+    let mut host = NoopHost::default();
+    let task = host
+        .task_store_completed(skepart::RtValue::Int(1))
+        .expect("task");
+    let channel = host.task_channel().expect("channel");
+
+    host.net_close_handle(task).expect("close task");
+    host.net_close_handle(channel).expect("close channel");
+
+    assert_eq!(
+        host.net_lookup_handle_kind(task)
+            .expect_err("closed task should be invalid")
+            .kind,
+        skepart::RtErrorKind::InvalidArgument
+    );
+    assert_eq!(
+        host.net_lookup_handle_kind(channel)
+            .expect_err("closed channel should be invalid")
+            .kind,
+        skepart::RtErrorKind::InvalidArgument
+    );
 }
 
 #[test]

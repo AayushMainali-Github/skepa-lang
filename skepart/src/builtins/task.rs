@@ -29,3 +29,8 @@ pub fn spawn(ctx: &mut dyn BuiltinContext, function: RtFunctionRef) -> RtResult<
 pub fn join(host: &mut dyn RtHost, task: RtHandle) -> RtResult<RtValue> {
     host.task_join(task)
 }
+
+pub fn close(host: &mut dyn RtHost, handle: RtHandle) -> RtResult<RtValue> {
+    host.net_close_handle(handle)?;
+    Ok(RtValue::Unit)
+}

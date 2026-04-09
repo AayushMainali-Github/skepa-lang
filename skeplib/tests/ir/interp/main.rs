@@ -1520,6 +1520,28 @@ fn main() -> Int {
 }
 
 #[test]
+fn interpreter_supports_task_close_for_channel_and_task_handles() {
+    let source = r#"
+import task;
+
+fn job() -> Int {
+  return 9;
+}
+
+fn main() -> Int {
+  let jobs: task.Channel[Int] = task.channel();
+  let t: task.Task[Int] = task.spawn(job);
+  task.close(jobs);
+  task.close(t);
+  return 0;
+}
+"#;
+
+    let value = common::ir_run_ok(source);
+    assert_eq!(value, IrValue::Int(0));
+}
+
+#[test]
 fn interpreter_supports_float_and_string_compare_shapes() {
     let float_src = r#"
 fn main() -> Int {

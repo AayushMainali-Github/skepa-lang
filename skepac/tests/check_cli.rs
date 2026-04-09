@@ -1388,6 +1388,38 @@ fn main() -> Int {
 }
 
 #[test]
+fn check_accepts_task_close_program() {
+    let tmp = make_temp_dir("skepac_check_task_close");
+    let file = tmp.join("task_close.sk");
+    fs::write(
+        &file,
+        r#"
+import task;
+
+fn job() -> Int {
+  return 8;
+}
+
+fn main() -> Int {
+  let jobs: task.Channel[Int] = task.channel();
+  let t: task.Task[Int] = task.spawn(job);
+  task.close(jobs);
+  task.close(t);
+  return 0;
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("check")
+        .arg(&file)
+        .output()
+        .expect("run check");
+    assert_eq!(output.status.code(), Some(0), "{:?}", output);
+}
+
+#[test]
 fn run_executes_task_spawn_program_end_to_end() {
     let tmp = make_temp_dir("skepac_run_task_spawn");
     let source = tmp.join("main.sk");
@@ -1415,6 +1447,39 @@ fn main() -> Int {
         .expect("run skepac run");
 
     assert_eq!(output.status.code(), Some(14), "{:?}", output);
+}
+
+#[test]
+fn run_executes_task_close_program_end_to_end() {
+    let tmp = make_temp_dir("skepac_run_task_close");
+    let source = tmp.join("main.sk");
+    fs::write(
+        &source,
+        r#"
+import task;
+
+fn job() -> Int {
+  return 14;
+}
+
+fn main() -> Int {
+  let jobs: task.Channel[Int] = task.channel();
+  let t: task.Task[Int] = task.spawn(job);
+  task.close(jobs);
+  task.close(t);
+  return 0;
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("run")
+        .arg(&source)
+        .output()
+        .expect("run skepac run");
+
+    assert_eq!(output.status.code(), Some(0), "{:?}", output);
 }
 
 #[test]

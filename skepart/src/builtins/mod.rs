@@ -462,6 +462,7 @@ pub fn call_with_context(
             ctx.host(),
             task.expect_handle_kind(crate::RtHandleKind::Task)?,
         ),
+        ("task", "close", [handle]) => task::close(ctx.host(), handle.expect_handle()?),
         ("os", "platform", []) => os::platform(ctx.host()),
         ("os", "arch", []) => os::arch(ctx.host()),
         ("os", "arg", [value]) => os::arg(ctx.host(), value.expect_int()?),

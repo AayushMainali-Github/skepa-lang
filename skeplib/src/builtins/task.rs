@@ -54,4 +54,11 @@ pub(super) const SIGS: &[BuiltinSig] = &[
         ret: TypeInfo::Unknown,
         kind: BuiltinKind::FixedArity,
     },
+    BuiltinSig {
+        package: "task",
+        name: "close",
+        params: &[TypeInfo::Unknown],
+        ret: TypeInfo::Void,
+        kind: BuiltinKind::FixedArity,
+    },
 ];
