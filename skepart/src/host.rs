@@ -1595,20 +1595,36 @@ fn read_http_response(mut reader: impl Read, method: &str) -> RtResult<HttpRespo
     reader
         .read_to_end(&mut buf)
         .map_err(|err| RtError::io(err.to_string()))?;
-    let text = String::from_utf8(buf).map_err(|_| {
+
+    let head_end = buf
+        .windows(4)
+        .position(|window| window == b"\r\n\r\n")
+        .ok_or_else(|| {
+            RtError::new(
+                RtErrorKind::InvalidArgument,
+                format!(
+                    "net.http{} received malformed HTTP response",
+                    http_method_title(method)
+                ),
+            )
+        })?;
+    let head_bytes = &buf[..head_end];
+    let body_bytes = &buf[head_end + 4..];
+
+    let head = String::from_utf8(head_bytes.to_vec()).map_err(|_| {
         RtError::new(
             RtErrorKind::InvalidArgument,
             format!(
-                "net.http{} expected valid UTF-8 response data",
+                "net.http{} expected valid UTF-8 response headers",
                 http_method_title(method)
             ),
         )
     })?;
-    let (head, body) = text.split_once("\r\n\r\n").ok_or_else(|| {
+    let body = String::from_utf8(body_bytes.to_vec()).map_err(|_| {
         RtError::new(
             RtErrorKind::InvalidArgument,
             format!(
-                "net.http{} received malformed HTTP response",
+                "net.http{} expected valid UTF-8 response body",
                 http_method_title(method)
             ),
         )
@@ -1639,7 +1655,7 @@ fn read_http_response(mut reader: impl Read, method: &str) -> RtResult<HttpRespo
     }
     Ok(HttpResponseParts {
         status,
-        body: body.to_string(),
+        body,
         content_type,
     })
 }

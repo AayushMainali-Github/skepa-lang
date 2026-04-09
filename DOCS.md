@@ -1535,6 +1535,7 @@ Notes:
 - `net.fetch` defaults to `GET` when `method` is missing.
 - `net.fetch` rejects URLs whose parsed components contain control characters, including CR and LF.
 - `net.fetch` is text-oriented today. It does not expose response headers as a first-class map and does not currently expose a binary-body response surface.
+- `net.fetch` parses the HTTP header block separately from the response body. Malformed headers fail as malformed HTTP, while a non-UTF-8 body fails specifically as a body-decoding error.
 - `net.parseUrl`, `net.resolve`, and `net.fetch` are intended as lightweight helpers. Raw socket and TLS APIs remain the base networking layer for protocol work.
 - `net.tlsConnect` validates the peer certificate chain and hostname through the host TLS implementation.
 - Timeout setters require non-negative millisecond values. `0` means no timeout.
