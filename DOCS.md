@@ -1487,9 +1487,9 @@ Behavior:
 - `net.fetch(url, options)` performs a blocking HTTP request and returns `Ok(Map[String, String])` on success or `Err(String)` on request failure.
 - `net.listen(address)` binds a blocking TCP listener, returning `Ok(net.Listener)` on success or `Err(String)` on bind failure. Using port `0` lets the OS choose an ephemeral port.
 - `net.accept(listener)` blocks until a client connects, then returns `Ok(net.Socket)` on success or `Err(String)` on accept failure.
-- `net.read(socket)` performs a single blocking read of up to 4096 bytes and returns `Ok(String)` on success or `Err(String)` on I/O failure.
+- `net.read(socket)` performs exactly one blocking read attempt of up to 4096 bytes and returns `Ok(String)` on success or `Err(String)` on I/O failure. It does not assemble a logical message or drain the socket.
 - `net.write(socket, data)` writes the UTF-8 bytes of `data` to the socket and returns `Ok(())` on success or `Err(String)` on I/O failure.
-- `net.readBytes(socket)` performs a single blocking read of up to 4096 bytes and returns `Ok(Bytes)` on success or `Err(String)` on I/O failure.
+- `net.readBytes(socket)` performs exactly one blocking read attempt of up to 4096 bytes and returns `Ok(Bytes)` on success or `Err(String)` on I/O failure. It does not assemble a logical message or drain the socket.
 - `net.writeBytes(socket, data)` writes raw bytes to the socket and returns `Ok(())` on success or `Err(String)` on I/O failure.
 - `net.readN(socket, count)` performs a blocking exact read of `count` bytes and returns `Ok(Bytes)` on success or `Err(String)` on I/O failure.
 - `net.localAddr(socket)` returns `Ok(String)` with the socket's local address as `host:port`, or `Err(String)` on failure.
@@ -1514,6 +1514,8 @@ Handle semantics:
 Notes:
 - `net` supports both text and byte-oriented I/O.
 - `net.read` requires valid UTF-8. Non-UTF-8 payloads return `Err(String)`.
+- Use repeated `net.read` / `net.readBytes` calls when you want to consume a stream incrementally.
+- Use `net.readN` when you know the exact byte count you must receive.
 - `net.readBytes` / `net.readN` are the correct APIs for binary protocols and arbitrary payloads.
 - `net.read` is not a read-to-EOF helper; it returns one chunk from a single read call.
 - `net.tlsConnect` is client-side only in the current surface. There is no TLS listener/accept API yet.
