@@ -1354,8 +1354,8 @@ Behavior:
 - `os.arg(index)` returns `Some(value)` when the process argument exists and `None()` when it does not.
 - `os.envHas(name)` returns whether an environment variable is present.
 - `os.envGet(name)` returns `Some(value)` when the variable exists and `None()` when it does not.
-- `os.envSet(name, value)` sets an environment variable for the current process.
-- `os.envRemove(name)` removes an environment variable from the current process.
+- `os.envSet(name, value)` updates the runtime host's environment view for the current execution.
+- `os.envRemove(name)` removes a variable from the runtime host's environment view for the current execution.
 - `os.sleep(ms)` requires non-negative milliseconds; negative values raise a runtime error.
 - `os.exit(code)` terminates the current process with the provided exit code.
 - `os.exec(program, args)` runs the program directly with argv arguments and returns `Ok(exitCode)` on success or `Err(String)` if the process cannot be spawned.
@@ -1364,6 +1364,7 @@ Behavior:
 Notes:
 - `os.arg(index)` returns `None()` for negative or out-of-range indices.
 - `os.envGet(name)` raises a runtime error only for invalid non-UTF-8 environment data.
+- In the default runtime host, environment reads start from a snapshot of the host process environment, and later `os.envSet` / `os.envRemove` changes remain host-local rather than mutating the global process environment.
 - `os.execOut(program, args)` uses lossy UTF-8 decoding for stdout and trims trailing line endings.
 - If a process exits without a normal exit code, `os.exec(program, args)` returns `Ok(-1)`.
 

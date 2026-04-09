@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::collections::VecDeque;
+use std::ffi::OsString;
 use std::fs;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream, ToSocketAddrs};
@@ -568,6 +569,7 @@ pub trait RtHost {
 
 pub struct NoopHost {
     random_state: u64,
+    env_vars: HashMap<String, OsString>,
     net_resources: RtNetResourceTable,
     tls_root_certs: Vec<CertificateDer<'static>>,
     ffi_library_cache: HashMap<String, Arc<RtForeignLibrary>>,
@@ -579,6 +581,9 @@ impl Default for NoopHost {
     fn default() -> Self {
         Self {
             random_state: 0x1234_5678_9ABC_DEF0,
+            env_vars: std::env::vars_os()
+                .filter_map(|(key, value)| key.into_string().ok().map(|key| (key, value)))
+                .collect(),
             net_resources: RtNetResourceTable::default(),
             tls_root_certs: Vec::new(),
             ffi_library_cache: HashMap::new(),
@@ -869,29 +874,30 @@ impl RtHost for NoopHost {
     }
 
     fn os_env_has(&mut self, name: &str) -> RtResult<bool> {
-        Ok(std::env::var_os(name).is_some())
+        Ok(self.env_vars.contains_key(name))
     }
 
     fn os_env_get(&mut self, name: &str) -> RtResult<Option<RtString>> {
-        match std::env::var(name) {
-            Ok(value) => Ok(Some(RtString::from(value))),
-            Err(std::env::VarError::NotPresent) => Ok(None),
-            Err(std::env::VarError::NotUnicode(_)) => Err(RtError::new(
-                RtErrorKind::InvalidArgument,
-                format!("environment variable `{name}` is not valid UTF-8"),
-            )),
+        match self.env_vars.get(name) {
+            Some(value) => match value.clone().into_string() {
+                Ok(value) => Ok(Some(RtString::from(value))),
+                Err(_) => Err(RtError::new(
+                    RtErrorKind::InvalidArgument,
+                    format!("environment variable `{name}` is not valid UTF-8"),
+                )),
+            },
+            None => Ok(None),
         }
     }
 
     fn os_env_set(&mut self, name: &str, value: &str) -> RtResult<()> {
-        // Safety: tests and runtime mutate process environment synchronously through the host boundary.
-        unsafe { std::env::set_var(name, value) };
+        self.env_vars
+            .insert(name.to_string(), OsString::from(value));
         Ok(())
     }
 
     fn os_env_remove(&mut self, name: &str) -> RtResult<()> {
-        // Safety: tests and runtime mutate process environment synchronously through the host boundary.
-        unsafe { std::env::remove_var(name) };
+        self.env_vars.remove(name);
         Ok(())
     }
 

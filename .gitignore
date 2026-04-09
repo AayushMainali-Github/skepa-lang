@@ -13,5 +13,5 @@ tmp_*
 .tmp_*
 extern_tmp*
 extern_win*
-
+notes.txt
 target-*

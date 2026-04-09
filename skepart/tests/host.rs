@@ -411,6 +411,36 @@ fn recording_host_tracks_fs_os_and_random_side_effects() {
 }
 
 #[test]
+fn noop_host_environment_mutation_is_host_local() {
+    let mut host = NoopHost::default();
+    let key = format!(
+        "SKEPA_NOOP_HOST_LOCAL_ENV_TEST_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("unix epoch")
+            .as_nanos()
+    );
+
+    assert_eq!(std::env::var_os(&key), None);
+
+    host.os_env_set(&key, "debug").expect("env set");
+    assert!(host.os_env_has(&key).expect("host env has"));
+    assert_eq!(
+        host.os_env_get(&key).expect("host env get"),
+        Some(RtString::from("debug"))
+    );
+    assert_eq!(
+        std::env::var_os(&key),
+        None,
+        "noop host env mutation must not touch process-global environment"
+    );
+
+    host.os_env_remove(&key).expect("env remove");
+    assert_eq!(host.os_env_get(&key).expect("host env removed"), None);
+}
+
+#[test]
 fn hosts_can_construct_typed_placeholder_net_handles() {
     let mut noop = NoopHost::default();
     assert_eq!(
