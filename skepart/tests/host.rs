@@ -460,6 +460,34 @@ fn hosts_can_construct_typed_placeholder_net_handles() {
 }
 
 #[test]
+fn explicit_id_handles_advance_allocator_and_reject_collisions() {
+    let mut host = NoopHost::default();
+    let explicit = host
+        .net_make_socket_handle(5)
+        .expect("explicit socket handle");
+    assert_eq!(
+        explicit,
+        RtHandle {
+            id: 5,
+            kind: RtHandleKind::Socket
+        }
+    );
+
+    let collision = host
+        .net_make_listener_handle(5)
+        .expect_err("reusing an explicit id should fail");
+    assert_eq!(collision.kind, skepart::RtErrorKind::InvalidArgument);
+
+    let next = host
+        .net_alloc_handle(RtHandleKind::Listener)
+        .expect("normal allocation after explicit id");
+    assert!(
+        next.id > explicit.id,
+        "allocator should advance past explicitly reserved ids"
+    );
+}
+
+#[test]
 fn noop_host_opens_and_binds_real_shared_library_symbols() {
     let mut host = NoopHost::default();
     let library = host

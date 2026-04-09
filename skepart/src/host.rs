@@ -106,6 +106,19 @@ impl RtNetResourceTable {
         ))))
     }
 
+    pub fn insert_with_id(&mut self, id: usize, resource: RtNetResource) -> RtResult<RtHandle> {
+        if self.resources.contains_key(&id) {
+            return Err(RtError::new(
+                RtErrorKind::InvalidArgument,
+                format!("handle id {id} is already in use"),
+            ));
+        }
+        let kind = resource.kind();
+        self.resources.insert(id, resource);
+        self.next_handle_id = self.next_handle_id.max(id.saturating_add(1));
+        Ok(RtHandle { id, kind })
+    }
+
     pub fn kind_of(&self, handle: RtHandle) -> RtResult<RtHandleKind> {
         let actual = self
             .resources
@@ -947,47 +960,23 @@ impl RtHost for NoopHost {
     }
 
     fn net_make_socket_handle(&mut self, id: usize) -> RtResult<RtHandle> {
-        let handle = RtHandle {
-            id,
-            kind: RtHandleKind::Socket,
-        };
         self.net_resources
-            .resources
-            .insert(id, RtNetResource::Placeholder(RtHandleKind::Socket));
-        Ok(handle)
+            .insert_with_id(id, RtNetResource::Placeholder(RtHandleKind::Socket))
     }
 
     fn net_make_listener_handle(&mut self, id: usize) -> RtResult<RtHandle> {
-        let handle = RtHandle {
-            id,
-            kind: RtHandleKind::Listener,
-        };
         self.net_resources
-            .resources
-            .insert(id, RtNetResource::Placeholder(RtHandleKind::Listener));
-        Ok(handle)
+            .insert_with_id(id, RtNetResource::Placeholder(RtHandleKind::Listener))
     }
 
     fn task_make_task_handle(&mut self, id: usize) -> RtResult<RtHandle> {
-        let handle = RtHandle {
-            id,
-            kind: RtHandleKind::Task,
-        };
         self.net_resources
-            .resources
-            .insert(id, RtNetResource::Placeholder(RtHandleKind::Task));
-        Ok(handle)
+            .insert_with_id(id, RtNetResource::Placeholder(RtHandleKind::Task))
     }
 
     fn task_make_channel_handle(&mut self, id: usize) -> RtResult<RtHandle> {
-        let handle = RtHandle {
-            id,
-            kind: RtHandleKind::Channel,
-        };
         self.net_resources
-            .resources
-            .insert(id, RtNetResource::Placeholder(RtHandleKind::Channel));
-        Ok(handle)
+            .insert_with_id(id, RtNetResource::Placeholder(RtHandleKind::Channel))
     }
 
     fn task_store_completed(&mut self, value: crate::RtValue) -> RtResult<RtHandle> {
