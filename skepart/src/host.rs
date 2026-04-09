@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::Weak;
 use std::thread::JoinHandle;
 use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -582,8 +583,8 @@ pub struct NoopHost {
     env_vars: HashMap<String, OsString>,
     net_resources: RtNetResourceTable,
     tls_root_certs: Vec<CertificateDer<'static>>,
-    ffi_library_cache: HashMap<String, Arc<RtForeignLibrary>>,
-    ffi_symbol_cache: HashMap<(String, String), Arc<RtForeignSymbol>>,
+    ffi_library_cache: HashMap<String, Weak<RtForeignLibrary>>,
+    ffi_symbol_cache: HashMap<(String, String), Weak<RtForeignSymbol>>,
     ffi_library_paths: HashMap<usize, String>,
 }
 
@@ -734,21 +735,21 @@ impl RtHost for NoopHost {
     }
 
     fn ffi_open_library(&mut self, path: &str) -> RtResult<RtHandle> {
-        let library = if let Some(library) = self.ffi_library_cache.get(path) {
-            Arc::clone(library)
-        } else {
-            let library = Arc::new(RtForeignLibrary::open(path).map_err(RtError::io)?);
-            self.ffi_library_cache
-                .insert(path.to_string(), Arc::clone(&library));
-            library
-        };
+        let library =
+            if let Some(library) = self.ffi_library_cache.get(path).and_then(Weak::upgrade) {
+                library
+            } else {
+                let library = Arc::new(RtForeignLibrary::open(path).map_err(RtError::io)?);
+                self.ffi_library_cache
+                    .insert(path.to_string(), Arc::downgrade(&library));
+                library
+            };
         let handle = self.net_resources.insert_library(library);
         self.ffi_library_paths.insert(handle.id, path.to_string());
         Ok(handle)
     }
 
     fn ffi_bind_symbol(&mut self, library: RtHandle, symbol: &str) -> RtResult<RtHandle> {
-        let library_id = library.id;
         let library_path = self
             .ffi_library_paths
             .get(&library.id)
@@ -757,19 +758,18 @@ impl RtHost for NoopHost {
                 RtError::invalid_handle(format!("unknown ffi library handle id {}", library.id))
             })?;
         let cache_key = (library_path.clone(), symbol.to_string());
-        let symbol = if let Some(symbol_value) = self.ffi_symbol_cache.get(&cache_key) {
-            Arc::clone(symbol_value)
+        let symbol = if let Some(symbol_value) = self
+            .ffi_symbol_cache
+            .get(&cache_key)
+            .and_then(Weak::upgrade)
+        {
+            symbol_value
         } else {
-            let ptr = {
-                let library = self.net_resources.foreign_library(library)?;
-                library.bind(symbol).map_err(RtError::io)?
-            };
-            let symbol_value = Arc::new(RtForeignSymbol {
-                library_handle: library_id,
-                ptr,
-            });
+            let library = self.net_resources.foreign_library(library)?;
+            let ptr = library.bind(symbol).map_err(RtError::io)?;
+            let symbol_value = Arc::new(RtForeignSymbol { library, ptr });
             self.ffi_symbol_cache
-                .insert(cache_key, Arc::clone(&symbol_value));
+                .insert(cache_key, Arc::downgrade(&symbol_value));
             symbol_value
         };
         Ok(self.net_resources.insert_symbol(symbol))
@@ -1068,7 +1068,25 @@ impl RtHost for NoopHost {
     }
 
     fn net_close_handle(&mut self, handle: RtHandle) -> RtResult<()> {
-        self.net_resources.remove(handle)?;
+        let removed = self.net_resources.remove(handle)?;
+        match removed {
+            RtNetResource::ForeignLibrary(library) => {
+                drop(library);
+                self.ffi_library_paths.remove(&handle.id);
+                self.ffi_library_cache
+                    .retain(|_, value| value.upgrade().is_some());
+                self.ffi_symbol_cache
+                    .retain(|_, value| value.upgrade().is_some());
+            }
+            RtNetResource::ForeignSymbol(symbol) => {
+                drop(symbol);
+                self.ffi_library_cache
+                    .retain(|_, value| value.upgrade().is_some());
+                self.ffi_symbol_cache
+                    .retain(|_, value| value.upgrade().is_some());
+            }
+            _ => {}
+        }
         Ok(())
     }
 
@@ -1804,4 +1822,77 @@ fn days_in_month(year: i32, month: u32) -> u32 {
 
 fn is_leap_year(year: i32) -> bool {
     (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{NoopHost, RtHost};
+
+    #[cfg(windows)]
+    fn ffi_test_library_path() -> &'static str {
+        "kernel32.dll"
+    }
+
+    #[cfg(windows)]
+    fn ffi_test_symbol_name() -> &'static str {
+        "GetCurrentProcessId"
+    }
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    fn ffi_test_library_path() -> &'static str {
+        "libc.so.6"
+    }
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    fn ffi_test_symbol_name() -> &'static str {
+        "getpid"
+    }
+
+    #[cfg(target_os = "macos")]
+    fn ffi_test_library_path() -> &'static str {
+        "/usr/lib/libSystem.B.dylib"
+    }
+
+    #[cfg(target_os = "macos")]
+    fn ffi_test_symbol_name() -> &'static str {
+        "getpid"
+    }
+
+    #[test]
+    fn ffi_close_releases_cache_entries_after_last_handle_drops() {
+        let mut host = NoopHost::default();
+        let library = host
+            .ffi_open_library(ffi_test_library_path())
+            .expect("open shared library");
+        let symbol = host
+            .ffi_bind_symbol(library, ffi_test_symbol_name())
+            .expect("bind shared symbol");
+
+        assert_eq!(host.ffi_library_cache.len(), 1);
+        assert_eq!(host.ffi_symbol_cache.len(), 1);
+        assert_eq!(host.ffi_library_paths.len(), 1);
+
+        host.net_close_handle(library)
+            .expect("close library handle");
+        assert_eq!(
+            host.ffi_library_paths.len(),
+            0,
+            "closing a library handle should prune library path metadata"
+        );
+        assert_eq!(
+            host.ffi_library_cache.len(),
+            1,
+            "symbol handle should keep the library alive until it closes too"
+        );
+
+        host.net_close_handle(symbol).expect("close symbol handle");
+        assert!(
+            host.ffi_library_cache.is_empty(),
+            "library cache should drop stale entries after the last live handle closes"
+        );
+        assert!(
+            host.ffi_symbol_cache.is_empty(),
+            "symbol cache should drop stale entries after the last live handle closes"
+        );
+    }
 }

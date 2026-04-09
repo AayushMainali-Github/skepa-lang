@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 #[cfg(unix)]
 use std::ffi::{c_char, c_int, c_void, CStr, CString};
 #[cfg(windows)]
@@ -77,7 +79,7 @@ unsafe impl Send for RtForeignLibrary {}
 unsafe impl Sync for RtForeignLibrary {}
 
 pub struct RtForeignSymbol {
-    pub library_handle: usize,
+    pub library: Arc<RtForeignLibrary>,
     pub ptr: *mut c_void,
 }
 

@@ -1752,6 +1752,7 @@ Behavior:
 - `ffi.open` loads a shared library from the host OS and returns `Ok(ffi.Library)` on success or `Err(String)` on load failure.
 - `ffi.bind` looks up a symbol within that library and returns `Ok(ffi.Symbol)` on success or `Err(String)` on lookup failure.
 - `ffi.closeLibrary` and `ffi.closeSymbol` close the corresponding handles.
+- When the last live handle for a cached library or symbol is closed, the runtime releases the cached resource entry as well.
 - Linked extern calls are lowered through the runtime FFI layer automatically.
 
 Handle semantics:
@@ -1760,6 +1761,7 @@ Handle semantics:
 - `ffi.Library` and `ffi.Symbol` follow the shared-reference rules from the core semantics section.
 - Aliases refer to the same underlying loaded library or bound symbol.
 - Closing a library or symbol handle invalidates that handle for all aliases.
+- Closing the last live alias of a library or symbol allows the runtime to release the underlying cached foreign resource.
 - Using a library handle where a symbol handle is required is a runtime error.
 - Using a symbol handle where a library handle is required is a runtime error.
 - Using a closed library or symbol handle is a runtime error.
