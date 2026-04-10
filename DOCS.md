@@ -1364,6 +1364,7 @@ Behavior:
 Notes:
 - `os.arg(index)` returns `None()` for negative or out-of-range indices.
 - `os.envGet(name)` raises a runtime error only for invalid non-UTF-8 environment data.
+- In the default runtime host, arguments are read from a host-local snapshot captured when the host is created.
 - In the default runtime host, environment reads start from a snapshot of the host process environment, and later `os.envSet` / `os.envRemove` changes remain host-local rather than mutating the global process environment.
 - `os.execOut(program, args)` uses lossy UTF-8 decoding for stdout and trims trailing line endings.
 - If a process exits without a normal exit code, `os.exec(program, args)` returns `Ok(-1)`.

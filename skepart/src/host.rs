@@ -593,6 +593,7 @@ pub trait RtHost {
 
 pub struct NoopHost {
     random_state: u64,
+    args: Vec<String>,
     env_vars: HashMap<String, OsString>,
     net_resources: RtNetResourceTable,
     tls_root_certs: Vec<CertificateDer<'static>>,
@@ -605,6 +606,7 @@ impl Default for NoopHost {
     fn default() -> Self {
         Self {
             random_state: 0x1234_5678_9ABC_DEF0,
+            args: std::env::args().collect(),
             env_vars: std::env::vars_os()
                 .filter_map(|(key, value)| key.into_string().ok().map(|key| (key, value)))
                 .collect(),
@@ -891,11 +893,11 @@ impl RtHost for NoopHost {
                 "os.arg index must be non-negative",
             )
         })?;
-        let args = std::env::args().collect::<Vec<_>>();
-        args.get(index)
+        self.args
+            .get(index)
             .cloned()
             .map(RtString::from)
-            .ok_or_else(|| RtError::index_out_of_bounds(index, args.len()))
+            .ok_or_else(|| RtError::index_out_of_bounds(index, self.args.len()))
     }
 
     fn os_env_has(&mut self, name: &str) -> RtResult<bool> {
@@ -1854,6 +1856,7 @@ fn is_leap_year(year: i32) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{NoopHost, RtHost};
+    use crate::RtString;
 
     #[cfg(windows)]
     fn ffi_test_library_path() -> &'static str {
@@ -1921,5 +1924,22 @@ mod tests {
             host.ffi_symbol_cache.is_empty(),
             "symbol cache should drop stale entries after the last live handle closes"
         );
+    }
+
+    #[test]
+    fn noop_host_os_arg_uses_host_local_snapshot() {
+        let mut host = NoopHost {
+            args: vec![
+                "skepa".to_string(),
+                "run".to_string(),
+                "main.sk".to_string(),
+            ],
+            ..NoopHost::default()
+        };
+
+        assert_eq!(host.os_arg(0).expect("arg0"), RtString::from("skepa"));
+        assert_eq!(host.os_arg(2).expect("arg2"), RtString::from("main.sk"));
+        let err = host.os_arg(3).expect_err("missing arg should fail");
+        assert_eq!(err.kind, crate::RtErrorKind::IndexOutOfBounds);
     }
 }
