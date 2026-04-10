@@ -1159,6 +1159,29 @@ fn builtins_cover_ffi_integer_calls_and_errors() {
         builtins::call_with_host(
             &mut host,
             "ffi",
+            "call",
+            &[symbol.clone(), RtValue::String(RtString::from("->i32bool"))],
+        )
+        .expect("ffi.call generic zero-i32-bool"),
+        RtValue::Bool(true)
+    );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "ffi",
+            "call",
+            &[
+                symbol.clone(),
+                RtValue::String(RtString::from("system:->BOOL"))
+            ],
+        )
+        .expect("ffi.call generic zero-system-bool"),
+        RtValue::Bool(true)
+    );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "ffi",
             "call1Int",
             &[symbol.clone(), RtValue::Int(9)],
         )
@@ -1173,6 +1196,34 @@ fn builtins_cover_ffi_integer_calls_and_errors() {
             &[symbol.clone(), RtValue::Int(9)],
         )
         .expect("ffi.call1IntBool"),
+        RtValue::Bool(true)
+    );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "ffi",
+            "call",
+            &[
+                symbol.clone(),
+                RtValue::String(RtString::from("i64->i32bool")),
+                RtValue::Int(9),
+            ],
+        )
+        .expect("ffi.call generic int-i32-bool"),
+        RtValue::Bool(true)
+    );
+    assert_eq!(
+        builtins::call_with_host(
+            &mut host,
+            "ffi",
+            "call",
+            &[
+                symbol.clone(),
+                RtValue::String(RtString::from("system:i64->BOOL")),
+                RtValue::Int(9),
+            ],
+        )
+        .expect("ffi.call generic int-system-bool"),
         RtValue::Bool(true)
     );
     assert_eq!(
@@ -1289,8 +1340,12 @@ fn builtins_cover_ffi_integer_calls_and_errors() {
         host.output.contains("[fficall0int 1]")
             && host.output.contains("[fficall0void 1]")
             && host.output.contains("[fficall0bool 1]")
+            && host.output.contains("[fficall0i32bool 1]")
+            && host.output.contains("[fficall0systemi32bool 1]")
             && host.output.contains("[fficall1int 1=9]")
             && host.output.contains("[fficall1intbool 1=9]")
+            && host.output.contains("[fficall1inti32bool 1=9]")
+            && host.output.contains("[fficall1intsystemi32bool 1=9]")
             && host.output.contains("[fficall1intvoid 1=4]")
             && host.output.contains("[fficall1stringint 1=hello]")
             && host.output.contains("[fficall1stringvoid 1=trace]")

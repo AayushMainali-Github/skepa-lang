@@ -541,6 +541,42 @@ impl RtHost for RecordingHost {
         Ok(self.ffi_call0_bool_value)
     }
 
+    fn ffi_call_0_i32_bool(&mut self, symbol: RtHandle) -> RtResult<bool> {
+        if let Some(message) = &self.ffi_call_error {
+            return Err(RtError::io(message.clone()));
+        }
+        match self.net_lookup_handle_kind(symbol)? {
+            RtHandleKind::Symbol => {}
+            other => {
+                return Err(RtError::invalid_handle_kind(
+                    RtHandleKind::Symbol.type_name(),
+                    other.type_name(),
+                ))
+            }
+        }
+        self.output
+            .push_str(&format!("[fficall0i32bool {}]", symbol.id));
+        Ok(self.ffi_call0_bool_value)
+    }
+
+    fn ffi_call_0_system_i32_bool(&mut self, symbol: RtHandle) -> RtResult<bool> {
+        if let Some(message) = &self.ffi_call_error {
+            return Err(RtError::io(message.clone()));
+        }
+        match self.net_lookup_handle_kind(symbol)? {
+            RtHandleKind::Symbol => {}
+            other => {
+                return Err(RtError::invalid_handle_kind(
+                    RtHandleKind::Symbol.type_name(),
+                    other.type_name(),
+                ))
+            }
+        }
+        self.output
+            .push_str(&format!("[fficall0systemi32bool {}]", symbol.id));
+        Ok(self.ffi_call0_bool_value)
+    }
+
     fn ffi_call_1_int(&mut self, symbol: RtHandle, value: i64) -> RtResult<i64> {
         if let Some(message) = &self.ffi_call_error {
             return Err(RtError::io(message.clone()));
@@ -574,6 +610,44 @@ impl RtHost for RecordingHost {
         }
         self.output
             .push_str(&format!("[fficall1intbool {}={}]", symbol.id, value));
+        Ok(self.ffi_call1_int_bool_value)
+    }
+
+    fn ffi_call_1_int_i32_bool(&mut self, symbol: RtHandle, value: i64) -> RtResult<bool> {
+        if let Some(message) = &self.ffi_call_error {
+            return Err(RtError::io(message.clone()));
+        }
+        match self.net_lookup_handle_kind(symbol)? {
+            RtHandleKind::Symbol => {}
+            other => {
+                return Err(RtError::invalid_handle_kind(
+                    RtHandleKind::Symbol.type_name(),
+                    other.type_name(),
+                ))
+            }
+        }
+        self.output
+            .push_str(&format!("[fficall1inti32bool {}={}]", symbol.id, value));
+        Ok(self.ffi_call1_int_bool_value)
+    }
+
+    fn ffi_call_1_int_system_i32_bool(&mut self, symbol: RtHandle, value: i64) -> RtResult<bool> {
+        if let Some(message) = &self.ffi_call_error {
+            return Err(RtError::io(message.clone()));
+        }
+        match self.net_lookup_handle_kind(symbol)? {
+            RtHandleKind::Symbol => {}
+            other => {
+                return Err(RtError::invalid_handle_kind(
+                    RtHandleKind::Symbol.type_name(),
+                    other.type_name(),
+                ))
+            }
+        }
+        self.output.push_str(&format!(
+            "[fficall1intsystemi32bool {}={}]",
+            symbol.id, value
+        ));
         Ok(self.ffi_call1_int_bool_value)
     }
 

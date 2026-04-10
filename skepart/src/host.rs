@@ -352,12 +352,28 @@ pub trait RtHost {
         Err(RtError::unsupported_builtin("ffi.call0Bool"))
     }
 
+    fn ffi_call_0_i32_bool(&mut self, _symbol: RtHandle) -> RtResult<bool> {
+        Err(RtError::unsupported_builtin("ffi.call0I32Bool"))
+    }
+
+    fn ffi_call_0_system_i32_bool(&mut self, _symbol: RtHandle) -> RtResult<bool> {
+        Err(RtError::unsupported_builtin("ffi.call0SystemI32Bool"))
+    }
+
     fn ffi_call_1_int(&mut self, _symbol: RtHandle, _value: i64) -> RtResult<i64> {
         Err(RtError::unsupported_builtin("ffi.call1Int"))
     }
 
     fn ffi_call_1_int_bool(&mut self, _symbol: RtHandle, _value: i64) -> RtResult<bool> {
         Err(RtError::unsupported_builtin("ffi.call1IntBool"))
+    }
+
+    fn ffi_call_1_int_i32_bool(&mut self, _symbol: RtHandle, _value: i64) -> RtResult<bool> {
+        Err(RtError::unsupported_builtin("ffi.call1IntI32Bool"))
+    }
+
+    fn ffi_call_1_int_system_i32_bool(&mut self, _symbol: RtHandle, _value: i64) -> RtResult<bool> {
+        Err(RtError::unsupported_builtin("ffi.call1IntSystemI32Bool"))
     }
 
     fn ffi_call_1_int_void(&mut self, _symbol: RtHandle, _value: i64) -> RtResult<()> {
@@ -808,6 +824,16 @@ impl RtHost for NoopHost {
         Ok(symbol.call_0_bool())
     }
 
+    fn ffi_call_0_i32_bool(&mut self, symbol: RtHandle) -> RtResult<bool> {
+        let symbol = self.net_resources.foreign_symbol(symbol)?;
+        Ok(symbol.call_0_i32_bool())
+    }
+
+    fn ffi_call_0_system_i32_bool(&mut self, symbol: RtHandle) -> RtResult<bool> {
+        let symbol = self.net_resources.foreign_symbol(symbol)?;
+        Ok(symbol.call_0_system_i32_bool())
+    }
+
     fn ffi_call_1_int(&mut self, symbol: RtHandle, value: i64) -> RtResult<i64> {
         let symbol = self.net_resources.foreign_symbol(symbol)?;
         Ok(symbol.call_1_int(value))
@@ -816,6 +842,16 @@ impl RtHost for NoopHost {
     fn ffi_call_1_int_bool(&mut self, symbol: RtHandle, value: i64) -> RtResult<bool> {
         let symbol = self.net_resources.foreign_symbol(symbol)?;
         Ok(symbol.call_1_int_bool(value))
+    }
+
+    fn ffi_call_1_int_i32_bool(&mut self, symbol: RtHandle, value: i64) -> RtResult<bool> {
+        let symbol = self.net_resources.foreign_symbol(symbol)?;
+        Ok(symbol.call_1_int_i32_bool(value))
+    }
+
+    fn ffi_call_1_int_system_i32_bool(&mut self, symbol: RtHandle, value: i64) -> RtResult<bool> {
+        let symbol = self.net_resources.foreign_symbol(symbol)?;
+        Ok(symbol.call_1_int_system_i32_bool(value))
     }
 
     fn ffi_call_1_int_void(&mut self, symbol: RtHandle, value: i64) -> RtResult<()> {

@@ -716,7 +716,17 @@ fn recording_host_covers_new_bool_and_mixed_ffi_shapes() {
     let symbol = host.ffi_bind_symbol(library, "plus").expect("bind");
 
     assert!(host.ffi_call_0_bool(symbol).expect("call0Bool"));
+    assert!(host.ffi_call_0_i32_bool(symbol).expect("call0I32Bool"));
+    assert!(host
+        .ffi_call_0_system_i32_bool(symbol)
+        .expect("call0SystemI32Bool"));
     assert!(host.ffi_call_1_int_bool(symbol, 3).expect("call1IntBool"));
+    assert!(host
+        .ffi_call_1_int_i32_bool(symbol, 3)
+        .expect("call1IntI32Bool"));
+    assert!(host
+        .ffi_call_1_int_system_i32_bool(symbol, 3)
+        .expect("call1IntSystemI32Bool"));
     assert_eq!(
         host.ffi_call_2_int_int(symbol, 2, 5).expect("call2IntInt"),
         7

@@ -42,8 +42,14 @@ pub fn call(
         ("->i64", []) => call_0_int(host, symbol),
         ("->void", []) => call_0_void(host, symbol),
         ("->_Bool", []) => call_0_bool(host, symbol),
+        ("->i32bool", []) => call_0_i32_bool(host, symbol),
+        ("system:->BOOL", []) => call_0_system_i32_bool(host, symbol),
         ("i64->i64", [value]) => call_1_int(host, symbol, value.expect_int()?),
         ("i64->_Bool", [value]) => call_1_int_bool(host, symbol, value.expect_int()?),
+        ("i64->i32bool", [value]) => call_1_int_i32_bool(host, symbol, value.expect_int()?),
+        ("system:i64->BOOL", [value]) => {
+            call_1_int_system_i32_bool(host, symbol, value.expect_int()?)
+        }
         ("i64->void", [value]) => call_1_int_void(host, symbol, value.expect_int()?),
         ("cstr->usize", [value]) | ("system:cstr->i32", [value]) => {
             call_1_string_int(host, symbol, value.expect_string()?.as_str())
@@ -87,6 +93,14 @@ pub fn call_0_bool(host: &mut dyn RtHost, symbol: crate::RtHandle) -> RtResult<R
     Ok(RtValue::Bool(host.ffi_call_0_bool(symbol)?))
 }
 
+pub fn call_0_i32_bool(host: &mut dyn RtHost, symbol: crate::RtHandle) -> RtResult<RtValue> {
+    Ok(RtValue::Bool(host.ffi_call_0_i32_bool(symbol)?))
+}
+
+pub fn call_0_system_i32_bool(host: &mut dyn RtHost, symbol: crate::RtHandle) -> RtResult<RtValue> {
+    Ok(RtValue::Bool(host.ffi_call_0_system_i32_bool(symbol)?))
+}
+
 pub fn call_1_int(host: &mut dyn RtHost, symbol: crate::RtHandle, value: i64) -> RtResult<RtValue> {
     Ok(RtValue::Int(host.ffi_call_1_int(symbol, value)?))
 }
@@ -97,6 +111,24 @@ pub fn call_1_int_bool(
     value: i64,
 ) -> RtResult<RtValue> {
     Ok(RtValue::Bool(host.ffi_call_1_int_bool(symbol, value)?))
+}
+
+pub fn call_1_int_i32_bool(
+    host: &mut dyn RtHost,
+    symbol: crate::RtHandle,
+    value: i64,
+) -> RtResult<RtValue> {
+    Ok(RtValue::Bool(host.ffi_call_1_int_i32_bool(symbol, value)?))
+}
+
+pub fn call_1_int_system_i32_bool(
+    host: &mut dyn RtHost,
+    symbol: crate::RtHandle,
+    value: i64,
+) -> RtResult<RtValue> {
+    Ok(RtValue::Bool(
+        host.ffi_call_1_int_system_i32_bool(symbol, value)?,
+    ))
 }
 
 pub fn call_1_int_void(

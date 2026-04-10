@@ -111,6 +111,26 @@ impl RtForeignSymbol {
         unsafe { function() }
     }
 
+    pub fn call_0_i32_bool(&self) -> bool {
+        // SAFETY: caller guarantees the symbol uses the expected ABI/signature.
+        let function: unsafe extern "C" fn() -> i32 = unsafe { std::mem::transmute(self.ptr) };
+        unsafe { function() != 0 }
+    }
+
+    pub fn call_0_system_i32_bool(&self) -> bool {
+        #[cfg(windows)]
+        {
+            // SAFETY: caller guarantees the symbol uses the expected ABI/signature.
+            let function: unsafe extern "system" fn() -> i32 =
+                unsafe { std::mem::transmute(self.ptr) };
+            unsafe { function() != 0 }
+        }
+        #[cfg(not(windows))]
+        {
+            self.call_0_i32_bool()
+        }
+    }
+
     pub fn call_1_int(&self, value: i64) -> i64 {
         // SAFETY: caller guarantees the symbol uses the expected ABI/signature.
         let function: unsafe extern "C" fn(i64) -> i64 = unsafe { std::mem::transmute(self.ptr) };
@@ -121,6 +141,26 @@ impl RtForeignSymbol {
         // SAFETY: caller guarantees the symbol uses the expected ABI/signature.
         let function: unsafe extern "C" fn(i64) -> bool = unsafe { std::mem::transmute(self.ptr) };
         unsafe { function(value) }
+    }
+
+    pub fn call_1_int_i32_bool(&self, value: i64) -> bool {
+        // SAFETY: caller guarantees the symbol uses the expected ABI/signature.
+        let function: unsafe extern "C" fn(i64) -> i32 = unsafe { std::mem::transmute(self.ptr) };
+        unsafe { function(value) != 0 }
+    }
+
+    pub fn call_1_int_system_i32_bool(&self, value: i64) -> bool {
+        #[cfg(windows)]
+        {
+            // SAFETY: caller guarantees the symbol uses the expected ABI/signature.
+            let function: unsafe extern "system" fn(i64) -> i32 =
+                unsafe { std::mem::transmute(self.ptr) };
+            unsafe { function(value) != 0 }
+        }
+        #[cfg(not(windows))]
+        {
+            self.call_1_int_i32_bool(value)
+        }
     }
 
     pub fn call_1_int_void(&self, value: i64) {
