@@ -208,6 +208,10 @@ If a change affects one of these areas, add a cross-layer test:
   - IR interpreter + native executable
 - codegen/runtime ABI
   - native executable test, not just LLVM text validation
+- FFI ABI shape changes
+  - runtime dispatch coverage in `skepart/tests/builtins.rs`
+  - host/symbol coverage in `skepart/tests/host.rs`
+  - native linked extern coverage in `skepac/tests/check_cli.rs` when compiler lowering or platform-specific extern behavior changes
 - CLI-visible behavior
   - `skepac/tests`
 

@@ -1809,6 +1809,7 @@ Notes:
 - Returning newly allocated foreign memory is not part of the current FFI ownership model.
 - Callbacks, raw pointers, and ownership-transfer APIs are intentionally outside the current runtime contract.
 - The runtime still uses low-level `ffi.call...` helpers internally when lowering linked extern calls, but they are not the intended user-facing API.
+- Internal FFI call signatures name the concrete ABI shape, such as `cstr->usize`, `system:cstr->i32`, `->_Bool`, `->i32bool`, and `system:->BOOL`. These are runtime implementation details; Skepa source should use linked `extern("...") fn ...;` declarations instead.
 
 ### 8.16 `vec`
 
