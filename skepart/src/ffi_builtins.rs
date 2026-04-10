@@ -13,7 +13,7 @@ fn ffi_host() -> &'static Mutex<NoopHost> {
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_call_builtin(
+pub unsafe extern "C" fn skp_rt_call_builtin(
     package: *const c_char,
     name: *const c_char,
     argc: i64,
@@ -76,15 +76,17 @@ impl builtins::BuiltinRuntime for FfiBuiltinRuntime {
             .cloned()
             .map(crate::ffi_support::boxed_value)
             .collect::<Vec<_>>();
-        let result = crate::ffi_function::skp_rt_call_function(
-            function.0 as *mut c_void,
-            boxed_args.len() as i64,
-            if boxed_args.is_empty() {
-                std::ptr::null()
-            } else {
-                boxed_args.as_ptr()
-            },
-        );
+        let result = unsafe {
+            crate::ffi_function::skp_rt_call_function(
+                function.0 as *mut c_void,
+                boxed_args.len() as i64,
+                if boxed_args.is_empty() {
+                    std::ptr::null()
+                } else {
+                    boxed_args.as_ptr()
+                },
+            )
+        };
         let value = clone_value(result)?;
         for arg in boxed_args {
             unsafe { drop(Box::from_raw(arg)) };
@@ -114,15 +116,17 @@ fn call_wrapped_function(
         .cloned()
         .map(crate::ffi_support::boxed_value)
         .collect::<Vec<_>>();
-    let result = crate::ffi_function::skp_rt_call_function(
-        function.0 as *mut c_void,
-        boxed_args.len() as i64,
-        if boxed_args.is_empty() {
-            std::ptr::null()
-        } else {
-            boxed_args.as_ptr()
-        },
-    );
+    let result = unsafe {
+        crate::ffi_function::skp_rt_call_function(
+            function.0 as *mut c_void,
+            boxed_args.len() as i64,
+            if boxed_args.is_empty() {
+                std::ptr::null()
+            } else {
+                boxed_args.as_ptr()
+            },
+        )
+    };
     let value = clone_value(result)?;
     for arg in boxed_args {
         unsafe { drop(Box::from_raw(arg)) };

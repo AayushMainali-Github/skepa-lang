@@ -185,11 +185,8 @@ fn ffi_records_invalid_argument_for_null_and_negative_inputs() {
     assert_eq!(unsafe { skp_rt_last_error_kind() }, 5);
 
     let fn_ptr = unsafe { skp_rt_value_from_function(std::ptr::null_mut()) };
-    assert!(!fn_ptr.is_null());
-    assert!(matches!(
-        unsafe { (*(fn_ptr as *mut RtValue)).clone() },
-        RtValue::Function(RtFunctionRef(0))
-    ));
+    assert!(fn_ptr.is_null());
+    assert_eq!(unsafe { skp_rt_last_error_kind() }, 5);
 }
 
 #[test]

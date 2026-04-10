@@ -1,12 +1,12 @@
 use std::ffi::c_void;
 
-use crate::ffi_support::{boxed_value, clone_value, ffi_try, invalid_argument, set_last_error};
+use crate::ffi_support::{boxed_value, ffi_try, invalid_argument, set_last_error, take_value};
 use crate::value::RtValue;
 
 type RtWrappedFunction = unsafe extern "C" fn(i64, *const *mut RtValue) -> *mut RtValue;
 
 #[no_mangle]
-pub extern "C" fn skp_rt_call_function(
+pub unsafe extern "C" fn skp_rt_call_function(
     function: *mut c_void,
     argc: i64,
     argv: *const *mut RtValue,
@@ -30,7 +30,7 @@ pub extern "C" fn skp_rt_call_function(
         }
         let function: RtWrappedFunction = unsafe { std::mem::transmute(function) };
         let result = unsafe { function(argc, argv) };
-        clone_value(result).map(boxed_value)
+        take_value(result).map(boxed_value)
     }) {
         Ok(value) => value,
         Err(err) => {

@@ -19,7 +19,7 @@ pub extern "C" fn skp_rt_array_new(size: i64) -> *mut RtArray {
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_array_repeat(value: *mut RtValue, size: i64) -> *mut RtArray {
+pub unsafe extern "C" fn skp_rt_array_repeat(value: *mut RtValue, size: i64) -> *mut RtArray {
     match ffi_try(|| {
         if size < 0 {
             return Err(invalid_argument("array size must be non-negative"));
@@ -38,7 +38,7 @@ pub extern "C" fn skp_rt_array_repeat(value: *mut RtValue, size: i64) -> *mut Rt
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_array_get(array: *mut RtArray, index: i64) -> *mut RtValue {
+pub unsafe extern "C" fn skp_rt_array_get(array: *mut RtArray, index: i64) -> *mut RtValue {
     clear_last_error();
     if array.is_null() {
         set_last_error(crate::RtError::new(
@@ -64,7 +64,7 @@ pub extern "C" fn skp_rt_array_get(array: *mut RtArray, index: i64) -> *mut RtVa
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_array_set(array: *mut RtArray, index: i64, value: *mut RtValue) {
+pub unsafe extern "C" fn skp_rt_array_set(array: *mut RtArray, index: i64, value: *mut RtValue) {
     clear_last_error();
     if array.is_null() {
         set_last_error(crate::RtError::new(
@@ -98,7 +98,7 @@ pub extern "C" fn skp_rt_vec_new() -> *mut RtVec {
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_vec_len(vec: *mut RtVec) -> i64 {
+pub unsafe extern "C" fn skp_rt_vec_len(vec: *mut RtVec) -> i64 {
     match ffi_try(|| {
         if vec.is_null() {
             return Err(invalid_argument("vec pointer must not be null"));
@@ -114,7 +114,7 @@ pub extern "C" fn skp_rt_vec_len(vec: *mut RtVec) -> i64 {
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_vec_push(vec: *mut RtVec, value: *mut RtValue) {
+pub unsafe extern "C" fn skp_rt_vec_push(vec: *mut RtVec, value: *mut RtValue) {
     if let Err(err) = ffi_try(|| {
         if vec.is_null() {
             return Err(invalid_argument("vec pointer must not be null"));
@@ -127,7 +127,7 @@ pub extern "C" fn skp_rt_vec_push(vec: *mut RtVec, value: *mut RtValue) {
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_vec_get(vec: *mut RtVec, index: i64) -> *mut RtValue {
+pub unsafe extern "C" fn skp_rt_vec_get(vec: *mut RtVec, index: i64) -> *mut RtValue {
     match ffi_try(|| {
         if vec.is_null() {
             return Err(crate::RtError::new(
@@ -152,7 +152,7 @@ pub extern "C" fn skp_rt_vec_get(vec: *mut RtVec, index: i64) -> *mut RtValue {
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_vec_set(vec: *mut RtVec, index: i64, value: *mut RtValue) {
+pub unsafe extern "C" fn skp_rt_vec_set(vec: *mut RtVec, index: i64, value: *mut RtValue) {
     if let Err(err) = ffi_try(|| {
         if vec.is_null() {
             return Err(crate::RtError::new(
@@ -173,7 +173,7 @@ pub extern "C" fn skp_rt_vec_set(vec: *mut RtVec, index: i64, value: *mut RtValu
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_vec_delete(vec: *mut RtVec, index: i64) -> *mut RtValue {
+pub unsafe extern "C" fn skp_rt_vec_delete(vec: *mut RtVec, index: i64) -> *mut RtValue {
     match ffi_try(|| {
         if vec.is_null() {
             return Err(crate::RtError::new(
@@ -221,7 +221,7 @@ pub extern "C" fn skp_rt_struct_new(struct_id: i64, field_count: i64) -> *mut Rt
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_struct_get(value: *mut RtStruct, index: i64) -> *mut RtValue {
+pub unsafe extern "C" fn skp_rt_struct_get(value: *mut RtStruct, index: i64) -> *mut RtValue {
     clear_last_error();
     if value.is_null() {
         set_last_error(crate::RtError::new(
@@ -247,7 +247,7 @@ pub extern "C" fn skp_rt_struct_get(value: *mut RtStruct, index: i64) -> *mut Rt
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_struct_set(value: *mut RtStruct, index: i64, field: *mut RtValue) {
+pub unsafe extern "C" fn skp_rt_struct_set(value: *mut RtStruct, index: i64, field: *mut RtValue) {
     clear_last_error();
     if value.is_null() {
         set_last_error(crate::RtError::new(

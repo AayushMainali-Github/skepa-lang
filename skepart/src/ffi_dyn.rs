@@ -23,9 +23,15 @@ impl RtForeignLibrary {
         }
         #[cfg(windows)]
         {
-            let c_path = CString::new(path).map_err(|_| "library path contains NUL byte")?;
-            // SAFETY: c_path is a valid NUL-terminated string for the OS loader.
-            let handle = unsafe { LoadLibraryA(c_path.as_ptr().cast()) };
+            if path.encode_utf16().any(|unit| unit == 0) {
+                return Err("library path contains NUL byte".to_string());
+            }
+            let wide_path = path
+                .encode_utf16()
+                .chain(std::iter::once(0))
+                .collect::<Vec<_>>();
+            // SAFETY: wide_path is a valid NUL-terminated UTF-16 string for the OS loader.
+            let handle = unsafe { LoadLibraryW(wide_path.as_ptr()) };
             if handle.is_null() {
                 return Err("failed to load shared library".to_string());
             }
@@ -49,7 +55,7 @@ impl RtForeignLibrary {
         #[cfg(windows)]
         {
             let c_symbol = CString::new(symbol).map_err(|_| "symbol name contains NUL byte")?;
-            // SAFETY: self.handle came from LoadLibraryA and c_symbol is valid.
+            // SAFETY: self.handle came from LoadLibraryW and c_symbol is valid.
             let ptr = unsafe { GetProcAddress(self.handle.cast(), c_symbol.as_ptr().cast()) };
             if ptr.is_null() {
                 return Err("failed to bind symbol".to_string());
@@ -285,7 +291,7 @@ fn last_error_message(default: &str) -> String {
 
 #[cfg(windows)]
 unsafe extern "system" {
-    fn LoadLibraryA(lp_lib_file_name: *const u8) -> *mut c_void;
+    fn LoadLibraryW(lp_lib_file_name: *const u16) -> *mut c_void;
     fn FreeLibrary(h_lib_module: *mut c_void) -> i32;
     fn GetProcAddress(h_module: *mut c_void, lp_proc_name: *const u8) -> *mut c_void;
 }

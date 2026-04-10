@@ -15,7 +15,7 @@ use crate::value::{RtFunctionRef, RtHandle, RtStruct, RtValue};
 use crate::vec::RtVec;
 
 #[no_mangle]
-pub extern "C" fn skp_rt_string_from_utf8(data: *const u8, len: i64) -> *mut RtString {
+pub unsafe extern "C" fn skp_rt_string_from_utf8(data: *const u8, len: i64) -> *mut RtString {
     match ffi_try(|| {
         if len < 0 {
             return Err(crate::RtError::new(
@@ -47,7 +47,7 @@ pub extern "C" fn skp_rt_string_from_utf8(data: *const u8, len: i64) -> *mut RtS
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_builtin_str_len(value: *mut RtString) -> i64 {
+pub unsafe extern "C" fn skp_rt_builtin_str_len(value: *mut RtString) -> i64 {
     clear_last_error();
     if value.is_null() {
         set_last_error(invalid_argument("string pointer must not be null"));
@@ -57,7 +57,7 @@ pub extern "C" fn skp_rt_builtin_str_len(value: *mut RtString) -> i64 {
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_string_eq(left: *mut RtString, right: *mut RtString) -> bool {
+pub unsafe extern "C" fn skp_rt_string_eq(left: *mut RtString, right: *mut RtString) -> bool {
     clear_last_error();
     if left.is_null() || right.is_null() {
         set_last_error(invalid_argument("string pointers must not be null"));
@@ -67,7 +67,7 @@ pub extern "C" fn skp_rt_string_eq(left: *mut RtString, right: *mut RtString) ->
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_bytes_eq(left: *mut RtBytes, right: *mut RtBytes) -> bool {
+pub unsafe extern "C" fn skp_rt_bytes_eq(left: *mut RtBytes, right: *mut RtBytes) -> bool {
     clear_last_error();
     if left.is_null() || right.is_null() {
         set_last_error(invalid_argument("bytes pointers must not be null"));
@@ -77,7 +77,7 @@ pub extern "C" fn skp_rt_bytes_eq(left: *mut RtBytes, right: *mut RtBytes) -> bo
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_option_eq(left: *mut RtOption, right: *mut RtOption) -> bool {
+pub unsafe extern "C" fn skp_rt_option_eq(left: *mut RtOption, right: *mut RtOption) -> bool {
     clear_last_error();
     if left.is_null() || right.is_null() {
         set_last_error(invalid_argument("option pointers must not be null"));
@@ -87,7 +87,10 @@ pub extern "C" fn skp_rt_option_eq(left: *mut RtOption, right: *mut RtOption) ->
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_result_eq(left: *mut RtResultValue, right: *mut RtResultValue) -> bool {
+pub unsafe extern "C" fn skp_rt_result_eq(
+    left: *mut RtResultValue,
+    right: *mut RtResultValue,
+) -> bool {
     clear_last_error();
     if left.is_null() || right.is_null() {
         set_last_error(invalid_argument("result pointers must not be null"));
@@ -97,7 +100,7 @@ pub extern "C" fn skp_rt_result_eq(left: *mut RtResultValue, right: *mut RtResul
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_option_some(value: *mut RtValue) -> *mut RtOption {
+pub unsafe extern "C" fn skp_rt_option_some(value: *mut RtValue) -> *mut RtOption {
     match ffi_try(|| clone_value(value).map(RtOption::some).map(boxed_option)) {
         Ok(value) => value,
         Err(err) => {
@@ -113,7 +116,7 @@ pub extern "C" fn skp_rt_option_none() -> *mut RtOption {
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_result_ok(value: *mut RtValue) -> *mut RtResultValue {
+pub unsafe extern "C" fn skp_rt_result_ok(value: *mut RtValue) -> *mut RtResultValue {
     match ffi_try(|| clone_value(value).map(RtResultValue::ok).map(boxed_result)) {
         Ok(value) => value,
         Err(err) => {
@@ -124,7 +127,7 @@ pub extern "C" fn skp_rt_result_ok(value: *mut RtValue) -> *mut RtResultValue {
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_result_err(value: *mut RtValue) -> *mut RtResultValue {
+pub unsafe extern "C" fn skp_rt_result_err(value: *mut RtValue) -> *mut RtResultValue {
     match ffi_try(|| clone_value(value).map(RtResultValue::err).map(boxed_result)) {
         Ok(value) => value,
         Err(err) => {
@@ -135,7 +138,7 @@ pub extern "C" fn skp_rt_result_err(value: *mut RtValue) -> *mut RtResultValue {
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_builtin_str_contains(
+pub unsafe extern "C" fn skp_rt_builtin_str_contains(
     haystack: *mut RtString,
     needle: *mut RtString,
 ) -> bool {
@@ -148,7 +151,7 @@ pub extern "C" fn skp_rt_builtin_str_contains(
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_builtin_str_index_of(
+pub unsafe extern "C" fn skp_rt_builtin_str_index_of(
     haystack: *mut RtString,
     needle: *mut RtString,
 ) -> i64 {
@@ -161,7 +164,7 @@ pub extern "C" fn skp_rt_builtin_str_index_of(
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_builtin_str_slice(
+pub unsafe extern "C" fn skp_rt_builtin_str_slice(
     value: *mut RtString,
     start: i64,
     end: i64,
@@ -211,7 +214,7 @@ pub extern "C" fn skp_rt_value_from_unit() -> *mut RtValue {
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_value_from_string(value: *mut RtString) -> *mut RtValue {
+pub unsafe extern "C" fn skp_rt_value_from_string(value: *mut RtString) -> *mut RtValue {
     match ffi_try(|| {
         if value.is_null() {
             return Err(invalid_argument("string pointer must not be null"));
@@ -227,7 +230,7 @@ pub extern "C" fn skp_rt_value_from_string(value: *mut RtString) -> *mut RtValue
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_value_from_bytes(value: *mut RtBytes) -> *mut RtValue {
+pub unsafe extern "C" fn skp_rt_value_from_bytes(value: *mut RtBytes) -> *mut RtValue {
     match ffi_try(|| {
         if value.is_null() {
             return Err(invalid_argument("bytes pointer must not be null"));
@@ -243,7 +246,7 @@ pub extern "C" fn skp_rt_value_from_bytes(value: *mut RtBytes) -> *mut RtValue {
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_value_from_option(value: *mut RtOption) -> *mut RtValue {
+pub unsafe extern "C" fn skp_rt_value_from_option(value: *mut RtOption) -> *mut RtValue {
     match ffi_try(|| {
         if value.is_null() {
             return Err(invalid_argument("option pointer must not be null"));
@@ -259,7 +262,7 @@ pub extern "C" fn skp_rt_value_from_option(value: *mut RtOption) -> *mut RtValue
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_value_from_result(value: *mut RtResultValue) -> *mut RtValue {
+pub unsafe extern "C" fn skp_rt_value_from_result(value: *mut RtResultValue) -> *mut RtValue {
     match ffi_try(|| {
         if value.is_null() {
             return Err(invalid_argument("result pointer must not be null"));
@@ -275,7 +278,7 @@ pub extern "C" fn skp_rt_value_from_result(value: *mut RtResultValue) -> *mut Rt
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_value_from_array(value: *mut RtArray) -> *mut RtValue {
+pub unsafe extern "C" fn skp_rt_value_from_array(value: *mut RtArray) -> *mut RtValue {
     match ffi_try(|| {
         if value.is_null() {
             return Err(invalid_argument("array pointer must not be null"));
@@ -291,7 +294,7 @@ pub extern "C" fn skp_rt_value_from_array(value: *mut RtArray) -> *mut RtValue {
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_value_from_vec(value: *mut RtVec) -> *mut RtValue {
+pub unsafe extern "C" fn skp_rt_value_from_vec(value: *mut RtVec) -> *mut RtValue {
     match ffi_try(|| {
         if value.is_null() {
             return Err(invalid_argument("vec pointer must not be null"));
@@ -307,7 +310,7 @@ pub extern "C" fn skp_rt_value_from_vec(value: *mut RtVec) -> *mut RtValue {
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_value_from_map(value: *mut RtMap) -> *mut RtValue {
+pub unsafe extern "C" fn skp_rt_value_from_map(value: *mut RtMap) -> *mut RtValue {
     match ffi_try(|| {
         if value.is_null() {
             return Err(invalid_argument("map pointer must not be null"));
@@ -323,7 +326,7 @@ pub extern "C" fn skp_rt_value_from_map(value: *mut RtMap) -> *mut RtValue {
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_value_from_struct(value: *mut RtStruct) -> *mut RtValue {
+pub unsafe extern "C" fn skp_rt_value_from_struct(value: *mut RtStruct) -> *mut RtValue {
     match ffi_try(|| {
         if value.is_null() {
             return Err(invalid_argument("struct pointer must not be null"));
@@ -339,8 +342,11 @@ pub extern "C" fn skp_rt_value_from_struct(value: *mut RtStruct) -> *mut RtValue
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_value_from_function(value: *mut c_void) -> *mut RtValue {
+pub unsafe extern "C" fn skp_rt_value_from_function(value: *mut c_void) -> *mut RtValue {
     match ffi_try(|| {
+        if value.is_null() {
+            return Err(invalid_argument("function pointer must not be null"));
+        }
         Ok(boxed_value(RtValue::Function(RtFunctionRef(
             value as usize,
         ))))
@@ -354,7 +360,7 @@ pub extern "C" fn skp_rt_value_from_function(value: *mut c_void) -> *mut RtValue
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_value_from_handle(value: *mut c_void) -> *mut RtValue {
+pub unsafe extern "C" fn skp_rt_value_from_handle(value: *mut c_void) -> *mut RtValue {
     match ffi_try(|| {
         if value.is_null() {
             return Err(invalid_argument("handle pointer must not be null"));
@@ -372,7 +378,7 @@ pub extern "C" fn skp_rt_value_from_handle(value: *mut c_void) -> *mut RtValue {
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_value_to_int(value: *mut RtValue) -> i64 {
+pub unsafe extern "C" fn skp_rt_value_to_int(value: *mut RtValue) -> i64 {
     match ffi_try(|| clone_value(value)?.expect_int()) {
         Ok(value) => value,
         Err(err) => {
@@ -383,7 +389,7 @@ pub extern "C" fn skp_rt_value_to_int(value: *mut RtValue) -> i64 {
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_value_to_bool(value: *mut RtValue) -> bool {
+pub unsafe extern "C" fn skp_rt_value_to_bool(value: *mut RtValue) -> bool {
     match ffi_try(|| clone_value(value)?.expect_bool()) {
         Ok(value) => value,
         Err(err) => {
@@ -394,7 +400,7 @@ pub extern "C" fn skp_rt_value_to_bool(value: *mut RtValue) -> bool {
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_value_to_float(value: *mut RtValue) -> f64 {
+pub unsafe extern "C" fn skp_rt_value_to_float(value: *mut RtValue) -> f64 {
     match ffi_try(|| clone_value(value)?.expect_float()) {
         Ok(value) => value,
         Err(err) => {
@@ -405,7 +411,7 @@ pub extern "C" fn skp_rt_value_to_float(value: *mut RtValue) -> f64 {
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_value_to_string(value: *mut RtValue) -> *mut RtString {
+pub unsafe extern "C" fn skp_rt_value_to_string(value: *mut RtValue) -> *mut RtString {
     match ffi_try(|| clone_value(value)?.expect_string().map(boxed_string)) {
         Ok(value) => value,
         Err(err) => {
@@ -416,7 +422,7 @@ pub extern "C" fn skp_rt_value_to_string(value: *mut RtValue) -> *mut RtString {
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_value_to_bytes(value: *mut RtValue) -> *mut RtBytes {
+pub unsafe extern "C" fn skp_rt_value_to_bytes(value: *mut RtValue) -> *mut RtBytes {
     match ffi_try(|| {
         clone_value(value)?
             .expect_bytes()
@@ -432,7 +438,7 @@ pub extern "C" fn skp_rt_value_to_bytes(value: *mut RtValue) -> *mut RtBytes {
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_value_to_option(value: *mut RtValue) -> *mut RtOption {
+pub unsafe extern "C" fn skp_rt_value_to_option(value: *mut RtValue) -> *mut RtOption {
     match ffi_try(|| clone_value(value)?.expect_option().map(boxed_option)) {
         Ok(value) => value,
         Err(err) => {
@@ -443,7 +449,7 @@ pub extern "C" fn skp_rt_value_to_option(value: *mut RtValue) -> *mut RtOption {
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_value_to_result(value: *mut RtValue) -> *mut RtResultValue {
+pub unsafe extern "C" fn skp_rt_value_to_result(value: *mut RtValue) -> *mut RtResultValue {
     match ffi_try(|| clone_value(value)?.expect_result_value().map(boxed_result)) {
         Ok(value) => value,
         Err(err) => {
@@ -454,7 +460,7 @@ pub extern "C" fn skp_rt_value_to_result(value: *mut RtValue) -> *mut RtResultVa
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_value_to_array(value: *mut RtValue) -> *mut RtArray {
+pub unsafe extern "C" fn skp_rt_value_to_array(value: *mut RtValue) -> *mut RtArray {
     match ffi_try(|| clone_value(value)?.expect_array().map(boxed_array)) {
         Ok(value) => value,
         Err(err) => {
@@ -465,7 +471,7 @@ pub extern "C" fn skp_rt_value_to_array(value: *mut RtValue) -> *mut RtArray {
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_value_to_vec(value: *mut RtValue) -> *mut RtVec {
+pub unsafe extern "C" fn skp_rt_value_to_vec(value: *mut RtValue) -> *mut RtVec {
     match ffi_try(|| clone_value(value)?.expect_vec().map(boxed_vec)) {
         Ok(value) => value,
         Err(err) => {
@@ -476,7 +482,7 @@ pub extern "C" fn skp_rt_value_to_vec(value: *mut RtValue) -> *mut RtVec {
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_value_to_map(value: *mut RtValue) -> *mut RtMap {
+pub unsafe extern "C" fn skp_rt_value_to_map(value: *mut RtValue) -> *mut RtMap {
     match ffi_try(|| clone_value(value)?.expect_map().map(boxed_map)) {
         Ok(value) => value,
         Err(err) => {
@@ -487,7 +493,7 @@ pub extern "C" fn skp_rt_value_to_map(value: *mut RtValue) -> *mut RtMap {
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_value_to_struct(value: *mut RtValue) -> *mut RtStruct {
+pub unsafe extern "C" fn skp_rt_value_to_struct(value: *mut RtValue) -> *mut RtStruct {
     match ffi_try(|| clone_value(value)?.expect_struct().map(boxed_struct)) {
         Ok(value) => value,
         Err(err) => {
@@ -498,7 +504,7 @@ pub extern "C" fn skp_rt_value_to_struct(value: *mut RtValue) -> *mut RtStruct {
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_value_to_function(value: *mut RtValue) -> *mut c_void {
+pub unsafe extern "C" fn skp_rt_value_to_function(value: *mut RtValue) -> *mut c_void {
     match ffi_try(|| {
         clone_value(value)?
             .expect_function()
@@ -513,7 +519,7 @@ pub extern "C" fn skp_rt_value_to_function(value: *mut RtValue) -> *mut c_void {
 }
 
 #[no_mangle]
-pub extern "C" fn skp_rt_value_to_handle(value: *mut RtValue) -> *mut c_void {
+pub unsafe extern "C" fn skp_rt_value_to_handle(value: *mut RtValue) -> *mut c_void {
     match ffi_try(|| {
         clone_value(value)?
             .expect_handle()
