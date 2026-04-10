@@ -510,22 +510,24 @@ impl IrVerifier {
     }
 
     fn ffi_signature_shape(signature: &str) -> Option<(Vec<IrType>, IrType)> {
-        let (params, ret) = signature.split_once("->")?;
-        let param_types = params
-            .chars()
-            .map(Self::ffi_signature_type)
-            .collect::<Option<Vec<_>>>()?;
-        Some((param_types, Self::ffi_signature_type(ret.chars().next()?)?))
-    }
-
-    fn ffi_signature_type(code: char) -> Option<IrType> {
-        match code {
-            'I' => Some(IrType::Int),
-            'B' => Some(IrType::Bool),
-            'V' => Some(IrType::Void),
-            'S' => Some(IrType::String),
-            'Y' => Some(IrType::Bytes),
-            _ => None,
-        }
+        let shape = match signature {
+            "->i64" => (vec![], IrType::Int),
+            "->void" => (vec![], IrType::Void),
+            "->_Bool" => (vec![], IrType::Bool),
+            "i64->i64" => (vec![IrType::Int], IrType::Int),
+            "i64->_Bool" => (vec![IrType::Int], IrType::Bool),
+            "i64->void" => (vec![IrType::Int], IrType::Void),
+            "cstr->usize" | "system:cstr->i32" => (vec![IrType::String], IrType::Int),
+            "cstr->void" | "system:cstr->void" => (vec![IrType::String], IrType::Void),
+            "cstr,cstr->i32" | "system:cstr,cstr->i32" => {
+                (vec![IrType::String, IrType::String], IrType::Int)
+            }
+            "cstr,usize->usize" => (vec![IrType::String, IrType::Int], IrType::Int),
+            "i64,i64->i64" => (vec![IrType::Int, IrType::Int], IrType::Int),
+            "bytes->usize" => (vec![IrType::Bytes], IrType::Int),
+            "bytes,usize->usize" => (vec![IrType::Bytes, IrType::Int], IrType::Int),
+            _ => return None,
+        };
+        Some(shape)
     }
 }

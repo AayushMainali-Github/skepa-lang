@@ -986,25 +986,50 @@ impl IrLowerer {
     }
 
     fn extern_abi_signature(&self, sig: &ExternFunctionSig) -> Option<String> {
-        let params = sig
-            .params
-            .iter()
-            .map(Self::extern_abi_type_code)
-            .collect::<Option<Vec<_>>>()?
-            .join("");
-        let ret = Self::extern_abi_type_code(&sig.ret)?;
-        Some(format!("{params}->{ret}"))
-    }
-
-    fn extern_abi_type_code(ty: &IrType) -> Option<&'static str> {
-        match ty {
-            IrType::Int => Some("I"),
-            IrType::Bool => Some("B"),
-            IrType::Void => Some("V"),
-            IrType::String => Some("S"),
-            IrType::Bytes => Some("Y"),
-            _ => None,
-        }
+        let signature = match (sig.params.as_slice(), &sig.ret) {
+            ([], IrType::Int) => "->i64",
+            ([], IrType::Bool) => "->_Bool",
+            ([], IrType::Void) => "->void",
+            ([IrType::Int], IrType::Int) => "i64->i64",
+            ([IrType::Int], IrType::Bool) => "i64->_Bool",
+            ([IrType::Int], IrType::Void) => "i64->void",
+            ([IrType::String], IrType::Int) => {
+                #[cfg(windows)]
+                {
+                    "system:cstr->i32"
+                }
+                #[cfg(not(windows))]
+                {
+                    "cstr->usize"
+                }
+            }
+            ([IrType::String], IrType::Void) => {
+                #[cfg(windows)]
+                {
+                    "system:cstr->void"
+                }
+                #[cfg(not(windows))]
+                {
+                    "cstr->void"
+                }
+            }
+            ([IrType::String, IrType::String], IrType::Int) => {
+                #[cfg(windows)]
+                {
+                    "system:cstr,cstr->i32"
+                }
+                #[cfg(not(windows))]
+                {
+                    "cstr,cstr->i32"
+                }
+            }
+            ([IrType::String, IrType::Int], IrType::Int) => "cstr,usize->usize",
+            ([IrType::Int, IrType::Int], IrType::Int) => "i64,i64->i64",
+            ([IrType::Bytes], IrType::Int) => "bytes->usize",
+            ([IrType::Bytes, IrType::Int], IrType::Int) => "bytes,usize->usize",
+            _ => return None,
+        };
+        Some(signature.to_string())
     }
 }
 

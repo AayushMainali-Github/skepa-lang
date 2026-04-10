@@ -1140,7 +1140,7 @@ fn builtins_cover_ffi_integer_calls_and_errors() {
             &mut host,
             "ffi",
             "call",
-            &[symbol.clone(), RtValue::String(RtString::from("->I")),],
+            &[symbol.clone(), RtValue::String(RtString::from("->i64")),],
         )
         .expect("ffi.call generic zero-int"),
         RtValue::Int(77)
@@ -1277,7 +1277,7 @@ fn builtins_cover_ffi_integer_calls_and_errors() {
             "call",
             &[
                 symbol.clone(),
-                RtValue::String(RtString::from("YI->I")),
+                RtValue::String(RtString::from("bytes,usize->usize")),
                 RtValue::Bytes(RtBytes::from(b"abc".to_vec())),
                 RtValue::Int(4),
             ],

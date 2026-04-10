@@ -39,31 +39,37 @@ pub fn call(
     args: &[RtValue],
 ) -> RtResult<RtValue> {
     match (signature, args) {
-        ("->I", []) => call_0_int(host, symbol),
-        ("->V", []) => call_0_void(host, symbol),
-        ("->B", []) => call_0_bool(host, symbol),
-        ("I->I", [value]) => call_1_int(host, symbol, value.expect_int()?),
-        ("I->B", [value]) => call_1_int_bool(host, symbol, value.expect_int()?),
-        ("I->V", [value]) => call_1_int_void(host, symbol, value.expect_int()?),
-        ("S->I", [value]) => call_1_string_int(host, symbol, value.expect_string()?.as_str()),
-        ("S->V", [value]) => call_1_string_void(host, symbol, value.expect_string()?.as_str()),
-        ("SS->I", [left, right]) => call_2_string_int(
-            host,
-            symbol,
-            left.expect_string()?.as_str(),
-            right.expect_string()?.as_str(),
-        ),
-        ("SI->I", [left, right]) => call_2_string_int_int(
+        ("->i64", []) => call_0_int(host, symbol),
+        ("->void", []) => call_0_void(host, symbol),
+        ("->_Bool", []) => call_0_bool(host, symbol),
+        ("i64->i64", [value]) => call_1_int(host, symbol, value.expect_int()?),
+        ("i64->_Bool", [value]) => call_1_int_bool(host, symbol, value.expect_int()?),
+        ("i64->void", [value]) => call_1_int_void(host, symbol, value.expect_int()?),
+        ("cstr->usize", [value]) | ("system:cstr->i32", [value]) => {
+            call_1_string_int(host, symbol, value.expect_string()?.as_str())
+        }
+        ("cstr->void", [value]) | ("system:cstr->void", [value]) => {
+            call_1_string_void(host, symbol, value.expect_string()?.as_str())
+        }
+        ("cstr,cstr->i32", [left, right]) | ("system:cstr,cstr->i32", [left, right]) => {
+            call_2_string_int(
+                host,
+                symbol,
+                left.expect_string()?.as_str(),
+                right.expect_string()?.as_str(),
+            )
+        }
+        ("cstr,usize->usize", [left, right]) => call_2_string_int_int(
             host,
             symbol,
             left.expect_string()?.as_str(),
             right.expect_int()?,
         ),
-        ("II->I", [left, right]) => {
+        ("i64,i64->i64", [left, right]) => {
             call_2_int_int(host, symbol, left.expect_int()?, right.expect_int()?)
         }
-        ("Y->I", [value]) => call_1_bytes_int(host, symbol, &value.expect_bytes()?),
-        ("YI->I", [value, right]) => {
+        ("bytes->usize", [value]) => call_1_bytes_int(host, symbol, &value.expect_bytes()?),
+        ("bytes,usize->usize", [value, right]) => {
             call_2_bytes_int_int(host, symbol, &value.expect_bytes()?, right.expect_int()?)
         }
         _ => Err(crate::RtError::unsupported_builtin(format!(
