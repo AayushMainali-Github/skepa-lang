@@ -703,7 +703,9 @@ impl RtHost for NoopHost {
     }
 
     fn fs_exists(&mut self, path: &str) -> RtResult<bool> {
-        Ok(PathBuf::from(path).exists())
+        PathBuf::from(path)
+            .try_exists()
+            .map_err(|err| RtError::io(err.to_string()))
     }
 
     fn fs_read_text(&mut self, path: &str) -> RtResult<RtString> {

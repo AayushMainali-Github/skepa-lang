@@ -1394,6 +1394,7 @@ Behavior:
 
 Notes:
 - `fs.exists` returns `Err(String)` if path existence cannot be checked due to a host filesystem error.
+- `fs.exists` distinguishes missing paths from real filesystem failures. Invalid paths, permission failures, and other metadata errors surface as `Err(String)` rather than `Ok(false)`.
 - `fs.readText` returns `Err(String)` on read failure or invalid UTF-8.
 - `fs.writeText`, `fs.appendText`, `fs.mkdirAll`, `fs.removeFile`, and `fs.removeDirAll` return `Err(String)` on filesystem failure.
 

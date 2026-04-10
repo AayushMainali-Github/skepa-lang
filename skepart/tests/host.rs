@@ -441,6 +441,15 @@ fn noop_host_environment_mutation_is_host_local() {
 }
 
 #[test]
+fn noop_host_fs_exists_surfaces_real_filesystem_errors() {
+    let mut host = NoopHost::default();
+    let err = host
+        .fs_exists("\0skepa-invalid-path")
+        .expect_err("invalid path should surface as io error");
+    assert_eq!(err.kind, skepart::RtErrorKind::Io);
+}
+
+#[test]
 fn hosts_can_construct_typed_placeholder_net_handles() {
     let mut noop = NoopHost::default();
     assert_eq!(
