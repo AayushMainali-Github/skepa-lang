@@ -572,11 +572,15 @@ fn noop_host_calls_borrowed_string_ffi_symbols() {
         .ffi_bind_symbol(library, ffi_test_call1_string_int_symbol_name())
         .expect("bind one-string int symbol");
 
-    assert_eq!(
-        host.ffi_call_1_string_int(symbol, ffi_test_call1_string_int_value())
-            .expect("call1StringInt"),
-        ffi_test_call1_string_int_expected()
-    );
+    #[cfg(windows)]
+    let actual = host
+        .ffi_call_1_system_cstr_i32(symbol, ffi_test_call1_string_int_value())
+        .expect("call1StringInt");
+    #[cfg(not(windows))]
+    let actual = host
+        .ffi_call_1_cstr_usize(symbol, ffi_test_call1_string_int_value())
+        .expect("call1StringInt");
+    assert_eq!(actual, ffi_test_call1_string_int_expected());
 
     host.net_close_handle(symbol).expect("close symbol");
     host.net_close_handle(library).expect("close library");
@@ -592,7 +596,11 @@ fn noop_host_calls_borrowed_string_void_ffi_symbols() {
         .ffi_bind_symbol(library, ffi_test_call1_string_void_symbol_name())
         .expect("bind one-string void symbol");
 
-    host.ffi_call_1_string_void(symbol, "hello")
+    #[cfg(windows)]
+    host.ffi_call_1_system_cstr_void(symbol, "hello")
+        .expect("call1StringVoid");
+    #[cfg(not(windows))]
+    host.ffi_call_1_cstr_void(symbol, "hello")
         .expect("call1StringVoid");
 
     host.net_close_handle(symbol).expect("close symbol");
@@ -625,11 +633,15 @@ fn noop_host_calls_two_borrowed_string_ffi_symbols() {
         .ffi_bind_symbol(library, ffi_test_call2_string_int_symbol_name())
         .expect("bind two-string int symbol");
 
-    assert_eq!(
-        host.ffi_call_2_string_int(symbol, "same", "same")
-            .expect("call2StringInt"),
-        0
-    );
+    #[cfg(windows)]
+    let actual = host
+        .ffi_call_2_system_cstr_cstr_i32(symbol, "same", "same")
+        .expect("call2StringInt");
+    #[cfg(not(windows))]
+    let actual = host
+        .ffi_call_2_cstr_cstr_i32(symbol, "same", "same")
+        .expect("call2StringInt");
+    assert_eq!(actual, 0);
 
     host.net_close_handle(symbol).expect("close symbol");
     host.net_close_handle(library).expect("close library");
@@ -646,7 +658,7 @@ fn noop_host_calls_borrowed_string_int_ffi_symbols() {
         .expect("bind string-int int symbol");
 
     assert_eq!(
-        host.ffi_call_2_string_int_int(symbol, "hello", 3)
+        host.ffi_call_2_cstr_usize_usize(symbol, "hello", 3)
             .expect("call2StringIntInt"),
         3
     );
@@ -666,7 +678,7 @@ fn noop_host_calls_borrowed_bytes_ffi_symbols() {
         .expect("bind one-bytes int symbol");
 
     assert_eq!(
-        host.ffi_call_1_bytes_int(symbol, &RtBytes::from(b"hello".to_vec()))
+        host.ffi_call_1_bytes_usize(symbol, &RtBytes::from(b"hello".to_vec()))
             .expect("call1BytesInt"),
         ffi_test_call1_bytes_expected()
     );
@@ -697,11 +709,15 @@ fn noop_host_reuses_cached_ffi_libraries_and_symbols_across_handles() {
     host.net_close_handle(library_a)
         .expect("close first library handle");
 
-    assert_eq!(
-        host.ffi_call_1_string_int(symbol_b, ffi_test_call1_string_int_value())
-            .expect("second symbol handle should still work"),
-        ffi_test_call1_string_int_expected()
-    );
+    #[cfg(windows)]
+    let actual = host
+        .ffi_call_1_system_cstr_i32(symbol_b, ffi_test_call1_string_int_value())
+        .expect("second symbol handle should still work");
+    #[cfg(not(windows))]
+    let actual = host
+        .ffi_call_1_cstr_usize(symbol_b, ffi_test_call1_string_int_value())
+        .expect("second symbol handle should still work");
+    assert_eq!(actual, ffi_test_call1_string_int_expected());
 
     host.net_close_handle(symbol_b)
         .expect("close second symbol handle");
@@ -715,12 +731,12 @@ fn recording_host_covers_new_bool_and_mixed_ffi_shapes() {
     let library = host.ffi_open_library("test-lib").expect("open");
     let symbol = host.ffi_bind_symbol(library, "plus").expect("bind");
 
-    assert!(host.ffi_call_0_bool(symbol).expect("call0Bool"));
+    assert!(host.ffi_call_0_c_bool(symbol).expect("call0Bool"));
     assert!(host.ffi_call_0_i32_bool(symbol).expect("call0I32Bool"));
     assert!(host
         .ffi_call_0_system_i32_bool(symbol)
         .expect("call0SystemI32Bool"));
-    assert!(host.ffi_call_1_int_bool(symbol, 3).expect("call1IntBool"));
+    assert!(host.ffi_call_1_i64_c_bool(symbol, 3).expect("call1IntBool"));
     assert!(host
         .ffi_call_1_int_i32_bool(symbol, 3)
         .expect("call1IntI32Bool"));
@@ -732,7 +748,7 @@ fn recording_host_covers_new_bool_and_mixed_ffi_shapes() {
         7
     );
     assert_eq!(
-        host.ffi_call_2_bytes_int_int(symbol, &RtBytes::from(b"abc".to_vec()), 4)
+        host.ffi_call_2_bytes_usize_usize(symbol, &RtBytes::from(b"abc".to_vec()), 4)
             .expect("call2BytesIntInt"),
         7
     );

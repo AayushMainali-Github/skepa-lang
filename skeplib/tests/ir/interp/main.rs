@@ -125,7 +125,11 @@ impl RtHost for TestHost {
         Ok(())
     }
 
-    fn ffi_call_1_string_int(&mut self, symbol: skepart::RtHandle, value: &str) -> RtResult<i64> {
+    fn ffi_call_1_cstr_usize(
+        &mut self,
+        symbol: skepart::RtHandle,
+        value: &str,
+    ) -> RtResult<i64> {
         self.net_lookup_handle_kind(symbol)?;
         self.out
             .lock()
@@ -134,7 +138,15 @@ impl RtHost for TestHost {
         Ok(value.len() as i64)
     }
 
-    fn ffi_call_1_string_void(
+    fn ffi_call_1_system_cstr_i32(
+        &mut self,
+        symbol: skepart::RtHandle,
+        value: &str,
+    ) -> RtResult<i64> {
+        self.ffi_call_1_cstr_usize(symbol, value)
+    }
+
+    fn ffi_call_1_cstr_void(
         &mut self,
         symbol: skepart::RtHandle,
         value: &str,
@@ -147,7 +159,15 @@ impl RtHost for TestHost {
         Ok(())
     }
 
-    fn ffi_call_1_bytes_int(
+    fn ffi_call_1_system_cstr_void(
+        &mut self,
+        symbol: skepart::RtHandle,
+        value: &str,
+    ) -> RtResult<()> {
+        self.ffi_call_1_cstr_void(symbol, value)
+    }
+
+    fn ffi_call_1_bytes_usize(
         &mut self,
         symbol: skepart::RtHandle,
         value: &RtBytes,
@@ -160,7 +180,7 @@ impl RtHost for TestHost {
         Ok(value.len() as i64)
     }
 
-    fn ffi_call_2_string_int_int(
+    fn ffi_call_2_cstr_usize_usize(
         &mut self,
         symbol: skepart::RtHandle,
         left: &str,
@@ -1825,3 +1845,4 @@ fn main() -> Int {
     let value = common::ir_run_ok(source);
     assert_eq!(value, IrValue::Int(7));
 }
+

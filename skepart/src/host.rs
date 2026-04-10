@@ -348,7 +348,7 @@ pub trait RtHost {
         Err(RtError::unsupported_builtin("ffi.call0Void"))
     }
 
-    fn ffi_call_0_bool(&mut self, _symbol: RtHandle) -> RtResult<bool> {
+    fn ffi_call_0_c_bool(&mut self, _symbol: RtHandle) -> RtResult<bool> {
         Err(RtError::unsupported_builtin("ffi.call0Bool"))
     }
 
@@ -364,7 +364,7 @@ pub trait RtHost {
         Err(RtError::unsupported_builtin("ffi.call1Int"))
     }
 
-    fn ffi_call_1_int_bool(&mut self, _symbol: RtHandle, _value: i64) -> RtResult<bool> {
+    fn ffi_call_1_i64_c_bool(&mut self, _symbol: RtHandle, _value: i64) -> RtResult<bool> {
         Err(RtError::unsupported_builtin("ffi.call1IntBool"))
     }
 
@@ -380,15 +380,23 @@ pub trait RtHost {
         Err(RtError::unsupported_builtin("ffi.call1IntVoid"))
     }
 
-    fn ffi_call_1_string_int(&mut self, _symbol: RtHandle, _value: &str) -> RtResult<i64> {
+    fn ffi_call_1_cstr_usize(&mut self, _symbol: RtHandle, _value: &str) -> RtResult<i64> {
         Err(RtError::unsupported_builtin("ffi.call1StringInt"))
     }
 
-    fn ffi_call_1_string_void(&mut self, _symbol: RtHandle, _value: &str) -> RtResult<()> {
+    fn ffi_call_1_system_cstr_i32(&mut self, _symbol: RtHandle, _value: &str) -> RtResult<i64> {
+        Err(RtError::unsupported_builtin("ffi.call1StringInt"))
+    }
+
+    fn ffi_call_1_cstr_void(&mut self, _symbol: RtHandle, _value: &str) -> RtResult<()> {
         Err(RtError::unsupported_builtin("ffi.call1StringVoid"))
     }
 
-    fn ffi_call_2_string_int(
+    fn ffi_call_1_system_cstr_void(&mut self, _symbol: RtHandle, _value: &str) -> RtResult<()> {
+        Err(RtError::unsupported_builtin("ffi.call1StringVoid"))
+    }
+
+    fn ffi_call_2_cstr_cstr_i32(
         &mut self,
         _symbol: RtHandle,
         _left: &str,
@@ -397,7 +405,16 @@ pub trait RtHost {
         Err(RtError::unsupported_builtin("ffi.call2StringInt"))
     }
 
-    fn ffi_call_2_string_int_int(
+    fn ffi_call_2_system_cstr_cstr_i32(
+        &mut self,
+        _symbol: RtHandle,
+        _left: &str,
+        _right: &str,
+    ) -> RtResult<i64> {
+        Err(RtError::unsupported_builtin("ffi.call2StringInt"))
+    }
+
+    fn ffi_call_2_cstr_usize_usize(
         &mut self,
         _symbol: RtHandle,
         _left: &str,
@@ -410,11 +427,11 @@ pub trait RtHost {
         Err(RtError::unsupported_builtin("ffi.call2IntInt"))
     }
 
-    fn ffi_call_1_bytes_int(&mut self, _symbol: RtHandle, _value: &RtBytes) -> RtResult<i64> {
+    fn ffi_call_1_bytes_usize(&mut self, _symbol: RtHandle, _value: &RtBytes) -> RtResult<i64> {
         Err(RtError::unsupported_builtin("ffi.call1BytesInt"))
     }
 
-    fn ffi_call_2_bytes_int_int(
+    fn ffi_call_2_bytes_usize_usize(
         &mut self,
         _symbol: RtHandle,
         _value: &RtBytes,
@@ -819,9 +836,9 @@ impl RtHost for NoopHost {
         Ok(())
     }
 
-    fn ffi_call_0_bool(&mut self, symbol: RtHandle) -> RtResult<bool> {
+    fn ffi_call_0_c_bool(&mut self, symbol: RtHandle) -> RtResult<bool> {
         let symbol = self.net_resources.foreign_symbol(symbol)?;
-        Ok(symbol.call_0_bool())
+        Ok(symbol.call_0_c_bool())
     }
 
     fn ffi_call_0_i32_bool(&mut self, symbol: RtHandle) -> RtResult<bool> {
@@ -839,9 +856,9 @@ impl RtHost for NoopHost {
         Ok(symbol.call_1_int(value))
     }
 
-    fn ffi_call_1_int_bool(&mut self, symbol: RtHandle, value: i64) -> RtResult<bool> {
+    fn ffi_call_1_i64_c_bool(&mut self, symbol: RtHandle, value: i64) -> RtResult<bool> {
         let symbol = self.net_resources.foreign_symbol(symbol)?;
-        Ok(symbol.call_1_int_bool(value))
+        Ok(symbol.call_1_i64_c_bool(value))
     }
 
     fn ffi_call_1_int_i32_bool(&mut self, symbol: RtHandle, value: i64) -> RtResult<bool> {
@@ -860,17 +877,31 @@ impl RtHost for NoopHost {
         Ok(())
     }
 
-    fn ffi_call_1_string_int(&mut self, symbol: RtHandle, value: &str) -> RtResult<i64> {
+    fn ffi_call_1_cstr_usize(&mut self, symbol: RtHandle, value: &str) -> RtResult<i64> {
         let symbol = self.net_resources.foreign_symbol(symbol)?;
-        symbol.call_1_string_int(value).map_err(RtError::process)
+        symbol.call_1_cstr_usize(value).map_err(RtError::process)
     }
 
-    fn ffi_call_1_string_void(&mut self, symbol: RtHandle, value: &str) -> RtResult<()> {
+    fn ffi_call_1_system_cstr_i32(&mut self, symbol: RtHandle, value: &str) -> RtResult<i64> {
         let symbol = self.net_resources.foreign_symbol(symbol)?;
-        symbol.call_1_string_void(value).map_err(RtError::process)
+        symbol
+            .call_1_system_cstr_i32(value)
+            .map_err(RtError::process)
     }
 
-    fn ffi_call_2_string_int(
+    fn ffi_call_1_cstr_void(&mut self, symbol: RtHandle, value: &str) -> RtResult<()> {
+        let symbol = self.net_resources.foreign_symbol(symbol)?;
+        symbol.call_1_cstr_void(value).map_err(RtError::process)
+    }
+
+    fn ffi_call_1_system_cstr_void(&mut self, symbol: RtHandle, value: &str) -> RtResult<()> {
+        let symbol = self.net_resources.foreign_symbol(symbol)?;
+        symbol
+            .call_1_system_cstr_void(value)
+            .map_err(RtError::process)
+    }
+
+    fn ffi_call_2_cstr_cstr_i32(
         &mut self,
         symbol: RtHandle,
         left: &str,
@@ -878,11 +909,23 @@ impl RtHost for NoopHost {
     ) -> RtResult<i64> {
         let symbol = self.net_resources.foreign_symbol(symbol)?;
         symbol
-            .call_2_string_int(left, right)
+            .call_2_cstr_cstr_i32(left, right)
             .map_err(RtError::process)
     }
 
-    fn ffi_call_2_string_int_int(
+    fn ffi_call_2_system_cstr_cstr_i32(
+        &mut self,
+        symbol: RtHandle,
+        left: &str,
+        right: &str,
+    ) -> RtResult<i64> {
+        let symbol = self.net_resources.foreign_symbol(symbol)?;
+        symbol
+            .call_2_system_cstr_cstr_i32(left, right)
+            .map_err(RtError::process)
+    }
+
+    fn ffi_call_2_cstr_usize_usize(
         &mut self,
         symbol: RtHandle,
         left: &str,
@@ -890,13 +933,13 @@ impl RtHost for NoopHost {
     ) -> RtResult<i64> {
         let symbol = self.net_resources.foreign_symbol(symbol)?;
         symbol
-            .call_2_string_int_int(left, right)
+            .call_2_cstr_usize_usize(left, right)
             .map_err(RtError::process)
     }
 
-    fn ffi_call_1_bytes_int(&mut self, symbol: RtHandle, value: &RtBytes) -> RtResult<i64> {
+    fn ffi_call_1_bytes_usize(&mut self, symbol: RtHandle, value: &RtBytes) -> RtResult<i64> {
         let symbol = self.net_resources.foreign_symbol(symbol)?;
-        Ok(symbol.call_1_bytes_int(value.as_slice()))
+        Ok(symbol.call_1_bytes_usize(value.as_slice()))
     }
 
     fn ffi_call_2_int_int(&mut self, symbol: RtHandle, left: i64, right: i64) -> RtResult<i64> {
@@ -904,14 +947,14 @@ impl RtHost for NoopHost {
         Ok(symbol.call_2_int_int(left, right))
     }
 
-    fn ffi_call_2_bytes_int_int(
+    fn ffi_call_2_bytes_usize_usize(
         &mut self,
         symbol: RtHandle,
         value: &RtBytes,
         right: i64,
     ) -> RtResult<i64> {
         let symbol = self.net_resources.foreign_symbol(symbol)?;
-        Ok(symbol.call_2_bytes_int_int(value.as_slice(), right))
+        Ok(symbol.call_2_bytes_usize_usize(value.as_slice(), right))
     }
 
     fn os_platform(&mut self) -> RtResult<RtString> {

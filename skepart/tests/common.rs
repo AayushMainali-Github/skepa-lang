@@ -523,7 +523,7 @@ impl RtHost for RecordingHost {
         Ok(())
     }
 
-    fn ffi_call_0_bool(&mut self, symbol: RtHandle) -> RtResult<bool> {
+    fn ffi_call_0_c_bool(&mut self, symbol: RtHandle) -> RtResult<bool> {
         if let Some(message) = &self.ffi_call_error {
             return Err(RtError::io(message.clone()));
         }
@@ -595,7 +595,7 @@ impl RtHost for RecordingHost {
         Ok(value + self.ffi_call1_int_offset)
     }
 
-    fn ffi_call_1_int_bool(&mut self, symbol: RtHandle, value: i64) -> RtResult<bool> {
+    fn ffi_call_1_i64_c_bool(&mut self, symbol: RtHandle, value: i64) -> RtResult<bool> {
         if let Some(message) = &self.ffi_call_error {
             return Err(RtError::io(message.clone()));
         }
@@ -669,7 +669,7 @@ impl RtHost for RecordingHost {
         Ok(())
     }
 
-    fn ffi_call_1_string_int(&mut self, symbol: RtHandle, value: &str) -> RtResult<i64> {
+    fn ffi_call_1_cstr_usize(&mut self, symbol: RtHandle, value: &str) -> RtResult<i64> {
         if let Some(message) = &self.ffi_call_error {
             return Err(RtError::io(message.clone()));
         }
@@ -683,11 +683,29 @@ impl RtHost for RecordingHost {
             }
         }
         self.output
-            .push_str(&format!("[fficall1stringint {}={value}]", symbol.id));
+            .push_str(&format!("[fficall1cstrusize {}={value}]", symbol.id));
         Ok(value.len() as i64 + self.ffi_call1_string_offset)
     }
 
-    fn ffi_call_1_string_void(&mut self, symbol: RtHandle, value: &str) -> RtResult<()> {
+    fn ffi_call_1_system_cstr_i32(&mut self, symbol: RtHandle, value: &str) -> RtResult<i64> {
+        if let Some(message) = &self.ffi_call_error {
+            return Err(RtError::io(message.clone()));
+        }
+        match self.net_lookup_handle_kind(symbol)? {
+            RtHandleKind::Symbol => {}
+            other => {
+                return Err(RtError::invalid_handle_kind(
+                    RtHandleKind::Symbol.type_name(),
+                    other.type_name(),
+                ))
+            }
+        }
+        self.output
+            .push_str(&format!("[fficallsystemcstri32 {}={value}]", symbol.id));
+        Ok(value.len() as i64 + self.ffi_call1_string_offset)
+    }
+
+    fn ffi_call_1_cstr_void(&mut self, symbol: RtHandle, value: &str) -> RtResult<()> {
         if let Some(message) = &self.ffi_call_error {
             return Err(RtError::io(message.clone()));
         }
@@ -705,7 +723,25 @@ impl RtHost for RecordingHost {
         Ok(())
     }
 
-    fn ffi_call_2_string_int(
+    fn ffi_call_1_system_cstr_void(&mut self, symbol: RtHandle, value: &str) -> RtResult<()> {
+        if let Some(message) = &self.ffi_call_error {
+            return Err(RtError::io(message.clone()));
+        }
+        match self.net_lookup_handle_kind(symbol)? {
+            RtHandleKind::Symbol => {}
+            other => {
+                return Err(RtError::invalid_handle_kind(
+                    RtHandleKind::Symbol.type_name(),
+                    other.type_name(),
+                ))
+            }
+        }
+        self.output
+            .push_str(&format!("[fficall1systemcstrvoid {}={value}]", symbol.id));
+        Ok(())
+    }
+
+    fn ffi_call_2_cstr_cstr_i32(
         &mut self,
         symbol: RtHandle,
         left: &str,
@@ -728,7 +764,32 @@ impl RtHost for RecordingHost {
         Ok(left.len() as i64 - right.len() as i64)
     }
 
-    fn ffi_call_2_string_int_int(
+    fn ffi_call_2_system_cstr_cstr_i32(
+        &mut self,
+        symbol: RtHandle,
+        left: &str,
+        right: &str,
+    ) -> RtResult<i64> {
+        if let Some(message) = &self.ffi_call_error {
+            return Err(RtError::io(message.clone()));
+        }
+        match self.net_lookup_handle_kind(symbol)? {
+            RtHandleKind::Symbol => {}
+            other => {
+                return Err(RtError::invalid_handle_kind(
+                    RtHandleKind::Symbol.type_name(),
+                    other.type_name(),
+                ))
+            }
+        }
+        self.output.push_str(&format!(
+            "[fficall2systemcstri32 {}={left}|{right}]",
+            symbol.id
+        ));
+        Ok(left.len() as i64 - right.len() as i64)
+    }
+
+    fn ffi_call_2_cstr_usize_usize(
         &mut self,
         symbol: RtHandle,
         left: &str,
@@ -771,7 +832,7 @@ impl RtHost for RecordingHost {
         Ok(left + right)
     }
 
-    fn ffi_call_1_bytes_int(&mut self, symbol: RtHandle, value: &RtBytes) -> RtResult<i64> {
+    fn ffi_call_1_bytes_usize(&mut self, symbol: RtHandle, value: &RtBytes) -> RtResult<i64> {
         if let Some(message) = &self.ffi_call_error {
             return Err(RtError::io(message.clone()));
         }
@@ -792,7 +853,7 @@ impl RtHost for RecordingHost {
         Ok(value.len() as i64 + self.ffi_call1_bytes_offset)
     }
 
-    fn ffi_call_2_bytes_int_int(
+    fn ffi_call_2_bytes_usize_usize(
         &mut self,
         symbol: RtHandle,
         value: &RtBytes,

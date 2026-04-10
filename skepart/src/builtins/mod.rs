@@ -311,7 +311,7 @@ pub fn call_with_context(
             ctx.host(),
             symbol.expect_handle_kind(crate::RtHandleKind::Symbol)?,
         ),
-        ("ffi", "call0Bool", [symbol]) => ffi::call_0_bool(
+        ("ffi", "call0Bool", [symbol]) => ffi::call_0_c_bool(
             ctx.host(),
             symbol.expect_handle_kind(crate::RtHandleKind::Symbol)?,
         ),
@@ -320,7 +320,7 @@ pub fn call_with_context(
             symbol.expect_handle_kind(crate::RtHandleKind::Symbol)?,
             value.expect_int()?,
         ),
-        ("ffi", "call1IntBool", [symbol, value]) => ffi::call_1_int_bool(
+        ("ffi", "call1IntBool", [symbol, value]) => ffi::call_1_i64_c_bool(
             ctx.host(),
             symbol.expect_handle_kind(crate::RtHandleKind::Symbol)?,
             value.expect_int()?,
@@ -330,23 +330,23 @@ pub fn call_with_context(
             symbol.expect_handle_kind(crate::RtHandleKind::Symbol)?,
             value.expect_int()?,
         ),
-        ("ffi", "call1StringInt", [symbol, value]) => ffi::call_1_string_int(
+        ("ffi", "call1StringInt", [symbol, value]) => ffi::call_1_cstr_compat_int(
             ctx.host(),
             symbol.expect_handle_kind(crate::RtHandleKind::Symbol)?,
             value.expect_string()?.as_str(),
         ),
-        ("ffi", "call1StringVoid", [symbol, value]) => ffi::call_1_string_void(
+        ("ffi", "call1StringVoid", [symbol, value]) => ffi::call_1_cstr_platform_void(
             ctx.host(),
             symbol.expect_handle_kind(crate::RtHandleKind::Symbol)?,
             value.expect_string()?.as_str(),
         ),
-        ("ffi", "call2StringInt", [symbol, left, right]) => ffi::call_2_string_int(
+        ("ffi", "call2StringInt", [symbol, left, right]) => ffi::call_2_cstr_compat_cstr_i32(
             ctx.host(),
             symbol.expect_handle_kind(crate::RtHandleKind::Symbol)?,
             left.expect_string()?.as_str(),
             right.expect_string()?.as_str(),
         ),
-        ("ffi", "call2StringIntInt", [symbol, left, right]) => ffi::call_2_string_int_int(
+        ("ffi", "call2StringIntInt", [symbol, left, right]) => ffi::call_2_cstr_usize_usize(
             ctx.host(),
             symbol.expect_handle_kind(crate::RtHandleKind::Symbol)?,
             left.expect_string()?.as_str(),
@@ -358,12 +358,12 @@ pub fn call_with_context(
             left.expect_int()?,
             right.expect_int()?,
         ),
-        ("ffi", "call1BytesInt", [symbol, value]) => ffi::call_1_bytes_int(
+        ("ffi", "call1BytesInt", [symbol, value]) => ffi::call_1_bytes_usize(
             ctx.host(),
             symbol.expect_handle_kind(crate::RtHandleKind::Symbol)?,
             &value.expect_bytes()?,
         ),
-        ("ffi", "call2BytesIntInt", [symbol, value, right]) => ffi::call_2_bytes_int_int(
+        ("ffi", "call2BytesIntInt", [symbol, value, right]) => ffi::call_2_bytes_usize_usize(
             ctx.host(),
             symbol.expect_handle_kind(crate::RtHandleKind::Symbol)?,
             &value.expect_bytes()?,

@@ -105,7 +105,7 @@ impl RtForeignSymbol {
         unsafe { function() };
     }
 
-    pub fn call_0_bool(&self) -> bool {
+    pub fn call_0_c_bool(&self) -> bool {
         // SAFETY: caller guarantees the symbol uses the expected ABI/signature.
         let function: unsafe extern "C" fn() -> bool = unsafe { std::mem::transmute(self.ptr) };
         unsafe { function() }
@@ -137,7 +137,7 @@ impl RtForeignSymbol {
         unsafe { function(value) }
     }
 
-    pub fn call_1_int_bool(&self, value: i64) -> bool {
+    pub fn call_1_i64_c_bool(&self, value: i64) -> bool {
         // SAFETY: caller guarantees the symbol uses the expected ABI/signature.
         let function: unsafe extern "C" fn(i64) -> bool = unsafe { std::mem::transmute(self.ptr) };
         unsafe { function(value) }
@@ -178,7 +178,15 @@ impl RtForeignSymbol {
         }
     }
 
-    pub fn call_1_string_int(&self, value: &str) -> Result<i64, String> {
+    pub fn call_1_cstr_usize(&self, value: &str) -> Result<i64, String> {
+        let c_value = CString::new(value).map_err(|_| "string argument contains NUL byte")?;
+        // SAFETY: caller guarantees the symbol uses the expected ABI/signature.
+        let function: unsafe extern "C" fn(*const c_char) -> usize =
+            unsafe { std::mem::transmute(self.ptr) };
+        Ok(unsafe { function(c_value.as_ptr()) as i64 })
+    }
+
+    pub fn call_1_system_cstr_i32(&self, value: &str) -> Result<i64, String> {
         let c_value = CString::new(value).map_err(|_| "string argument contains NUL byte")?;
         #[cfg(windows)]
         {
@@ -187,16 +195,25 @@ impl RtForeignSymbol {
                 unsafe { std::mem::transmute(self.ptr) };
             Ok(unsafe { function(c_value.as_ptr()) as i64 })
         }
-        #[cfg(unix)]
+        #[cfg(not(windows))]
         {
             // SAFETY: caller guarantees the symbol uses the expected ABI/signature.
-            let function: unsafe extern "C" fn(*const c_char) -> usize =
+            let function: unsafe extern "C" fn(*const c_char) -> i32 =
                 unsafe { std::mem::transmute(self.ptr) };
             Ok(unsafe { function(c_value.as_ptr()) as i64 })
         }
     }
 
-    pub fn call_1_string_void(&self, value: &str) -> Result<(), String> {
+    pub fn call_1_cstr_void(&self, value: &str) -> Result<(), String> {
+        let c_value = CString::new(value).map_err(|_| "string argument contains NUL byte")?;
+        // SAFETY: caller guarantees the symbol uses the expected ABI/signature.
+        let function: unsafe extern "C" fn(*const c_char) =
+            unsafe { std::mem::transmute(self.ptr) };
+        unsafe { function(c_value.as_ptr()) };
+        Ok(())
+    }
+
+    pub fn call_1_system_cstr_void(&self, value: &str) -> Result<(), String> {
         let c_value = CString::new(value).map_err(|_| "string argument contains NUL byte")?;
         #[cfg(windows)]
         {
@@ -206,7 +223,7 @@ impl RtForeignSymbol {
             unsafe { function(c_value.as_ptr()) };
             Ok(())
         }
-        #[cfg(unix)]
+        #[cfg(not(windows))]
         {
             // SAFETY: caller guarantees the symbol uses the expected ABI/signature.
             let function: unsafe extern "C" fn(*const c_char) =
@@ -216,7 +233,16 @@ impl RtForeignSymbol {
         }
     }
 
-    pub fn call_2_string_int(&self, left: &str, right: &str) -> Result<i64, String> {
+    pub fn call_2_cstr_cstr_i32(&self, left: &str, right: &str) -> Result<i64, String> {
+        let c_left = CString::new(left).map_err(|_| "string argument contains NUL byte")?;
+        let c_right = CString::new(right).map_err(|_| "string argument contains NUL byte")?;
+        // SAFETY: caller guarantees the symbol uses the expected ABI/signature.
+        let function: unsafe extern "C" fn(*const c_char, *const c_char) -> i32 =
+            unsafe { std::mem::transmute(self.ptr) };
+        Ok(unsafe { function(c_left.as_ptr(), c_right.as_ptr()) as i64 })
+    }
+
+    pub fn call_2_system_cstr_cstr_i32(&self, left: &str, right: &str) -> Result<i64, String> {
         let c_left = CString::new(left).map_err(|_| "string argument contains NUL byte")?;
         let c_right = CString::new(right).map_err(|_| "string argument contains NUL byte")?;
         #[cfg(windows)]
@@ -226,7 +252,7 @@ impl RtForeignSymbol {
                 unsafe { std::mem::transmute(self.ptr) };
             Ok(unsafe { function(c_left.as_ptr(), c_right.as_ptr()) as i64 })
         }
-        #[cfg(unix)]
+        #[cfg(not(windows))]
         {
             // SAFETY: caller guarantees the symbol uses the expected ABI/signature.
             let function: unsafe extern "C" fn(*const c_char, *const c_char) -> i32 =
@@ -235,7 +261,7 @@ impl RtForeignSymbol {
         }
     }
 
-    pub fn call_2_string_int_int(&self, left: &str, right: i64) -> Result<i64, String> {
+    pub fn call_2_cstr_usize_usize(&self, left: &str, right: i64) -> Result<i64, String> {
         let c_left = CString::new(left).map_err(|_| "string argument contains NUL byte")?;
         #[cfg(windows)]
         {
@@ -260,7 +286,7 @@ impl RtForeignSymbol {
         unsafe { function(left, right) }
     }
 
-    pub fn call_1_bytes_int(&self, value: &[u8]) -> i64 {
+    pub fn call_1_bytes_usize(&self, value: &[u8]) -> i64 {
         #[cfg(windows)]
         {
             // SAFETY: caller guarantees the symbol uses the expected ABI/signature.
@@ -277,7 +303,7 @@ impl RtForeignSymbol {
         }
     }
 
-    pub fn call_2_bytes_int_int(&self, value: &[u8], right: i64) -> i64 {
+    pub fn call_2_bytes_usize_usize(&self, value: &[u8], right: i64) -> i64 {
         #[cfg(windows)]
         {
             // SAFETY: caller guarantees the symbol uses the expected ABI/signature.

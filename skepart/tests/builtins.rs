@@ -1347,9 +1347,12 @@ fn builtins_cover_ffi_integer_calls_and_errors() {
             && host.output.contains("[fficall1inti32bool 1=9]")
             && host.output.contains("[fficall1intsystemi32bool 1=9]")
             && host.output.contains("[fficall1intvoid 1=4]")
-            && host.output.contains("[fficall1stringint 1=hello]")
-            && host.output.contains("[fficall1stringvoid 1=trace]")
-            && host.output.contains("[fficall2stringint 1=alpha|beta]")
+            && (host.output.contains("[fficall1cstrusize 1=hello]")
+                || host.output.contains("[fficallsystemcstri32 1=hello]"))
+            && (host.output.contains("[fficall1stringvoid 1=trace]")
+                || host.output.contains("[fficall1systemcstrvoid 1=trace]"))
+            && (host.output.contains("[fficall2stringint 1=alpha|beta]")
+                || host.output.contains("[fficall2systemcstri32 1=alpha|beta]"))
             && host.output.contains("[fficall2stringintint 1=abc|2]")
             && host.output.contains("[fficall2intint 1=2|5]"),
         "unexpected host output: {}",
