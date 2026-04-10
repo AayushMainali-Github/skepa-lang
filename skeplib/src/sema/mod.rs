@@ -286,6 +286,10 @@ impl Checker {
             if f.is_extern {
                 self.check_extern_function_signature(f);
             }
+            if self.functions.contains_key(&f.name) {
+                self.error(format!("Duplicate function declaration `{}`", f.name));
+                continue;
+            }
             let params = f
                 .params
                 .iter()
@@ -500,6 +504,7 @@ impl Checker {
 
     fn check_export_declarations(&mut self, program: &Program) {
         let mut local_exportables = HashSet::new();
+        let mut global_annotations = HashMap::new();
         for f in &program.functions {
             local_exportables.insert(f.name.as_str());
         }
@@ -508,6 +513,7 @@ impl Checker {
         }
         for g in &program.globals {
             local_exportables.insert(g.name.as_str());
+            global_annotations.insert(g.name.as_str(), g.ty.is_some());
         }
         for operator in &program.operators {
             local_exportables.insert(operator.name.as_str());
@@ -524,6 +530,16 @@ impl Checker {
                         {
                             self.error(format!(
                                 "Exported name `{}` does not exist in this module",
+                                item.name
+                            ));
+                        }
+                        if matches!(export_decl, crate::ast::ExportDecl::Local { .. })
+                            && global_annotations
+                                .get(item.name.as_str())
+                                .is_some_and(|has_annotation| !has_annotation)
+                        {
+                            self.error(format!(
+                                "Exported global `{}` must declare an explicit type annotation",
                                 item.name
                             ));
                         }
@@ -835,13 +851,4 @@ impl Checker {
     fn error(&mut self, message: String) {
         self.diagnostics.error(message, Span::default());
     }
-}
-
-pub(super) fn infer_module_global_types(program: &Program) -> HashMap<String, TypeInfo> {
-    let mut checker = Checker::new(program);
-    checker.check_struct_declarations(program);
-    checker.check_impl_declarations(program);
-    checker.collect_method_signatures(program);
-    checker.check_global_declarations(program);
-    checker.globals
 }

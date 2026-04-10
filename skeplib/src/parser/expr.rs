@@ -14,6 +14,45 @@ impl Parser {
         self.parse_binary_expr(0)
     }
 
+    fn expr_to_path_parts(expr: &Expr) -> Option<Vec<String>> {
+        match expr {
+            Expr::Ident(name) => Some(vec![name.clone()]),
+            Expr::Path(parts) => Some(parts.clone()),
+            Expr::Field { base, field } => {
+                let mut parts = Self::expr_to_path_parts(base)?;
+                parts.push(field.clone());
+                Some(parts)
+            }
+            _ => None,
+        }
+    }
+
+    fn parse_struct_literal_fields(&mut self) -> Option<Vec<(String, Expr)>> {
+        self.expect(
+            TokenKind::LBrace,
+            "Expected `{` before struct literal fields",
+        )?;
+        let mut fields = Vec::new();
+        if !self.at(TokenKind::RBrace) {
+            loop {
+                let field = self.expect_ident("Expected field name in struct literal")?;
+                self.expect(TokenKind::Colon, "Expected `:` after field name")?;
+                let value = self.parse_expr()?;
+                fields.push((field.lexeme, value));
+                if self.at(TokenKind::Comma) {
+                    self.bump();
+                    if self.at(TokenKind::RBrace) {
+                        break;
+                    }
+                    continue;
+                }
+                break;
+            }
+        }
+        self.expect(TokenKind::RBrace, "Expected `}` after struct literal")?;
+        Some(fields)
+    }
+
     fn parse_binary_expr(&mut self, min_precedence: i64) -> Option<Expr> {
         let mut expr = self.parse_unary()?;
 
@@ -204,6 +243,17 @@ impl Parser {
                 continue;
             }
 
+            if self.at(TokenKind::LBrace)
+                && let Some(parts) = Self::expr_to_path_parts(&expr)
+            {
+                let fields = self.parse_struct_literal_fields()?;
+                expr = Expr::StructLit {
+                    name: parts.join("."),
+                    fields,
+                };
+                continue;
+            }
+
             break;
         }
         Some(expr)
@@ -322,25 +372,7 @@ impl Parser {
         if self.at(TokenKind::Ident) {
             let name = self.bump().lexeme;
             if self.at(TokenKind::LBrace) {
-                self.bump();
-                let mut fields = Vec::new();
-                if !self.at(TokenKind::RBrace) {
-                    loop {
-                        let field = self.expect_ident("Expected field name in struct literal")?;
-                        self.expect(TokenKind::Colon, "Expected `:` after field name")?;
-                        let value = self.parse_expr()?;
-                        fields.push((field.lexeme, value));
-                        if self.at(TokenKind::Comma) {
-                            self.bump();
-                            if self.at(TokenKind::RBrace) {
-                                break;
-                            }
-                            continue;
-                        }
-                        break;
-                    }
-                }
-                self.expect(TokenKind::RBrace, "Expected `}` after struct literal")?;
+                let fields = self.parse_struct_literal_fields()?;
                 return Some(Expr::StructLit { name, fields });
             }
             return Some(Expr::Ident(name));

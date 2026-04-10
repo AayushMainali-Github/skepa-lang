@@ -9,7 +9,7 @@ use crate::resolver::{
 };
 use crate::types::{FunctionSig, TypeInfo};
 
-use super::{Checker, SemaResult, infer_module_global_types};
+use super::{Checker, SemaResult};
 
 #[derive(Debug, Clone, Default)]
 pub(super) struct ModuleApi {
@@ -161,7 +161,11 @@ fn build_module_api(program: &Program) -> ModuleApi {
             );
         }
     }
-    api.globals = infer_module_global_types(program);
+    for g in &program.globals {
+        if let Some(ty) = &g.ty {
+            api.globals.insert(g.name.clone(), TypeInfo::from_ast(ty));
+        }
+    }
     api
 }
 

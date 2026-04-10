@@ -38,6 +38,7 @@ impl Checker {
                     | "net"
                     | "os"
                     | "fs"
+                    | "ffi"
                     | "task"
                     | "vec"
             )
@@ -241,6 +242,7 @@ impl Checker {
                                 | "net"
                                 | "os"
                                 | "fs"
+                                | "ffi"
                                 | "task"
                                 | "vec"
                         ))
@@ -271,7 +273,14 @@ impl Checker {
                 }
             }
             Expr::StructLit { name, fields } => {
-                let Some(expected_fields) = self.struct_fields.get(name).cloned() else {
+                let Some(resolved_name) = self.resolve_named_type_name(name) else {
+                    self.error(format!("Unknown struct `{name}`"));
+                    for (_, expr) in fields {
+                        self.check_expr(expr, scopes);
+                    }
+                    return TypeInfo::Unknown;
+                };
+                let Some(expected_fields) = self.struct_fields.get(&resolved_name).cloned() else {
                     self.error(format!("Unknown struct `{name}`"));
                     for (_, expr) in fields {
                         self.check_expr(expr, scopes);
@@ -309,7 +318,7 @@ impl Checker {
                     }
                 }
 
-                TypeInfo::Named(name.clone())
+                TypeInfo::Named(resolved_name)
             }
             Expr::FnLit {
                 params,

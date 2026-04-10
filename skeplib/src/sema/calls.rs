@@ -142,11 +142,8 @@ impl Checker {
         if let Expr::Ident(name) = callee
             && let Some(target) = self.direct_imports.get(name).cloned()
         {
-            for arg in args {
-                self.check_expr(arg, scopes);
-            }
             if let Some(sig) = self.functions.get(&target).cloned() {
-                return sig.ret;
+                return self.check_function_sig_call(&sig, args, scopes);
             }
             if self.has_external_context {
                 self.error(format!(
@@ -159,11 +156,8 @@ impl Checker {
         if let Some(parts) = Self::expr_to_parts(callee) {
             match self.resolve_qualified_import_call(&parts) {
                 Ok(Some(target)) => {
-                    for arg in args {
-                        self.check_expr(arg, scopes);
-                    }
                     if let Some(sig) = self.functions.get(&target).cloned() {
-                        return sig.ret;
+                        return self.check_function_sig_call(&sig, args, scopes);
                     }
                     if self.has_external_context {
                         self.error(format!(
@@ -197,31 +191,7 @@ impl Checker {
         if let Some(fn_name) = &callee_name
             && let Some(sig) = self.functions.get(fn_name).cloned()
         {
-            if sig.params.len() != args.len() {
-                self.error(format!(
-                    "Arity mismatch for `{}`: expected {}, got {}",
-                    sig.name,
-                    sig.params.len(),
-                    args.len()
-                ));
-                return TypeInfo::Unknown;
-            }
-
-            for (i, arg) in args.iter().enumerate() {
-                let got = self.check_expr(arg, scopes);
-                let expected = sig.params[i].clone();
-                if !Self::types_compatible(&got, &expected) {
-                    self.error(format!(
-                        "Argument {} for `{}`: expected {:?}, got {:?}",
-                        i + 1,
-                        sig.name,
-                        expected,
-                        got
-                    ));
-                }
-            }
-
-            return sig.ret;
+            return self.check_function_sig_call(&sig, args, scopes);
         }
 
         let callee_ty = self.check_expr(callee, scopes);
@@ -262,6 +232,42 @@ impl Checker {
             self.check_expr(arg, scopes);
         }
         TypeInfo::Unknown
+    }
+
+    fn check_function_sig_call(
+        &mut self,
+        sig: &crate::types::FunctionSig,
+        args: &[Expr],
+        scopes: &mut [HashMap<String, TypeInfo>],
+    ) -> TypeInfo {
+        if sig.params.len() != args.len() {
+            self.error(format!(
+                "Arity mismatch for `{}`: expected {}, got {}",
+                sig.name,
+                sig.params.len(),
+                args.len()
+            ));
+            for arg in args {
+                self.check_expr(arg, scopes);
+            }
+            return TypeInfo::Unknown;
+        }
+
+        for (i, arg) in args.iter().enumerate() {
+            let got = self.check_expr(arg, scopes);
+            let expected = sig.params[i].clone();
+            if !Self::types_compatible(&got, &expected) {
+                self.error(format!(
+                    "Argument {} for `{}`: expected {:?}, got {:?}",
+                    i + 1,
+                    sig.name,
+                    expected,
+                    got
+                ));
+            }
+        }
+
+        sig.ret.clone()
     }
 
     fn check_method_call(
