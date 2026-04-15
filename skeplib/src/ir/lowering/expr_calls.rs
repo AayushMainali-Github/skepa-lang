@@ -5,6 +5,16 @@ use crate::ir::{BlockId, ConstValue, Instr, IrType, Operand};
 use super::context::{ExternFunctionSig, FunctionLowering, IrLowerer};
 
 impl IrLowerer {
+    fn is_builtin_member_expr(expr: &Expr, package: &str, member: &str) -> bool {
+        match expr {
+            Expr::Path(parts) => parts.len() == 2 && parts[0] == package && parts[1] == member,
+            Expr::Field { base, field } => {
+                field == member && matches!(&**base, Expr::Ident(name) if name == package)
+            }
+            _ => false,
+        }
+    }
+
     fn direct_callee_target(&self, callee: &Expr) -> Option<String> {
         match callee {
             Expr::Ident(name) => Some(
@@ -472,13 +482,11 @@ impl IrLowerer {
         let Expr::Call { callee, args } = value else {
             return None;
         };
-        if !args.is_empty()
-            || !matches!(&**callee, Expr::Field { base, field } if field == "new" && matches!(&**base, Expr::Ident(pkg) if pkg == "vec"))
-        {
+        if !args.is_empty() || !Self::is_builtin_member_expr(callee, "vec", "new") {
             return None;
         }
 
-        let elem_ty = IrType::from(&crate::types::TypeInfo::from_ast(elem));
+        let elem_ty = self.lower_type_name(elem);
         let local_ty = IrType::Vec {
             elem: Box::new(elem_ty.clone()),
         };
@@ -515,13 +523,11 @@ impl IrLowerer {
         let Expr::Call { callee, args } = value else {
             return None;
         };
-        if !args.is_empty()
-            || !matches!(&**callee, Expr::Field { base, field } if field == "new" && matches!(&**base, Expr::Ident(pkg) if pkg == "map"))
-        {
+        if !args.is_empty() || !Self::is_builtin_member_expr(callee, "map", "new") {
             return None;
         }
 
-        let value_ty = IrType::from(&crate::types::TypeInfo::from_ast(map_value));
+        let value_ty = self.lower_type_name(map_value);
         let local_ty = IrType::Map {
             value: Box::new(value_ty),
         };
@@ -570,9 +576,7 @@ impl IrLowerer {
         let Expr::Call { callee, args } = value else {
             return None;
         };
-        if !args.is_empty()
-            || !matches!(&**callee, Expr::Field { base, field } if field == "channel" && matches!(&**base, Expr::Ident(pkg) if pkg == "task"))
-        {
+        if !args.is_empty() || !Self::is_builtin_member_expr(callee, "task", "channel") {
             return None;
         }
 
@@ -1075,5 +1079,33 @@ impl IrLowerer {
             ),
             IrType::Unknown => "Unknown".to_string(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::ast::Expr;
+    use crate::ir::lowering::context::IrLowerer;
+
+    #[test]
+    fn builtin_member_matcher_accepts_field_and_path_shapes() {
+        let field_shape = Expr::Field {
+            base: Box::new(Expr::Ident("vec".to_string())),
+            field: "new".to_string(),
+        };
+        let path_shape = Expr::Path(vec!["vec".to_string(), "new".to_string()]);
+        let wrong_member = Expr::Path(vec!["vec".to_string(), "push".to_string()]);
+
+        assert!(IrLowerer::is_builtin_member_expr(
+            &field_shape,
+            "vec",
+            "new"
+        ));
+        assert!(IrLowerer::is_builtin_member_expr(&path_shape, "vec", "new"));
+        assert!(!IrLowerer::is_builtin_member_expr(
+            &wrong_member,
+            "vec",
+            "new"
+        ));
     }
 }
