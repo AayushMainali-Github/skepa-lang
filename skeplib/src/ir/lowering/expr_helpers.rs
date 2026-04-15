@@ -1,11 +1,9 @@
 use std::collections::HashMap;
 
+use super::context::{FunctionLowering, IrLowerer};
 use crate::ast::{BinaryOp as AstBinaryOp, Stmt};
 use crate::diagnostic::Span;
 use crate::ir::{BinaryOp, BlockId, ConstValue, Instr, IrType, Operand, Terminator};
-use crate::types::TypeInfo;
-
-use super::context::{FunctionLowering, IrLowerer};
 
 impl IrLowerer {
     pub(super) fn infer_operand_type(
@@ -181,7 +179,7 @@ impl IrLowerer {
     ) -> Option<Operand> {
         self.fn_lit_counter += 1;
         let name = format!("__fn_lit_{}", self.fn_lit_counter);
-        let ret_ty = IrType::from(&TypeInfo::from_ast(return_type));
+        let ret_ty = self.lower_type_name(return_type);
         let function_id = crate::ir::FunctionId(self.functions.len() + self.lifted_functions.len());
         self.functions.insert(
             name.clone(),
@@ -189,7 +187,7 @@ impl IrLowerer {
                 id: function_id,
                 params: params
                     .iter()
-                    .map(|param| IrType::from(&TypeInfo::from_ast(&param.ty)))
+                    .map(|param| self.lower_type_name(&param.ty))
                     .collect(),
                 ret: ret_ty.clone(),
             },
@@ -205,8 +203,7 @@ impl IrLowerer {
         };
         let mut param_types = Vec::with_capacity(params.len());
         for param in params {
-            let ty_info = TypeInfo::from_ast(&param.ty);
-            let ir_ty = IrType::from(&ty_info);
+            let ir_ty = self.lower_type_name(&param.ty);
             param_types.push(ir_ty.clone());
             self.builder
                 .push_param(&mut lifted, param.name.clone(), ir_ty.clone());
