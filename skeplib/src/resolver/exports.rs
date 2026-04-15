@@ -214,15 +214,18 @@ pub(super) fn validate_import_bindings(
         for import in &program.imports {
             match import {
                 ImportDecl::ImportModule { path, alias } => {
-                    if let Some(a) = alias
-                        && let Some(prev) =
-                            bound_names.insert(a.clone(), "module alias".to_string())
+                    let visible = alias
+                        .clone()
+                        .or_else(|| path.first().cloned())
+                        .unwrap_or_default();
+                    if let Some(prev) =
+                        bound_names.insert(visible.clone(), "module namespace".to_string())
                     {
                         errors.push(ResolveError::new(
                             ResolveErrorKind::ImportConflict,
                             format!(
                                 "Duplicate imported binding `{}` in module `{}` ({}) (conflicts with {})",
-                                a, id, unit.path.display(), prev
+                                visible, id, unit.path.display(), prev
                             ),
                             Some(unit.path.clone()),
                         ));
@@ -409,16 +412,22 @@ pub fn validate_and_build_export_map(
                 let export_name = item.alias.as_ref().unwrap_or(&item.name).clone();
                 let sym = if let Some(sym) = symbols.locals.get(&item.name).cloned() {
                     Some(sym)
-                } else if let Some(crate::ast::ImportDecl::ImportModule { path, .. }) = program
+                } else if program
                     .imports
                     .iter()
-                    .find(|i| matches!(i, crate::ast::ImportDecl::ImportModule { alias, path } if alias.as_deref() == Some(item.name.as_str()) || path.first().is_some_and(|p| p == &item.name)))
+                    .any(|i| matches!(i, crate::ast::ImportDecl::ImportModule { alias, path } if alias.as_deref() == Some(item.name.as_str()) || path.first().is_some_and(|p| p == &item.name)))
                 {
-                    Some(SymbolRef {
-                        module_id: module_id.to_string(),
-                        local_name: path.join("."),
-                        kind: SymbolKind::Namespace,
-                    })
+                    errors.push(ResolveError::new(
+                        ResolveErrorKind::ExportUnknown,
+                        format!(
+                            "Cannot export module namespace `{}` from module `{}` ({}); namespace re-exports are not supported",
+                            item.name,
+                            module_id,
+                            module_path.display()
+                        ),
+                        Some(module_path.to_path_buf()),
+                    ));
+                    continue;
                 } else {
                     None
                 };

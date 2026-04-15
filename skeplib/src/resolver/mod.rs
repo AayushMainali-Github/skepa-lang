@@ -147,13 +147,14 @@ pub(crate) fn parse_diagnostics_to_resolve_errors(
 fn build_operator_precedence_export_maps(
     graph: &ModuleGraph,
     headers: &HashMap<ModuleId, crate::parser::SourceHeaderInfo>,
-) -> HashMap<ModuleId, HashMap<String, i64>> {
+) -> Result<HashMap<ModuleId, HashMap<String, i64>>, Vec<ResolveError>> {
     fn visit(
         id: &str,
         graph: &ModuleGraph,
         headers: &HashMap<ModuleId, crate::parser::SourceHeaderInfo>,
         out: &mut HashMap<ModuleId, HashMap<String, i64>>,
         marks: &mut HashMap<ModuleId, bool>,
+        errors: &mut Vec<ResolveError>,
     ) {
         if out.contains_key(id) || marks.get(id).copied().unwrap_or(false) {
             return;
@@ -170,16 +171,27 @@ fn build_operator_precedence_export_maps(
                 continue;
             }
             let dep = &targets[0];
-            visit(dep, graph, headers, out, marks);
+            visit(dep, graph, headers, out, marks, errors);
             let Some(dep_map) = out.get(dep) else {
                 continue;
             };
             for item in &reexport.items {
                 if let Some(precedence) = dep_map.get(&item.name) {
-                    map.insert(
-                        item.alias.clone().unwrap_or_else(|| item.name.clone()),
-                        *precedence,
-                    );
+                    let export_name = item.alias.clone().unwrap_or_else(|| item.name.clone());
+                    if map.insert(export_name.clone(), *precedence).is_some()
+                        && let Some(unit) = graph.modules.get(id)
+                    {
+                        errors.push(ResolveError::new(
+                            ResolveErrorKind::ImportConflict,
+                            format!(
+                                "Duplicate exported operator precedence `{}` in module `{}` ({})",
+                                export_name,
+                                id,
+                                unit.path.display()
+                            ),
+                            Some(unit.path.clone()),
+                        ));
+                    }
                 }
             }
         }
@@ -190,12 +202,25 @@ fn build_operator_precedence_export_maps(
                 continue;
             }
             let dep = &targets[0];
-            visit(dep, graph, headers, out, marks);
+            visit(dep, graph, headers, out, marks, errors);
             let Some(dep_map) = out.get(dep) else {
                 continue;
             };
             for (name, precedence) in dep_map {
-                map.entry(name.clone()).or_insert(*precedence);
+                if map.insert(name.clone(), *precedence).is_some()
+                    && let Some(unit) = graph.modules.get(id)
+                {
+                    errors.push(ResolveError::new(
+                        ResolveErrorKind::ImportConflict,
+                        format!(
+                            "Duplicate exported operator precedence `{}` in module `{}` ({})",
+                            name,
+                            id,
+                            unit.path.display()
+                        ),
+                        Some(unit.path.clone()),
+                    ));
+                }
             }
         }
 
@@ -205,12 +230,17 @@ fn build_operator_precedence_export_maps(
 
     let mut out = HashMap::new();
     let mut marks = HashMap::new();
+    let mut errors = Vec::new();
     let mut ids = graph.modules.keys().cloned().collect::<Vec<_>>();
     ids.sort();
     for id in ids {
-        visit(&id, graph, headers, &mut out, &mut marks);
+        visit(&id, graph, headers, &mut out, &mut marks, &mut errors);
     }
-    out
+    if errors.is_empty() {
+        Ok(out)
+    } else {
+        Err(errors)
+    }
 }
 
 pub fn resolve_project(entry: &Path) -> Result<ModuleGraph, Vec<ResolveError>> {
@@ -341,10 +371,20 @@ pub fn resolve_project(entry: &Path) -> Result<ModuleGraph, Vec<ResolveError>> {
     }
 
     if errors.is_empty() {
-        let exported_operator_precedences = build_operator_precedence_export_maps(&graph, &headers);
+        let exported_operator_precedences =
+            match build_operator_precedence_export_maps(&graph, &headers) {
+                Ok(precedences) => precedences,
+                Err(mut e) => {
+                    errors.append(&mut e);
+                    HashMap::new()
+                }
+            };
 
         let module_ids = graph.modules.keys().cloned().collect::<Vec<_>>();
         for id in module_ids {
+            if !errors.is_empty() {
+                break;
+            }
             let Some(unit) = graph.modules.get(&id).cloned() else {
                 continue;
             };
@@ -362,18 +402,59 @@ pub fn resolve_project(entry: &Path) -> Result<ModuleGraph, Vec<ResolveError>> {
                 };
                 if from_import.wildcard {
                     for (name, precedence) in exports {
-                        external_precedences.insert(name.clone(), *precedence);
+                        if external_precedences
+                            .insert(name.clone(), *precedence)
+                            .is_some()
+                        {
+                            errors.push(ResolveError::new(
+                                ResolveErrorKind::ImportConflict,
+                                format!(
+                                    "Duplicate imported operator precedence `{}` in module `{}` ({})",
+                                    name,
+                                    id,
+                                    unit.path.display()
+                                ),
+                                Some(unit.path.clone()),
+                            ));
+                        }
                     }
                 } else {
                     for item in &from_import.items {
+                        let local = item.alias.clone().unwrap_or_else(|| item.name.clone());
                         if let Some(precedence) = exports.get(&item.name) {
-                            external_precedences.insert(
-                                item.alias.clone().unwrap_or_else(|| item.name.clone()),
-                                *precedence,
-                            );
+                            if external_precedences
+                                .insert(local.clone(), *precedence)
+                                .is_some()
+                            {
+                                errors.push(ResolveError::new(
+                                    ResolveErrorKind::ImportConflict,
+                                    format!(
+                                        "Duplicate imported operator precedence `{}` in module `{}` ({})",
+                                        local,
+                                        id,
+                                        unit.path.display()
+                                    ),
+                                    Some(unit.path.clone()),
+                                ));
+                            }
+                        } else if header.operator_uses.contains(&local) {
+                            errors.push(ResolveError::new(
+                                ResolveErrorKind::NotExported,
+                                format!(
+                                    "Cannot import operator `{}` from `{}` in module `{}` ({}): operator is not exported",
+                                    item.name,
+                                    from_import.path.join("."),
+                                    id,
+                                    unit.path.display()
+                                ),
+                                Some(unit.path.clone()),
+                            ));
                         }
                     }
                 }
+            }
+            if !errors.is_empty() {
+                break;
             }
             let (program, parse_diags) =
                 Parser::parse_source_with_operator_precedences(&unit.source, external_precedences);

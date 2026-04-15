@@ -28,6 +28,7 @@ pub struct HeaderFromImport {
 pub struct SourceHeaderInfo {
     pub dependency_paths: Vec<Vec<String>>,
     pub from_imports: Vec<HeaderFromImport>,
+    pub operator_uses: HashSet<String>,
     pub local_operator_precedences: HashMap<String, i64>,
     pub local_exported_operator_precedences: HashMap<String, i64>,
     pub reexported_operator_paths: Vec<HeaderFromImport>,
@@ -128,6 +129,16 @@ impl Parser {
                             TokenKind::LBrace | TokenKind::Semi | TokenKind::Eof => break,
                             _ => scan += 1,
                         }
+                    }
+                    idx += 1;
+                }
+                TokenKind::Backtick => {
+                    if let (Some(operator), Some(closing)) =
+                        (tokens.get(idx + 1), tokens.get(idx + 2))
+                        && operator.kind == TokenKind::Ident
+                        && closing.kind == TokenKind::Backtick
+                    {
+                        out.operator_uses.insert(operator.lexeme.clone());
                     }
                     idx += 1;
                 }
