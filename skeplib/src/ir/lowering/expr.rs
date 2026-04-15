@@ -284,7 +284,11 @@ impl IrLowerer {
                 };
                 let left = self.compile_expr(func, lowering, left)?;
                 let right = self.compile_expr(func, lowering, right)?;
-                let qualified = self.qualify_name(operator);
+                let qualified = self
+                    .direct_import_calls
+                    .get(operator)
+                    .cloned()
+                    .unwrap_or_else(|| self.qualify_name(operator));
                 let Some(sig) = self.functions.get(&qualified).cloned() else {
                     self.unsupported(format!(
                         "unknown user-defined operator `{operator}` in IR lowering"
