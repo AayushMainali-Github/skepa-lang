@@ -4,6 +4,23 @@ use crate::ir::{BlockId, BranchTerminator, Instr, IrType, Operand, Terminator};
 use super::context::{FunctionLowering, IrLowerer, LoopLowering};
 
 impl IrLowerer {
+    pub(super) fn compile_stmt_list(
+        &mut self,
+        func: &mut crate::ir::IrFunction,
+        lowering: &mut FunctionLowering,
+        body: &[Stmt],
+    ) -> bool {
+        for stmt in body {
+            if self.is_block_terminated(func, lowering.current_block) {
+                break;
+            }
+            if !self.compile_stmt(func, lowering, stmt) {
+                return false;
+            }
+        }
+        true
+    }
+
     pub(super) fn compile_stmt(
         &mut self,
         func: &mut crate::ir::IrFunction,
@@ -201,18 +218,14 @@ impl IrLowerer {
         );
 
         lowering.current_block = then_block;
-        for stmt in then_body {
-            if !self.compile_stmt(func, lowering, stmt) {
-                return false;
-            }
+        if !self.compile_stmt_list(func, lowering, then_body) {
+            return false;
         }
         self.ensure_fallthrough_jump(func, lowering.current_block, join_block);
 
         lowering.current_block = else_block;
-        for stmt in else_body {
-            if !self.compile_stmt(func, lowering, stmt) {
-                return false;
-            }
+        if !self.compile_stmt_list(func, lowering, else_body) {
+            return false;
         }
         self.ensure_fallthrough_jump(func, lowering.current_block, join_block);
 
@@ -254,11 +267,9 @@ impl IrLowerer {
             break_block: exit_block,
         });
         lowering.current_block = body_block;
-        for stmt in body {
-            if !self.compile_stmt(func, lowering, stmt) {
-                lowering.loops.pop();
-                return false;
-            }
+        if !self.compile_stmt_list(func, lowering, body) {
+            lowering.loops.pop();
+            return false;
         }
         lowering.loops.pop();
         self.ensure_fallthrough_jump(func, lowering.current_block, cond_block);
@@ -313,11 +324,9 @@ impl IrLowerer {
             break_block: exit_block,
         });
         lowering.current_block = body_block;
-        for stmt in body {
-            if !self.compile_stmt(func, lowering, stmt) {
-                lowering.loops.pop();
-                return false;
-            }
+        if !self.compile_stmt_list(func, lowering, body) {
+            lowering.loops.pop();
+            return false;
         }
         self.ensure_fallthrough_jump(func, lowering.current_block, step_block);
 
@@ -438,10 +447,8 @@ impl IrLowerer {
             if !self.bind_match_pattern(func, lowering, match_local, &target_ty, &arm.pattern) {
                 return false;
             }
-            for stmt in &arm.body {
-                if !self.compile_stmt(func, lowering, stmt) {
-                    return false;
-                }
+            if !self.compile_stmt_list(func, lowering, &arm.body) {
+                return false;
             }
             self.ensure_fallthrough_jump(func, lowering.current_block, join_block);
             lowering.locals = saved_locals;
@@ -627,6 +634,16 @@ impl IrLowerer {
             self.builder
                 .set_terminator(func, from, Terminator::Jump(to));
         }
+    }
+
+    pub(super) fn is_block_terminated(&self, func: &crate::ir::IrFunction, block: BlockId) -> bool {
+        !matches!(
+            func.blocks
+                .iter()
+                .find(|candidate| candidate.id == block)
+                .map(|candidate| &candidate.terminator),
+            Some(Terminator::Unreachable)
+        )
     }
 
     fn try_compile_typed_empty_array_let(

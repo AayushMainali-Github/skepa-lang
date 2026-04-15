@@ -487,10 +487,8 @@ impl IrLowerer {
             lowering.locals.insert(param.name.clone(), local);
         }
 
-        for stmt in &func.body {
-            if !self.compile_stmt(&mut out, &mut lowering, stmt) {
-                return None;
-            }
+        if !self.compile_stmt_list(&mut out, &mut lowering, &func.body) {
+            return None;
         }
 
         if matches!(
@@ -554,10 +552,8 @@ impl IrLowerer {
             lowering.locals.insert(param.name.clone(), local);
         }
 
-        for stmt in &operator.body {
-            if !self.compile_stmt(&mut out, &mut lowering, stmt) {
-                return None;
-            }
+        if !self.compile_stmt_list(&mut out, &mut lowering, &operator.body) {
+            return None;
         }
 
         if matches!(
@@ -617,10 +613,8 @@ impl IrLowerer {
             lowering.locals.insert(param.name.clone(), local);
         }
 
-        for stmt in &method.body {
-            if !self.compile_stmt(&mut out, &mut lowering, stmt) {
-                return None;
-            }
+        if !self.compile_stmt_list(&mut out, &mut lowering, &method.body) {
+            return None;
         }
 
         if matches!(

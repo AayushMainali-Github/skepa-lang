@@ -215,10 +215,8 @@ impl IrLowerer {
                 .push_local(&mut lifted, param.name.clone(), ir_ty);
             lowering.locals.insert(param.name.clone(), local);
         }
-        for stmt in body {
-            if !self.compile_stmt(&mut lifted, &mut lowering, stmt) {
-                return None;
-            }
+        if !self.compile_stmt_list(&mut lifted, &mut lowering, body) {
+            return None;
         }
         if matches!(
             lifted
