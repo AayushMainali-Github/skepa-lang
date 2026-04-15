@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::path::Path;
 
 use crate::ir::{Instr, IrProgram, IrType, IrVerifier, Operand, Terminator, opt};
@@ -49,7 +50,7 @@ pub fn compile_project_graph_unoptimized(
 
     let mut lowerer = IrLowerer::new_project();
     let mut out = lowerer.builder.begin_program();
-    let mut init_function_ids = Vec::new();
+    let mut init_functions_by_module = std::collections::HashMap::new();
     let mut modules = Vec::new();
     let mut ids = graph.modules.keys().cloned().collect::<Vec<_>>();
     ids.sort();
@@ -69,12 +70,12 @@ pub fn compile_project_graph_unoptimized(
         lowerer.lower_program_bodies(program, &mut out);
         if let Some(sig) = lowerer.functions.get(&init_name).cloned()
             && out.functions.iter().any(|func| func.id == sig.id)
-            && !init_function_ids.contains(&sig.id)
         {
-            init_function_ids.push(sig.id);
+            init_functions_by_module.insert(id.clone(), sig.id);
         }
     }
 
+    let init_function_ids = module_init_order(graph, &init_functions_by_module);
     if !init_function_ids.is_empty() {
         let wrapper_id = crate::ir::FunctionId(lowerer.functions.len());
         lowerer.functions.insert(
@@ -157,4 +158,60 @@ pub fn compile_project_graph_unoptimized(
 
     IrVerifier::verify_program(&out).map_err(|err| format!("IR verification failed: {err:?}"))?;
     Ok(out)
+}
+
+fn module_init_order(
+    graph: &ModuleGraph,
+    init_functions_by_module: &std::collections::HashMap<String, crate::ir::FunctionId>,
+) -> Vec<crate::ir::FunctionId> {
+    fn visit(
+        id: &str,
+        graph: &ModuleGraph,
+        init_functions_by_module: &std::collections::HashMap<String, crate::ir::FunctionId>,
+        visiting: &mut HashSet<String>,
+        visited: &mut HashSet<String>,
+        out: &mut Vec<crate::ir::FunctionId>,
+    ) {
+        if visited.contains(id) || !visiting.insert(id.to_string()) {
+            return;
+        }
+        if let Some(unit) = graph.modules.get(id) {
+            let mut deps = unit.imports.clone();
+            deps.sort();
+            for dep in deps {
+                visit(
+                    &dep,
+                    graph,
+                    init_functions_by_module,
+                    visiting,
+                    visited,
+                    out,
+                );
+            }
+        }
+        visiting.remove(id);
+        visited.insert(id.to_string());
+        if let Some(function) = init_functions_by_module.get(id)
+            && !out.contains(function)
+        {
+            out.push(*function);
+        }
+    }
+
+    let mut out = Vec::new();
+    let mut visiting = HashSet::new();
+    let mut visited = HashSet::new();
+    let mut ids = graph.modules.keys().cloned().collect::<Vec<_>>();
+    ids.sort();
+    for id in ids {
+        visit(
+            &id,
+            graph,
+            init_functions_by_module,
+            &mut visiting,
+            &mut visited,
+            &mut out,
+        );
+    }
+    out
 }
