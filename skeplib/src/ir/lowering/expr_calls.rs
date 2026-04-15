@@ -142,12 +142,7 @@ impl IrLowerer {
 
         if let Some(target_name) = self.direct_callee_target(callee) {
             if let Some(extern_sig) = self.extern_functions.get(&target_name).cloned() {
-                return self.compile_extern_call(
-                    func,
-                    lowering.current_block,
-                    &extern_sig,
-                    lowered_args,
-                );
+                return self.compile_extern_call(func, lowering, &extern_sig, lowered_args);
             }
             if let Some(sig) = self.functions.get(&target_name).cloned() {
                 let dst = if sig.ret.is_void() {
@@ -280,10 +275,11 @@ impl IrLowerer {
     fn compile_extern_call(
         &mut self,
         func: &mut crate::ir::IrFunction,
-        block: BlockId,
+        lowering: &mut FunctionLowering,
         sig: &ExternFunctionSig,
         args: Vec<Operand>,
     ) -> Option<Operand> {
+        let block = lowering.current_block;
         let Some(library) = sig.library.as_ref() else {
             self.unsupported(format!(
                 "extern function `{}` requires a linked library path in IR lowering",
@@ -351,9 +347,70 @@ impl IrLowerer {
 
         let sym_ty = IrType::Opaque("ffi.Symbol".to_string());
         let sym_dst = self.builder.push_temp(func, sym_ty.clone());
+        let sym_err_dst = self.builder.push_temp(func, sym_ty.clone());
+        let bind_failed = self.builder.push_temp(func, IrType::Bool);
         self.builder.push_instr(
             func,
             block,
+            Instr::CallBuiltin {
+                dst: Some(bind_failed),
+                ret_ty: IrType::Bool,
+                builtin: crate::ir::BuiltinCall {
+                    package: "result".to_string(),
+                    name: "isErr".to_string(),
+                },
+                args: vec![Operand::Temp(sym_result_dst)],
+            },
+        );
+        let bind_err_block = self.builder.push_block(func, "extern_bind_err");
+        let bind_ok_block = self.builder.push_block(func, "extern_bind_ok");
+        self.builder.set_terminator(
+            func,
+            block,
+            crate::ir::Terminator::Branch(crate::ir::BranchTerminator {
+                cond: Operand::Temp(bind_failed),
+                then_block: bind_err_block,
+                else_block: bind_ok_block,
+            }),
+        );
+
+        self.builder.push_instr(
+            func,
+            bind_err_block,
+            Instr::CallBuiltin {
+                dst: None,
+                ret_ty: IrType::Void,
+                builtin: crate::ir::BuiltinCall {
+                    package: "ffi".to_string(),
+                    name: "closeLibrary".to_string(),
+                },
+                args: vec![Operand::Temp(lib_dst)],
+            },
+        );
+        self.builder.push_instr(
+            func,
+            bind_err_block,
+            Instr::CallBuiltin {
+                dst: Some(sym_err_dst),
+                ret_ty: sym_ty.clone(),
+                builtin: crate::ir::BuiltinCall {
+                    package: "result".to_string(),
+                    name: "unwrapOk".to_string(),
+                },
+                args: vec![Operand::Temp(sym_result_dst)],
+            },
+        );
+        self.builder.set_terminator(
+            func,
+            bind_err_block,
+            crate::ir::Terminator::Jump(bind_err_block),
+        );
+
+        lowering.current_block = bind_ok_block;
+
+        self.builder.push_instr(
+            func,
+            bind_ok_block,
             Instr::CallBuiltin {
                 dst: Some(sym_dst),
                 ret_ty: sym_ty.clone(),
@@ -383,7 +440,7 @@ impl IrLowerer {
         };
         self.builder.push_instr(
             func,
-            block,
+            bind_ok_block,
             Instr::CallBuiltin {
                 dst: call_dst,
                 ret_ty: sig.ret.clone(),
@@ -397,7 +454,7 @@ impl IrLowerer {
 
         self.builder.push_instr(
             func,
-            block,
+            bind_ok_block,
             Instr::CallBuiltin {
                 dst: None,
                 ret_ty: IrType::Void,
@@ -410,7 +467,7 @@ impl IrLowerer {
         );
         self.builder.push_instr(
             func,
-            block,
+            bind_ok_block,
             Instr::CallBuiltin {
                 dst: None,
                 ret_ty: IrType::Void,
