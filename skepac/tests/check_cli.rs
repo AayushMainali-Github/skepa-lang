@@ -1674,6 +1674,43 @@ fn main() -> Int {{
 }
 
 #[test]
+fn run_reports_missing_extern_symbol_as_runtime_failure() {
+    let tmp = make_temp_dir("skepac_run_extern_missing_symbol");
+    let source = tmp.join("main.sk");
+    fs::write(
+        &source,
+        format!(
+            r#"
+extern("{library}") fn definitely_missing_symbol_for_audit_hardening(s: String) -> Int;
+
+fn main() -> Int {{
+  return definitely_missing_symbol_for_audit_hardening("hello");
+}}
+"#,
+            library = ffi_test_library_path(),
+        ),
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("run")
+        .arg(&source)
+        .output()
+        .expect("run skepac run");
+
+    assert_cli_failure_class(&output, CliFailureClass::Runtime);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("cannot unwrap Ok from Err")
+            || stderr.contains("symbol")
+            || stderr.contains("undefined")
+            || stderr.contains("not found")
+            || stderr.contains("unable to find"),
+        "stderr was: {stderr}"
+    );
+}
+
+#[test]
 fn check_accepts_match_statement_program() {
     let tmp = make_temp_dir("skepac_check_match");
     let file = tmp.join("match_ok.sk");

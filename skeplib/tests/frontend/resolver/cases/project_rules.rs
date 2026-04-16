@@ -26,6 +26,35 @@ export { shown };
 }
 
 #[test]
+fn resolve_project_reports_missing_imported_operator_before_parse_error() {
+    let root = make_temp_dir("missing_imported_operator_ordering");
+    fs::write(
+        root.join("a.sk"),
+        r#"
+fn shown() -> Int { return 1; }
+export { shown };
+"#,
+    )
+    .expect("write a");
+    fs::write(
+        root.join("main.sk"),
+        r#"
+from a import xoxo;
+fn main() -> Int { return 1 `xoxo` 2; }
+"#,
+    )
+    .expect("write main");
+
+    let errs = resolve_project(&root.join("main.sk")).expect_err("missing operator export expected");
+    assert!(errs.iter().any(|e| {
+        e.code == "E-IMPORT-NOT-EXPORTED"
+            && e.message.contains("Cannot import operator `xoxo`")
+    }));
+    assert!(!errs.iter().any(|e| e.kind == ResolveErrorKind::Parse));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn resolve_project_reports_duplicate_imported_bindings_in_scope() {
     let root = make_temp_dir("dup_import_bindings");
     let main_src = r#"

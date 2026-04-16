@@ -574,6 +574,64 @@ fn main() -> Int { return 0; }
 }
 
 #[test]
+fn sema_project_rejects_imported_function_wrong_arity() {
+    let root = make_temp_dir("imported_function_wrong_arity");
+    fs::create_dir_all(root.join("utils")).expect("create utils folder");
+    fs::write(
+        root.join("utils").join("math.sk"),
+        r#"
+fn add(a: Int, b: Int) -> Int { return a + b; }
+export { add };
+"#,
+    )
+    .expect("write module");
+    fs::write(
+        root.join("main.sk"),
+        r#"
+from utils.math import add;
+fn main() -> Int {
+  return add(1);
+}
+"#,
+    )
+    .expect("write main");
+
+    let (res, diags) = analyze_project_entry(&root.join("main.sk")).expect("resolver/sema");
+    assert!(res.has_errors);
+    common::assert_has_diag(&diags, "Arity mismatch for `add`: expected 2, got 1");
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn sema_project_rejects_imported_function_argument_type_mismatch() {
+    let root = make_temp_dir("imported_function_arg_type");
+    fs::create_dir_all(root.join("utils")).expect("create utils folder");
+    fs::write(
+        root.join("utils").join("math.sk"),
+        r#"
+fn add(a: Int, b: Int) -> Int { return a + b; }
+export { add };
+"#,
+    )
+    .expect("write module");
+    fs::write(
+        root.join("main.sk"),
+        r#"
+from utils.math import add;
+fn main() -> Int {
+  return add("x", 1);
+}
+"#,
+    )
+    .expect("write main");
+
+    let (res, diags) = analyze_project_entry(&root.join("main.sk")).expect("resolver/sema");
+    assert!(res.has_errors);
+    common::assert_has_diag(&diags, "Argument 1 for `add`: expected Int, got String");
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn sema_project_accepts_large_multi_module_flow_with_globals_structs_methods_and_builtins() {
     let root = make_temp_dir("large_multi_module_happy_path");
     fs::create_dir_all(root.join("models")).expect("create models");

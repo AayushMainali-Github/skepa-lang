@@ -191,6 +191,36 @@ fn main() -> Int { return 4 `xoxo` 2; }
 }
 
 #[test]
+fn imported_global_dependencies_initialize_in_native_dependency_order() {
+    let project = common::TempProject::new("native_global_init_dependency_order");
+    project.file(
+        "b.sk",
+        r#"
+let seed: Int = 40;
+export { seed };
+"#,
+    );
+    project.file(
+        "a.sk",
+        r#"
+from b import seed;
+let answer: Int = seed + 2;
+export { answer };
+"#,
+    );
+    let entry = project.file(
+        "main.sk",
+        r#"
+from a import answer;
+fn main() -> Int { return answer; }
+"#,
+    );
+
+    let output = common::native_run_project_ok(&entry);
+    assert_eq!(output.status.code(), Some(42));
+}
+
+#[test]
 fn project_compile_failure_is_reported_as_parse_error_for_native_path() {
     let project = common::TempProject::new("codegen_error_kind");
     let entry = project.file(
