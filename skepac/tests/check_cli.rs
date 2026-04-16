@@ -1880,6 +1880,39 @@ fn main() -> Int { return 0; }
 }
 
 #[test]
+fn multi_file_project_sema_error_reports_project_module_diagnostic() {
+    let tmp = make_temp_dir("skepac_multi_sema_err");
+    let lib = tmp.join("lib.sk");
+    let main = tmp.join("main.sk");
+    fs::write(
+        &lib,
+        r#"
+fn add(a: Int, b: Int) -> Int { return a + b; }
+export { add };
+"#,
+    )
+    .expect("write lib");
+    fs::write(
+        &main,
+        r#"
+from lib import add;
+fn main() -> Int { return add("x", 1); }
+"#,
+    )
+    .expect("write main");
+
+    let output = Command::new(skepac_bin())
+        .arg("check")
+        .arg(&main)
+        .output()
+        .expect("run check");
+    assert_cli_failure_class(&output, CliFailureClass::Sema);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("[E-SEMA][sema]"));
+    assert!(stderr.contains("Argument 1 for `add`: expected Int, got String"));
+}
+
+#[test]
 fn build_resolver_error_uses_resolver_code_not_io_code() {
     let tmp = make_temp_dir("skepac_build_resolve_err");
     let main = tmp.join("main.sk");

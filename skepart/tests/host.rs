@@ -867,6 +867,33 @@ fn noop_host_closing_any_handle_alias_closes_the_underlying_resource() {
 }
 
 #[test]
+fn noop_host_rejects_double_close_for_ffi_symbol_and_library_handles() {
+    let mut host = NoopHost::default();
+    let library = host
+        .ffi_open_library(ffi_test_library_path())
+        .expect("open shared library");
+    let symbol = host
+        .ffi_bind_symbol(library, ffi_test_symbol_name())
+        .expect("bind shared symbol");
+
+    host.net_close_handle(symbol).expect("close symbol");
+    assert_eq!(
+        host.net_close_handle(symbol)
+            .expect_err("double close symbol should fail")
+            .kind,
+        skepart::RtErrorKind::InvalidArgument
+    );
+
+    host.net_close_handle(library).expect("close library");
+    assert_eq!(
+        host.net_close_handle(library)
+            .expect_err("double close library should fail")
+            .kind,
+        skepart::RtErrorKind::InvalidArgument
+    );
+}
+
+#[test]
 fn noop_host_joins_running_tasks_once() {
     let mut host = NoopHost::default();
     let task = host
