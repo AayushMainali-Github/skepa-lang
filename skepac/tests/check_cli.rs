@@ -1947,6 +1947,93 @@ fn main() -> Int { return 1 `xoxo` 2; }
 }
 
 #[test]
+fn multi_file_project_namespace_wildcard_import_conflict_reports_resolver_diagnostic() {
+    let tmp = make_temp_dir("skepac_multi_namespace_wildcard_conflict");
+    let a = tmp.join("a.sk");
+    let b = tmp.join("b.sk");
+    let main = tmp.join("main.sk");
+    fs::write(
+        &a,
+        r#"
+fn local() -> Int { return 1; }
+export { local };
+"#,
+    )
+    .expect("write a");
+    fs::write(
+        &b,
+        r#"
+fn a() -> Int { return 2; }
+export { a };
+"#,
+    )
+    .expect("write b");
+    fs::write(
+        &main,
+        r#"
+import a;
+from b import *;
+fn main() -> Int { return 0; }
+"#,
+    )
+    .expect("write main");
+
+    let output = Command::new(skepac_bin())
+        .arg("check")
+        .arg(&main)
+        .output()
+        .expect("run check");
+    assert_eq!(output.status.code(), Some(15));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("[E-IMPORT-CONFLICT][resolve]"));
+    assert!(stderr.contains("Duplicate imported binding `a`"));
+}
+
+#[test]
+fn multi_file_project_duplicate_imported_operator_precedence_reports_resolver_diagnostic() {
+    let tmp = make_temp_dir("skepac_multi_operator_precedence_conflict");
+    let a = tmp.join("a.sk");
+    let b = tmp.join("b.sk");
+    let main = tmp.join("main.sk");
+    fs::write(
+        &a,
+        r#"
+opr xoxo(lhs: Int, rhs: Int) -> Int precedence 3 { return lhs + rhs; }
+export { xoxo };
+"#,
+    )
+    .expect("write a");
+    fs::write(
+        &b,
+        r#"
+opr xoxo(lhs: Int, rhs: Int) -> Int precedence 9 { return lhs + rhs; }
+export { xoxo };
+"#,
+    )
+    .expect("write b");
+    fs::write(
+        &main,
+        r#"
+from a import xoxo;
+from b import xoxo;
+fn main() -> Int { return 1 `xoxo` 2; }
+"#,
+    )
+    .expect("write main");
+
+    let output = Command::new(skepac_bin())
+        .arg("check")
+        .arg(&main)
+        .output()
+        .expect("run check");
+    assert_eq!(output.status.code(), Some(15));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("[E-IMPORT-CONFLICT][resolve]"));
+    assert!(stderr.contains("Duplicate imported operator precedence `xoxo`"));
+    assert!(!stderr.contains("Unknown operator"));
+}
+
+#[test]
 fn build_resolver_error_uses_resolver_code_not_io_code() {
     let tmp = make_temp_dir("skepac_build_resolve_err");
     let main = tmp.join("main.sk");

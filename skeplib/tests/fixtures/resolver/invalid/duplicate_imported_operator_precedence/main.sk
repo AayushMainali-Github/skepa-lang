@@ -1,0 +1,3 @@
+from a import xoxo;
+from b import xoxo;
+fn main() -> Int { return 1 `xoxo` 2; }
