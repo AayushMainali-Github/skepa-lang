@@ -1,0 +1,8 @@
+from ops import xoxo;
+from seed import seed;
+
+let answer: Int = seed `xoxo` 2;
+
+fn main() -> Int {
+  return answer;
+}
