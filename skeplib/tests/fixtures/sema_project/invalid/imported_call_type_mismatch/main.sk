@@ -1,0 +1,2 @@
+from lib import add;
+fn main() -> Int { return add("x", 1); }

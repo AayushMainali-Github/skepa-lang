@@ -1,0 +1,4 @@
+from dep import seed;
+let answer = seed + 1;
+export { answer };
+fn main() -> Int { return 0; }
