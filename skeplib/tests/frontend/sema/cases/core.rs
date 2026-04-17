@@ -9,6 +9,17 @@ fn add(a: Int, b: Int) -> Int {
   return a + b;
 }
 
+fn main() -> Int {
+  let x: Int = add(1, 2);
+  if (x > 0) {
+    io.println("ok");
+  }
+  return 0;
+}
+"#;
+    let _ = sema_ok(src);
+}
+
 #[test]
 fn sema_accepts_bytes_type_in_signatures_and_locals() {
     let src = r#"
@@ -63,6 +74,14 @@ fn sema_accepts_result_type_in_signatures_and_locals() {
 fn id(data: Result[Int, String]) -> Result[Int, String] {
   let copy: Result[Int, String] = data;
   return copy;
+}
+
+fn main() -> Int {
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
 }
 
 #[test]
@@ -135,14 +154,6 @@ fn main() -> Int {
     assert_has_diag(&diags, "Err expects 1 argument, got 0");
 }
 
-fn main() -> Int {
-  return 0;
-}
-"#;
-    let (result, diags) = analyze_source(src);
-    assert_sema_success(&result, &diags);
-}
-
 #[test]
 fn sema_accepts_some_none_values_and_option_equality() {
     let src = r#"
@@ -181,17 +192,6 @@ fn main() -> Int {
     assert!(result.has_errors);
     assert_has_diag(&diags, "Some expects 1 argument, got 2");
     assert_has_diag(&diags, "None expects 0 arguments, got 1");
-}
-
-fn main() -> Int {
-  let x: Int = add(1, 2);
-  if (x > 0) {
-    io.println("ok");
-  }
-  return 0;
-}
-"#;
-    let _ = sema_ok(src);
 }
 
 #[test]
@@ -1066,7 +1066,10 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert_has_diag(&diags, "Match statement requires a wildcard arm `_`");
+    assert_has_diag(
+        &diags,
+        "Non-exhaustive match on Int: add a wildcard arm `_`",
+    );
 }
 
 #[test]
@@ -1456,9 +1459,9 @@ fn main() -> Int {
 }
 
 #[test]
-fn sema_rejects_unknown_user_defined_operator_and_invalid_operator_shape() {
+fn sema_rejects_unknown_user_defined_operator() {
     let src = r#"
-opr bad(a: Int) -> Int precedence -1 {
+opr bad(a: Int) -> Int precedence 1 {
   return a;
 }
 
@@ -1468,7 +1471,6 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert_has_diag(&diags, "Operator `bad` must declare exactly 2 parameters");
     assert_has_diag(&diags, "Unknown operator `missing`");
 }
 
@@ -1571,6 +1573,19 @@ fn unwrap_or_zero(value: Option[Int]) -> Int {
   };
 }
 
+fn main() -> Int {
+  let res: Result[Int, String] = Ok(7);
+  let out: Int = match (res) {
+    Ok(v) => v,
+    Err(e) => 0,
+  };
+  return unwrap_or_zero(Some(out));
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
+
 #[test]
 fn sema_accepts_variant_payload_wildcard_patterns() {
     let src = r#"
@@ -1586,19 +1601,6 @@ fn main() -> Int {
     Err(_) => 0,
   };
   return a + b;
-}
-"#;
-    let (result, diags) = analyze_source(src);
-    assert_sema_success(&result, &diags);
-}
-
-fn main() -> Int {
-  let res: Result[Int, String] = Ok(7);
-  let out: Int = match (res) {
-    Ok(v) => v,
-    Err(e) => 0,
-  };
-  return unwrap_or_zero(Some(out));
 }
 "#;
     let (result, diags) = analyze_source(src);

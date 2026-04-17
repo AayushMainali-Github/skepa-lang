@@ -223,19 +223,30 @@ fn main() -> Int {
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
     assert!(diags.as_slice().iter().any(|d| {
-        d.message.contains("Cannot infer map value type for let `inferred`")
+        d.message
+            .contains("Cannot infer map value type for let `inferred`")
     }));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| { d.message.contains("map.insert argument 3 expects Int") })
+    );
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| { d.message.contains("map.get argument 2 expects String") })
+    );
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| { d.message.contains("Type mismatch in let `_y`") })
+    );
     assert!(diags.as_slice().iter().any(|d| {
-        d.message.contains("map.insert argument 3 expects Int")
-    }));
-    assert!(diags.as_slice().iter().any(|d| {
-        d.message.contains("map.get argument 2 expects String")
-    }));
-    assert!(diags.as_slice().iter().any(|d| {
-        d.message.contains("Type mismatch in let `_y`")
-    }));
-    assert!(diags.as_slice().iter().any(|d| {
-        d.message.contains("Map values cannot be compared with `==` or `!=`")
+        d.message
+            .contains("Map values cannot be compared with `==` or `!=`")
     }));
 }
 
@@ -269,12 +280,10 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(
-        diags
-            .as_slice()
-            .iter()
-            .any(|d| d.message.contains("bytes.fromString argument 1 expects String"))
-    );
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("bytes.fromString argument 1 expects String")
+    }));
 }
 
 #[test]
@@ -289,12 +298,10 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(
-        diags
-            .as_slice()
-            .iter()
-            .any(|d| d.message.contains("bytes.toString argument 1 expects Bytes"))
-    );
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("bytes.toString argument 1 expects Bytes")
+    }));
 }
 
 #[test]
@@ -405,22 +412,10 @@ fn main() -> Int {
             .iter()
             .any(|d| d.message.contains("bytes.push argument 2 expects Int"))
     );
-    assert!(
-        diags
-            .as_slice()
-            .iter()
-            .any(|d| d.message.contains("Cannot compare Bytes and Int with `==` or `!=`"))
-    );
-}
-"#;
-    let (result, diags) = analyze_source(src);
-    assert!(result.has_errors);
-    assert!(
-        diags
-            .as_slice()
-            .iter()
-            .any(|d| d.message.contains("Type mismatch in let `x`"))
-    );
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("Cannot compare Bytes and Int with `==` or `!=`")
+    }));
 }
 
 #[test]
@@ -1208,6 +1203,7 @@ fn main() -> Int {
     return 0;
   }
   return 1;
+}
 "#;
     let (result, diags) = analyze_source(src);
     assert_sema_success(&result, &diags);
@@ -1237,12 +1233,10 @@ fn main(x: net.Server) -> Void {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(
-        diags
-            .as_slice()
-            .iter()
-            .any(|d| d.message.contains("Unknown type in function `main` parameter `x`: `net.Server`"))
-    );
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("Unknown type in function `main` parameter `x`: `net.Server`")
+    }));
 }
 
 #[test]
@@ -1296,7 +1290,7 @@ fn main() -> Void {
 }
 
 #[test]
-fn sema_rejects_net_resolve_wrong_arg_type() {
+fn sema_rejects_net_resolve_wrong_arg_type_in_result_binding() {
     let src = r#"
 import net;
 
@@ -1304,6 +1298,16 @@ fn main() -> Void {
   let ip: Result[String, String] = net.resolve(1);
   let _ = ip;
   return;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("net.resolve argument 1 expects String"))
+    );
 }
 
 #[test]
@@ -1319,10 +1323,12 @@ fn main() -> Void {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("net.parseUrl argument 1 expects String")));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("net.parseUrl argument 1 expects String"))
+    );
 }
 
 #[test]
@@ -1338,14 +1344,18 @@ fn main() -> Void {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("net.fetch argument 1 expects String")));
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("net.fetch argument 2 expects Map")));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("net.fetch argument 1 expects String"))
+    );
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("net.fetch argument 2 expects Map"))
+    );
 }
 
 #[test]
@@ -1404,12 +1414,9 @@ fn main() -> Int {
         "ffi.call2StringIntInt",
     ] {
         assert!(
-            diags
-                .as_slice()
-                .iter()
-                .any(|d| d.message.contains(&format!(
-                    "`{name}` is a low-level internal helper"
-                ))),
+            diags.as_slice().iter().any(|d| d
+                .message
+                .contains(&format!("`{name}` is a low-level internal helper"))),
             "missing diagnostic for {name}: {diags:?}"
         );
     }
@@ -1430,28 +1437,33 @@ fn main() -> Void {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("ffi.open argument 1 expects String")));
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("ffi.bind argument 1 expects Opaque(\"ffi.Library\")")));
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("ffi.bind argument 2 expects String")));
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("ffi.closeLibrary argument 1 expects Opaque(\"ffi.Library\")")));
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("ffi.closeSymbol argument 1 expects Opaque(\"ffi.Symbol\")")));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("ffi.open argument 1 expects String"))
+    );
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("ffi.bind argument 1 expects Opaque(\"ffi.Library\")")
+    }));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("ffi.bind argument 2 expects String"))
+    );
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("ffi.closeLibrary argument 1 expects Opaque(\"ffi.Library\")")
+    }));
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("ffi.closeSymbol argument 1 expects Opaque(\"ffi.Symbol\")")
+    }));
 }
 
+#[test]
 fn sema_rejects_ffi_without_import() {
     let src = r#"
 fn main() -> Void {
@@ -1461,10 +1473,12 @@ fn main() -> Void {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("`ffi.*` used without `import ffi;`")));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("`ffi.*` used without `import ffi;`"))
+    );
 }
 
 #[test]
@@ -1480,10 +1494,12 @@ fn main() -> Void {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("net.resolve argument 1 expects String")));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("net.resolve argument 1 expects String"))
+    );
 }
 
 #[test]
@@ -1532,12 +1548,10 @@ fn main(x: task.Mutex) -> Void {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(
-        diags
-            .as_slice()
-            .iter()
-            .any(|d| d.message.contains("Unknown type in function `main` parameter `x`: `task.Mutex`"))
-    );
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("Unknown type in function `main` parameter `x`: `task.Mutex`")
+    }));
 }
 
 #[test]
@@ -1570,16 +1584,15 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d
-            .message
-            .contains("Cannot infer channel value type for let `inferred`; annotate as `task.Channel[T]`")));
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("task.send argument 2 expects Int")));
+    assert!(diags.as_slice().iter().any(|d| d.message.contains(
+        "Cannot infer channel value type for let `inferred`; annotate as `task.Channel[T]`"
+    )));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("task.send argument 2 expects Int"))
+    );
 }
 
 #[test]
@@ -1640,14 +1653,16 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("task.spawn argument 1 expects Fn() -> T")));
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("task.join argument 1 expects Task")));
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("task.spawn argument 1 expects Fn() -> T")
+    }));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| d.message.contains("task.join argument 1 expects Task"))
+    );
 }
 
 #[test]
@@ -1662,10 +1677,10 @@ fn main() -> Void {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags
-        .as_slice()
-        .iter()
-        .any(|d| d.message.contains("task.close argument 1 expects Task or Channel")));
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("task.close argument 1 expects Task or Channel")
+    }));
 }
 
 #[test]
@@ -1740,9 +1755,12 @@ fn main() -> Void {
         d.message
             .contains("net.readN argument 1 expects Opaque(\"net.Socket\")")
     }));
-    assert!(diags.as_slice().iter().any(|d| {
-        d.message.contains("net.readN argument 2 expects Int")
-    }));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| { d.message.contains("net.readN argument 2 expects Int") })
+    );
 }
 
 #[test]
@@ -1786,7 +1804,8 @@ fn main() -> Void {
             .contains("net.setReadTimeout argument 1 expects Opaque(\"net.Socket\")")
     }));
     assert!(diags.as_slice().iter().any(|d| {
-        d.message.contains("net.setWriteTimeout argument 2 expects Int")
+        d.message
+            .contains("net.setWriteTimeout argument 2 expects Int")
     }));
 }
 
@@ -1826,10 +1845,12 @@ fn main() -> Void {
         d.message
             .contains("net.tlsConnect argument 1 expects String")
     }));
-    assert!(diags.as_slice().iter().any(|d| {
-        d.message
-            .contains("net.tlsConnect argument 2 expects Int")
-    }));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| { d.message.contains("net.tlsConnect argument 2 expects Int") })
+    );
 }
 
 #[test]
@@ -1844,10 +1865,12 @@ fn main() -> Void {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags.as_slice().iter().any(|d| {
-        d.message
-            .contains("net.connect argument 1 expects String")
-    }));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| { d.message.contains("net.connect argument 1 expects String") })
+    );
 }
 
 #[test]
@@ -1908,10 +1931,12 @@ fn main() -> Void {
         d.message
             .contains("net.write argument 1 expects Opaque(\"net.Socket\")")
     }));
-    assert!(diags.as_slice().iter().any(|d| {
-        d.message
-            .contains("net.write argument 2 expects String")
-    }));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| { d.message.contains("net.write argument 2 expects String") })
+    );
 }
 
 #[test]
@@ -2045,12 +2070,10 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(
-        diags
-            .as_slice()
-            .iter()
-            .any(|d| { d.message.contains("os.platform expects 0 argument(s), got 1") })
-    );
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("os.platform expects 0 argument(s), got 1")
+    }));
 }
 
 #[test]
@@ -2105,10 +2128,12 @@ fn main() -> Int {
 "#;
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
-    assert!(diags.as_slice().iter().any(|d| {
-        d.message
-            .contains("os.execOut argument 1 expects String")
-    }));
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|d| { d.message.contains("os.execOut argument 1 expects String") })
+    );
 }
 
 #[test]
@@ -2474,8 +2499,9 @@ fn main() -> Int {
 #[test]
 fn sema_tracks_builtin_return_types_across_families() {
     let src = r#"
-    import bytes;
-    import io;
+import bytes;
+import io;
+import option;
 import str;
 import arr;
 import vec;
@@ -2484,11 +2510,10 @@ import random;
 import fs;
 import os;
 import result;
-import vec;
 
 fn main() -> Int {
-      let raw: Bytes = bytes.fromString("x");
-      let s: String = io.format("%d", 1);
+  let raw: Bytes = bytes.fromString("x");
+  let s: String = io.format("%d", 1);
   let b: Bool = str.isEmpty("");
   let a: [Int; 2] = [1, 2];
   let first: Int = option.unwrapSome(arr.first(a));
@@ -2499,10 +2524,10 @@ fn main() -> Int {
   let args: Vec[String] = vec.new();
   vec.push(args, "status");
   let code: Int = result.unwrapOk(os.exec("git", args));
-      if (bytes.len(raw) == 1 && (b || exists || code >= 0 || r >= 0.0 || str.len(now) >= 0 || first >= 0 || str.len(s) >= 0)) {
-        return vec.len(xs);
-      }
-      return 0;
+  if (bytes.len(raw) == 1 && (b || exists || code >= 0 || r >= 0.0 || str.len(now) >= 0 || first >= 0 || str.len(s) >= 0)) {
+    return vec.len(xs);
+  }
+  return 0;
 }
 "#;
     let (result, diags) = analyze_source(src);
@@ -2626,7 +2651,7 @@ fn sema_rejects_unsupported_extern_function_signatures() {
     let src = r#"
 extern("libc.so.6") fn bad_ret() -> String;
 extern("libc.so.6") fn bad_param(flag: Bool) -> Int;
-extern("libc.so.6") fn too_many(a: Int, b: Int) -> Int;
+extern("libc.so.6") fn too_many(a: Int, b: Int, c: Int) -> Int;
 
 fn main() -> Int {
   return 0;
@@ -2635,13 +2660,16 @@ fn main() -> Int {
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
     assert!(diags.as_slice().iter().any(|d| {
-        d.message.contains("Extern function `bad_ret` uses unsupported signature")
+        d.message
+            .contains("Extern function `bad_ret` uses unsupported signature")
     }));
     assert!(diags.as_slice().iter().any(|d| {
-        d.message.contains("Extern function `bad_param` uses unsupported signature")
+        d.message
+            .contains("Extern function `bad_param` uses unsupported signature")
     }));
     assert!(diags.as_slice().iter().any(|d| {
-        d.message.contains("Extern function `too_many` uses unsupported signature")
+        d.message
+            .contains("Extern function `too_many` uses unsupported signature")
     }));
 }
 
@@ -2686,9 +2714,11 @@ fn main() -> Int {
     let (result, diags) = analyze_source(src);
     assert!(result.has_errors);
     assert!(diags.as_slice().iter().any(|d| {
-        d.message.contains("`option.*` used without `import option;`")
+        d.message
+            .contains("`option.*` used without `import option;`")
     }));
     assert!(diags.as_slice().iter().any(|d| {
-        d.message.contains("`result.*` used without `import result;`")
+        d.message
+            .contains("`result.*` used without `import result;`")
     }));
 }

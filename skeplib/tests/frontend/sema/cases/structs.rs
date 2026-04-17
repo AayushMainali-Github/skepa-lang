@@ -521,12 +521,12 @@ fn main() -> Int {
 fn sema_accepts_nested_structs_inside_arrays_and_vecs() {
     let src = r#"
 import vec;
+import option;
 
 struct Profile { score: Int }
 struct User { profile: Profile }
 
 fn main() -> Int {
-  import option;
   let users: [User; 1] = [User { profile: Profile { score: 7 } }];
   let cache: Vec[User] = vec.new();
   vec.push(cache, users[0]);
