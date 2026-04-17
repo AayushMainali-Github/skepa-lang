@@ -1,0 +1,2 @@
+let seed: Int = 4;
+export { seed };

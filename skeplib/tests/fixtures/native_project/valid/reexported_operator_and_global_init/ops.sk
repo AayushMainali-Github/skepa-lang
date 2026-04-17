@@ -1,0 +1,4 @@
+opr xoxo(lhs: Int, rhs: Int) -> Int precedence 9 {
+  return lhs * 10 + rhs;
+}
+export { xoxo };

@@ -33,3 +33,25 @@ fn main() -> Int {
     assert!(llvm_ir.contains("call i64 @\"ops.math::xoxo\""));
     assert!(!llvm_ir.contains("@\"main::xoxo\""));
 }
+
+#[test]
+fn llvm_codegen_preserves_extern_bind_failure_cleanup_path() {
+    let source = r#"
+extern("test-lib") fn strlen(s: String) -> Int;
+
+fn main() -> Int {
+  return strlen("abc");
+}
+"#;
+
+    let program =
+        ir::lowering::compile_source_unoptimized(source).expect("IR lowering should succeed");
+    let llvm_ir =
+        codegen::compile_program_to_llvm_ir(&program).expect("LLVM lowering should succeed");
+
+    assert!(llvm_ir.contains("extern_bind_err"));
+    assert!(llvm_ir.contains("extern_bind_ok"));
+    assert!(llvm_ir.contains("@skp_rt_call_builtin"));
+    assert!(llvm_ir.contains("closeLibrary"));
+    assert!(llvm_ir.contains("closeSymbol"));
+}
