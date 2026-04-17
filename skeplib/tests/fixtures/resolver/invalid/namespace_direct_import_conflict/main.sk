@@ -1,0 +1,3 @@
+import a;
+from b import a;
+fn main() -> Int { return 0; }

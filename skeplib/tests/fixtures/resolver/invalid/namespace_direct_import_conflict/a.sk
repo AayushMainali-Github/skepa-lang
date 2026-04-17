@@ -1,0 +1,2 @@
+fn local() -> Int { return 1; }
+export { local };

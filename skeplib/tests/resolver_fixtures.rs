@@ -1,0 +1,79 @@
+mod common;
+
+use std::fs;
+
+use skeplib::resolver::{ResolveErrorKind, resolve_project};
+
+fn resolver_fixture_root() -> std::path::PathBuf {
+    common::fixtures_dir("resolver")
+}
+
+#[test]
+fn all_valid_resolver_fixtures_succeed() {
+    let root = resolver_fixture_root().join("valid");
+    let entries = fs::read_dir(&root).expect("valid resolver fixtures dir exists");
+    for entry in entries {
+        let case_dir = entry.expect("dir entry").path();
+        if !case_dir.is_dir() {
+            continue;
+        }
+        let entry_file = case_dir.join("main.sk");
+        let result = resolve_project(&entry_file);
+        assert!(
+            result.is_ok(),
+            "expected resolver success for fixture {}, got {:?}",
+            case_dir.display(),
+            result.err()
+        );
+    }
+}
+
+#[test]
+fn all_invalid_resolver_fixtures_fail_with_expected_kind() {
+    let root = resolver_fixture_root().join("invalid");
+    let entries = fs::read_dir(&root).expect("invalid resolver fixtures dir exists");
+    for entry in entries {
+        let case_dir = entry.expect("dir entry").path();
+        if !case_dir.is_dir() {
+            continue;
+        }
+        let entry_file = case_dir.join("main.sk");
+        let expected_kind_path = case_dir.join("expected_kind.txt");
+        let expected_kind = fs::read_to_string(&expected_kind_path)
+            .expect("expected_kind.txt exists")
+            .trim()
+            .to_string();
+        let expected_phrase = case_dir.join("expected_phrase.txt");
+        let maybe_phrase = fs::read_to_string(&expected_phrase)
+            .ok()
+            .map(|s| s.trim().to_string());
+        let errs = resolve_project(&entry_file).expect_err("expected resolver failure");
+        let matched = errs.iter().any(|e| match expected_kind.as_str() {
+            "MissingModule" => e.kind == ResolveErrorKind::MissingModule,
+            "AmbiguousModule" => e.kind == ResolveErrorKind::AmbiguousModule,
+            "Cycle" => e.kind == ResolveErrorKind::Cycle,
+            "DuplicateModuleId" => e.kind == ResolveErrorKind::DuplicateModuleId,
+            "Io" => e.kind == ResolveErrorKind::Io,
+            "Parse" => e.kind == ResolveErrorKind::Parse,
+            "ImportConflict" => e.kind == ResolveErrorKind::ImportConflict,
+            "NotExported" => e.kind == ResolveErrorKind::NotExported,
+            _ => false,
+        });
+        assert!(
+            matched,
+            "fixture {} expected kind {}, got {:?}",
+            case_dir.display(),
+            expected_kind,
+            errs
+        );
+        if let Some(phrase) = maybe_phrase {
+            assert!(
+                errs.iter().any(|e| e.message.contains(&phrase)),
+                "fixture {} expected phrase `{}` in {:?}",
+                case_dir.display(),
+                phrase,
+                errs
+            );
+        }
+    }
+}

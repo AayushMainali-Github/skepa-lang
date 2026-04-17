@@ -1913,6 +1913,40 @@ fn main() -> Int { return add("x", 1); }
 }
 
 #[test]
+fn multi_file_project_missing_imported_operator_reports_resolver_diagnostic() {
+    let tmp = make_temp_dir("skepac_multi_missing_imported_operator");
+    let lib = tmp.join("a.sk");
+    let main = tmp.join("main.sk");
+    fs::write(
+        &lib,
+        r#"
+fn shown() -> Int { return 1; }
+export { shown };
+"#,
+    )
+    .expect("write lib");
+    fs::write(
+        &main,
+        r#"
+from a import xoxo;
+fn main() -> Int { return 1 `xoxo` 2; }
+"#,
+    )
+    .expect("write main");
+
+    let output = Command::new(skepac_bin())
+        .arg("check")
+        .arg(&main)
+        .output()
+        .expect("run check");
+    assert_eq!(output.status.code(), Some(15));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("[E-IMPORT-NOT-EXPORTED][resolve]"));
+    assert!(stderr.contains("Cannot import operator `xoxo`"));
+    assert!(!stderr.contains("Unknown operator"));
+}
+
+#[test]
 fn build_resolver_error_uses_resolver_code_not_io_code() {
     let tmp = make_temp_dir("skepac_build_resolve_err");
     let main = tmp.join("main.sk");
