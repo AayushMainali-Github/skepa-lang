@@ -436,10 +436,7 @@ fn add(a:) -> Int {
 }
 "#;
     let diags = parse_err(src);
-    assert_has_diag(
-        &diags,
-        "Expected parameter type after `:`",
-    );
+    assert_has_diag(&diags, "Expected parameter type after `:`");
 }
 
 #[test]

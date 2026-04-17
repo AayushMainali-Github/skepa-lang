@@ -243,33 +243,6 @@ fn main() -> Int {
   let c = ~7;
   return 0;
 }
-
-#[test]
-fn parses_user_defined_operator_used_before_declaration_in_same_module() {
-    let src = r#"
-fn main() -> Int {
-  return 1 `xoxo` 2;
-}
-
-opr xoxo(lhs: Int, rhs: Int) -> Int precedence 9 {
-  return lhs + rhs;
-}
-"#;
-    let (program, diags) = Parser::parse_source(src);
-    assert_no_diags(&diags);
-    match &program.functions[0].body[0] {
-        Stmt::Return(Some(Expr::CustomInfix {
-            left,
-            operator,
-            right,
-        })) => {
-            assert_eq!(operator, "xoxo");
-            assert!(matches!(&**left, Expr::IntLit(1)));
-            assert!(matches!(&**right, Expr::IntLit(2)));
-        }
-        other => panic!("expected custom infix return expression, got {other:?}"),
-    }
-}
 "#;
     let (program, diags) = Parser::parse_source(src);
     assert_no_diags(&diags);
@@ -316,6 +289,33 @@ opr xoxo(lhs: Int, rhs: Int) -> Int precedence 9 {
 }
 
 #[test]
+fn parses_user_defined_operator_used_before_declaration_in_same_module() {
+    let src = r#"
+fn main() -> Int {
+  return 1 `xoxo` 2;
+}
+
+opr xoxo(lhs: Int, rhs: Int) -> Int precedence 9 {
+  return lhs + rhs;
+}
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert_no_diags(&diags);
+    match &program.functions[0].body[0] {
+        Stmt::Return(Some(Expr::CustomInfix {
+            left,
+            operator,
+            right,
+        })) => {
+            assert_eq!(operator, "xoxo");
+            assert!(matches!(&**left, Expr::IntLit(1)));
+            assert!(matches!(&**right, Expr::IntLit(2)));
+        }
+        other => panic!("expected custom infix return expression, got {other:?}"),
+    }
+}
+
+#[test]
 fn parses_bitwise_and_shift_precedence() {
     let src = r#"
 fn main() -> Int {
@@ -346,8 +346,7 @@ fn main() -> Int {
                     ..
                 } => match &**right {
                     Expr::Binary {
-                        op: BinaryOp::Shl,
-                        ..
+                        op: BinaryOp::Shl, ..
                     } => {}
                     _ => panic!("expected shift on right of bitand"),
                 },
@@ -456,27 +455,34 @@ fn main() -> Int {
     };
     match b {
         Expr::Binary {
-            left,
             op: BinaryOp::Add,
-            right: _,
-        } => match &**left {
-            Expr::CustomInfix {
-                left,
-                operator,
-                right,
-            } => {
-                assert_eq!(operator, "high");
-                assert!(matches!(&**left, Expr::IntLit(1)));
-                assert!(matches!(
-                    &**right,
-                    Expr::Binary {
-                        op: BinaryOp::Mul,
-                        ..
+            left,
+            right,
+        } => {
+            assert!(matches!(&**left, Expr::IntLit(1)));
+            match &**right {
+                Expr::Binary {
+                    left,
+                    op: BinaryOp::Mul,
+                    right,
+                } => {
+                    assert!(matches!(&**right, Expr::IntLit(4)));
+                    match &**left {
+                        Expr::CustomInfix {
+                            left,
+                            operator,
+                            right,
+                        } => {
+                            assert_eq!(operator, "high");
+                            assert!(matches!(&**left, Expr::IntLit(2)));
+                            assert!(matches!(&**right, Expr::IntLit(3)));
+                        }
+                        other => panic!("expected custom infix on left of multiply, got {other:?}"),
                     }
-                ));
+                }
+                other => panic!("expected multiply on right of add, got {other:?}"),
             }
-            other => panic!("expected custom infix under add, got {other:?}"),
-        },
+        }
         other => panic!("expected add around high-precedence custom infix, got {other:?}"),
     }
 }

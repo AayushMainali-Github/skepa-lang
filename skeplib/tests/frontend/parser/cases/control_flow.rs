@@ -165,6 +165,34 @@ fn main() -> Int {
   };
   return x;
 }
+"#;
+    let program = parse_ok(src);
+    match &program.functions[0].body[0] {
+        Stmt::Let { value, .. } => match value {
+            Expr::Match { arms, .. } => {
+                assert_eq!(arms.len(), 2);
+                assert_eq!(
+                    arms[0].pattern,
+                    MatchPattern::Variant {
+                        name: "Some".to_string(),
+                        binding: Some("v".to_string()),
+                    }
+                );
+                assert_eq!(
+                    arms[1].pattern,
+                    MatchPattern::Variant {
+                        name: "None".to_string(),
+                        binding: None,
+                    }
+                );
+                assert!(matches!(arms[0].expr, Expr::Ident(_)));
+                assert!(matches!(arms[1].expr, Expr::IntLit(0)));
+            }
+            other => panic!("expected match expression, got {other:?}"),
+        },
+        other => panic!("expected let statement, got {other:?}"),
+    }
+}
 
 #[test]
 fn parses_variant_pattern_with_payload_wildcard() {
@@ -224,6 +252,17 @@ fn main() -> Int {
         "Expected identifier or `_` inside variant match pattern",
     );
 }
+
+#[test]
+fn parses_match_expression_with_variant_patterns() {
+    let src = r#"
+fn main() -> Int {
+  let value = match (Some(1)) {
+    Some(v) => v,
+    None => 0,
+  };
+  return 0;
+}
 "#;
     let program = parse_ok(src);
     match &program.functions[0].body[0] {
@@ -237,10 +276,13 @@ fn main() -> Int {
                         binding: Some("v".to_string())
                     }
                 );
-                assert_eq!(arms[1].pattern, MatchPattern::Variant {
-                    name: "None".to_string(),
-                    binding: None
-                });
+                assert_eq!(
+                    arms[1].pattern,
+                    MatchPattern::Variant {
+                        name: "None".to_string(),
+                        binding: None
+                    }
+                );
             }
             _ => panic!("expected match expression"),
         },
