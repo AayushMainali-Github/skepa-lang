@@ -24,7 +24,7 @@ For any non-trivial change:
 
 Prefer extending existing shared test helpers instead of creating new ad hoc temp-project, fake-host, or process-running utilities.
 
-See [TESTING.md](C:/Users/ACER/OneDrive/Desktop/coding/maintained/skepa-lang/TESTING.md) for test placement and helper usage.
+See [TESTING.md](TESTING.md) for test placement and helper usage.
 
 ## Validation
 

@@ -26,10 +26,10 @@ impl NativeabilityAnalysis {
         for block in &func.blocks {
             for instr in &block.instrs {
                 match instr {
-                    Instr::MakeStruct { dst, fields, .. } => {
-                        if fields.iter().all(|field| operand_is_int(func, field)) {
-                            temp_structs.insert(*dst, fields.clone());
-                        }
+                    Instr::MakeStruct { dst, fields, .. }
+                        if fields.iter().all(|field| operand_is_int(func, field)) =>
+                    {
+                        temp_structs.insert(*dst, fields.clone());
                     }
                     Instr::MakeArrayRepeat {
                         dst,

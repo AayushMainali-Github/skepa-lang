@@ -56,10 +56,7 @@ impl Parser {
     fn parse_binary_expr(&mut self, min_precedence: i64) -> Option<Expr> {
         let mut expr = self.parse_unary()?;
 
-        loop {
-            let Some((op, precedence)) = self.peek_infix_operator() else {
-                break;
-            };
+        while let Some((op, precedence)) = self.peek_infix_operator() {
             if precedence < min_precedence {
                 break;
             }
