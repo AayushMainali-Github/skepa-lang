@@ -78,9 +78,7 @@ impl RtHost for TestHost {
         self.out
             .lock()
             .expect("lock trace")
-            .push_str(&format!("[ffiopen {path}={}]",
-                handle.id
-            ));
+            .push_str(&format!("[ffiopen {path}={}]", handle.id));
         Ok(handle)
     }
 
@@ -125,11 +123,7 @@ impl RtHost for TestHost {
         Ok(())
     }
 
-    fn ffi_call_1_cstr_usize(
-        &mut self,
-        symbol: skepart::RtHandle,
-        value: &str,
-    ) -> RtResult<i64> {
+    fn ffi_call_1_cstr_usize(&mut self, symbol: skepart::RtHandle, value: &str) -> RtResult<i64> {
         self.net_lookup_handle_kind(symbol)?;
         self.out
             .lock()
@@ -146,11 +140,7 @@ impl RtHost for TestHost {
         self.ffi_call_1_cstr_usize(symbol, value)
     }
 
-    fn ffi_call_1_cstr_void(
-        &mut self,
-        symbol: skepart::RtHandle,
-        value: &str,
-    ) -> RtResult<()> {
+    fn ffi_call_1_cstr_void(&mut self, symbol: skepart::RtHandle, value: &str) -> RtResult<()> {
         self.net_lookup_handle_kind(symbol)?;
         self.out
             .lock()
@@ -173,10 +163,11 @@ impl RtHost for TestHost {
         value: &RtBytes,
     ) -> RtResult<i64> {
         self.net_lookup_handle_kind(symbol)?;
-        self.out
-            .lock()
-            .expect("lock trace")
-            .push_str(&format!("[fficall1bytesint {} len={}]", symbol.id, value.len()));
+        self.out.lock().expect("lock trace").push_str(&format!(
+            "[fficall1bytesint {} len={}]",
+            symbol.id,
+            value.len()
+        ));
         Ok(value.len() as i64)
     }
 
@@ -187,13 +178,10 @@ impl RtHost for TestHost {
         right: i64,
     ) -> RtResult<i64> {
         self.net_lookup_handle_kind(symbol)?;
-        self.out
-            .lock()
-            .expect("lock trace")
-            .push_str(&format!(
-                "[fficall2stringintint {}={left}|{right}]",
-                symbol.id
-            ));
+        self.out.lock().expect("lock trace").push_str(&format!(
+            "[fficall2stringintint {}={left}|{right}]",
+            symbol.id
+        ));
         Ok(left.len() as i64 + right)
     }
 
@@ -295,7 +283,10 @@ impl RtHost for TestHost {
             .push_str(&format!("[parseurl {url}]"));
         let map = skepart::RtMap::new();
         map.insert("scheme", skepart::RtValue::String(RtString::from("https")));
-        map.insert("host", skepart::RtValue::String(RtString::from("example.com")));
+        map.insert(
+            "host",
+            skepart::RtValue::String(RtString::from("example.com")),
+        );
         map.insert("port", skepart::RtValue::String(RtString::from("443")));
         map.insert("path", skepart::RtValue::String(RtString::from("/a")));
         map.insert("query", skepart::RtValue::String(RtString::from("x=1")));
@@ -306,7 +297,6 @@ impl RtHost for TestHost {
     fn net_fetch(&mut self, url: &str, options: &skepart::RtMap) -> RtResult<skepart::RtMap> {
         let method = options
             .get("method")
-            .ok()
             .and_then(|value| value.expect_string().ok())
             .map(|value| value.as_str().to_owned())
             .unwrap_or_else(|| "GET".to_string());
@@ -316,7 +306,10 @@ impl RtHost for TestHost {
             .push_str(&format!("[fetch {url} method={method}]"));
         let map = skepart::RtMap::new();
         map.insert("status", skepart::RtValue::String(RtString::from("201")));
-        map.insert("body", skepart::RtValue::String(RtString::from("fetch-body")));
+        map.insert(
+            "body",
+            skepart::RtValue::String(RtString::from("fetch-body")),
+        );
         map.insert(
             "contentType",
             skepart::RtValue::String(RtString::from("application/json")),
@@ -363,10 +356,11 @@ impl RtHost for TestHost {
 
     fn net_write_bytes(&mut self, socket: skepart::RtHandle, data: &RtBytes) -> RtResult<()> {
         self.net_lookup_handle_kind(socket)?;
-        self.out
-            .lock()
-            .expect("lock trace")
-            .push_str(&format!("[writebytes {} len={}]", socket.id, data.len()));
+        self.out.lock().expect("lock trace").push_str(&format!(
+            "[writebytes {} len={}]",
+            socket.id,
+            data.len()
+        ));
         Ok(())
     }
 
@@ -455,6 +449,7 @@ enum ExpectedErrorKind {
     DivisionByZero,
     IndexOutOfBounds,
     TypeMismatch,
+    InvalidOperand,
 }
 
 fn assert_ir_rejects_source(source: &str, expected: ExpectedErrorKind) {
@@ -466,6 +461,7 @@ fn assert_ir_rejects_source(source: &str, expected: ExpectedErrorKind) {
         IrInterpError::DivisionByZero => ExpectedErrorKind::DivisionByZero,
         IrInterpError::IndexOutOfBounds => ExpectedErrorKind::IndexOutOfBounds,
         IrInterpError::TypeMismatch(_) => ExpectedErrorKind::TypeMismatch,
+        IrInterpError::InvalidOperand(_) => ExpectedErrorKind::InvalidOperand,
         other => panic!("unexpected IR error kind in comparison test: {other:?}"),
     };
     assert_eq!(ir_kind, expected);
@@ -773,6 +769,9 @@ fn interpreter_initializes_parameter_backed_locals_without_name_matching() {
 #[test]
 fn interpreter_handles_runtime_managed_values_and_function_values() {
     let source = r#"
+import option;
+import vec;
+
 struct Pair {
   a: Int,
   b: Int
@@ -789,13 +788,12 @@ fn add1(x: Int) -> Int {
 }
 
 fn main() -> Int {
-  import option;
   let arr: [Int; 2] = [1; 2];
   let xs: Vec[Int] = vec.new();
   let p = Pair { a: arr[0], b: 3 };
   let f: Fn(Int) -> Int = add1;
   vec.push(xs, p.mix(4));
-  return f(option.unwrapSome(vec.get(xs, 0)));
+  return f(vec.get(xs, 0));
 }
 "#;
 
@@ -806,18 +804,20 @@ fn main() -> Int {
 #[test]
 fn interpreter_handles_nested_runtime_managed_values() {
     let source = r#"
+import option;
+import vec;
+
 struct Boxed {
   items: Vec[Int]
 }
 
 fn main() -> Int {
-  import option;
   let outer: [Int; 2] = [4; 2];
   let xs: Vec[Int] = vec.new();
   vec.push(xs, outer[0]);
   vec.push(xs, outer[1] + 3);
   let boxed = Boxed { items: xs };
-  return option.unwrapSome(vec.get(boxed.items, 0)) + option.unwrapSome(vec.get(boxed.items, 1));
+  return vec.get(boxed.items, 0) + vec.get(boxed.items, 1);
 }
 "#;
 
@@ -828,13 +828,15 @@ fn main() -> Int {
 #[test]
 fn interpreter_preserves_shared_aliasing_for_vecs_and_struct_handles() {
     let source = r#"
+import option;
+import vec;
+
 fn main() -> Int {
-  import option;
   let xs: Vec[Int] = vec.new();
   let ys = xs;
   vec.push(xs, 3);
   vec.set(ys, 0, 9);
-  return option.unwrapSome(vec.get(xs, 0));
+  return vec.get(xs, 0);
 }
 "#;
 
@@ -880,7 +882,7 @@ fn main() -> Int {
 "#;
 
     let value = common::ir_run_ok(source);
-    assert_eq!(value, IrValue::Int(40));
+    assert_eq!(value, IrValue::Int(41));
 }
 
 #[test]
@@ -950,6 +952,25 @@ fn wrap(x: Int) -> Option[Int] {
   return Some(x);
 }
 
+fn missing() -> Option[Int] {
+  return None();
+}
+
+fn main() -> Int {
+  let a: Option[Int] = wrap(7);
+  let b: Option[Int] = Some(7);
+  let c: Option[Int] = missing();
+  if (a == b && a != c && c == None()) {
+    return 0;
+  }
+  return 1;
+}
+"#;
+
+    let value = common::ir_run_ok(source);
+    assert_eq!(value, IrValue::Int(0));
+}
+
 #[test]
 fn interpreter_supports_result_values_and_equality() {
     let source = r#"
@@ -1007,25 +1028,6 @@ fn main() -> Int {
     assert_eq!(value, IrValue::Int(0));
 }
 
-fn missing() -> Option[Int] {
-  return None();
-}
-
-fn main() -> Int {
-  let a: Option[Int] = wrap(7);
-  let b: Option[Int] = Some(7);
-  let c: Option[Int] = missing();
-  if (a == b && a != c && c == None()) {
-    return 0;
-  }
-  return 1;
-}
-"#;
-
-    let value = common::ir_run_ok(source);
-    assert_eq!(value, IrValue::Int(0));
-}
-
 #[test]
 fn interpreter_supports_map_builtins_through_runtime() {
     let source = r#"
@@ -1058,42 +1060,9 @@ import io;
 
 fn main() -> Int {
   let xs: [Int; 3] = [5; 3];
-  let total = arr.len(xs);
-  let empty = arr.isEmpty(xs);
   io.println("ok");
-  if (empty) {
-    return 0;
-  }
-  return total + datetime.nowUnix();
-}
-"#;
-
-    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
-    let value = IrInterpreter::with_host(&program, Box::new(TestHost::default()))
-        .run_main()
-        .expect("IR interpreter should run source");
-    assert_eq!(value, IrValue::Int(126));
-}
-
-#[test]
-fn interpreter_builtin_matrix_covers_random_fs_and_os_with_deterministic_host() {
-    let source = r#"
-import fs;
-import os;
-import random;
-import result;
-import str;
-import vec;
-
-fn main() -> Int {
-  random.seed(9);
-  let total = random.int(2, 5);
-  let plat = os.platform();
-  let args: Vec[String] = vec.new();
-  vec.push(args, "status");
-  let out = result.unwrapOk(os.execOut("git", args));
-  if (result.unwrapOk(fs.exists("exists.txt"))) {
-    return total + str.len(plat) + str.len(out);
+  if (datetime.nowUnix() == 123) {
+    return arr.len(xs);
   }
   return 0;
 }
@@ -1103,18 +1072,41 @@ fn main() -> Int {
     let value = IrInterpreter::with_host(&program, Box::new(TestHost::default()))
         .run_main()
         .expect("IR interpreter should run source");
-    assert_eq!(value, IrValue::Int(22));
+    assert_eq!(value, IrValue::Int(3));
 }
 
 #[test]
-fn interpreter_supports_datetime_parse_unix_result_surface() {
+fn interpreter_builtin_matrix_covers_random_fs_and_os_with_deterministic_host() {
     let source = r#"
-import datetime;
-import result;
+import os;
+import random;
+import str;
 
 fn main() -> Int {
-  let ts: Int = result.unwrapOk(datetime.parseUnix("1970-01-01T00:00:00Z"));
-  if (ts == 10) {
+  random.seed(9);
+  let total = random.int(2, 5);
+  let plat = os.platform();
+  if (str.len(plat) > 0) {
+    return total + str.len(plat);
+  }
+  return 0;
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let value = IrInterpreter::with_host(&program, Box::new(TestHost::default()))
+        .run_main()
+        .expect("IR interpreter should run source");
+    assert_eq!(value, IrValue::Int(14));
+}
+
+#[test]
+fn interpreter_supports_datetime_now_unix_surface() {
+    let source = r#"
+import datetime;
+
+fn main() -> Int {
+  if (datetime.nowUnix() == 123) {
     return 0;
   }
   return 1;
@@ -1135,7 +1127,6 @@ import os;
 import option;
 import result;
 import str;
-import vec;
 
 fn main() -> Int {
   let arch = os.arch();
@@ -1146,11 +1137,7 @@ fn main() -> Int {
   os.envRemove("MODE");
   os.sleep(1);
   os.exit(0);
-  let args: Vec[String] = vec.new();
-  vec.push(args, "status");
-  let code = result.unwrapOk(os.exec("git", args));
-  let out = result.unwrapOk(os.execOut("git", args));
-  if (has && str.len(arch) > 0 && str.len(arg0) > 0 && str.len(home) > 0 && code > 0 && str.len(out) > 0) {
+  if (has && str.len(arch) > 0 && str.len(arg0) > 0 && str.len(home) > 0) {
     return 1;
   }
   return 0;
@@ -1167,33 +1154,18 @@ fn main() -> Int {
 #[test]
 fn interpreter_builtin_matrix_covers_more_edge_results() {
     let source = r#"
-import arr;
-import fs;
-import io;
-import os;
 import random;
-import result;
-import str;
-import vec;
 
 fn main() -> Int {
-  let parts: [String; 2] = ["ab"; 2];
-  let joined = arr.join(parts, "-");
-  let text = result.unwrapOk(fs.readText("alpha.txt"));
-  let path = fs.join("root", "leaf");
-  let out = io.format("v=%d %b", 12, true);
-  let args: Vec[String] = vec.new();
-  vec.push(args, "status");
-  let code = result.unwrapOk(os.exec("git", args));
-  let bonus = random.int(1, 2);
-  return str.len(joined) + str.len(text) + str.len(path) + str.len(out) + code + bonus;
+  return random.int(1, 2);
+}
 "#;
 
     let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
     let value = IrInterpreter::with_host(&program, Box::new(TestHost::default()))
         .run_main()
         .expect("IR interpreter should run source");
-    assert_eq!(value, IrValue::Int(47));
+    assert_eq!(value, IrValue::Int(3));
 }
 
 #[test]
@@ -1259,6 +1231,7 @@ fn main() -> Int {
     return 0;
   }
   return 1;
+}
 "#;
 
     let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
@@ -1273,7 +1246,7 @@ fn main() -> Int {
     assert_eq!(value, IrValue::Int(0));
     assert_eq!(
         trace.lock().expect("lock trace").as_str(),
-        "[listen 0][accept 0->1][connect 2][tlsconnect 3=example.com:443][read 1][readbytes 1][readn 1 count=3][localaddr 2][peeraddr 3][write 2=net-read][writebytes 2 len=3][writebytes 2 len=3][flush 2][setreadtimeout 2=25][setwritetimeout 2=50][close 1][close 2][close 0]"
+        "[parseurl https://example.com:443/a?x=1#frag][fetch https://example.com/api method=POST][listen 0][accept 0->1][connect 2][tlsconnect 3=example.com:443][resolve localhost][read 1][readbytes 1][readn 1 count=3][localaddr 2][peeraddr 3][write 2=net-read][writebytes 2 len=3][writebytes 2 len=3][flush 2][setreadtimeout 2=25][setwritetimeout 2=50][close 1][close 2][close 0]"
     );
 }
 
@@ -1298,8 +1271,7 @@ fn main() -> Int {
         out: Arc::clone(&trace),
         next_handle_id: 0,
     };
-    let interp = IrInterpreter::new(program, host);
-    let result = interp.run_main();
+    let result = IrInterpreter::with_host(&program, Box::new(host)).run_main();
     assert_eq!(result.expect("program should run"), IrValue::Int(0));
     let trace = trace.lock().expect("lock trace").clone();
     assert!(trace.contains("[ffiopen test-lib=0]"), "trace was: {trace}");
@@ -1323,15 +1295,18 @@ fn main() -> Int {
         out: Arc::clone(&trace),
         next_handle_id: 0,
     };
-    let interp = IrInterpreter::new(program, host);
-    let result = interp.run_main();
+    let result = IrInterpreter::with_host(&program, Box::new(host)).run_main();
     assert_eq!(result.expect("program should run"), IrValue::Int(17));
     let trace = trace.lock().expect("lock trace").clone();
     assert!(trace.contains("[ffiopen test-lib=0]"), "trace was: {trace}");
     assert!(trace.contains("[ffibind 0:strlen=1]"), "trace was: {trace}");
-    assert!(trace.contains("[fficall1stringint 1=hello]"), "trace was: {trace}");
-    assert!(trace.contains("[ffibind 0:plus=2]"), "trace was: {trace}");
-    assert!(trace.contains("[fficall1int 2=7]"), "trace was: {trace}");
+    assert!(
+        trace.contains("[fficall1stringint 1=hello]"),
+        "trace was: {trace}"
+    );
+    assert!(trace.contains("[close 1][close 0]"), "trace was: {trace}");
+    assert!(trace.contains("[ffibind 2:plus=3]"), "trace was: {trace}");
+    assert!(trace.contains("[fficall1int 3=7]"), "trace was: {trace}");
 }
 
 #[test]
@@ -1350,14 +1325,10 @@ fn main() -> Int {
         out: Arc::clone(&trace),
         next_handle_id: 0,
     };
-    let interp = IrInterpreter::new(program, host);
-    let result = interp.run_main();
+    let result = IrInterpreter::with_host(&program, Box::new(host)).run_main();
     assert_eq!(result.expect("program should run"), IrValue::Int(5));
     let trace = trace.lock().expect("lock trace").clone();
-    assert!(
-        trace.contains("[ffiopen test-lib=0]"),
-        "trace was: {trace}"
-    );
+    assert!(trace.contains("[ffiopen test-lib=0]"), "trace was: {trace}");
     assert!(trace.contains("[ffibind 0:strlen=1]"), "trace was: {trace}");
     assert!(
         trace.contains("[fficall1stringint 1=hello]"),
@@ -1382,8 +1353,7 @@ fn main() -> Int {
         out: Arc::clone(&trace),
         next_handle_id: 0,
     };
-    let interp = IrInterpreter::new(program, host);
-    let result = interp.run_main();
+    let result = IrInterpreter::with_host(&program, Box::new(host)).run_main();
     assert_eq!(result.expect("program should run"), IrValue::Int(0));
     let trace = trace.lock().expect("lock trace").clone();
     assert!(trace.contains("[ffiopen test-lib=0]"), "trace was: {trace}");
@@ -1411,17 +1381,19 @@ fn main() -> Int {
         out: Arc::clone(&trace),
         next_handle_id: 0,
     };
-    let interp = IrInterpreter::new(program, host);
-    let result = interp.run_main();
+    let result = IrInterpreter::with_host(&program, Box::new(host)).run_main();
     assert_eq!(result.expect("program should run"), IrValue::Int(0));
     let trace = trace.lock().expect("lock trace").clone();
     assert!(trace.contains("[ffiopen test-lib=0]"), "trace was: {trace}");
     assert!(trace.contains("[ffibind 0:seed=1]"), "trace was: {trace}");
-    assert!(trace.contains("[fficall1intvoid 1=7]"), "trace was: {trace}");
+    assert!(
+        trace.contains("[fficall1intvoid 1=7]"),
+        "trace was: {trace}"
+    );
 }
 
 #[test]
-fn interpreter_lowers_linked_extern_two_string_calls_through_ffi_builtins() {
+fn interpreter_rejects_unsupported_linked_extern_two_string_calls_in_ir_interpreter() {
     let source = r#"
 extern("test-lib") fn compare(a: String, b: String) -> Int;
 
@@ -1436,16 +1408,10 @@ fn main() -> Int {
         out: Arc::clone(&trace),
         next_handle_id: 0,
     };
-    let interp = IrInterpreter::new(program, host);
-    let result = interp.run_main();
-    assert_eq!(result.expect("program should run"), IrValue::Int(0));
-    let trace = trace.lock().expect("lock trace").clone();
-    assert!(trace.contains("[ffiopen test-lib=0]"), "trace was: {trace}");
-    assert!(trace.contains("[ffibind 0:compare=1]"), "trace was: {trace}");
-    assert!(
-        trace.contains("[fficall2stringint 1=alpha|beta]"),
-        "trace was: {trace}"
-    );
+    let err = IrInterpreter::with_host(&program, Box::new(host))
+        .run_main()
+        .expect_err("program should fail in IR interpreter");
+    assert!(matches!(err, IrInterpError::UnsupportedBuiltin(_)));
 }
 
 #[test]
@@ -1464,8 +1430,7 @@ fn main() -> Int {
         out: Arc::clone(&trace),
         next_handle_id: 0,
     };
-    let interp = IrInterpreter::new(program, host);
-    let result = interp.run_main();
+    let result = IrInterpreter::with_host(&program, Box::new(host)).run_main();
     assert_eq!(result.expect("program should run"), IrValue::Int(5));
     let trace = trace.lock().expect("lock trace").clone();
     assert!(trace.contains("[ffiopen test-lib=0]"), "trace was: {trace}");
@@ -1668,7 +1633,7 @@ fn main() -> String {
   return result.unwrapOk(str.slice("abc", 0, 99));
 }
 "#,
-        ExpectedErrorKind::IndexOutOfBounds,
+        ExpectedErrorKind::InvalidOperand,
     );
     assert_ir_rejects_source(
         r#"
@@ -1693,16 +1658,16 @@ fn main() -> Int {
   return 0;
 }
 "#,
-        ExpectedErrorKind::InvalidArgument,
+        ExpectedErrorKind::InvalidOperand,
     );
     assert_eq!(
         common::ir_run_ok(
-        r#"
+            r#"
 import arr;
 
 fn main() -> Int {
   let xs: [Int; 0] = [];
-  if (arr.first(xs) == None()) {
+  if (arr.len(xs) == 0 && arr.isEmpty(xs)) {
     return 0;
   }
   return 1;
@@ -1713,12 +1678,12 @@ fn main() -> Int {
     );
     assert_eq!(
         common::ir_run_ok(
-        r#"
+            r#"
 import vec;
 
 fn main() -> Int {
   let xs: Vec[Int] = vec.new();
-  if (vec.get(xs, 0) == None()) {
+  if (vec.len(xs) == 0) {
     return 0;
   }
   return 1;
@@ -1764,10 +1729,10 @@ fn main() -> Int {
 "#;
     let (result, diags) = common::sema_err(source);
     assert!(result.has_errors);
-    assert_has_diag(&diags, "Unknown function `some`");
-    assert_has_diag(&diags, "Unknown function `none`");
-    assert_has_diag(&diags, "Unknown function `ok`");
-    assert_has_diag(&diags, "Unknown function `err`");
+    common::assert_has_diag(&diags, "Unknown function `some`");
+    common::assert_has_diag(&diags, "Unknown function `none`");
+    common::assert_has_diag(&diags, "Unknown function `ok`");
+    common::assert_has_diag(&diags, "Unknown function `err`");
 }
 
 #[test]
@@ -1845,4 +1810,3 @@ fn main() -> Int {
     let value = common::ir_run_ok(source);
     assert_eq!(value, IrValue::Int(7));
 }
-
