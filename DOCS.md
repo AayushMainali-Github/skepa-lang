@@ -1507,6 +1507,16 @@ Opaque types:
 - `net.Socket`
 - `net.Listener`
 
+Surface split:
+- stable base networking layer:
+  - `connect`, `tlsConnect`, `listen`, `accept`, `read`, `write`, `readBytes`, `writeBytes`, `readN`, `localAddr`, `peerAddr`, `flush`, `setReadTimeout`, `setWriteTimeout`, `close`, `closeListener`
+- lightweight convenience helpers:
+  - `resolve`, `parseUrl`, `fetch`
+
+Practical rule:
+- use the socket and listener APIs as the canonical networking surface for protocol work
+- use `resolve`, `parseUrl`, and `fetch` as convenience helpers when their narrower contract is sufficient
+
 Signatures:
 - `net.connect(address: String) -> Result[net.Socket, String]`
 - `net.tlsConnect(host: String, port: Int) -> Result[net.Socket, String]`
@@ -1569,6 +1579,7 @@ Notes:
 - `net.readBytes` / `net.readN` are the correct APIs for binary protocols and arbitrary payloads.
 - `net.read` is not a read-to-EOF helper; it returns one chunk from a single read call.
 - `net.tlsConnect` is client-side only in the current surface. There is no TLS listener/accept API yet.
+- `net.tlsConnect` is part of the stable client networking surface, but only for client-initiated TLS connections.
 - `net.resolve` returns the first resolved address only. It is a convenience helper, not a full DNS result-set API.
 - `net.parseUrl` is a convenience parser for common URLs. Missing optional parts are returned as empty strings in the success map, and invalid URLs return `Err(String)`.
 - `net.parseUrl` rejects URL components containing control characters, including CR and LF.
@@ -1587,6 +1598,7 @@ Notes:
 - `net.fetch` is text-oriented today. It does not expose response headers as a first-class map and does not currently expose a binary-body response surface.
 - `net.fetch` parses the HTTP header block separately from the response body. Malformed headers fail as malformed HTTP, while a non-UTF-8 body fails specifically as a body-decoding error.
 - `net.parseUrl`, `net.resolve`, and `net.fetch` are intended as lightweight helpers. Raw socket and TLS APIs remain the base networking layer for protocol work.
+- `net.resolve`, `net.parseUrl`, and `net.fetch` should be read as intentionally limited helpers, not as a promise of a full DNS, URL, or HTTP framework.
 - `net.tlsConnect` validates the peer certificate chain and hostname through the host TLS implementation.
 - Timeout setters require non-negative millisecond values. `0` means no timeout.
 - Passing the wrong handle kind to a builtin raises a runtime error.
