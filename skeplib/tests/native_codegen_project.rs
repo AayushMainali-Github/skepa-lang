@@ -55,3 +55,45 @@ fn main() -> Int {
     assert!(llvm_ir.contains("closeLibrary"));
     assert!(llvm_ir.contains("closeSymbol"));
 }
+
+#[test]
+fn llvm_codegen_uses_option_aware_vec_get_runtime_helper() {
+    let source = r#"
+import option;
+import vec;
+
+fn main() -> Int {
+  let xs: Vec[Int] = vec.new();
+  vec.push(xs, 5);
+  return option.unwrapSome(vec.get(xs, 0));
+}
+"#;
+
+    let program =
+        ir::lowering::compile_source_unoptimized(source).expect("IR lowering should succeed");
+    let llvm_ir =
+        codegen::compile_program_to_llvm_ir(&program).expect("LLVM lowering should succeed");
+
+    assert!(llvm_ir.contains("call ptr @skp_rt_vec_get_option"));
+}
+
+#[test]
+fn llvm_codegen_lowers_str_slice_via_generic_result_dispatch() {
+    let source = r#"
+import result;
+import str;
+
+fn main() -> Int {
+  let cut = result.unwrapOk(str.slice("skepa-language-runtime", 6, 14));
+  return str.len(cut);
+}
+"#;
+
+    let program =
+        ir::lowering::compile_source_unoptimized(source).expect("IR lowering should succeed");
+    let llvm_ir =
+        codegen::compile_program_to_llvm_ir(&program).expect("LLVM lowering should succeed");
+
+    assert!(llvm_ir.contains("call ptr @skp_rt_call_builtin("));
+    assert!(!llvm_ir.contains("call ptr @skp_rt_builtin_str_slice("));
+}

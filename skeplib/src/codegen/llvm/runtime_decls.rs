@@ -170,6 +170,10 @@ const RUNTIME_DECLS: &[(&str, &str)] = &[
     ("skp_rt_vec_push", "declare void @skp_rt_vec_push(ptr, ptr)"),
     ("skp_rt_vec_get", "declare ptr @skp_rt_vec_get(ptr, i64)"),
     (
+        "skp_rt_vec_get_option",
+        "declare ptr @skp_rt_vec_get_option(ptr, i64)",
+    ),
+    (
         "skp_rt_vec_set",
         "declare void @skp_rt_vec_set(ptr, i64, ptr)",
     ),

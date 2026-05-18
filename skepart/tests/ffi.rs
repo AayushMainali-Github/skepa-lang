@@ -19,6 +19,7 @@ unsafe extern "C" {
     fn skp_rt_vec_new() -> *mut c_void;
     fn skp_rt_vec_push(vec: *mut c_void, value: *mut c_void);
     fn skp_rt_vec_get(vec: *mut c_void, index: i64) -> *mut c_void;
+    fn skp_rt_vec_get_option(vec: *mut c_void, index: i64) -> *mut c_void;
     fn skp_rt_struct_new(struct_id: i64, field_count: i64) -> *mut c_void;
     fn skp_rt_struct_set(value: *mut c_void, index: i64, field: *mut c_void);
     fn skp_rt_struct_get(value: *mut c_void, index: i64) -> *mut c_void;
@@ -94,6 +95,16 @@ fn ffi_function_and_container_surfaces_work() {
         unsafe { (*(got as *mut RtValue)).expect_int().expect("int") },
         5
     );
+    let got_opt = unsafe { skp_rt_vec_get_option(vec_ptr, 0) };
+    let got_missing = unsafe { skp_rt_vec_get_option(vec_ptr, 99) };
+    let opt = unsafe { (*(got_opt as *mut RtValue)).expect_option().expect("option") };
+    let missing = unsafe {
+        (*(got_missing as *mut RtValue))
+            .expect_option()
+            .expect("option")
+    };
+    assert_eq!(opt.0.as_deref(), Some(&RtValue::Int(5)));
+    assert!(missing.0.is_none());
 
     let raw_handle = Box::into_raw(Box::new(RtHandle {
         id: 7,

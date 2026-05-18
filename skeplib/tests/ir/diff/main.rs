@@ -135,6 +135,7 @@ fn native_and_ir_accept_same_array_vec_struct_method_and_builtin_sources() {
     assert_native_and_ir_accept_same_int_source(
         r#"
 import option;
+import vec;
 
 fn main() -> Int {
   let arr: [Int; 3] = [1; 3];
@@ -186,7 +187,7 @@ fn main() -> Int {
   return datetime.nowMillis();
 }
 "#,
-        40,
+        41,
     );
 }
 
@@ -256,7 +257,7 @@ fn make() -> Pair {
     fs::write(
         &entry,
         r#"
-from pair import make;
+from pair import Pair, make;
 
 fn main() -> Int {
   let xs: [Int; 2] = [3; 2];
@@ -317,7 +318,7 @@ fn make() -> Pair {
         &entry,
         r#"
 import str;
-from pair import make, base;
+from pair import Pair, make, base;
 
 fn main() -> Int {
   let p = make();
@@ -332,8 +333,8 @@ fn main() -> Int {
     let ir_value = IrInterpreter::new(&program)
         .run_main()
         .expect("IR interpreter should run project");
-    assert_eq!(ir_value, IrValue::Int(25));
-    assert_eq!(common::native_run_project_exit_code_ok(&entry), 25);
+    assert_eq!(ir_value, IrValue::Int(28));
+    assert_eq!(common::native_run_project_exit_code_ok(&entry), 28);
 
     let _ = fs::remove_dir_all(&root);
 }
@@ -366,6 +367,6 @@ fn main() -> String {
   return result.unwrapOk(str.slice("abc", 0, 99));
 }
 "#,
-        RtErrorKind::IndexOutOfBounds,
+        RtErrorKind::InvalidArgument,
     );
 }

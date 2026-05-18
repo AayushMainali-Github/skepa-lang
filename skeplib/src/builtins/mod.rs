@@ -139,44 +139,32 @@ fn all_builtin_sigs_any() -> Vec<&'static BuiltinSig> {
 
 fn builtin_meta(package: &str, name: &str) -> BuiltinMeta {
     match (package, name) {
-        ("str", "len")
-        | ("str", "contains")
-        | ("str", "startsWith")
+        ("str", "len") | ("str", "contains") | ("str", "indexOf") => BuiltinMeta {
+            purity: BuiltinPurity::Pure,
+            lowering: BuiltinLowering::RuntimeCall,
+            can_const_fold: true,
+            runtime_helper: match name {
+                "len" => Some("skp_rt_builtin_str_len"),
+                "contains" => Some("skp_rt_builtin_str_contains"),
+                "indexOf" => Some("skp_rt_builtin_str_index_of"),
+                _ => None,
+            },
+            visibility: BuiltinVisibility::Public,
+        },
+        ("str", "startsWith")
         | ("str", "endsWith")
         | ("str", "trim")
         | ("str", "toLower")
         | ("str", "toUpper")
-        | ("str", "indexOf")
         | ("str", "slice")
         | ("str", "isEmpty")
         | ("str", "lastIndexOf")
         | ("str", "replace")
         | ("str", "repeat") => BuiltinMeta {
             purity: BuiltinPurity::Pure,
-            lowering: BuiltinLowering::RuntimeCall,
-            can_const_fold: matches!(
-                name,
-                "len"
-                    | "contains"
-                    | "startsWith"
-                    | "endsWith"
-                    | "trim"
-                    | "toLower"
-                    | "toUpper"
-                    | "indexOf"
-                    | "slice"
-                    | "isEmpty"
-                    | "lastIndexOf"
-                    | "replace"
-                    | "repeat"
-            ),
-            runtime_helper: match name {
-                "len" => Some("skp_rt_builtin_str_len"),
-                "contains" => Some("skp_rt_builtin_str_contains"),
-                "indexOf" => Some("skp_rt_builtin_str_index_of"),
-                "slice" => Some("skp_rt_builtin_str_slice"),
-                _ => None,
-            },
+            lowering: BuiltinLowering::GenericDispatch,
+            can_const_fold: true,
+            runtime_helper: None,
             visibility: BuiltinVisibility::Public,
         },
         ("arr", _) => BuiltinMeta {
@@ -300,9 +288,9 @@ mod tests {
         assert_eq!(spec.sig.package, "str");
         assert_eq!(spec.sig.name, "slice");
         assert_eq!(spec.meta.purity, BuiltinPurity::Pure);
-        assert_eq!(spec.meta.lowering, BuiltinLowering::RuntimeCall);
+        assert_eq!(spec.meta.lowering, BuiltinLowering::GenericDispatch);
         assert!(spec.meta.can_const_fold);
-        assert_eq!(spec.meta.runtime_helper, Some("skp_rt_builtin_str_slice"));
+        assert_eq!(spec.meta.runtime_helper, None);
         assert_eq!(spec.meta.visibility, BuiltinVisibility::Public);
     }
 

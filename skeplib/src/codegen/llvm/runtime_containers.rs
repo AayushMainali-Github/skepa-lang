@@ -668,7 +668,7 @@ pub fn emit_vec_get(
     let raw = format!("%v{counter}");
     *counter += 1;
     lines.push(format!(
-        "  {raw} = call ptr @skp_rt_vec_get(ptr {vec}, i64 {index})"
+        "  {raw} = call ptr @skp_rt_vec_get_option(ptr {vec}, i64 {index})"
     ));
     emit_abort_if_error(lines);
     emit_unbox_value(

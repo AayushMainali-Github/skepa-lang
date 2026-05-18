@@ -152,6 +152,25 @@ pub unsafe extern "C" fn skp_rt_vec_get(vec: *mut RtVec, index: i64) -> *mut RtV
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn skp_rt_vec_get_option(vec: *mut RtVec, index: i64) -> *mut RtValue {
+    match ffi_try(|| {
+        if vec.is_null() {
+            return Err(crate::RtError::new(
+                crate::RtErrorKind::InvalidArgument,
+                "vec pointer must not be null",
+            ));
+        }
+        Ok(boxed_value(crate::builtins::vec::get(unsafe { &*vec }, index)))
+    }) {
+        Ok(value) => value,
+        Err(err) => {
+            set_last_error(err);
+            std::ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn skp_rt_vec_set(vec: *mut RtVec, index: i64, value: *mut RtValue) {
     if let Err(err) = ffi_try(|| {
         if vec.is_null() {

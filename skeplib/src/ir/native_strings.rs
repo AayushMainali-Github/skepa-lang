@@ -287,51 +287,8 @@ fn eval_const_builtin(
             };
             Some(ConstValue::Int(index))
         }
-        (
-            "str",
-            "slice",
-            [
-                ConstValue::String(value),
-                ConstValue::Int(start),
-                ConstValue::Int(end),
-            ],
-        ) if *start >= 0 && *end >= 0 => {
-            let start = *start as usize;
-            let end = *end as usize;
-            let sliced = const_string_slice(value, start, end)?;
-            Some(ConstValue::String(sliced))
-        }
         _ => None,
     }
-}
-
-fn const_string_slice(value: &str, start: usize, end: usize) -> Option<String> {
-    if value.is_ascii() {
-        if start > end || end > value.len() {
-            return None;
-        }
-        return Some(value[start..end].to_string());
-    }
-    let start_byte = nth_char_boundary(value, start)?;
-    let end_byte = nth_char_boundary(value, end)?;
-    if start_byte > end_byte {
-        return None;
-    }
-    Some(value[start_byte..end_byte].to_string())
-}
-
-fn nth_char_boundary(value: &str, index: usize) -> Option<usize> {
-    if index == 0 {
-        return Some(0);
-    }
-    let char_len = value.chars().count();
-    if index > char_len {
-        return None;
-    }
-    if index == char_len {
-        return Some(value.len());
-    }
-    value.char_indices().nth(index).map(|(offset, _)| offset)
 }
 
 #[cfg(test)]
@@ -374,11 +331,10 @@ fn main() -> Int {
                     Operand::Const(ConstValue::Int(4)),
                 ],
             ),
-            NativeStringBuiltinLowering::Folded(ConstValue::String("kep".into()))
+            NativeStringBuiltinLowering::Runtime
         );
 
         let literals = collect_program_string_constants(&program);
         assert!(literals.contains(&"skepa".to_string()));
-        assert!(literals.contains(&"kep".to_string()));
     }
 }
