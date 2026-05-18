@@ -1135,7 +1135,7 @@ fn addBoth(a: Result[Int, String], b: Result[Int, String]) -> Result[Int, String
 - `os`: host/process helpers (`platform`, `arch`, `arg`, `envHas`, `envGet`, `envSet`, `envRemove`, `sleep`, `exit`, `exec`, `execOut`)
 - `fs`: basic filesystem helpers (`exists`, `readText`, `writeText`, `appendText`, `mkdirAll`, `removeFile`, `removeDirAll`, `join`)
 - `net`: blocking TCP/TLS helpers with opaque handle types (`net.Socket`, `net.Listener`)
-- `task`: typed task/channel helpers with opaque handle types (`task.Task[T]`, `task.Channel[T]`)
+- `task`: experimental typed task/channel helpers with opaque handle types (`task.Task[T]`, `task.Channel[T]`)
 - `ffi`: native-library helpers with opaque handle types (`ffi.Library`, `ffi.Symbol`)
 - `vec`: runtime-sized vector helpers (`new`, `len`, `push`, `get`, `set`, `delete`)
 
@@ -1693,6 +1693,11 @@ fn main() -> Int {
 
 ### 8.14 `task`
 
+Status:
+- Experimental standard-library surface.
+- Available for use, but not yet covered by the same stability promise as the rest of the core builtin surface.
+- The main reason is execution-model variance: interpreter paths use a simpler fallback model, while native/CLI paths use real background threads.
+
 Opaque types:
 - `task.Task[T]`
 - `task.Channel[T]`
@@ -1735,6 +1740,7 @@ Notes:
 - `task.spawn` starts execution immediately in native and CLI paths through the host runtime.
 - The interpreter keeps a simpler deterministic inline fallback for task execution; native and CLI paths use real background threads.
 - Programs should not rely on interpreter scheduling details matching native thread timing exactly.
+- Until the task surface is stabilized further, prefer it for controlled internal/convenience use rather than as a long-term portability contract.
 
 ### 8.15 `ffi`
 
