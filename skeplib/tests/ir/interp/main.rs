@@ -171,6 +171,29 @@ impl RtHost for TestHost {
         Ok(value.len() as i64)
     }
 
+    fn ffi_call_2_cstr_cstr_i32(
+        &mut self,
+        symbol: skepart::RtHandle,
+        left: &str,
+        right: &str,
+    ) -> RtResult<i64> {
+        self.net_lookup_handle_kind(symbol)?;
+        self.out.lock().expect("lock trace").push_str(&format!(
+            "[fficall2stringint {}={left}|{right}]",
+            symbol.id
+        ));
+        Ok((left == right) as i64)
+    }
+
+    fn ffi_call_2_system_cstr_cstr_i32(
+        &mut self,
+        symbol: skepart::RtHandle,
+        left: &str,
+        right: &str,
+    ) -> RtResult<i64> {
+        self.ffi_call_2_cstr_cstr_i32(symbol, left, right)
+    }
+
     fn ffi_call_2_cstr_usize_usize(
         &mut self,
         symbol: skepart::RtHandle,
@@ -1393,12 +1416,12 @@ fn main() -> Int {
 }
 
 #[test]
-fn interpreter_rejects_unsupported_linked_extern_two_string_calls_in_ir_interpreter() {
+fn interpreter_lowers_linked_extern_two_string_calls_through_ffi_builtins() {
     let source = r#"
 extern("test-lib") fn compare(a: String, b: String) -> Int;
 
 fn main() -> Int {
-  return compare("alpha", "beta");
+  return compare("same", "same");
 }
 "#;
 
@@ -1408,10 +1431,18 @@ fn main() -> Int {
         out: Arc::clone(&trace),
         next_handle_id: 0,
     };
-    let err = IrInterpreter::with_host(&program, Box::new(host))
+    let value = IrInterpreter::with_host(&program, Box::new(host))
         .run_main()
-        .expect_err("program should fail in IR interpreter");
-    assert!(matches!(err, IrInterpError::UnsupportedBuiltin(_)));
+        .expect("program should run in IR interpreter");
+    assert_eq!(value, IrValue::Int(1));
+
+    let trace = trace.lock().expect("lock trace").clone();
+    assert!(trace.contains("[ffiopen test-lib=0]"), "trace was: {trace}");
+    assert!(trace.contains("[ffibind 0:compare=1]"), "trace was: {trace}");
+    assert!(
+        trace.contains("[fficall2stringint 1=same|same]"),
+        "trace was: {trace}"
+    );
 }
 
 #[test]
