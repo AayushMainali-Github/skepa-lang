@@ -14,6 +14,7 @@ use super::{Checker, SemaResult};
 #[derive(Debug, Clone, Default)]
 pub(super) struct ModuleApi {
     pub functions: HashMap<String, FunctionSig>,
+    pub operators: HashMap<String, FunctionSig>,
     pub structs: HashMap<String, HashMap<String, TypeInfo>>,
     pub methods: HashMap<String, HashMap<String, FunctionSig>>,
     pub globals: HashMap<String, TypeInfo>,
@@ -22,6 +23,7 @@ pub(super) struct ModuleApi {
 #[derive(Debug, Clone, Default)]
 pub(super) struct ModuleExternalContext {
     pub imported_functions: HashMap<String, FunctionSig>,
+    pub imported_operators: HashMap<String, FunctionSig>,
     pub imported_structs: HashMap<String, HashMap<String, TypeInfo>>,
     pub imported_methods: HashMap<String, HashMap<String, FunctionSig>>,
     pub imported_globals: HashMap<String, TypeInfo>,
@@ -124,18 +126,17 @@ fn build_module_api(program: &Program) -> ModuleApi {
         );
     }
     for operator in &program.operators {
-        api.functions.insert(
-            operator.name.clone(),
-            FunctionSig {
-                name: operator.name.clone(),
-                params: operator
-                    .params
-                    .iter()
-                    .map(|p| TypeInfo::from_ast(&p.ty))
-                    .collect(),
-                ret: TypeInfo::from_ast(&operator.return_type),
-            },
-        );
+        let sig = FunctionSig {
+            name: operator.name.clone(),
+            params: operator
+                .params
+                .iter()
+                .map(|p| TypeInfo::from_ast(&p.ty))
+                .collect(),
+            ret: TypeInfo::from_ast(&operator.return_type),
+        };
+        api.functions.insert(operator.name.clone(), sig.clone());
+        api.operators.insert(operator.name.clone(), sig);
     }
     for s in &program.structs {
         let mut fields = HashMap::new();
@@ -210,6 +211,9 @@ fn build_external_context(
                                     ctx.direct_import_targets
                                         .insert(name.clone(), format!("{}.{}", target, name));
                                 }
+                                if let Some(sig) = api.operators.get(&sym.local_name).cloned() {
+                                    ctx.imported_operators.insert(name.clone(), sig);
+                                }
                             }
                             crate::resolver::SymbolKind::Struct => {
                                 if let Some(fields) = api.structs.get(&sym.local_name).cloned() {
@@ -244,7 +248,10 @@ fn build_external_context(
                                 if let Some(sig) = api.functions.get(&sym.local_name).cloned() {
                                     ctx.imported_functions.insert(local.clone(), sig);
                                     ctx.direct_import_targets
-                                        .insert(local, format!("{}.{}", target, item.name));
+                                        .insert(local.clone(), format!("{}.{}", target, item.name));
+                                }
+                                if let Some(sig) = api.operators.get(&sym.local_name).cloned() {
+                                    ctx.imported_operators.insert(local.clone(), sig);
                                 }
                             }
                             crate::resolver::SymbolKind::Struct => {
@@ -283,13 +290,23 @@ fn build_external_context(
                         match sym.kind {
                             crate::resolver::SymbolKind::Fn => {
                                 if let Some(sig) = api.functions.get(&sym.local_name).cloned() {
-                                    ctx.imported_functions.insert(q, sig.clone());
+                                    ctx.imported_functions.insert(q.clone(), sig.clone());
                                     if target_id
                                         .rsplit('.')
                                         .next()
                                         .is_some_and(|leaf| leaf == exported_name)
                                     {
                                         ctx.imported_functions.insert(target_id.clone(), sig);
+                                    }
+                                }
+                                if let Some(sig) = api.operators.get(&sym.local_name).cloned() {
+                                    ctx.imported_operators.insert(q.clone(), sig.clone());
+                                    if target_id
+                                        .rsplit('.')
+                                        .next()
+                                        .is_some_and(|leaf| leaf == exported_name)
+                                    {
+                                        ctx.imported_operators.insert(target_id.clone(), sig);
                                     }
                                 }
                             }

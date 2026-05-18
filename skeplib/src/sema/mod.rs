@@ -147,6 +147,9 @@ impl Checker {
         for (name, sig) in ctx.imported_functions {
             self.functions.entry(name.clone()).or_insert(sig);
         }
+        for (name, sig) in ctx.imported_operators {
+            self.operators.entry(name.clone()).or_insert(sig);
+        }
         for (name, fields) in ctx.imported_structs {
             self.struct_names.insert(name.clone());
             self.struct_fields.entry(name).or_insert(fields);

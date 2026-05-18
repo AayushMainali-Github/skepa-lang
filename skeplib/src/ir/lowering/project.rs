@@ -5,6 +5,7 @@ use crate::ir::{Instr, IrProgram, IrType, IrVerifier, Operand, Terminator, opt};
 use crate::resolver::{
     ModuleGraph, ResolveError, ResolveErrorKind, build_export_maps, resolve_project,
 };
+use crate::sema::analyze_project_graph;
 
 use super::context::{FunctionSig, IrLowerer};
 
@@ -35,6 +36,20 @@ pub fn compile_project_graph_unoptimized(
     graph: &ModuleGraph,
     entry: &Path,
 ) -> Result<IrProgram, String> {
+    let (sema_result, sema_diags) =
+        analyze_project_graph(graph).map_err(|errs| errs[0].message.clone())?;
+    if sema_result.has_errors {
+        let joined = sema_diags
+            .as_slice()
+            .iter()
+            .map(|diag| diag.message.as_str())
+            .collect::<Vec<_>>()
+            .join("\n");
+        return Err(format!(
+            "Project semantic analysis failed before IR lowering:\n{joined}"
+        ));
+    }
+
     let export_maps = build_export_maps(graph).map_err(|errs| errs[0].message.clone())?;
     let entry_path = entry.canonicalize().unwrap_or_else(|_| entry.to_path_buf());
     let Some((entry_id, _)) = graph.modules.iter().find(|(_, m)| {
