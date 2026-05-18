@@ -441,6 +441,25 @@ Practical rule:
 - if a type shape differs, it does not typecheck
 - if the type family matches, Skepa recursively checks the contained types
 
+### Conversions
+
+Skepa keeps conversion rules narrow on purpose.
+
+Implicit conversions:
+- none
+
+That means:
+- `Int` does not auto-convert to `Float`
+- `Float` does not auto-convert to `Int`
+- `Bool` does not auto-convert to or from numeric types
+- `String` and `Bytes` do not auto-convert
+- containers do not auto-convert based on compatible element or value types
+
+Explicit conversions:
+- use package helpers when a conversion is documented as part of the standard surface
+- examples: `bytes.fromString(...)`, `bytes.toString(...)`
+- if no documented helper exists, that conversion is not part of the standard language surface
+
 ### Type Inference Scope
 
 Skepa uses local, syntax-directed inference.
@@ -1146,6 +1165,30 @@ fn addBoth(a: Result[Int, String], b: Result[Int, String]) -> Result[Int, String
 - Builtin calls are type-checked in sema (arity and argument types).
 - Builtin runtime behavior may still raise runtime errors (for example invalid values like negative sleep duration).
 
+Namespace convention:
+- user-defined behavior belongs on struct methods
+- standard-library style operations belong on builtin packages
+- opaque host/runtime handles such as `net.Socket`, `net.Listener`, `task.Task[T]`, `task.Channel[T]`, `ffi.Library`, and `ffi.Symbol` use package functions rather than user-defined methods
+- if an operation is written as `pkg.name(...)`, that package namespace is the canonical public entry point for that behavior
+
+Builtin surface tiers:
+- Stable core builtin packages:
+  - `io`, `str`, `option`, `result`, `bytes`, `map`, `arr`, `datetime`, `random`, `os`, `fs`, `net`, `vec`
+- Experimental builtin packages:
+  - `task`
+- Narrow special-purpose builtin packages:
+  - `ffi`
+
+Internal-only helpers:
+- Some runtime/compiler helpers exist for implementation purposes but are not part of the public language surface.
+- In particular, low-level `ffi.call...` helpers are internal and user code should use linked `extern("...") fn ...;` declarations instead.
+- Test-only helper names such as builtin `__test...` entries are also internal and not part of the supported user surface.
+
+Practical policy:
+- Stable core builtin packages are intended to keep source-level semantics stable unless the docs say otherwise.
+- Experimental builtin packages may change semantics or guarantees more freely while they are being settled.
+- Narrow special-purpose builtin packages are supported, but intentionally constrained to a smaller contract than the rest of the standard surface.
+
 ### 8.2 `io`
 
 Signatures:
@@ -1167,6 +1210,11 @@ Behavior:
 Notes:
 - Format strings support basic escapes (`\n`, `\t`, `\\`, `\"`).
 - Variadic arguments are type-checked when the format string is a literal.
+- Canonical usage:
+  - use `io.print` / `io.println` for ordinary text output
+  - use `io.format` when a formatted string should be produced first
+  - use `io.printf` when formatted output should be written directly
+  - typed printers such as `io.printInt` and `io.printFloat` are supported convenience helpers, not the preferred general-purpose output style
 
 ### 8.3 `str`
 
