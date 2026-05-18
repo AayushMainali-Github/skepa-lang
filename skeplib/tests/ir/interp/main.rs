@@ -793,7 +793,7 @@ fn main() -> Int {
   let p = Pair { a: arr[0], b: 3 };
   let f: Fn(Int) -> Int = add1;
   vec.push(xs, p.mix(4));
-  return f(vec.get(xs, 0));
+  return f(option.unwrapSome(vec.get(xs, 0)));
 }
 "#;
 
@@ -817,7 +817,7 @@ fn main() -> Int {
   vec.push(xs, outer[0]);
   vec.push(xs, outer[1] + 3);
   let boxed = Boxed { items: xs };
-  return vec.get(boxed.items, 0) + vec.get(boxed.items, 1);
+  return option.unwrapSome(vec.get(boxed.items, 0)) + option.unwrapSome(vec.get(boxed.items, 1));
 }
 "#;
 
@@ -836,7 +836,7 @@ fn main() -> Int {
   let ys = xs;
   vec.push(xs, 3);
   vec.set(ys, 0, 9);
-  return vec.get(xs, 0);
+  return option.unwrapSome(vec.get(xs, 0));
 }
 "#;
 
@@ -1666,7 +1666,7 @@ fn main() -> Int {
 import arr;
 
 fn main() -> Int {
-  let xs: [Int; 0] = [];
+  let xs: [Int; 0] = [1; 0];
   if (arr.len(xs) == 0 && arr.isEmpty(xs)) {
     return 0;
   }

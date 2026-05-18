@@ -671,7 +671,15 @@ pub fn emit_vec_get(
         "  {raw} = call ptr @skp_rt_vec_get(ptr {vec}, i64 {index})"
     ));
     emit_abort_if_error(lines);
-    emit_unbox_value(names, dst, elem_ty, &raw, lines)
+    emit_unbox_value(
+        names,
+        dst,
+        &IrType::Option {
+            value: Box::new(elem_ty.clone()),
+        },
+        &raw,
+        lines,
+    )
 }
 
 #[allow(clippy::too_many_arguments)]

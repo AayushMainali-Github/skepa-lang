@@ -219,7 +219,10 @@ impl<'a> IrInterpreter<'a> {
                 let vec = frame.read_operand(vec, &self.globals)?;
                 let index = self.read_index(frame, index)?;
                 let value = match vec {
-                    RtValue::Vec(items) => items.get(index).map_err(IrInterpError::from_runtime)?,
+                    RtValue::Vec(items) => match items.get(index) {
+                        Ok(value) => RtValue::Option(skepart::RtOption::some(value)),
+                        Err(_) => RtValue::Option(skepart::RtOption::none()),
+                    },
                     _ => return Err(IrInterpError::TypeMismatch("vec.get on non-vec")),
                 };
                 frame.temps.insert(*dst, value);

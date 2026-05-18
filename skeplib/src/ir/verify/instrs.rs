@@ -185,8 +185,21 @@ impl IrVerifier {
                 elem_ty,
                 array,
                 index,
+            } => {
+                Self::verify_operand(program, func, array)?;
+                Self::verify_operand(program, func, index)?;
+                Self::expect_index_operand_type(program, func, index)?;
+                Self::expect_temp_type(func, *dst, elem_ty)?;
+                let expected_elem_ty = Self::container_elem_type(program, func, array);
+                if !matches!(expected_elem_ty, IrType::Unknown)
+                    && !Self::types_compatible(elem_ty, &expected_elem_ty)
+                {
+                    return Err(IrVerifyError::OperandTypeMismatch {
+                        function: func.name.clone(),
+                    });
+                }
             }
-            | Instr::VecGet {
+            Instr::VecGet {
                 dst,
                 elem_ty,
                 vec: array,
@@ -195,7 +208,13 @@ impl IrVerifier {
                 Self::verify_operand(program, func, array)?;
                 Self::verify_operand(program, func, index)?;
                 Self::expect_index_operand_type(program, func, index)?;
-                Self::expect_temp_type(func, *dst, elem_ty)?;
+                Self::expect_temp_type(
+                    func,
+                    *dst,
+                    &IrType::Option {
+                        value: Box::new(elem_ty.clone()),
+                    },
+                )?;
                 let expected_elem_ty = Self::container_elem_type(program, func, array);
                 if !matches!(expected_elem_ty, IrType::Unknown)
                     && !Self::types_compatible(elem_ty, &expected_elem_ty)

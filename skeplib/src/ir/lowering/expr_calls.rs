@@ -718,7 +718,12 @@ impl IrLowerer {
             }
             ("get", [vec, index]) => {
                 let elem_ty = self.array_element_type(func, vec);
-                let dst = self.builder.push_temp(func, elem_ty.clone());
+                let dst = self.builder.push_temp(
+                    func,
+                    IrType::Option {
+                        value: Box::new(elem_ty.clone()),
+                    },
+                );
                 self.builder.push_instr(
                     func,
                     block,

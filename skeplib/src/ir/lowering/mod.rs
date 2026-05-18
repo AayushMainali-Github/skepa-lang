@@ -5,6 +5,7 @@ use crate::diagnostic::{DiagnosticBag, Span};
 use crate::ir::{Instr, IrProgram, IrType, IrVerifier, Terminator, opt};
 use crate::parser::Parser;
 use crate::resolver::{ModuleGraph, SymbolKind};
+use crate::sema::analyze_source;
 
 mod context;
 mod expr;
@@ -27,6 +28,11 @@ pub fn compile_source(source: &str) -> Result<IrProgram, DiagnosticBag> {
 }
 
 pub fn compile_source_unoptimized(source: &str) -> Result<IrProgram, DiagnosticBag> {
+    let (sema_result, diags) = analyze_source(source);
+    if sema_result.has_errors {
+        return Err(diags);
+    }
+
     let (program, mut diags) = Parser::parse_source(source);
     if !diags.is_empty() {
         return Err(diags);
