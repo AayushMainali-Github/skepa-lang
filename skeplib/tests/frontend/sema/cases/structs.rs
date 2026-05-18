@@ -570,6 +570,22 @@ fn main() -> Int {
 }
 
 #[test]
+fn sema_accepts_nested_field_assignment_through_dotted_target_shape() {
+    let src = r#"
+struct Inner { value: Int }
+struct Outer { inner: Inner }
+
+fn main() -> Int {
+  let o: Outer = Outer { inner: Inner { value: 1 } };
+  o.inner.value = 9;
+  return o.inner.value;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
+
+#[test]
 fn sema_rejects_invalid_method_in_later_impl_while_allowing_other_methods() {
     let src = r#"
 struct User { id: Int }

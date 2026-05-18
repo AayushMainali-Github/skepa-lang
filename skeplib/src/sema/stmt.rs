@@ -265,15 +265,6 @@ impl Checker {
     ) -> TypeInfo {
         match target {
             AssignTarget::Ident(name) => self.lookup_var(name, scopes),
-            AssignTarget::Path(parts) => {
-                if parts.len() >= 2 {
-                    self.error(
-                        "Path assignment semantic typing is not supported yet in v0 checker"
-                            .to_string(),
-                    );
-                }
-                TypeInfo::Unknown
-            }
             AssignTarget::Index { .. } => {
                 if let AssignTarget::Index { base, index } = target {
                     let base_ty = self.check_expr(base, scopes);

@@ -26,7 +26,7 @@ fn main() -> Int {
 }
 
 #[test]
-fn parses_path_assignment_target() {
+fn parses_field_assignment_target() {
     let src = r#"
 fn main() -> Int {
   obj.field = 2;

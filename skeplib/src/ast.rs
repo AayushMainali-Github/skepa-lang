@@ -170,7 +170,6 @@ pub enum MatchLiteral {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AssignTarget {
     Ident(String),
-    Path(Vec<String>),
     Index { base: Box<Expr>, index: Expr },
     Field { base: Box<Expr>, field: String },
 }
@@ -500,7 +499,6 @@ fn pretty_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
         Stmt::Assign { target, value } => {
             let target = match target {
                 AssignTarget::Ident(n) => n.clone(),
-                AssignTarget::Path(parts) => parts.join("."),
                 AssignTarget::Index { base, index } => {
                     format!("{}[{}]", pretty_expr(base), pretty_expr(index))
                 }
@@ -593,7 +591,6 @@ fn pretty_for_clause_stmt(stmt: &Stmt) -> String {
         Stmt::Assign { target, value } => {
             let target = match target {
                 AssignTarget::Ident(n) => n.clone(),
-                AssignTarget::Path(parts) => parts.join("."),
                 AssignTarget::Index { base, index } => {
                     format!("{}[{}]", pretty_expr(base), pretty_expr(index))
                 }

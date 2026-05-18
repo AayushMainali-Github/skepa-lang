@@ -185,10 +185,6 @@ impl IrLowerer {
             Stmt::Break => self.compile_break(func, lowering),
             Stmt::Continue => self.compile_continue(func, lowering),
             Stmt::Match { expr, arms } => self.compile_match(func, lowering, expr, arms),
-            _ => {
-                self.unsupported("statement form is not in the initial IR lowering subset");
-                false
-            }
         }
     }
 
