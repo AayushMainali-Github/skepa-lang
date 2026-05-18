@@ -1,4 +1,4 @@
-use crate::builtins::{BuiltinLowering, find_builtin_spec};
+use crate::builtins::{BuiltinLowering, find_builtin_spec_any};
 use crate::codegen::CodegenError;
 use crate::codegen::llvm::runtime_boxing::{
     emit_abort_if_error, emit_boxed_arg_array, emit_free_boxed_value, emit_free_boxed_values,
@@ -29,7 +29,7 @@ pub fn emit_builtin_call(
     lowered: &LoweredIrFunction,
     string_literals: &HashMap<String, String>,
 ) -> Result<(), CodegenError> {
-    let spec = find_builtin_spec(&call.builtin.package, &call.builtin.name).ok_or_else(|| {
+    let spec = find_builtin_spec_any(&call.builtin.package, &call.builtin.name).ok_or_else(|| {
         CodegenError::InvalidIr(format!(
             "unknown builtin {}.{}",
             call.builtin.package, call.builtin.name

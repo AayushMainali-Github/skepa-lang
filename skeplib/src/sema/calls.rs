@@ -360,7 +360,7 @@ impl Checker {
             return vec::check_vec_builtin(self, method, args, scopes);
         }
 
-        let Some(spec) = crate::builtins::find_builtin_spec(package, method) else {
+        let Some(spec) = crate::builtins::find_builtin_spec_any(package, method) else {
             self.error(format!("Unknown builtin `{package}.{method}`"));
             return TypeInfo::Unknown;
         };
@@ -451,7 +451,7 @@ impl Checker {
                 method,
                 args,
                 scopes,
-                crate::builtins::find_builtin_spec("option", method)
+                crate::builtins::find_builtin_spec_any("option", method)
                     .expect("known option builtin")
                     .sig,
             ),
@@ -539,7 +539,7 @@ impl Checker {
                 method,
                 args,
                 scopes,
-                crate::builtins::find_builtin_spec("result", method)
+                crate::builtins::find_builtin_spec_any("result", method)
                     .expect("known result builtin")
                     .sig,
             ),

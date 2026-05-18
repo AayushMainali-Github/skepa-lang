@@ -1,4 +1,4 @@
-use crate::builtins::{BuiltinKind, find_builtin_spec};
+use crate::builtins::{BuiltinKind, find_builtin_spec_any};
 use crate::ir::{ConstValue, Instr, IrFunction, IrProgram, IrType};
 
 use super::{IrVerifier, IrVerifyError};
@@ -340,7 +340,7 @@ impl IrVerifier {
                     Self::verify_generic_ffi_call(program, func, args, ret_ty)?;
                     return Ok(());
                 }
-                if let Some(spec) = find_builtin_spec(&builtin.package, &builtin.name) {
+                if let Some(spec) = find_builtin_spec_any(&builtin.package, &builtin.name) {
                     if !matches!(ret_ty, IrType::Unknown | IrType::Void) {
                         let expected_ret = IrType::from(&spec.sig.ret);
                         if !Self::types_compatible(ret_ty, &expected_ret) {

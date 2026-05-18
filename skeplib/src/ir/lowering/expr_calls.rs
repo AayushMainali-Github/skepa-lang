@@ -1,5 +1,5 @@
 use crate::ast::Expr;
-use crate::builtins::find_builtin_spec;
+use crate::builtins::find_builtin_spec_any;
 use crate::ir::{BlockId, ConstValue, Instr, IrType, Operand};
 
 use super::context::{ExternFunctionSig, FunctionLowering, IrLowerer};
@@ -1040,7 +1040,7 @@ impl IrLowerer {
             }
             _ => {}
         }
-        let spec = find_builtin_spec(package, name)?;
+        let spec = find_builtin_spec_any(package, name)?;
         Some(IrType::from(&spec.sig.ret))
     }
 
