@@ -1240,7 +1240,7 @@ Behavior:
 Notes:
 - `str.repeat` validates repeat count at runtime.
 - `str.slice` returns `Ok(String)` on valid bounds and `Err(String)` on invalid bounds.
-- Exact `str.len` semantics follow runtime string helper behavior used by the implementation/tests.
+- `str.len` returns the language-level string length used consistently across interpreter and native execution.
 
 ### 8.4 `option`
 

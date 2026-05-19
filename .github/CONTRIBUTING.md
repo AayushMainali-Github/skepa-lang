@@ -47,6 +47,9 @@ Scopes are optional. Use one when it helps identify the area of the change.
 
 If a commit introduces a breaking change, add `!` after the type or scope.
 
+For language semantics, builtin behavior, and compatibility expectations, follow [`LANGUAGE_POLICY.md`](../LANGUAGE_POLICY.md).
+Semantic changes should update the relevant spec docs (`DOCS.md` and, when needed, `RUNTIME.md`) in the same change.
+
 ## Testing
 
 New features should include tests at the narrowest useful layer first. If the change affects runtime, codegen, or CLI behavior, add cross-layer coverage as well.
