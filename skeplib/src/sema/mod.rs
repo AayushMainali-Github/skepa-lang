@@ -26,7 +26,7 @@ pub fn analyze_source(source: &str) -> (SemaResult, DiagnosticBag) {
     if !diags.is_empty() {
         return (SemaResult { has_errors: true }, diags);
     }
-    let mut checker = Checker::new(&program);
+    let mut checker = Checker::new(&program, Some(source));
     checker.check_program(&program);
     for d in checker.diagnostics.into_vec() {
         diags.push(d);
@@ -54,6 +54,8 @@ struct Checker {
     fn_lit_scope_floors: Vec<usize>,
     return_types: Vec<TypeInfo>,
     has_external_context: bool,
+    fallback_spans: Vec<Span>,
+    source_text: Option<String>,
 }
 
 impl Checker {
@@ -194,7 +196,7 @@ impl Checker {
         Ok(specs)
     }
 
-    fn new(program: &Program) -> Self {
+    fn new(program: &Program, source: Option<&str>) -> Self {
         let mut imported_modules = HashSet::new();
         let mut direct_imports = HashMap::new();
         let mut module_namespaces = HashMap::new();
@@ -262,7 +264,36 @@ impl Checker {
             fn_lit_scope_floors: Vec::new(),
             return_types: Vec::new(),
             has_external_context: false,
+            fallback_spans: Vec::new(),
+            source_text: source.map(ToString::to_string),
         }
+    }
+
+    fn declaration_span(&self, keyword: &str, name: &str) -> Option<Span> {
+        let source = self.source_text.as_deref()?;
+        let needle = format!("{keyword} {name}");
+        let mut offset = 0usize;
+        for (line_idx, line) in source.lines().enumerate() {
+            if let Some(col0) = line.find(&needle) {
+                let start = offset + col0;
+                let end = start + needle.len();
+                return Some(Span::new(start, end, line_idx + 1, col0 + 1));
+            }
+            offset += line.len() + 1;
+        }
+        None
+    }
+
+    fn push_fallback_span(&mut self, span: Option<Span>) {
+        self.fallback_spans.push(span.unwrap_or_default());
+    }
+
+    fn pop_fallback_span(&mut self) {
+        let _ = self.fallback_spans.pop();
+    }
+
+    fn current_fallback_span(&self) -> Span {
+        self.fallback_spans.last().copied().unwrap_or_default()
     }
 
     fn check_program(&mut self, program: &Program) {
@@ -271,6 +302,7 @@ impl Checker {
         self.collect_method_signatures(program);
 
         for f in &program.functions {
+            self.push_fallback_span(self.declaration_span("fn", &f.name));
             for p in &f.params {
                 self.check_decl_type_exists(
                     &p.ty,
@@ -291,6 +323,7 @@ impl Checker {
             }
             if self.functions.contains_key(&f.name) {
                 self.error(format!("Duplicate function declaration `{}`", f.name));
+                self.pop_fallback_span();
                 continue;
             }
             let params = f
@@ -311,10 +344,13 @@ impl Checker {
                     ret,
                 },
             );
+            self.pop_fallback_span();
         }
 
         for operator in &program.operators {
+            self.push_fallback_span(self.declaration_span("opr", &operator.name));
             self.collect_operator_signature(operator);
+            self.pop_fallback_span();
         }
 
         self.check_global_declarations(program);
@@ -425,11 +461,13 @@ impl Checker {
         let mut scope = HashMap::<String, TypeInfo>::new();
         let mut scopes = vec![HashMap::<String, TypeInfo>::new()];
         for g in &program.globals {
+            self.push_fallback_span(self.declaration_span("let", &g.name));
             if scope.contains_key(&g.name) {
                 self.error(format!(
                     "Duplicate global variable declaration `{}`",
                     g.name
                 ));
+                self.pop_fallback_span();
                 continue;
             }
             if let Some(t) = &g.ty {
@@ -502,6 +540,7 @@ impl Checker {
             scope.insert(g.name.clone(), final_ty.clone());
             self.globals.insert(g.name.clone(), final_ty.clone());
             scopes[0].insert(g.name.clone(), final_ty);
+            self.pop_fallback_span();
         }
     }
 
@@ -559,12 +598,15 @@ impl Checker {
 
     fn check_struct_declarations(&mut self, program: &Program) {
         for s in &program.structs {
+            self.push_fallback_span(self.declaration_span("struct", &s.name));
             if !self.struct_names.insert(s.name.clone()) {
                 self.error(format!("Duplicate struct declaration `{}`", s.name));
             }
+            self.pop_fallback_span();
         }
 
         for s in &program.structs {
+            self.push_fallback_span(self.declaration_span("struct", &s.name));
             let mut seen_fields = HashSet::new();
             let mut field_types = HashMap::new();
             for field in &s.fields {
@@ -581,18 +623,21 @@ impl Checker {
                 field_types.insert(field.name.clone(), TypeInfo::from_ast(&field.ty));
             }
             self.struct_fields.insert(s.name.clone(), field_types);
+            self.pop_fallback_span();
         }
     }
 
     fn check_impl_declarations(&mut self, program: &Program) {
         let mut global_seen_methods: HashMap<String, HashSet<String>> = HashMap::new();
         for imp in &program.impls {
+            self.push_fallback_span(self.declaration_span("impl", &imp.target));
             if !self.struct_names.contains(&imp.target) {
                 self.error(format!("Unknown impl target struct `{}`", imp.target));
             }
 
             let seen_methods = global_seen_methods.entry(imp.target.clone()).or_default();
             for method in &imp.methods {
+                self.push_fallback_span(self.declaration_span("fn", &method.name));
                 if !seen_methods.insert(method.name.clone()) {
                     self.error(format!(
                         "Duplicate method `{}` in impl `{}`",
@@ -632,7 +677,9 @@ impl Checker {
                         format!("Unknown return type in method `{}`", method.name),
                     );
                 }
+                self.pop_fallback_span();
             }
+            self.pop_fallback_span();
         }
     }
 
@@ -704,6 +751,7 @@ impl Checker {
     }
 
     fn check_function(&mut self, f: &crate::ast::FnDecl) {
+        self.push_fallback_span(self.declaration_span("fn", &f.name));
         let expected_ret = f
             .return_type
             .as_ref()
@@ -732,9 +780,11 @@ impl Checker {
                 f.name, expected_ret
             ));
         }
+        self.pop_fallback_span();
     }
 
     fn check_method(&mut self, target: &str, m: &crate::ast::MethodDecl) {
+        self.push_fallback_span(self.declaration_span("fn", &m.name));
         let expected_ret = m
             .return_type
             .as_ref()
@@ -766,9 +816,11 @@ impl Checker {
                 target, m.name, expected_ret
             ));
         }
+        self.pop_fallback_span();
     }
 
     fn check_operator(&mut self, operator: &OperatorDecl) {
+        self.push_fallback_span(self.declaration_span("opr", &operator.name));
         let expected_ret = TypeInfo::from_ast(&operator.return_type);
         let mut scopes = vec![HashMap::<String, TypeInfo>::new()];
         for p in &operator.params {
@@ -792,6 +844,7 @@ impl Checker {
                 operator.name, expected_ret
             ));
         }
+        self.pop_fallback_span();
     }
 
     fn block_must_return(stmts: &[Stmt]) -> bool {
@@ -852,6 +905,6 @@ impl Checker {
     }
 
     fn error(&mut self, message: String) {
-        self.diagnostics.error(message, Span::default());
+        self.diagnostics.error(message, self.current_fallback_span());
     }
 }

@@ -90,7 +90,8 @@ fn analyze_project_graph_phased_impl(
 
     for (id, program) in &programs {
         let ctx = build_external_context(id, program, graph, &module_apis, &export_maps);
-        let mut checker = Checker::new(program);
+        let source = graph.modules.get(id).map(|unit| unit.source.as_str());
+        let mut checker = Checker::new(program, source);
         checker.apply_external_context(ctx);
         checker.check_program(program);
         let path = module_paths
