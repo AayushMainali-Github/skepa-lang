@@ -391,6 +391,47 @@ fn main() -> Int {
 }
 
 #[test]
+fn native_and_ir_accept_same_qualified_namespace_function_value_project_source() {
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock should be monotonic enough for temp name")
+        .as_nanos();
+    let root = std::env::temp_dir().join(format!("skepa_ir_diff_namespace_fn_value_{unique}"));
+    fs::create_dir_all(root.join("utils")).expect("temp project dirs should be created");
+
+    let entry = root.join("main.sk");
+    fs::write(
+        root.join("utils/math.sk"),
+        r#"
+fn add(a: Int, b: Int) -> Int { return a + b; }
+export { add };
+"#,
+    )
+    .expect("math module should be written");
+    fs::write(
+        &entry,
+        r#"
+import utils.math;
+fn main() -> Int {
+  let f: Fn(Int, Int) -> Int = utils.math.add;
+  return f(1, 2);
+}
+"#,
+    )
+    .expect("entry module should be written");
+
+    let program =
+        ir::lowering::compile_project_entry(&entry).expect("project IR lowering should succeed");
+    let ir_value = IrInterpreter::new(&program)
+        .run_main()
+        .expect("IR interpreter should run project");
+    assert_eq!(ir_value, IrValue::Int(3));
+    assert_eq!(common::native_run_project_exit_code_ok(&entry), 3);
+
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
 fn ir_rejects_runtime_error_sources() {
     assert_ir_rejects_source(
         r#"
