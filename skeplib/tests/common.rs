@@ -4,9 +4,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use skepart::{RtErrorKind, RtValue};
+use skepart::{RtErrorKind, RtHost, RtResult, RtString, RtValue};
 use skeplib::ast::Program;
 use skeplib::codegen;
 use skeplib::diagnostic::DiagnosticBag;
@@ -17,6 +18,47 @@ use skeplib::sema::{SemaResult, analyze_source};
 
 pub struct TempProject {
     root: PathBuf,
+}
+
+#[derive(Default)]
+pub struct DeterministicHost {
+    out: Arc<Mutex<String>>,
+}
+
+impl DeterministicHost {
+    pub fn captured_output(&self) -> Arc<Mutex<String>> {
+        Arc::clone(&self.out)
+    }
+}
+
+impl RtHost for DeterministicHost {
+    fn io_print(&mut self, text: &str) -> RtResult<()> {
+        self.out
+            .lock()
+            .expect("lock deterministic host")
+            .push_str(text);
+        Ok(())
+    }
+
+    fn datetime_now_unix(&mut self) -> RtResult<i64> {
+        Ok(123)
+    }
+
+    fn datetime_now_millis(&mut self) -> RtResult<i64> {
+        Ok(456_789)
+    }
+
+    fn fs_exists(&mut self, path: &str) -> RtResult<bool> {
+        Ok(path == "exists.txt")
+    }
+
+    fn fs_read_text(&mut self, path: &str) -> RtResult<RtString> {
+        Ok(RtString::from(format!("read:{path}")))
+    }
+
+    fn fs_join(&mut self, left: &str, right: &str) -> RtResult<RtString> {
+        Ok(RtString::from(format!("{left}/{right}")))
+    }
 }
 
 impl TempProject {
@@ -175,6 +217,13 @@ pub fn compile_project_ir_ok(entry: &Path) -> IrProgram {
 pub fn ir_run_ok(src: &str) -> skepart::value::RtValue {
     let program = compile_ir_ok(src);
     IrInterpreter::new(&program)
+        .run_main()
+        .expect("IR interpreter should run source")
+}
+
+pub fn ir_run_ok_with_host(src: &str, host: Box<dyn RtHost>) -> skepart::value::RtValue {
+    let program = compile_ir_ok(src);
+    IrInterpreter::with_host(&program, host)
         .run_main()
         .expect("IR interpreter should run source")
 }

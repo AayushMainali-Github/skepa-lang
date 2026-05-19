@@ -158,8 +158,21 @@ impl IrLowerer {
                         .collect::<Vec<_>>();
                     exporting.sort();
                     for mid in exporting {
+                        let relative_mid = mid
+                            .strip_prefix(&target_prefix)
+                            .map(|suffix| suffix.trim_start_matches('.'))
+                            .unwrap_or("");
+                        let visible_mid = if relative_mid.is_empty() {
+                            ns.clone()
+                        } else {
+                            format!("{ns}.{relative_mid}")
+                        };
                         if let Some(exports) = export_maps.get(&mid) {
                             for (ename, sym) in exports {
+                                let same_as_module_leaf = mid
+                                    .rsplit('.')
+                                    .next()
+                                    .is_some_and(|segment| segment == ename);
                                 if sym.kind == SymbolKind::Fn {
                                     self.namespace_call_targets.insert(
                                         format!("{mid}.{ename}"),
@@ -169,6 +182,16 @@ impl IrLowerer {
                                         format!("{ns}.{ename}"),
                                         format!("{}::{}", sym.module_id, sym.local_name),
                                     );
+                                    self.namespace_call_targets.insert(
+                                        format!("{visible_mid}.{ename}"),
+                                        format!("{}::{}", sym.module_id, sym.local_name),
+                                    );
+                                    if same_as_module_leaf {
+                                        self.namespace_call_targets.insert(
+                                            visible_mid.clone(),
+                                            format!("{}::{}", sym.module_id, sym.local_name),
+                                        );
+                                    }
                                 }
                                 if sym.kind == SymbolKind::Struct {
                                     self.imported_struct_runtime.insert(
@@ -179,6 +202,16 @@ impl IrLowerer {
                                         format!("{ns}.{ename}"),
                                         format!("{}::{}", sym.module_id, sym.local_name),
                                     );
+                                    self.imported_struct_runtime.insert(
+                                        format!("{visible_mid}.{ename}"),
+                                        format!("{}::{}", sym.module_id, sym.local_name),
+                                    );
+                                    if same_as_module_leaf {
+                                        self.imported_struct_runtime.insert(
+                                            visible_mid.clone(),
+                                            format!("{}::{}", sym.module_id, sym.local_name),
+                                        );
+                                    }
                                 }
                                 if sym.kind == SymbolKind::GlobalLet {
                                     self.imported_global_names.insert(
@@ -189,6 +222,16 @@ impl IrLowerer {
                                         format!("{ns}.{ename}"),
                                         format!("{}::{}", sym.module_id, sym.local_name),
                                     );
+                                    self.imported_global_names.insert(
+                                        format!("{visible_mid}.{ename}"),
+                                        format!("{}::{}", sym.module_id, sym.local_name),
+                                    );
+                                    if same_as_module_leaf {
+                                        self.imported_global_names.insert(
+                                            visible_mid.clone(),
+                                            format!("{}::{}", sym.module_id, sym.local_name),
+                                        );
+                                    }
                                 }
                             }
                         }

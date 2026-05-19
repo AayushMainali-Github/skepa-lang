@@ -90,6 +90,17 @@ pub fn compile_project_graph_unoptimized(
         }
     }
 
+    if !lowerer.diags.is_empty() {
+        let joined = lowerer
+            .diags
+            .as_slice()
+            .iter()
+            .map(|diag| diag.message.as_str())
+            .collect::<Vec<_>>()
+            .join("\n");
+        return Err(format!("Project IR lowering failed:\n{joined}"));
+    }
+
     let init_function_ids = module_init_order(graph, &init_functions_by_module);
     if !init_function_ids.is_empty() {
         let wrapper_id = crate::ir::FunctionId(lowerer.functions.len());

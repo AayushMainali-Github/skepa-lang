@@ -5,6 +5,19 @@ use crate::ir::{BlockId, ConstValue, Instr, IrType, Operand};
 use super::context::{ExternFunctionSig, FunctionLowering, IrLowerer};
 
 impl IrLowerer {
+    fn callee_path_parts(expr: &Expr) -> Option<Vec<String>> {
+        match expr {
+            Expr::Ident(name) => Some(vec![name.clone()]),
+            Expr::Path(parts) => Some(parts.clone()),
+            Expr::Field { base, field } => {
+                let mut parts = Self::callee_path_parts(base)?;
+                parts.push(field.clone());
+                Some(parts)
+            }
+            _ => None,
+        }
+    }
+
     fn is_builtin_member_expr(expr: &Expr, package: &str, member: &str) -> bool {
         match expr {
             Expr::Path(parts) => parts.len() == 2 && parts[0] == package && parts[1] == member,
@@ -24,6 +37,14 @@ impl IrLowerer {
                     .unwrap_or_else(|| self.qualify_name(name)),
             ),
             Expr::Path(parts) => Some({
+                let name = parts.join(".");
+                self.namespace_call_targets
+                    .get(&name)
+                    .cloned()
+                    .unwrap_or_else(|| self.qualify_name(&name))
+            }),
+            Expr::Field { .. } => Some({
+                let parts = Self::callee_path_parts(callee)?;
                 let name = parts.join(".");
                 self.namespace_call_targets
                     .get(&name)

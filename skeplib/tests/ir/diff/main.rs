@@ -1,52 +1,11 @@
-use std::cell::RefCell;
 use std::fs;
-use std::rc::Rc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use skepart::{RtErrorKind, RtHost, RtResult, RtString, RtValue};
+use skepart::{RtErrorKind, RtValue};
 use skeplib::ir::{self, IrInterpreter, IrValue};
 
 #[path = "../../common.rs"]
 mod common;
-
-struct DiffHost {
-    out: Rc<RefCell<String>>,
-}
-
-impl Default for DiffHost {
-    fn default() -> Self {
-        Self {
-            out: Rc::new(RefCell::new(String::new())),
-        }
-    }
-}
-
-impl RtHost for DiffHost {
-    fn io_print(&mut self, text: &str) -> RtResult<()> {
-        self.out.borrow_mut().push_str(text);
-        Ok(())
-    }
-
-    fn datetime_now_unix(&mut self) -> RtResult<i64> {
-        Ok(123)
-    }
-
-    fn datetime_now_millis(&mut self) -> RtResult<i64> {
-        Ok(456_789)
-    }
-
-    fn fs_exists(&mut self, path: &str) -> RtResult<bool> {
-        Ok(path == "exists.txt")
-    }
-
-    fn fs_read_text(&mut self, path: &str) -> RtResult<RtString> {
-        Ok(RtString::from(format!("read:{path}")))
-    }
-
-    fn fs_join(&mut self, left: &str, right: &str) -> RtResult<RtString> {
-        Ok(RtString::from(format!("{left}/{right}")))
-    }
-}
 
 fn assert_native_and_ir_accept_same_int_source(source: &str, expected: i32) {
     common::assert_native_matches_ir_value(source, RtValue::Int(i64::from(expected)));
@@ -212,14 +171,14 @@ fn main() -> Int {
     let native_out = String::from_utf8_lossy(&native.stdout).replace("\r\n", "\n");
     assert_eq!(native_out, "alpha7\n");
 
-    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
-    let host = DiffHost::default();
-    let captured = host.out.clone();
-    let value = IrInterpreter::with_host(&program, Box::new(host))
-        .run_main()
-        .expect("IR interpreter should run source");
+    let host = common::DeterministicHost::default();
+    let captured = host.captured_output();
+    let value = common::ir_run_ok_with_host(source, Box::new(host));
     assert_eq!(value, IrValue::Int(3));
-    assert_eq!(&*captured.borrow(), "alpha7\n");
+    assert_eq!(
+        &*captured.lock().expect("lock deterministic host output"),
+        "alpha7\n"
+    );
 }
 
 #[test]
@@ -335,6 +294,98 @@ fn main() -> Int {
         .expect("IR interpreter should run project");
     assert_eq!(ir_value, IrValue::Int(28));
     assert_eq!(common::native_run_project_exit_code_ok(&entry), 28);
+
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn native_and_ir_accept_same_namespace_folder_import_project_source() {
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock should be monotonic enough for temp name")
+        .as_nanos();
+    let root = std::env::temp_dir().join(format!("skepa_ir_diff_namespace_folder_{unique}"));
+    fs::create_dir_all(root.join("string/nested")).expect("temp project dirs should be created");
+
+    let entry = root.join("main.sk");
+    fs::write(
+        root.join("string/case.sk"),
+        r#"
+fn up(s: String) -> String { return s; }
+export { up };
+"#,
+    )
+    .expect("case module should be written");
+    fs::write(
+        root.join("string/nested/trim.sk"),
+        r#"
+fn trim(s: String) -> String { return s; }
+export { trim };
+"#,
+    )
+    .expect("trim module should be written");
+    fs::write(
+        &entry,
+        r#"
+import string;
+fn main() -> Int {
+  let a = string.case.up("x");
+  let b = string.nested.trim("y");
+  if (a == "x" && b == "y") { return 0; }
+  return 1;
+}
+"#,
+    )
+    .expect("entry module should be written");
+
+    let program =
+        ir::lowering::compile_project_entry(&entry).expect("project IR lowering should succeed");
+    let ir_value = IrInterpreter::new(&program)
+        .run_main()
+        .expect("IR interpreter should run project");
+    assert_eq!(ir_value, IrValue::Int(0));
+    assert_eq!(common::native_run_project_exit_code_ok(&entry), 0);
+
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn native_and_ir_accept_same_namespace_aliased_struct_literal_project_source() {
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock should be monotonic enough for temp name")
+        .as_nanos();
+    let root = std::env::temp_dir().join(format!("skepa_ir_diff_namespace_struct_{unique}"));
+    fs::create_dir_all(&root).expect("temp project dir should be created");
+
+    let entry = root.join("main.sk");
+    fs::write(
+        root.join("models.sk"),
+        r#"
+struct User { id: Int }
+export { User };
+"#,
+    )
+    .expect("models module should be written");
+    fs::write(
+        &entry,
+        r#"
+import models as m;
+fn main() -> Int {
+  let u = m.User { id: 7 };
+  return u.id;
+}
+"#,
+    )
+    .expect("entry module should be written");
+
+    let program =
+        ir::lowering::compile_project_entry(&entry).expect("project IR lowering should succeed");
+    let ir_value = IrInterpreter::new(&program)
+        .run_main()
+        .expect("IR interpreter should run project");
+    assert_eq!(ir_value, IrValue::Int(7));
+    assert_eq!(common::native_run_project_exit_code_ok(&entry), 7);
 
     let _ = fs::remove_dir_all(&root);
 }
