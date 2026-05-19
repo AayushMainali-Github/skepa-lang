@@ -1,4 +1,5 @@
 use core::fmt;
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DiagnosticLevel {
@@ -45,6 +46,7 @@ pub struct Diagnostic {
     pub level: DiagnosticLevel,
     pub message: String,
     pub span: Span,
+    pub path: Option<PathBuf>,
 }
 
 impl Diagnostic {
@@ -53,6 +55,7 @@ impl Diagnostic {
             level: DiagnosticLevel::Error,
             message: message.into(),
             span,
+            path: None,
         }
     }
 
@@ -61,7 +64,13 @@ impl Diagnostic {
             level: DiagnosticLevel::Warning,
             message: message.into(),
             span,
+            path: None,
         }
+    }
+
+    pub fn with_path(mut self, path: impl Into<PathBuf>) -> Self {
+        self.path = Some(path.into());
+        self
     }
 }
 
@@ -71,11 +80,28 @@ impl fmt::Display for Diagnostic {
             DiagnosticLevel::Error => "error",
             DiagnosticLevel::Warning => "warning",
         };
-        write!(
-            f,
-            "{level} at {}:{} ({}..{}): {}",
-            self.span.line, self.span.col, self.span.start, self.span.end, self.message
-        )
+        if let Some(path) = &self.path {
+            if self.span.line > 0 && self.span.col > 0 {
+                write!(
+                    f,
+                    "{level} at {}:{}:{} ({}..{}): {}",
+                    path.display(),
+                    self.span.line,
+                    self.span.col,
+                    self.span.start,
+                    self.span.end,
+                    self.message
+                )
+            } else {
+                write!(f, "{level} at {}: {}", path.display(), self.message)
+            }
+        } else {
+            write!(
+                f,
+                "{level} at {}:{} ({}..{}): {}",
+                self.span.line, self.span.col, self.span.start, self.span.end, self.message
+            )
+        }
     }
 }
 

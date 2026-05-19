@@ -1909,7 +1909,9 @@ fn main() -> Int { return add("x", 1); }
     assert_cli_failure_class(&output, CliFailureClass::Sema);
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("[E-SEMA][sema]"));
+    assert!(stderr.contains(&format!("{}:", main.display())));
     assert!(stderr.contains("Argument 1 for `add`: expected Int, got String"));
+    assert!(!stderr.contains(&format!("{}: {}", main.display(), main.display())));
 }
 
 #[test]

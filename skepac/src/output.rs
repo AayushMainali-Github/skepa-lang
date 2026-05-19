@@ -2,7 +2,38 @@ use skeplib::diagnostic::Diagnostic;
 use skeplib::resolver::ResolveError;
 
 pub fn print_diag(phase: &str, d: &Diagnostic) {
-    eprintln!("[{}][{}] {}", phase_code(phase), phase, d);
+    if let Some(path) = &d.path {
+        if d.span.line > 0 && d.span.col > 0 {
+            eprintln!(
+                "[{}][{}] {}:{}:{}: {}",
+                phase_code(phase),
+                phase,
+                path.display(),
+                d.span.line,
+                d.span.col,
+                d.message
+            );
+        } else {
+            eprintln!(
+                "[{}][{}] {}: {}",
+                phase_code(phase),
+                phase,
+                path.display(),
+                d.message
+            );
+        }
+    } else if d.span.line > 0 && d.span.col > 0 {
+        eprintln!(
+            "[{}][{}] {}:{}: {}",
+            phase_code(phase),
+            phase,
+            d.span.line,
+            d.span.col,
+            d.message
+        );
+    } else {
+        eprintln!("[{}][{}] {}", phase_code(phase), phase, d.message);
+    }
 }
 
 pub fn print_resolve_errors(errs: &[ResolveError]) {

@@ -76,9 +76,9 @@ fn analyze_project_graph_phased_impl(
     let mut programs = HashMap::<ModuleId, Program>::new();
     let parse_diags_all = DiagnosticBag::new();
     let mut sema_diags_all = DiagnosticBag::new();
-    let mut module_paths = HashMap::<ModuleId, String>::new();
+    let mut module_paths = HashMap::<ModuleId, std::path::PathBuf>::new();
     for (id, unit) in &graph.modules {
-        module_paths.insert(id.clone(), unit.path.display().to_string());
+        module_paths.insert(id.clone(), unit.path.clone());
         programs.insert(id.clone(), unit.program.clone());
     }
 
@@ -93,10 +93,12 @@ fn analyze_project_graph_phased_impl(
         let mut checker = Checker::new(program);
         checker.apply_external_context(ctx);
         checker.check_program(program);
-        let pfx = module_paths.get(id).cloned().unwrap_or_else(|| id.clone());
-        for mut d in checker.diagnostics.into_vec() {
-            d.message = format!("{pfx}: {}", d.message);
-            sema_diags_all.push(d);
+        let path = module_paths
+            .get(id)
+            .cloned()
+            .unwrap_or_else(|| std::path::PathBuf::from(id));
+        for d in checker.diagnostics.into_vec() {
+            sema_diags_all.push(d.with_path(path.clone()));
         }
     }
 
