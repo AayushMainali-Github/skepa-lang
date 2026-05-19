@@ -49,6 +49,63 @@ skepac build-obj app.sk app.obj
 skepac build-llvm-ir app.sk app.ll
 ```
 
+## Project Layout
+
+Skepa projects are file-system based. The CLI takes an explicit entry file, usually `main.sk`.
+
+Recommended small-project layout:
+
+```text
+my_app/
+  main.sk
+  lib.sk
+  utils/
+    math.sk
+```
+
+Example:
+
+```sk
+// utils/math.sk
+fn add(a: Int, b: Int) -> Int { return a + b; }
+export { add };
+```
+
+```sk
+// main.sk
+from utils.math import add;
+
+fn main() -> Int {
+  return add(20, 22);
+}
+```
+
+Run it with:
+
+```bash
+skepac check main.sk
+skepac run main.sk
+```
+
+Folder namespaces map directly to import paths:
+
+- `utils/math.sk` -> `utils.math`
+- `string/case.sk` -> `string.case`
+- `a/mod.sk` -> `a.mod`
+
+## User Test Workflow
+
+There is no `skepac test` command yet.
+
+Current recommended workflow for user programs:
+
+1. keep small executable checks in `.sk` files with a `main() -> Int`
+2. return `0` for success and non-zero for failure
+3. run them with `skepac run <entry.sk>`
+4. use `skepac check <entry.sk>` in fast validation loops before native runs
+
+For multi-file projects, point `skepac` at the entry file for the specific executable check you want to run.
+
 For full language/module reference, see `DOCS.md`.
 
 For the internal runtime and FFI ABI contract, see `RUNTIME.md`.

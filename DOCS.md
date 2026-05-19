@@ -1921,7 +1921,50 @@ Resolver messages include module/path context and may include `did you mean ...`
 - `skepac build-obj <entry.sk> <out.obj>`
 - `skepac build-llvm-ir <entry.sk> <out.ll>`
 
-## 11. Native Workflow
+## 11. Project Layout Conventions
+
+Skepa uses file-system module layout. The CLI always starts from an explicit entry file, usually `main.sk`.
+
+Recommended layout:
+
+```text
+project/
+  main.sk
+  lib.sk
+  utils/
+    math.sk
+```
+
+Common path mappings:
+
+- `main.sk` is the usual executable entry module
+- `utils/math.sk` is imported as `utils.math`
+- `a/mod.sk` is imported as `a.mod`
+- `string/case.sk` is imported as `string.case`
+
+Minimal multi-file example:
+
+```sk
+// utils/math.sk
+fn add(a: Int, b: Int) -> Int { return a + b; }
+export { add };
+```
+
+```sk
+// main.sk
+from utils.math import add;
+
+fn main() -> Int {
+  return add(20, 22);
+}
+```
+
+Use:
+
+- `skepac check main.sk`
+- `skepac run main.sk`
+
+## 12. Native Workflow
 
 Recommended day-to-day flow:
 - `skepac check app.sk`
@@ -1933,3 +1976,17 @@ Migration note:
 - old backend-specific commands were removed
 - the old standalone runner was removed
 - native artifacts and LLVM IR are now the supported build/debug outputs
+
+## 13. User Program Test Workflow
+
+There is no dedicated `skepac test` command yet.
+
+Current recommended workflow:
+
+1. write executable checks as ordinary `.sk` entry files
+2. return `0` from `main() -> Int` on success
+3. return a non-zero code on failure
+4. use `skepac check <entry.sk>` for quick frontend validation
+5. use `skepac run <entry.sk>` for executable checks
+
+For multi-file projects, create one entry file per runnable check when needed and run that entry file explicitly.
