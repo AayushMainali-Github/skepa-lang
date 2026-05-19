@@ -51,6 +51,8 @@ skepac build-llvm-ir app.sk app.ll
 
 For full language/module reference, see `DOCS.md`.
 
+For the internal runtime and FFI ABI contract, see `RUNTIME.md`.
+
 ## Contributing
 
 See [`.github/CONTRIBUTING.md`](./.github/CONTRIBUTING.md) for contribution workflow and commit message guidance.

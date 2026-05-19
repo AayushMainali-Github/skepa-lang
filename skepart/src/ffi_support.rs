@@ -251,3 +251,17 @@ pub unsafe extern "C" fn skp_rt_result_free(ptr: *mut RtResultValue) {
 pub unsafe extern "C" fn skp_rt_struct_free(ptr: *mut RtStruct) {
     unsafe { free_boxed_struct(ptr) };
 }
+
+#[cfg(test)]
+mod tests {
+    use super::ffi_try;
+    use crate::RtErrorKind;
+
+    #[test]
+    fn ffi_try_maps_panics_to_invalid_argument() {
+        let err = ffi_try::<(), _>(|| panic!("ffi wrapper exploded"))
+            .expect_err("panic should be converted to runtime error");
+        assert_eq!(err.kind, RtErrorKind::InvalidArgument);
+        assert_eq!(err.message, "ffi wrapper exploded");
+    }
+}

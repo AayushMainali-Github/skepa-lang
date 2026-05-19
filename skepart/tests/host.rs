@@ -919,6 +919,28 @@ fn noop_host_joins_running_tasks_once() {
 }
 
 #[test]
+fn noop_host_maps_panicked_task_join_to_invalid_argument() {
+    let mut host = NoopHost::default();
+    let task = host
+        .task_store_running(std::thread::spawn(
+            || -> skepart::RtResult<skepart::RtValue> {
+                panic!("boom");
+            },
+        ))
+        .expect("store running task");
+
+    let err = host.task_join(task).expect_err("panic should map to runtime error");
+    assert_eq!(err.kind, skepart::RtErrorKind::InvalidArgument);
+    assert!(err.message.contains("spawned task panicked"));
+    assert_eq!(
+        host.net_lookup_handle_kind(task)
+            .expect_err("panicked task handle should be reclaimed")
+            .kind,
+        skepart::RtErrorKind::InvalidArgument
+    );
+}
+
+#[test]
 fn noop_host_can_close_task_and_channel_handles_explicitly() {
     let mut host = NoopHost::default();
     let task = host
