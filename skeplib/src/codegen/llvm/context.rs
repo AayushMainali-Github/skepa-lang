@@ -4,6 +4,7 @@ use crate::codegen::llvm::function;
 use crate::codegen::llvm::instr_core;
 use crate::codegen::llvm::instr_runtime;
 use crate::codegen::llvm::instr_scalar;
+use crate::codegen::llvm::LlvmEmitSection;
 use crate::codegen::llvm::module;
 use crate::codegen::llvm::runtime;
 use crate::codegen::llvm::strings::collect_string_literals;
@@ -26,17 +27,40 @@ impl<'a> LlvmEmitter<'a> {
     }
 
     pub fn emit_program(&self) -> Result<String, CodegenError> {
+        let sections = [
+            self.emit_section_lines(LlvmEmitSection::Module)?,
+            self.emit_section_lines(LlvmEmitSection::Runtime)?,
+            self.emit_section_lines(LlvmEmitSection::Functions)?,
+        ];
+        let total_lines = sections.iter().map(Vec::len).sum();
+        let mut out = Vec::with_capacity(total_lines);
+        for mut section in sections {
+            out.append(&mut section);
+        }
+        Ok(out.join("\n"))
+    }
+
+    pub fn emit_section(&self, section: LlvmEmitSection) -> Result<String, CodegenError> {
+        Ok(self.emit_section_lines(section)?.join("\n"))
+    }
+
+    fn emit_section_lines(&self, section: LlvmEmitSection) -> Result<Vec<String>, CodegenError> {
         module::ensure_reserved_symbol_space(self.program)?;
+        match section {
+            LlvmEmitSection::Module => self.emit_module_section_lines(),
+            LlvmEmitSection::Runtime => self.emit_runtime_section_lines(),
+            LlvmEmitSection::Functions => self.emit_functions_section_lines(),
+        }
+    }
+
+    fn emit_module_section_lines(&self) -> Result<Vec<String>, CodegenError> {
         let mut out = vec![
             "; ModuleID = 'skepa'".to_string(),
             "source_filename = \"skepa\"".to_string(),
             String::new(),
         ];
-
         module::emit_globals(self.program, &mut out)?;
-
         module::emit_string_literal_storage(&self.string_literals, &mut out);
-
         if !self.string_literals.is_empty() || self.program.module_init.is_some() {
             if !self.string_literals.is_empty() {
                 out.extend(module::emit_runtime_string_init(&self.string_literals)?);
@@ -50,15 +74,22 @@ impl<'a> LlvmEmitter<'a> {
             ));
             out.push(String::new());
         }
+        Ok(out)
+    }
 
+    fn emit_runtime_section_lines(&self) -> Result<Vec<String>, CodegenError> {
+        let mut out = Vec::new();
         runtime::emit_runtime_decls(self.program, &mut out)?;
         out.push(String::new());
+        Ok(out)
+    }
 
+    fn emit_functions_section_lines(&self) -> Result<Vec<String>, CodegenError> {
+        let mut out = Vec::with_capacity(self.program.functions.len() * 8);
         for func in &self.program.functions {
             out.extend(self.emit_function(func)?);
             out.push(String::new());
         }
-
         if let Some(void_main) = self
             .program
             .functions
@@ -75,8 +106,7 @@ impl<'a> LlvmEmitter<'a> {
             out.push("}".into());
             out.push(String::new());
         }
-
-        Ok(out.join("\n"))
+        Ok(out)
     }
 
     fn emit_function(&self, func: &IrFunction) -> Result<Vec<String>, CodegenError> {

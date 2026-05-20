@@ -1,5 +1,6 @@
 use criterion::{BatchSize, BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use skeplib::codegen;
+use skeplib::codegen::llvm::LlvmEmitSection;
 use skeplib::ir::{IrInterpreter, lowering};
 use skeplib::parser::Parser;
 use skeplib::sema::analyze_source;
@@ -231,6 +232,39 @@ fn ir_and_codegen_benches(c: &mut Criterion) {
         b.iter(|| {
             let llvm_ir =
                 codegen::compile_program_to_llvm_ir(black_box(&ir)).expect("emit llvm ir");
+            black_box(llvm_ir);
+        });
+    });
+
+    group.bench_function("llvm_ir_emit_module/heavy_single", |b| {
+        b.iter(|| {
+            let llvm_ir = codegen::compile_program_llvm_ir_section(
+                black_box(&ir),
+                LlvmEmitSection::Module,
+            )
+            .expect("emit module llvm ir section");
+            black_box(llvm_ir);
+        });
+    });
+
+    group.bench_function("llvm_ir_emit_runtime/heavy_single", |b| {
+        b.iter(|| {
+            let llvm_ir = codegen::compile_program_llvm_ir_section(
+                black_box(&ir),
+                LlvmEmitSection::Runtime,
+            )
+            .expect("emit runtime llvm ir section");
+            black_box(llvm_ir);
+        });
+    });
+
+    group.bench_function("llvm_ir_emit_functions/heavy_single", |b| {
+        b.iter(|| {
+            let llvm_ir = codegen::compile_program_llvm_ir_section(
+                black_box(&ir),
+                LlvmEmitSection::Functions,
+            )
+            .expect("emit functions llvm ir section");
             black_box(llvm_ir);
         });
     });

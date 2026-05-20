@@ -21,6 +21,20 @@ mod value;
 use crate::codegen::CodegenError;
 use crate::ir::IrProgram;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LlvmEmitSection {
+    Module,
+    Runtime,
+    Functions,
+}
+
 pub fn compile_program(program: &IrProgram) -> Result<String, CodegenError> {
     context::LlvmEmitter::new(program).emit_program()
+}
+
+pub fn compile_program_section(
+    program: &IrProgram,
+    section: LlvmEmitSection,
+) -> Result<String, CodegenError> {
+    context::LlvmEmitter::new(program).emit_section(section)
 }

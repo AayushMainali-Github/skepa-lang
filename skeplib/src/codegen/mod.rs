@@ -41,6 +41,13 @@ pub fn compile_program_to_llvm_ir(program: &IrProgram) -> Result<String, Codegen
     llvm::compile_program(program)
 }
 
+pub fn compile_program_llvm_ir_section(
+    program: &IrProgram,
+    section: llvm::LlvmEmitSection,
+) -> Result<String, CodegenError> {
+    llvm::compile_program_section(program, section)
+}
+
 pub fn write_program_llvm_ir(program: &IrProgram, path: &Path) -> Result<(), CodegenError> {
     let ir = compile_program_to_llvm_ir(program)?;
     fs::write(path, ir)?;
@@ -322,10 +329,12 @@ fn runtime_native_libraries() -> Vec<&'static str> {
 mod tests {
     use super::{
         CodegenError, compile_program_to_bitcode_file_with_tool,
-        compile_program_to_object_file_with_tools, link_args_for_executable,
+        compile_program_to_object_file_with_tools, compile_program_to_llvm_ir,
+        compile_program_llvm_ir_section, link_args_for_executable,
         link_object_file_to_executable_with_tool, run_tool, runtime_library_path_in_target_dir,
     };
     use crate::ir;
+    use crate::codegen::llvm::LlvmEmitSection;
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -356,6 +365,21 @@ fn main() -> Int {
         } else {
             assert!(args.iter().any(|arg| arg == "-no-pie"));
         }
+    }
+
+    #[test]
+    fn llvm_ir_sections_reconstruct_full_program_output() {
+        let program = simple_program();
+        let full = compile_program_to_llvm_ir(&program).expect("full llvm ir");
+        let sections = [
+            compile_program_llvm_ir_section(&program, LlvmEmitSection::Module)
+                .expect("module section"),
+            compile_program_llvm_ir_section(&program, LlvmEmitSection::Runtime)
+                .expect("runtime section"),
+            compile_program_llvm_ir_section(&program, LlvmEmitSection::Functions)
+                .expect("functions section"),
+        ];
+        assert_eq!(sections.join("\n"), full);
     }
 
     #[test]
