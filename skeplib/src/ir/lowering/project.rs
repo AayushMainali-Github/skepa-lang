@@ -32,6 +32,15 @@ pub fn compile_project_graph(graph: &ModuleGraph, entry: &Path) -> Result<IrProg
     Ok(ir)
 }
 
+pub fn compile_project_graph_after_frontend(
+    graph: &ModuleGraph,
+    entry: &Path,
+) -> Result<IrProgram, String> {
+    let mut ir = compile_project_graph_after_frontend_unoptimized(graph, entry)?;
+    opt::optimize_program(&mut ir);
+    Ok(ir)
+}
+
 pub fn compile_project_graph_unoptimized(
     graph: &ModuleGraph,
     entry: &Path,
@@ -50,6 +59,13 @@ pub fn compile_project_graph_unoptimized(
         ));
     }
 
+    compile_project_graph_after_frontend_unoptimized(graph, entry)
+}
+
+pub fn compile_project_graph_after_frontend_unoptimized(
+    graph: &ModuleGraph,
+    entry: &Path,
+) -> Result<IrProgram, String> {
     let export_maps = build_export_maps(graph).map_err(|errs| errs[0].message.clone())?;
     let entry_path = entry.canonicalize().unwrap_or_else(|_| entry.to_path_buf());
     let Some((entry_id, _)) = graph.modules.iter().find(|(_, m)| {

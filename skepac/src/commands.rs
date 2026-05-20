@@ -231,7 +231,7 @@ fn resolve_project_or_report(input: &str) -> Result<ModuleGraph, i32> {
 }
 
 fn compile_project_graph_or_report(graph: &ModuleGraph, input: &str) -> Result<ir::IrProgram, i32> {
-    match ir::lowering::compile_project_graph(graph, Path::new(input)) {
+    match ir::lowering::compile_project_graph_after_frontend(graph, Path::new(input)) {
         Ok(program) => Ok(program),
         Err(message) => {
             eprintln!("[E-CODEGEN][codegen] {message}");
