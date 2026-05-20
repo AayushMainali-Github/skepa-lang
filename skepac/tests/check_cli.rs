@@ -2116,6 +2116,44 @@ fn main() -> Int {
 }
 
 #[test]
+fn build_obj_reuses_cached_object_when_inputs_are_unchanged() {
+    let tmp = make_temp_dir("skepac_build_obj_cached");
+    let source = tmp.join("main.sk");
+    let out = tmp.join(format!("main.{}", obj_ext()));
+    fs::write(
+        &source,
+        r#"
+fn main() -> Int {
+  return 7;
+}
+"#,
+    )
+    .expect("write source");
+
+    let first = Command::new(skepac_bin())
+        .arg("build-obj")
+        .arg(&source)
+        .arg(&out)
+        .output()
+        .expect("run first build-obj");
+    assert!(first.status.success(), "{first:?}");
+
+    let second = Command::new(skepac_bin())
+        .arg("build-obj")
+        .arg(&source)
+        .arg(&out)
+        .output()
+        .expect("run second build-obj");
+    assert!(second.status.success(), "{second:?}");
+
+    let stdout = String::from_utf8_lossy(&second.stdout);
+    assert!(
+        stdout.contains("built object (cached):"),
+        "stdout was: {stdout}"
+    );
+}
+
+#[test]
 fn build_native_writes_executable_and_runs() {
     let tmp = make_temp_dir("skepac_build_native");
     let source = tmp.join("main.sk");
@@ -2182,6 +2220,46 @@ fn main() -> Int {
         stdout.contains("built native (cached):"),
         "stdout was: {stdout}"
     );
+}
+
+#[test]
+fn build_native_reuses_cached_object_from_prior_build_obj() {
+    let tmp = make_temp_dir("skepac_build_native_cached_object");
+    let source = tmp.join("main.sk");
+    let obj = tmp.join(format!("main.{}", obj_ext()));
+    let out = tmp.join(format!("main.{}", exe_ext()));
+    fs::write(
+        &source,
+        r#"
+fn main() -> Int {
+  return 7;
+}
+"#,
+    )
+    .expect("write source");
+
+    let build_obj = Command::new(skepac_bin())
+        .arg("build-obj")
+        .arg(&source)
+        .arg(&obj)
+        .output()
+        .expect("run build-obj");
+    assert!(build_obj.status.success(), "{build_obj:?}");
+
+    let build_native = Command::new(skepac_bin())
+        .arg("build-native")
+        .arg(&source)
+        .arg(&out)
+        .output()
+        .expect("run build-native");
+    assert!(build_native.status.success(), "{build_native:?}");
+
+    let stdout = String::from_utf8_lossy(&build_native.stdout);
+    assert!(
+        stdout.contains("built native (cached object):"),
+        "stdout was: {stdout}"
+    );
+    assert!(out.exists());
 }
 
 #[test]

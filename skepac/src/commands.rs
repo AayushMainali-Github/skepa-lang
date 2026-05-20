@@ -45,14 +45,37 @@ pub fn build_object_file(input: &str, output: &str) -> Result<i32, String> {
     if let Some(code) = validate_frontend(input)? {
         return Ok(code);
     }
-    let program = match compile_project_or_report(input) {
+    let graph = match resolve_project_or_report(input) {
+        Ok(graph) => graph,
+        Err(code) => return Ok(code),
+    };
+    let input_path = Path::new(input);
+    let output_path = Path::new(output);
+    let source_fingerprint = project_source_fingerprint(&graph);
+    let cache_object = cached_object_path(input_path, &source_fingerprint);
+    if cache_object.exists() {
+        if let Some(parent) = output_path.parent() {
+            fs::create_dir_all(parent).map_err(|err| err.to_string())?;
+        }
+        fs::copy(&cache_object, output_path).map_err(|err| err.to_string())?;
+        println!("built object (cached): {output}");
+        return Ok(EXIT_OK as i32);
+    }
+    let program = match compile_project_graph_or_report(&graph, input) {
         Ok(program) => program,
         Err(code) => return Ok(code),
     };
-    if let Err(err) = codegen::compile_program_to_object_file(&program, Path::new(output)) {
+    if let Some(parent) = cache_object.parent() {
+        fs::create_dir_all(parent).map_err(|err| err.to_string())?;
+    }
+    if let Err(err) = codegen::compile_program_to_object_file(&program, &cache_object) {
         eprintln!("[E-CODEGEN][codegen] {err}");
         return Ok(EXIT_CODEGEN as i32);
     }
+    if let Some(parent) = output_path.parent() {
+        fs::create_dir_all(parent).map_err(|err| err.to_string())?;
+    }
+    fs::copy(&cache_object, output_path).map_err(|err| err.to_string())?;
     println!("built object: {output}");
     Ok(EXIT_OK as i32)
 }
@@ -65,21 +88,40 @@ pub fn build_native_file(input: &str, output: &str) -> Result<i32, String> {
         Ok(graph) => graph,
         Err(code) => return Ok(code),
     };
+    let input_path = Path::new(input);
     let output_path = Path::new(output);
-    let fingerprint = native_build_fingerprint(&graph, output_path);
-    if build_cache_hit(output_path, &fingerprint) {
+    let source_fingerprint = project_source_fingerprint(&graph);
+    let fingerprint = native_build_fingerprint(output_path, &source_fingerprint);
+    if build_output_cache_hit(output_path, &fingerprint) {
         println!("built native (cached): {output}");
+        return Ok(EXIT_OK as i32);
+    }
+    let cache_object = cached_object_path(input_path, &source_fingerprint);
+    if cache_object.exists() {
+        if let Err(err) = codegen::link_object_file_to_executable(&cache_object, output_path) {
+            eprintln!("[E-CODEGEN][codegen] {err}");
+            return Ok(EXIT_CODEGEN as i32);
+        }
+        write_build_output_cache(output_path, &fingerprint);
+        println!("built native (cached object): {output}");
         return Ok(EXIT_OK as i32);
     }
     let program = match compile_project_graph_or_report(&graph, input) {
         Ok(program) => program,
         Err(code) => return Ok(code),
     };
-    if let Err(err) = codegen::compile_program_to_executable(&program, output_path) {
+    if let Some(parent) = cache_object.parent() {
+        fs::create_dir_all(parent).map_err(|err| err.to_string())?;
+    }
+    if let Err(err) = codegen::compile_program_to_object_file(&program, &cache_object) {
         eprintln!("[E-CODEGEN][codegen] {err}");
         return Ok(EXIT_CODEGEN as i32);
     }
-    write_build_cache(output_path, &fingerprint);
+    if let Err(err) = codegen::link_object_file_to_executable(&cache_object, output_path) {
+        eprintln!("[E-CODEGEN][codegen] {err}");
+        return Ok(EXIT_CODEGEN as i32);
+    }
+    write_build_output_cache(output_path, &fingerprint);
     println!("built native: {output}");
     Ok(EXIT_OK as i32)
 }
@@ -169,18 +211,8 @@ fn has_io_resolve_error(errs: &[ResolveError]) -> bool {
 }
 
 fn compile_project_or_report(input: &str) -> Result<ir::IrProgram, i32> {
-    match ir::lowering::compile_project_entry(Path::new(input)) {
-        Ok(program) => Ok(program),
-        Err(errs) => {
-            if has_io_resolve_error(&errs) {
-                print_resolve_errors(&errs);
-                Err(EXIT_IO as i32)
-            } else {
-                print_resolve_errors(&errs);
-                Err(EXIT_RESOLVE as i32)
-            }
-        }
-    }
+    let graph = resolve_project_or_report(input)?;
+    compile_project_graph_or_report(&graph, input)
 }
 
 fn resolve_project_or_report(input: &str) -> Result<ModuleGraph, i32> {
@@ -208,10 +240,9 @@ fn compile_project_graph_or_report(graph: &ModuleGraph, input: &str) -> Result<i
     }
 }
 
-fn native_build_fingerprint(graph: &ModuleGraph, output: &Path) -> String {
+fn project_source_fingerprint(graph: &ModuleGraph) -> String {
     let mut hasher = DefaultHasher::new();
-    "skepac-native-build-cache-v1".hash(&mut hasher);
-    output.to_string_lossy().hash(&mut hasher);
+    "skepac-native-source-cache-v1".hash(&mut hasher);
 
     let mut ids = graph.modules.keys().cloned().collect::<Vec<_>>();
     ids.sort();
@@ -221,6 +252,15 @@ fn native_build_fingerprint(graph: &ModuleGraph, output: &Path) -> String {
         module.path.to_string_lossy().hash(&mut hasher);
         module.source.hash(&mut hasher);
     }
+
+    format!("{:016x}", hasher.finish())
+}
+
+fn native_build_fingerprint(output: &Path, source_fingerprint: &str) -> String {
+    let mut hasher = DefaultHasher::new();
+    "skepac-native-build-cache-v1".hash(&mut hasher);
+    output.to_string_lossy().hash(&mut hasher);
+    source_fingerprint.hash(&mut hasher);
 
     if let Some((runtime_path, modified, len)) = runtime_archive_fingerprint() {
         runtime_path.hash(&mut hasher);
@@ -277,26 +317,26 @@ fn runtime_archive_fingerprint() -> Option<(String, u128, u64)> {
     Some((path.to_string_lossy().into_owned(), modified, meta.len()))
 }
 
-fn build_cache_hit(output: &Path, fingerprint: &str) -> bool {
+fn build_output_cache_hit(output: &Path, fingerprint: &str) -> bool {
     if !output.exists() {
         return false;
     }
-    let cache_path = build_cache_path(output);
+    let cache_path = build_output_cache_path(output);
     match fs::read_to_string(cache_path) {
         Ok(contents) => contents.trim() == fingerprint,
         Err(_) => false,
     }
 }
 
-fn write_build_cache(output: &Path, fingerprint: &str) {
-    let cache_path = build_cache_path(output);
+fn write_build_output_cache(output: &Path, fingerprint: &str) {
+    let cache_path = build_output_cache_path(output);
     if let Some(parent) = cache_path.parent() {
         let _ = fs::create_dir_all(parent);
     }
     let _ = fs::write(cache_path, fingerprint);
 }
 
-fn build_cache_path(output: &Path) -> PathBuf {
+fn build_output_cache_path(output: &Path) -> PathBuf {
     let parent = output
         .parent()
         .map(Path::to_path_buf)
@@ -314,6 +354,23 @@ fn build_cache_path(output: &Path) -> PathBuf {
     parent
         .join(".skepac-cache")
         .join(format!("{safe_name}_{:016x}.fingerprint", hasher.finish()))
+}
+
+fn cached_object_path(input: &Path, source_fingerprint: &str) -> PathBuf {
+    cache_root_for_input(input)
+        .join("objects")
+        .join(format!("{source_fingerprint}.{}", object_cache_extension()))
+}
+
+fn cache_root_for_input(input: &Path) -> PathBuf {
+    input.parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join(".skepac-cache")
+}
+
+fn object_cache_extension() -> &'static str {
+    if cfg!(windows) { "obj" } else { "o" }
 }
 
 struct TempPathGuard(PathBuf);

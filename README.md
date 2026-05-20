@@ -49,7 +49,7 @@ skepac build-obj app.sk app.obj
 skepac build-llvm-ir app.sk app.ll
 ```
 
-Repeated `build-native` calls reuse unchanged outputs through a local `.skepac-cache` fingerprint file next to the build artifact.
+`build-obj` and `build-native` keep local cache metadata and compiled object artifacts under `.skepac-cache/`, so unchanged builds can skip recompilation or relink from a cached object.
 
 ## Project Layout
 
