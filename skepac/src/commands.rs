@@ -7,13 +7,17 @@ use std::{collections::hash_map::DefaultHasher, time::UNIX_EPOCH};
 use skeplib::codegen;
 use skeplib::ir;
 use skeplib::resolver::{ModuleGraph, ResolveError, resolve_project};
-use skeplib::sema::analyze_project_entry_phased;
+use skeplib::sema::analyze_project_graph_phased;
 
 use crate::cli::{EXIT_CODEGEN, EXIT_IO, EXIT_OK, EXIT_PARSE, EXIT_RESOLVE, EXIT_SEMA};
 use crate::output::{print_diag, print_resolve_errors};
 
 pub fn check_file(path: &str) -> Result<i32, String> {
-    match analyze_project_entry_phased(Path::new(path)) {
+    let graph = match resolve_project_or_report(path) {
+        Ok(graph) => graph,
+        Err(code) => return Ok(code),
+    };
+    match analyze_project_graph_phased(&graph) {
         Ok((_sema, parse_diags, sema_diags)) => {
             if parse_diags.is_empty() && sema_diags.is_empty() {
                 println!("ok: {path}");
@@ -42,10 +46,7 @@ pub fn check_file(path: &str) -> Result<i32, String> {
 }
 
 pub fn build_object_file(input: &str, output: &str) -> Result<i32, String> {
-    if let Some(code) = validate_frontend(input)? {
-        return Ok(code);
-    }
-    let graph = match resolve_project_or_report(input) {
+    let graph = match load_frontend_valid_graph(input) {
         Ok(graph) => graph,
         Err(code) => return Ok(code),
     };
@@ -81,10 +82,7 @@ pub fn build_object_file(input: &str, output: &str) -> Result<i32, String> {
 }
 
 pub fn build_native_file(input: &str, output: &str) -> Result<i32, String> {
-    if let Some(code) = validate_frontend(input)? {
-        return Ok(code);
-    }
-    let graph = match resolve_project_or_report(input) {
+    let graph = match load_frontend_valid_graph(input) {
         Ok(graph) => graph,
         Err(code) => return Ok(code),
     };
@@ -127,10 +125,11 @@ pub fn build_native_file(input: &str, output: &str) -> Result<i32, String> {
 }
 
 pub fn build_llvm_ir_file(input: &str, output: &str) -> Result<i32, String> {
-    if let Some(code) = validate_frontend(input)? {
-        return Ok(code);
-    }
-    let program = match compile_project_or_report(input) {
+    let graph = match load_frontend_valid_graph(input) {
+        Ok(graph) => graph,
+        Err(code) => return Ok(code),
+    };
+    let program = match compile_project_graph_or_report(&graph, input) {
         Ok(program) => program,
         Err(code) => return Ok(code),
     };
@@ -143,10 +142,11 @@ pub fn build_llvm_ir_file(input: &str, output: &str) -> Result<i32, String> {
 }
 
 pub fn run_native_file(input: &str) -> Result<i32, String> {
-    if let Some(code) = validate_frontend(input)? {
-        return Ok(code);
-    }
-    let program = match compile_project_or_report(input) {
+    let graph = match load_frontend_valid_graph(input) {
+        Ok(graph) => graph,
+        Err(code) => return Ok(code),
+    };
+    let program = match compile_project_graph_or_report(&graph, input) {
         Ok(program) => program,
         Err(code) => return Ok(code),
     };
@@ -178,41 +178,37 @@ pub fn run_native_file(input: &str) -> Result<i32, String> {
     Ok(code)
 }
 
-fn validate_frontend(input: &str) -> Result<Option<i32>, String> {
-    match analyze_project_entry_phased(Path::new(input)) {
+fn load_frontend_valid_graph(input: &str) -> Result<ModuleGraph, i32> {
+    let graph = resolve_project_or_report(input)?;
+    match analyze_project_graph_phased(&graph) {
         Ok((_sema, parse_diags, sema_diags)) => {
             if !parse_diags.is_empty() {
                 for d in parse_diags.as_slice() {
                     print_diag("parse", d);
                 }
-                return Ok(Some(EXIT_PARSE as i32));
+                return Err(EXIT_PARSE as i32);
             }
             if !sema_diags.is_empty() {
                 for d in sema_diags.as_slice() {
                     print_diag("sema", d);
                 }
-                return Ok(Some(EXIT_SEMA as i32));
+                return Err(EXIT_SEMA as i32);
             }
-            Ok(None)
+            Ok(graph)
         }
         Err(errs) => {
             if has_io_resolve_error(&errs) {
                 print_resolve_errors(&errs);
-                return Ok(Some(EXIT_IO as i32));
+                return Err(EXIT_IO as i32);
             }
             print_resolve_errors(&errs);
-            Ok(Some(EXIT_RESOLVE as i32))
+            Err(EXIT_RESOLVE as i32)
         }
     }
 }
 
 fn has_io_resolve_error(errs: &[ResolveError]) -> bool {
     errs.iter().any(|err| err.code == "E-MOD-IO")
-}
-
-fn compile_project_or_report(input: &str) -> Result<ir::IrProgram, i32> {
-    let graph = resolve_project_or_report(input)?;
-    compile_project_graph_or_report(&graph, input)
 }
 
 fn resolve_project_or_report(input: &str) -> Result<ModuleGraph, i32> {
