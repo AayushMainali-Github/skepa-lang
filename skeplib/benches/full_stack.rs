@@ -31,6 +31,114 @@ fn obj_ext() -> &'static str {
     if cfg!(windows) { "obj" } else { "o" }
 }
 
+fn runtime_archive_name(name: &str) -> bool {
+    if cfg!(windows) {
+        (name.starts_with("libskepart-") && name.ends_with(".a"))
+            || (name.starts_with("skepart-") && name.ends_with(".lib"))
+            || name == "skepart.lib"
+    } else {
+        name.starts_with("libskepart-") && name.ends_with(".a")
+    }
+}
+
+fn runtime_library_path() -> PathBuf {
+    let workspace_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("workspace root")
+        .to_path_buf();
+    let profile = std::env::var("PROFILE").unwrap_or_else(|_| {
+        if cfg!(debug_assertions) {
+            "debug".to_string()
+        } else {
+            "release".to_string()
+        }
+    });
+    let target_dir = workspace_root.join("target").join(profile);
+    for dir in [target_dir.join("deps"), target_dir] {
+        if !dir.exists() {
+            continue;
+        }
+        let mut candidates = fs::read_dir(&dir)
+            .expect("read target dir")
+            .filter_map(|entry| entry.ok())
+            .map(|entry| entry.path())
+            .filter(|path| {
+                path.file_name()
+                    .and_then(|name| name.to_str())
+                    .map(runtime_archive_name)
+                    .unwrap_or(false)
+            })
+            .collect::<Vec<_>>();
+        candidates.sort();
+        if let Some(path) = candidates.pop() {
+            return path;
+        }
+    }
+    panic!("runtime archive missing under target profile dir");
+}
+
+fn runtime_native_libraries() -> Vec<&'static str> {
+    if cfg!(windows) {
+        vec![
+            "-lkernel32",
+            "-lntdll",
+            "-luserenv",
+            "-lws2_32",
+            "-ldbghelp",
+        ]
+    } else if cfg!(target_os = "macos") {
+        vec!["-framework", "Security", "-framework", "CoreFoundation"]
+    } else {
+        Vec::new()
+    }
+}
+
+fn clang_link_args(object: &str, runtime: &str, output: &str) -> Vec<String> {
+    let mut args = vec![object.to_string()];
+    if cfg!(all(windows, target_env = "msvc")) {
+        args.push(runtime.to_string());
+        args.extend([
+            "-Xlinker".to_string(),
+            "/NODEFAULTLIB:libucrt".to_string(),
+            "-Xlinker".to_string(),
+            "/DEFAULTLIB:ucrt".to_string(),
+            "-Xlinker".to_string(),
+            "/DEFAULTLIB:vcruntime".to_string(),
+            "-Xlinker".to_string(),
+            "/DEFAULTLIB:msvcrt".to_string(),
+            "-Xlinker".to_string(),
+            "/DEFAULTLIB:legacy_stdio_definitions".to_string(),
+            "-Xlinker".to_string(),
+            "/DEFAULTLIB:oldnames".to_string(),
+        ]);
+    } else if cfg!(windows) {
+        args.extend([
+            "-Wl,--start-group".to_string(),
+            runtime.to_string(),
+            "-Wl,--end-group".to_string(),
+        ]);
+    } else {
+        args.push(runtime.to_string());
+        args.push("-no-pie".to_string());
+    }
+    args.extend(["-o".to_string(), output.to_string()]);
+    args.extend(runtime_native_libraries().into_iter().map(str::to_string));
+    args
+}
+
+fn run_tool(tool: &str, args: &[&str]) {
+    let output = Command::new(tool)
+        .args(args)
+        .output()
+        .unwrap_or_else(|err| panic!("failed to run `{tool}`: {err}"));
+    assert!(
+        output.status.success(),
+        "`{tool}` failed: stdout: {}; stderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
 fn unique_suffix() -> String {
     static NEXT_ID: AtomicU64 = AtomicU64::new(0);
     let nanos = SystemTime::now()
@@ -156,6 +264,144 @@ fn ir_and_codegen_benches(c: &mut Criterion) {
     group.finish();
 }
 
+fn native_pipeline_stage_benches(c: &mut Criterion) {
+    let source = single_source();
+    let ir = lowering::compile_source_unoptimized(&source).expect("lower single fixture");
+    let llvm_ir = codegen::compile_program_to_llvm_ir(&ir).expect("emit llvm ir");
+    let ll_input = temp_artifact_path("heavy_single_input", "ll");
+    fs::write(&ll_input, &llvm_ir).expect("write llvm ir input");
+
+    let bc_input = temp_artifact_path("heavy_single_input", "bc");
+    run_tool(
+        "llvm-as",
+        &[
+            ll_input.as_os_str().to_string_lossy().as_ref(),
+            "-o",
+            bc_input.as_os_str().to_string_lossy().as_ref(),
+        ],
+    );
+
+    let opt_bc_input = temp_artifact_path("heavy_single_input_opt", "bc");
+    run_tool(
+        "opt",
+        &[
+            "-passes=mem2reg,instcombine,simplifycfg,loop-simplify,loop-unroll",
+            "-unroll-threshold=10000",
+            bc_input.as_os_str().to_string_lossy().as_ref(),
+            "-o",
+            opt_bc_input.as_os_str().to_string_lossy().as_ref(),
+        ],
+    );
+
+    let obj_input = temp_artifact_path("heavy_single_input", obj_ext());
+    run_tool(
+        "llc",
+        &[
+            "-O3",
+            "-filetype=obj",
+            opt_bc_input.as_os_str().to_string_lossy().as_ref(),
+            "-o",
+            obj_input.as_os_str().to_string_lossy().as_ref(),
+        ],
+    );
+
+    let runtime = runtime_library_path();
+    let exe_input = temp_artifact_path("heavy_single_stage", exe_ext());
+    codegen::compile_program_to_executable(&ir, &exe_input).expect("build reusable executable");
+
+    let mut group = c.benchmark_group("native_pipeline_single_file");
+
+    group.bench_function("llvm_as_bitcode/heavy_single", |b| {
+        b.iter_batched(
+            || temp_artifact_path("heavy_single_bc", "bc"),
+            |path| {
+                run_tool(
+                    "llvm-as",
+                    &[
+                        ll_input.as_os_str().to_string_lossy().as_ref(),
+                        "-o",
+                        path.as_os_str().to_string_lossy().as_ref(),
+                    ],
+                );
+                let _ = fs::remove_file(path);
+            },
+            BatchSize::SmallInput,
+        );
+    });
+
+    group.bench_function("opt_bitcode/heavy_single", |b| {
+        b.iter_batched(
+            || temp_artifact_path("heavy_single_opt_bc", "bc"),
+            |path| {
+                run_tool(
+                    "opt",
+                    &[
+                        "-passes=mem2reg,instcombine,simplifycfg,loop-simplify,loop-unroll",
+                        "-unroll-threshold=10000",
+                        bc_input.as_os_str().to_string_lossy().as_ref(),
+                        "-o",
+                        path.as_os_str().to_string_lossy().as_ref(),
+                    ],
+                );
+                let _ = fs::remove_file(path);
+            },
+            BatchSize::SmallInput,
+        );
+    });
+
+    group.bench_function("llc_object_emit/heavy_single", |b| {
+        b.iter_batched(
+            || temp_artifact_path("heavy_single_llc_obj", obj_ext()),
+            |path| {
+                run_tool(
+                    "llc",
+                    &[
+                        "-O3",
+                        "-filetype=obj",
+                        opt_bc_input.as_os_str().to_string_lossy().as_ref(),
+                        "-o",
+                        path.as_os_str().to_string_lossy().as_ref(),
+                    ],
+                );
+                let _ = fs::remove_file(path);
+            },
+            BatchSize::SmallInput,
+        );
+    });
+
+    group.bench_function("clang_link/heavy_single", |b| {
+        b.iter_batched(
+            || temp_artifact_path("heavy_single_link_exe", exe_ext()),
+            |path| {
+                let object = obj_input.as_os_str().to_string_lossy().into_owned();
+                let runtime = runtime.as_os_str().to_string_lossy().into_owned();
+                let output = path.as_os_str().to_string_lossy().into_owned();
+                let args = clang_link_args(&object, &runtime, &output);
+                let args = args.iter().map(String::as_str).collect::<Vec<_>>();
+                run_tool("clang", &args);
+                let _ = fs::remove_file(path);
+            },
+            BatchSize::SmallInput,
+        );
+    });
+
+    group.bench_function("binary_run/heavy_single", |b| {
+        b.iter(|| {
+            let output = run_output(&mut Command::new(&exe_input)).expect("run existing executable");
+            assert_eq!(output.status.code(), Some(0), "{output:?}");
+            black_box(output);
+        });
+    });
+
+    group.finish();
+
+    let _ = fs::remove_file(ll_input);
+    let _ = fs::remove_file(bc_input);
+    let _ = fs::remove_file(opt_bc_input);
+    let _ = fs::remove_file(obj_input);
+    let _ = fs::remove_file(exe_input);
+}
+
 fn project_benches(c: &mut Criterion) {
     let entry = project_entry();
     let ir = lowering::compile_project_entry_unoptimized(&entry)
@@ -202,6 +448,7 @@ criterion_group!(
     full_stack,
     parser_and_sema_benches,
     ir_and_codegen_benches,
+    native_pipeline_stage_benches,
     project_benches
 );
 criterion_main!(full_stack);
