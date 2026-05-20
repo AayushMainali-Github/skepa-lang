@@ -49,6 +49,8 @@ skepac build-obj app.sk app.obj
 skepac build-llvm-ir app.sk app.ll
 ```
 
+Repeated `build-native` calls reuse unchanged outputs through a local `.skepac-cache` fingerprint file next to the build artifact.
+
 ## Project Layout
 
 Skepa projects are file-system based. The CLI takes an explicit entry file, usually `main.sk`.

@@ -2147,6 +2147,44 @@ fn main() -> Int {
 }
 
 #[test]
+fn build_native_reuses_cached_output_when_inputs_are_unchanged() {
+    let tmp = make_temp_dir("skepac_build_native_cached");
+    let source = tmp.join("main.sk");
+    let out = tmp.join(format!("main.{}", exe_ext()));
+    fs::write(
+        &source,
+        r#"
+fn main() -> Int {
+  return 7;
+}
+"#,
+    )
+    .expect("write source");
+
+    let first = Command::new(skepac_bin())
+        .arg("build-native")
+        .arg(&source)
+        .arg(&out)
+        .output()
+        .expect("run first build-native");
+    assert!(first.status.success(), "{first:?}");
+
+    let second = Command::new(skepac_bin())
+        .arg("build-native")
+        .arg(&source)
+        .arg(&out)
+        .output()
+        .expect("run second build-native");
+    assert!(second.status.success(), "{second:?}");
+
+    let stdout = String::from_utf8_lossy(&second.stdout);
+    assert!(
+        stdout.contains("built native (cached):"),
+        "stdout was: {stdout}"
+    );
+}
+
+#[test]
 fn build_obj_reports_toolchain_failure_cleanly() {
     let tmp = make_temp_dir("skepac_build_obj_no_toolchain");
     let source = tmp.join("main.sk");

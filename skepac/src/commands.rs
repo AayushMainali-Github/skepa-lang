@@ -1,10 +1,12 @@
 use std::fs;
+use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::{collections::hash_map::DefaultHasher, time::UNIX_EPOCH};
 
 use skeplib::codegen;
 use skeplib::ir;
-use skeplib::resolver::ResolveError;
+use skeplib::resolver::{ModuleGraph, ResolveError, resolve_project};
 use skeplib::sema::analyze_project_entry_phased;
 
 use crate::cli::{EXIT_CODEGEN, EXIT_IO, EXIT_OK, EXIT_PARSE, EXIT_RESOLVE, EXIT_SEMA};
@@ -59,14 +61,25 @@ pub fn build_native_file(input: &str, output: &str) -> Result<i32, String> {
     if let Some(code) = validate_frontend(input)? {
         return Ok(code);
     }
-    let program = match compile_project_or_report(input) {
+    let graph = match resolve_project_or_report(input) {
+        Ok(graph) => graph,
+        Err(code) => return Ok(code),
+    };
+    let output_path = Path::new(output);
+    let fingerprint = native_build_fingerprint(&graph, output_path);
+    if build_cache_hit(output_path, &fingerprint) {
+        println!("built native (cached): {output}");
+        return Ok(EXIT_OK as i32);
+    }
+    let program = match compile_project_graph_or_report(&graph, input) {
         Ok(program) => program,
         Err(code) => return Ok(code),
     };
-    if let Err(err) = codegen::compile_program_to_executable(&program, Path::new(output)) {
+    if let Err(err) = codegen::compile_program_to_executable(&program, output_path) {
         eprintln!("[E-CODEGEN][codegen] {err}");
         return Ok(EXIT_CODEGEN as i32);
     }
+    write_build_cache(output_path, &fingerprint);
     println!("built native: {output}");
     Ok(EXIT_OK as i32)
 }
@@ -168,6 +181,139 @@ fn compile_project_or_report(input: &str) -> Result<ir::IrProgram, i32> {
             }
         }
     }
+}
+
+fn resolve_project_or_report(input: &str) -> Result<ModuleGraph, i32> {
+    match resolve_project(Path::new(input)) {
+        Ok(graph) => Ok(graph),
+        Err(errs) => {
+            if has_io_resolve_error(&errs) {
+                print_resolve_errors(&errs);
+                Err(EXIT_IO as i32)
+            } else {
+                print_resolve_errors(&errs);
+                Err(EXIT_RESOLVE as i32)
+            }
+        }
+    }
+}
+
+fn compile_project_graph_or_report(graph: &ModuleGraph, input: &str) -> Result<ir::IrProgram, i32> {
+    match ir::lowering::compile_project_graph(graph, Path::new(input)) {
+        Ok(program) => Ok(program),
+        Err(message) => {
+            eprintln!("[E-CODEGEN][codegen] {message}");
+            Err(EXIT_RESOLVE as i32)
+        }
+    }
+}
+
+fn native_build_fingerprint(graph: &ModuleGraph, output: &Path) -> String {
+    let mut hasher = DefaultHasher::new();
+    "skepac-native-build-cache-v1".hash(&mut hasher);
+    output.to_string_lossy().hash(&mut hasher);
+
+    let mut ids = graph.modules.keys().cloned().collect::<Vec<_>>();
+    ids.sort();
+    for id in ids {
+        let module = &graph.modules[&id];
+        id.hash(&mut hasher);
+        module.path.to_string_lossy().hash(&mut hasher);
+        module.source.hash(&mut hasher);
+    }
+
+    if let Some((runtime_path, modified, len)) = runtime_archive_fingerprint() {
+        runtime_path.hash(&mut hasher);
+        modified.hash(&mut hasher);
+        len.hash(&mut hasher);
+    }
+
+    format!("{:016x}", hasher.finish())
+}
+
+fn runtime_archive_fingerprint() -> Option<(String, u128, u64)> {
+    let workspace_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()?
+        .to_path_buf();
+    let profile = if cfg!(debug_assertions) {
+        "debug"
+    } else {
+        "release"
+    };
+    let target_dir = workspace_root.join("target").join(profile);
+    let candidate_dirs = [target_dir.join("deps"), target_dir];
+    let mut candidates = Vec::new();
+    for dir in candidate_dirs {
+        if !dir.exists() {
+            continue;
+        }
+        let entries = fs::read_dir(&dir).ok()?;
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+                continue;
+            };
+            let matches = if cfg!(windows) {
+                (name.starts_with("libskepart-") && name.ends_with(".a"))
+                    || (name.starts_with("skepart-") && name.ends_with(".lib"))
+                    || name == "skepart.lib"
+            } else {
+                name.starts_with("libskepart-") && name.ends_with(".a")
+            };
+            if matches {
+                candidates.push(path);
+            }
+        }
+    }
+    candidates.sort();
+    let path = candidates.pop()?;
+    let meta = fs::metadata(&path).ok()?;
+    let modified = meta
+        .modified()
+        .ok()?
+        .duration_since(UNIX_EPOCH)
+        .ok()?
+        .as_nanos();
+    Some((path.to_string_lossy().into_owned(), modified, meta.len()))
+}
+
+fn build_cache_hit(output: &Path, fingerprint: &str) -> bool {
+    if !output.exists() {
+        return false;
+    }
+    let cache_path = build_cache_path(output);
+    match fs::read_to_string(cache_path) {
+        Ok(contents) => contents.trim() == fingerprint,
+        Err(_) => false,
+    }
+}
+
+fn write_build_cache(output: &Path, fingerprint: &str) {
+    let cache_path = build_cache_path(output);
+    if let Some(parent) = cache_path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    let _ = fs::write(cache_path, fingerprint);
+}
+
+fn build_cache_path(output: &Path) -> PathBuf {
+    let parent = output
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| PathBuf::from("."));
+    let mut hasher = DefaultHasher::new();
+    output.to_string_lossy().hash(&mut hasher);
+    let file_stem = output
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("output");
+    let safe_name = file_stem
+        .chars()
+        .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '_' })
+        .collect::<String>();
+    parent
+        .join(".skepac-cache")
+        .join(format!("{safe_name}_{:016x}.fingerprint", hasher.finish()))
 }
 
 struct TempPathGuard(PathBuf);
