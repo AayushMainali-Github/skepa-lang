@@ -5,3 +5,10 @@ edition = "2024"
 
 [dependencies]
 skepart = { path = "../skepart" }
+
+[dev-dependencies]
+criterion = "0.5"
+
+[[bench]]
+name = "frontend_ir"
+harness = false

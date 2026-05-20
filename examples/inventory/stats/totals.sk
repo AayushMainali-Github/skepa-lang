@@ -1,0 +1,12 @@
+import vec;
+import option;
+from models.item import Item;
+
+fn totalCount(items: Vec[Item]) -> Int {
+  let first = option.unwrapSome(vec.get(items, 0));
+  let second = option.unwrapSome(vec.get(items, 1));
+  let third = option.unwrapSome(vec.get(items, 2));
+  return first.count + second.count + third.count;
+}
+
+export { totalCount };

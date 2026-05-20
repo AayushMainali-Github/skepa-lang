@@ -1,0 +1,18 @@
+import io;
+import vec;
+from models.item import Item, makeItem;
+from stats.totals import totalCount;
+
+fn main() -> Int {
+  let items: Vec[Item] = vec.new();
+  vec.push(items, makeItem("bolts", 4));
+  vec.push(items, makeItem("nuts", 3));
+  vec.push(items, makeItem("washers", 5));
+
+  let total = totalCount(items);
+  io.println("inventory total ready");
+  if (total == 12) {
+    return 0;
+  }
+  return 1;
+}

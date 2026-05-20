@@ -87,6 +87,22 @@ skepac check main.sk
 skepac run main.sk
 ```
 
+## Examples
+
+Shipped sample apps live under `examples/`.
+
+- `examples/hello/main.sk`
+  - minimal single-file program
+- `examples/inventory/main.sk`
+  - multi-file project with structs, `Vec`, imports, and user-facing output
+
+Try them with:
+
+```bash
+skepac check examples/hello/main.sk
+skepac run examples/inventory/main.sk
+```
+
 Folder namespaces map directly to import paths:
 
 - `utils/math.sk` -> `utils.math`
@@ -111,6 +127,8 @@ For full language/module reference, see `DOCS.md`.
 For the internal runtime and FFI ABI contract, see `RUNTIME.md`.
 
 For language specification authority and compatibility rules, see `LANGUAGE_POLICY.md`.
+
+For current support targets, release expectations, and production-hardening status, see `PRODUCTION.md`.
 
 ## Contributing
 

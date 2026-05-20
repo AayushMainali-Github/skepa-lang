@@ -6,13 +6,61 @@ on:
 
 jobs:
   checks:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - name: Install LLVM Toolchain
+      - name: Install LLVM Toolchain (Linux)
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y llvm clang
+      - name: Install LLVM Toolchain (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          brew update
+          brew install llvm
+          echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
+      - name: Install LLVM Toolchain (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install llvm --yes --no-progress
+          $searchRoots = @(
+            "C:\Program Files",
+            "C:\Program Files (x86)",
+            "C:\LLVM",
+            "$env:ChocolateyInstall\lib"
+          ) | Where-Object { $_ -and (Test-Path $_) }
+
+          $toolNames = @("llvm-as.exe", "llc.exe", "opt.exe", "clang.exe")
+          $toolDirs = New-Object System.Collections.Generic.HashSet[string]
+
+          foreach ($toolName in $toolNames) {
+            $toolPath = $null
+            foreach ($root in $searchRoots) {
+              $found = Get-ChildItem -Path $root -Filter $toolName -Recurse -File -ErrorAction SilentlyContinue | Select-Object -First 1
+              if ($found) {
+                $toolPath = $found.FullName
+                break
+              }
+            }
+
+            if (-not $toolPath) {
+              throw "Could not locate $toolName after Chocolatey llvm install"
+            }
+
+            $toolDir = Split-Path $toolPath -Parent
+            $null = $toolDirs.Add($toolDir)
+          }
+
+          foreach ($toolDir in $toolDirs) {
+            Add-Content -Path $env:GITHUB_PATH -Value $toolDir
+          }
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -20,10 +68,18 @@ jobs:
       - name: Format Check
         run: cargo fmt --all --check
       - name: Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - name: Run Workspace Tests
         run: cargo test --workspace
-      - name: Check Native Toolchain
+      - name: Check Native Toolchain (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          llvm-as --version
+          llc --version
+          clang --version
+      - name: Check Native Toolchain (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
         run: |
           llvm-as --version
           llc --version

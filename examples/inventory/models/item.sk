@@ -1,0 +1,10 @@
+struct Item {
+  name: String,
+  count: Int,
+}
+
+fn makeItem(name: String, count: Int) -> Item {
+  return Item { name: name, count: count };
+}
+
+export { Item, makeItem };

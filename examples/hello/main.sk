@@ -1,0 +1,6 @@
+import io;
+
+fn main() -> Int {
+  io.println("hello from skepa");
+  return 0;
+}

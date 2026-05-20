@@ -19,6 +19,17 @@ pub fn skepac_bin() -> &'static str {
     env!("CARGO_BIN_EXE_skepac")
 }
 
+pub fn repo_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("repo root")
+        .to_path_buf()
+}
+
+pub fn example_entry(path: &str) -> PathBuf {
+    repo_root().join("examples").join(path)
+}
+
 pub fn make_temp_dir(prefix: &str) -> PathBuf {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)

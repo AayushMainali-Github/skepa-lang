@@ -8,7 +8,7 @@ mod common;
 
 use common::{
     CliFailureClass, assert_cli_failure_class, assert_diag_code_and_message, exe_ext,
-    make_temp_dir, obj_ext, skepac_bin, write_temp_file,
+    example_entry, make_temp_dir, obj_ext, skepac_bin, write_temp_file,
 };
 
 #[cfg(target_os = "windows")]
@@ -228,6 +228,35 @@ fn main() -> Int {
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("ok:"));
+}
+
+#[test]
+fn shipped_examples_check_and_run_through_cli() {
+    let hello = example_entry("hello/main.sk");
+    let inventory = example_entry("inventory/main.sk");
+
+    let hello_check = Command::new(skepac_bin())
+        .arg("check")
+        .arg(&hello)
+        .output()
+        .expect("check hello example");
+    assert_eq!(hello_check.status.code(), Some(0), "{hello_check:?}");
+
+    let inventory_check = Command::new(skepac_bin())
+        .arg("check")
+        .arg(&inventory)
+        .output()
+        .expect("check inventory example");
+    assert_eq!(inventory_check.status.code(), Some(0), "{inventory_check:?}");
+
+    let inventory_run = Command::new(skepac_bin())
+        .arg("run")
+        .arg(&inventory)
+        .output()
+        .expect("run inventory example");
+    assert_eq!(inventory_run.status.code(), Some(0), "{inventory_run:?}");
+    let stdout = String::from_utf8_lossy(&inventory_run.stdout);
+    assert!(stdout.contains("inventory total ready"), "stdout was: {stdout}");
 }
 
 #[test]

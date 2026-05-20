@@ -246,3 +246,13 @@ cargo fmt --all
 cargo clippy --workspace --all-targets
 cargo test --workspace
 ```
+
+## Benchmarks
+
+Performance baselines currently live in the `skeplib` Criterion harness:
+
+```bash
+cargo bench -p skeplib --bench frontend_ir
+```
+
+This is the baseline entry point for parser, sema, and IR lowering timing on representative source.
