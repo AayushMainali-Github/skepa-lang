@@ -252,7 +252,15 @@ cargo test --workspace
 Performance baselines currently live in the `skeplib` Criterion harness:
 
 ```bash
-cargo bench -p skeplib --bench frontend_ir
+cargo bench -p skeplib --bench full_stack
 ```
 
-This is the baseline entry point for parser, sema, and IR lowering timing on representative source.
+This benchmark covers:
+- parser
+- sema
+- IR lowering
+- IR interpretation
+- LLVM IR emission
+- object generation
+- native build and run
+- multi-module project lowering and native execution

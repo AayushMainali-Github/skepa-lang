@@ -1,0 +1,16 @@
+import bytes;
+import result;
+import str;
+
+fn reportValue() -> Int {
+  let raw = bytes.fromString("bench");
+  let raw2 = bytes.push(raw, 33);
+  let text = result.unwrapOk(bytes.toString(raw2));
+  let slice = result.unwrapOk(str.slice(text, 0, 5));
+  if (slice == "bench") {
+    return str.len(text);
+  }
+  return 0;
+}
+
+export { reportValue };

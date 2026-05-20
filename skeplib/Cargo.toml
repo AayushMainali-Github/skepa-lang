@@ -10,5 +10,5 @@ skepart = { path = "../skepart" }
 criterion = "0.5"
 
 [[bench]]
-name = "frontend_ir"
+name = "full_stack"
 harness = false

@@ -1,0 +1,70 @@
+import bytes;
+import map;
+import option;
+import result;
+import str;
+import vec;
+
+struct Item {
+  name: String,
+  count: Int,
+}
+
+fn makeItem(name: String, count: Int) -> Item {
+  return Item { name: name, count: count };
+}
+
+fn totalCount(items: Vec[Item]) -> Int {
+  let first = option.unwrapSome(vec.get(items, 0));
+  let second = option.unwrapSome(vec.get(items, 1));
+  let third = option.unwrapSome(vec.get(items, 2));
+  return first.count + second.count + third.count;
+}
+
+fn textScore() -> Int {
+  let raw = bytes.fromString("bench");
+  let raw2 = bytes.push(raw, 33);
+  let text = result.unwrapOk(bytes.toString(raw2));
+  let slice = result.unwrapOk(str.slice(text, 0, 5));
+  if (slice == "bench") {
+    return str.len(text);
+  }
+  return 0;
+}
+
+fn mapScore() -> Int {
+  let counts: Map[String, Int] = map.new();
+  map.insert(counts, "baseline", 12);
+  let total = option.unwrapSome(map.get(counts, "baseline"));
+  let removed = option.unwrapSome(map.remove(counts, "baseline"));
+  if (total == 12) {
+    if (removed == 12) {
+      return 24;
+    }
+  }
+  return 0;
+}
+
+fn loopScore() -> Int {
+  let i = 0;
+  let acc = 0;
+  while (i < 5) {
+    acc = acc + i;
+    i = i + 1;
+  }
+  return acc;
+}
+
+fn main() -> Int {
+  let items: Vec[Item] = vec.new();
+  vec.push(items, makeItem("bolts", 4));
+  vec.push(items, makeItem("nuts", 3));
+  vec.push(items, makeItem("washers", 5));
+
+  let total = totalCount(items);
+  let score = total + textScore() + mapScore() + loopScore();
+  if (score == 52) {
+    return 0;
+  }
+  return 1;
+}

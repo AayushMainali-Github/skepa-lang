@@ -1,0 +1,24 @@
+import io;
+import map;
+import option;
+import vec;
+from format.report import reportValue;
+from models.item import Item, makeItem;
+from stats.totals import totalCount;
+
+fn main() -> Int {
+  let items: Vec[Item] = vec.new();
+  vec.push(items, makeItem("bolts", 4));
+  vec.push(items, makeItem("nuts", 3));
+  vec.push(items, makeItem("washers", 5));
+
+  let counts: Map[String, Int] = map.new();
+  map.insert(counts, "baseline", totalCount(items));
+  let total = option.unwrapSome(map.get(counts, "baseline"));
+  let report = reportValue();
+  io.println("heavy project ready");
+  if (total == 12 && report == 6) {
+    return 0;
+  }
+  return 1;
+}
