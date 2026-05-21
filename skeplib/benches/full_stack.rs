@@ -359,7 +359,7 @@ fn native_pipeline_stage_benches(c: &mut Criterion) {
             || temp_artifact_path("heavy_single_link_exe", exe_ext()),
             |path| {
                 let (tool, args) =
-                    codegen::link_command_for_executable(&obj_input, &path, &runtime, true)
+                    codegen::link_command_for_executable(&obj_input, &path, &runtime)
                         .expect("link command");
                 let args = args.iter().map(String::as_str).collect::<Vec<_>>();
                 run_tool(&tool, &args);
