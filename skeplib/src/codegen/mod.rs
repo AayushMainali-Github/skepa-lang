@@ -137,25 +137,126 @@ pub fn compile_program_to_executable(program: &IrProgram, path: &Path) -> Result
 
 pub fn link_object_file_to_executable(object_path: &Path, path: &Path) -> Result<(), CodegenError> {
     let runtime = runtime_library_path()?;
-    link_object_file_to_executable_with_tool(object_path, path, &runtime, "clang")
+    let invocation = preferred_linker_invocation();
+    link_object_file_to_executable_with_driver(object_path, path, &runtime, &invocation)
 }
 
+pub fn link_command_for_executable(
+    object_path: &Path,
+    path: &Path,
+    runtime: &Path,
+    prefer_lld: bool,
+) -> Result<(String, Vec<String>), CodegenError> {
+    let invocation = if prefer_lld {
+        preferred_linker_invocation()
+    } else {
+        LinkerInvocation::clang()
+    };
+    link_command_for_executable_with_invocation(object_path, path, runtime, &invocation)
+}
+
+fn link_command_for_executable_with_invocation(
+    object_path: &Path,
+    path: &Path,
+    runtime: &Path,
+    invocation: &LinkerInvocation,
+) -> Result<(String, Vec<String>), CodegenError> {
+    let object = object_path.as_os_str().to_string_lossy().into_owned();
+    let runtime = runtime.as_os_str().to_string_lossy().into_owned();
+    let output = path.as_os_str().to_string_lossy().into_owned();
+    let args = link_args_for_executable(&object, &runtime, &output, &invocation.extra_args);
+    Ok((invocation.tool.clone(), args))
+}
+
+fn link_object_file_to_executable_with_driver(
+    object_path: &Path,
+    path: &Path,
+    runtime: &Path,
+    invocation: &LinkerInvocation,
+) -> Result<(), CodegenError> {
+    let (tool, args) =
+        link_command_for_executable_with_invocation(object_path, path, runtime, invocation)?;
+    let args = args.iter().map(String::as_str).collect::<Vec<_>>();
+    run_tool(&tool, &args)
+}
+
+#[cfg(test)]
 fn link_object_file_to_executable_with_tool(
     object_path: &Path,
     path: &Path,
     runtime: &Path,
     clang: &str,
 ) -> Result<(), CodegenError> {
-    let object = object_path.as_os_str().to_string_lossy().into_owned();
-    let runtime = runtime.as_os_str().to_string_lossy().into_owned();
-    let output = path.as_os_str().to_string_lossy().into_owned();
-    let args = link_args_for_executable(&object, &runtime, &output);
-    let args = args.iter().map(String::as_str).collect::<Vec<_>>();
-    run_tool(clang, &args)
+    let invocation = LinkerInvocation {
+        tool: clang.to_string(),
+        extra_args: Vec::new(),
+    };
+    link_object_file_to_executable_with_driver(object_path, path, runtime, &invocation)
 }
 
-fn link_args_for_executable(object: &str, runtime: &str, output: &str) -> Vec<String> {
-    let mut args = vec![object.to_string()];
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LinkerInvocation {
+    tool: String,
+    extra_args: Vec<String>,
+}
+
+impl LinkerInvocation {
+    fn clang() -> Self {
+        Self {
+            tool: "clang".to_string(),
+            extra_args: Vec::new(),
+        }
+    }
+}
+
+fn preferred_linker_invocation() -> LinkerInvocation {
+    preferred_linker_invocation_with_probe(tool_supports_probe)
+}
+
+fn preferred_linker_invocation_with_probe<F>(probe: F) -> LinkerInvocation
+where
+    F: Fn(&str, &[&str]) -> bool,
+{
+    if std::env::var_os("SKEPA_DISABLE_LLD").is_some() {
+        return LinkerInvocation::clang();
+    }
+    if lld_available_with_probe(probe) {
+        LinkerInvocation {
+            tool: "clang".to_string(),
+            extra_args: vec!["-fuse-ld=lld".to_string()],
+        }
+    } else {
+        LinkerInvocation::clang()
+    }
+}
+
+fn lld_available_with_probe<F>(probe: F) -> bool
+where
+    F: Fn(&str, &[&str]) -> bool,
+{
+    if cfg!(all(windows, target_env = "msvc")) {
+        probe("lld-link", &["/help"])
+    } else {
+        probe("ld.lld", &["--version"])
+    }
+}
+
+fn tool_supports_probe(tool: &str, args: &[&str]) -> bool {
+    Command::new(tool)
+        .args(args)
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or(false)
+}
+
+fn link_args_for_executable(
+    object: &str,
+    runtime: &str,
+    output: &str,
+    driver_args: &[String],
+) -> Vec<String> {
+    let mut args = driver_args.to_vec();
+    args.push(object.to_string());
     if cfg!(all(windows, target_env = "msvc")) {
         args.push(runtime.to_string());
         args.extend([
@@ -331,11 +432,13 @@ mod tests {
         CodegenError, compile_program_to_bitcode_file_with_tool,
         compile_program_to_object_file_with_tools, compile_program_to_llvm_ir,
         compile_program_llvm_ir_section, link_args_for_executable,
+        link_command_for_executable, preferred_linker_invocation_with_probe,
         link_object_file_to_executable_with_tool, run_tool, runtime_library_path_in_target_dir,
     };
     use crate::ir;
     use crate::codegen::llvm::LlvmEmitSection;
     use std::fs;
+    use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     fn temp_codegen_test_path(name: &str, ext: &str) -> std::path::PathBuf {
@@ -359,7 +462,7 @@ fn main() -> Int {
 
     #[test]
     fn native_link_args_disable_pie_on_non_windows() {
-        let args = link_args_for_executable("input.o", "libskepart.a", "out");
+        let args = link_args_for_executable("input.o", "libskepart.a", "out", &[]);
         if cfg!(windows) {
             assert!(!args.iter().any(|arg| arg == "-no-pie"));
         } else {
@@ -384,7 +487,7 @@ fn main() -> Int {
 
     #[test]
     fn native_link_args_use_gnu_group_flags_only_on_windows_gnu() {
-        let args = link_args_for_executable("input.o", "libskepart.a", "out");
+        let args = link_args_for_executable("input.o", "libskepart.a", "out", &[]);
         let has_start_group = args.iter().any(|arg| arg == "-Wl,--start-group");
         let has_end_group = args.iter().any(|arg| arg == "-Wl,--end-group");
         let has_nodefaultlib_libucrt = args.iter().any(|arg| arg == "/NODEFAULTLIB:libucrt");
@@ -405,7 +508,7 @@ fn main() -> Int {
 
     #[test]
     fn native_link_args_include_windows_runtime_libraries_only_on_windows() {
-        let args = link_args_for_executable("input.o", "libskepart.a", "out");
+        let args = link_args_for_executable("input.o", "libskepart.a", "out", &[]);
         let has_kernel = args.iter().any(|arg| arg == "-lkernel32");
         let has_dbghelp = args.iter().any(|arg| arg == "-ldbghelp");
         let has_security_framework = args.iter().any(|arg| arg == "Security");
@@ -544,6 +647,45 @@ fn main() -> Int {
                 assert!(msg.contains("failed to run `definitely-missing-clang-test-tool`"));
             }
             other => panic!("unexpected error kind: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn preferred_linker_uses_lld_when_probe_succeeds() {
+        let invocation = preferred_linker_invocation_with_probe(|tool, _args| {
+            if cfg!(all(windows, target_env = "msvc")) {
+                tool == "lld-link"
+            } else {
+                tool == "ld.lld"
+            }
+        });
+        assert_eq!(invocation.tool, "clang");
+        assert!(invocation.extra_args.iter().any(|arg| arg == "-fuse-ld=lld"));
+    }
+
+    #[test]
+    fn preferred_linker_falls_back_to_plain_clang_when_lld_missing() {
+        let invocation = preferred_linker_invocation_with_probe(|_, _| false);
+        assert_eq!(invocation.tool, "clang");
+        assert!(invocation.extra_args.is_empty());
+    }
+
+    #[test]
+    fn link_command_prepends_driver_args_before_object_inputs() {
+        let object_path = PathBuf::from("input.o");
+        let output_path = PathBuf::from("out");
+        let runtime_path = PathBuf::from("libskepart.a");
+        let (tool, args) =
+            link_command_for_executable(&object_path, &output_path, &runtime_path, true)
+                .expect("link command");
+        assert_eq!(tool, "clang");
+        if let Some(first) = args.first()
+            && !cfg!(all(windows, target_env = "msvc"))
+        {
+            assert!(
+                first == "-fuse-ld=lld" || first == "input.o",
+                "unexpected first arg: {first}"
+            );
         }
     }
 

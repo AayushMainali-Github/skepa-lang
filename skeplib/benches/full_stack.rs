@@ -78,55 +78,6 @@ fn runtime_library_path() -> PathBuf {
     panic!("runtime archive missing under target profile dir");
 }
 
-fn runtime_native_libraries() -> Vec<&'static str> {
-    if cfg!(windows) {
-        vec![
-            "-lkernel32",
-            "-lntdll",
-            "-luserenv",
-            "-lws2_32",
-            "-ldbghelp",
-        ]
-    } else if cfg!(target_os = "macos") {
-        vec!["-framework", "Security", "-framework", "CoreFoundation"]
-    } else {
-        Vec::new()
-    }
-}
-
-fn clang_link_args(object: &str, runtime: &str, output: &str) -> Vec<String> {
-    let mut args = vec![object.to_string()];
-    if cfg!(all(windows, target_env = "msvc")) {
-        args.push(runtime.to_string());
-        args.extend([
-            "-Xlinker".to_string(),
-            "/NODEFAULTLIB:libucrt".to_string(),
-            "-Xlinker".to_string(),
-            "/DEFAULTLIB:ucrt".to_string(),
-            "-Xlinker".to_string(),
-            "/DEFAULTLIB:vcruntime".to_string(),
-            "-Xlinker".to_string(),
-            "/DEFAULTLIB:msvcrt".to_string(),
-            "-Xlinker".to_string(),
-            "/DEFAULTLIB:legacy_stdio_definitions".to_string(),
-            "-Xlinker".to_string(),
-            "/DEFAULTLIB:oldnames".to_string(),
-        ]);
-    } else if cfg!(windows) {
-        args.extend([
-            "-Wl,--start-group".to_string(),
-            runtime.to_string(),
-            "-Wl,--end-group".to_string(),
-        ]);
-    } else {
-        args.push(runtime.to_string());
-        args.push("-no-pie".to_string());
-    }
-    args.extend(["-o".to_string(), output.to_string()]);
-    args.extend(runtime_native_libraries().into_iter().map(str::to_string));
-    args
-}
-
 fn run_tool(tool: &str, args: &[&str]) {
     let output = Command::new(tool)
         .args(args)
@@ -407,12 +358,11 @@ fn native_pipeline_stage_benches(c: &mut Criterion) {
         b.iter_batched(
             || temp_artifact_path("heavy_single_link_exe", exe_ext()),
             |path| {
-                let object = obj_input.as_os_str().to_string_lossy().into_owned();
-                let runtime = runtime.as_os_str().to_string_lossy().into_owned();
-                let output = path.as_os_str().to_string_lossy().into_owned();
-                let args = clang_link_args(&object, &runtime, &output);
+                let (tool, args) =
+                    codegen::link_command_for_executable(&obj_input, &path, &runtime, true)
+                        .expect("link command");
                 let args = args.iter().map(String::as_str).collect::<Vec<_>>();
-                run_tool("clang", &args);
+                run_tool(&tool, &args);
                 let _ = fs::remove_file(path);
             },
             BatchSize::SmallInput,
