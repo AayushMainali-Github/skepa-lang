@@ -36,6 +36,39 @@ pub fn emit_function_header(func: &IrFunction) -> Result<Vec<String>, CodegenErr
     )])
 }
 
+pub fn estimated_function_line_capacity(func: &IrFunction, lowered: &LoweredIrFunction) -> usize {
+    let mut lines = 2usize;
+    for (idx, block) in func.blocks.iter().enumerate() {
+        lines += 1; // block label
+        lines += block.instrs.len();
+        lines += 1; // terminator
+        if idx == 0 {
+            lines += func.locals.len();
+            lines += func.params.len();
+            for local in &func.locals {
+                if let Some(NativeStructPlan::ScalarFields { fields }) =
+                    lowered.struct_local(local.id)
+                {
+                    lines += fields.len();
+                } else if let Some(NativeArrayPlan::IntRepeat { size, .. }) =
+                    lowered.array_local(local.id)
+                {
+                    lines += size;
+                } else if let Some(NativeArrayPlan::FloatRepeat { .. }) =
+                    lowered.array_local(local.id)
+                {
+                    lines += 1;
+                } else if let Some(NativeArrayPlan::StringItems { size, .. }) =
+                    lowered.array_local(local.id)
+                {
+                    lines += size;
+                }
+            }
+        }
+    }
+    lines
+}
+
 pub fn begin_block(
     func: &IrFunction,
     block: &BasicBlock,

@@ -8,22 +8,28 @@ use crate::ir::{
 };
 
 pub struct ValueNames {
-    temp_names: HashMap<TempId, String>,
+    temp_names: Vec<String>,
 }
 
 impl ValueNames {
     pub fn new(func: &IrFunction) -> Self {
-        let temp_names = func
+        let len = func
             .temps
             .iter()
-            .map(|temp| (temp.id, format!("%t{}", temp.id.0)))
-            .collect();
+            .map(|temp| temp.id.0)
+            .max()
+            .map(|max| max + 1)
+            .unwrap_or(0);
+        let mut temp_names = vec![String::new(); len];
+        for temp in &func.temps {
+            temp_names[temp.id.0] = format!("%t{}", temp.id.0);
+        }
         Self { temp_names }
     }
 
     pub fn temp(&self, temp: TempId) -> Result<&str, CodegenError> {
         self.temp_names
-            .get(&temp)
+            .get(temp.0)
             .map(String::as_str)
             .ok_or_else(|| CodegenError::InvalidIr(format!("unknown temp {:?}", temp)))
     }

@@ -114,6 +114,7 @@ impl<'a> LlvmEmitter<'a> {
         let names = function::value_names(func);
         let lowered = LoweredIrFunction::analyze(func);
         let mut lines = function::emit_function_header(func)?;
+        lines.reserve(function::estimated_function_line_capacity(func, &lowered));
 
         let mut counter = 0usize;
         for (idx, block) in func.blocks.iter().enumerate() {
