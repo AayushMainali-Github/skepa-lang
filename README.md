@@ -49,7 +49,7 @@ skepac build-obj app.sk app.obj
 skepac build-llvm-ir app.sk app.ll
 ```
 
-`build-obj` and `build-native` keep local cache metadata and compiled object artifacts under `.skepac-cache/`, so unchanged builds can skip recompilation or relink from a cached object.
+`build-obj` and `build-native` keep local cache metadata, compiled object artifacts, and reusable linked native outputs under `.skepac-cache/`, so unchanged builds can skip recompilation, relink from a cached object, or restore a missing executable from the cached linked artifact.
 
 ## Project Layout
 

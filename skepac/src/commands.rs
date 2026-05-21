@@ -89,38 +89,63 @@ pub fn build_native_file(input: &str, output: &str) -> Result<i32, String> {
     let input_path = Path::new(input);
     let output_path = Path::new(output);
     let source_fingerprint = project_source_fingerprint(&graph);
-    let fingerprint = native_build_fingerprint(output_path, &source_fingerprint);
+    let cache_object = cached_object_path(input_path, &source_fingerprint);
+    let had_cached_object = cache_object.exists();
+    if !had_cached_object {
+        let program = match compile_project_graph_or_report(&graph, input) {
+            Ok(program) => program,
+            Err(code) => return Ok(code),
+        };
+        if let Some(parent) = cache_object.parent() {
+            fs::create_dir_all(parent).map_err(|err| err.to_string())?;
+        }
+        if let Err(err) = codegen::compile_program_to_object_file(&program, &cache_object) {
+            eprintln!("[E-CODEGEN][codegen] {err}");
+            return Ok(EXIT_CODEGEN as i32);
+        }
+    }
+
+    let Some((runtime_path, runtime_modified, runtime_len)) = runtime_archive_details() else {
+        eprintln!("[E-CODEGEN][codegen] native runtime library missing");
+        return Ok(EXIT_CODEGEN as i32);
+    };
+    let fingerprint = native_link_fingerprint(
+        output_path,
+        &cache_object,
+        &runtime_path,
+        runtime_modified,
+        runtime_len,
+    );
     if build_output_cache_hit(output_path, &fingerprint) {
         println!("built native (cached): {output}");
         return Ok(EXIT_OK as i32);
     }
-    let cache_object = cached_object_path(input_path, &source_fingerprint);
-    if cache_object.exists() {
-        if let Err(err) = codegen::link_object_file_to_executable(&cache_object, output_path) {
-            eprintln!("[E-CODEGEN][codegen] {err}");
-            return Ok(EXIT_CODEGEN as i32);
+
+    let cached_native = cached_native_path(input_path, &fingerprint);
+    if cached_native.exists() {
+        if let Some(parent) = output_path.parent() {
+            fs::create_dir_all(parent).map_err(|err| err.to_string())?;
         }
+        fs::copy(&cached_native, output_path).map_err(|err| err.to_string())?;
         write_build_output_cache(output_path, &fingerprint);
-        println!("built native (cached object): {output}");
+        println!("built native (cached link): {output}");
         return Ok(EXIT_OK as i32);
     }
-    let program = match compile_project_graph_or_report(&graph, input) {
-        Ok(program) => program,
-        Err(code) => return Ok(code),
-    };
-    if let Some(parent) = cache_object.parent() {
-        fs::create_dir_all(parent).map_err(|err| err.to_string())?;
-    }
-    if let Err(err) = codegen::compile_program_to_object_file(&program, &cache_object) {
-        eprintln!("[E-CODEGEN][codegen] {err}");
-        return Ok(EXIT_CODEGEN as i32);
-    }
+
     if let Err(err) = codegen::link_object_file_to_executable(&cache_object, output_path) {
         eprintln!("[E-CODEGEN][codegen] {err}");
         return Ok(EXIT_CODEGEN as i32);
     }
+    if let Some(parent) = cached_native.parent() {
+        fs::create_dir_all(parent).map_err(|err| err.to_string())?;
+    }
+    fs::copy(output_path, &cached_native).map_err(|err| err.to_string())?;
     write_build_output_cache(output_path, &fingerprint);
-    println!("built native: {output}");
+    if had_cached_object {
+        println!("built native (cached object): {output}");
+    } else {
+        println!("built native: {output}");
+    }
     Ok(EXIT_OK as i32)
 }
 
@@ -252,22 +277,39 @@ fn project_source_fingerprint(graph: &ModuleGraph) -> String {
     format!("{:016x}", hasher.finish())
 }
 
-fn native_build_fingerprint(output: &Path, source_fingerprint: &str) -> String {
+fn native_link_fingerprint(
+    output: &Path,
+    object_path: &Path,
+    runtime_path: &Path,
+    runtime_modified: u128,
+    runtime_len: u64,
+) -> String {
     let mut hasher = DefaultHasher::new();
-    "skepac-native-build-cache-v1".hash(&mut hasher);
+    "skepac-native-link-cache-v1".hash(&mut hasher);
     output.to_string_lossy().hash(&mut hasher);
-    source_fingerprint.hash(&mut hasher);
-
-    if let Some((runtime_path, modified, len)) = runtime_archive_fingerprint() {
-        runtime_path.hash(&mut hasher);
-        modified.hash(&mut hasher);
-        len.hash(&mut hasher);
+    if let Ok(meta) = fs::metadata(object_path) {
+        object_path.to_string_lossy().hash(&mut hasher);
+        if let Ok(modified) = meta.modified()
+            && let Ok(duration) = modified.duration_since(UNIX_EPOCH)
+        {
+            duration.as_nanos().hash(&mut hasher);
+        }
+        meta.len().hash(&mut hasher);
+    }
+    runtime_path.to_string_lossy().hash(&mut hasher);
+    runtime_modified.hash(&mut hasher);
+    runtime_len.hash(&mut hasher);
+    if let Ok((tool, args)) = codegen::link_command_for_executable(object_path, output, runtime_path) {
+        tool.hash(&mut hasher);
+        for arg in args {
+            arg.hash(&mut hasher);
+        }
     }
 
     format!("{:016x}", hasher.finish())
 }
 
-fn runtime_archive_fingerprint() -> Option<(String, u128, u64)> {
+fn runtime_archive_details() -> Option<(PathBuf, u128, u64)> {
     let workspace_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()?
         .to_path_buf();
@@ -310,7 +352,7 @@ fn runtime_archive_fingerprint() -> Option<(String, u128, u64)> {
         .duration_since(UNIX_EPOCH)
         .ok()?
         .as_nanos();
-    Some((path.to_string_lossy().into_owned(), modified, meta.len()))
+    Some((path, modified, meta.len()))
 }
 
 fn build_output_cache_hit(output: &Path, fingerprint: &str) -> bool {
@@ -358,6 +400,12 @@ fn cached_object_path(input: &Path, source_fingerprint: &str) -> PathBuf {
         .join(format!("{source_fingerprint}.{}", object_cache_extension()))
 }
 
+fn cached_native_path(input: &Path, link_fingerprint: &str) -> PathBuf {
+    cache_root_for_input(input)
+        .join("native")
+        .join(format!("{link_fingerprint}.{}", native_cache_extension()))
+}
+
 fn cache_root_for_input(input: &Path) -> PathBuf {
     input.parent()
         .map(Path::to_path_buf)
@@ -367,6 +415,10 @@ fn cache_root_for_input(input: &Path) -> PathBuf {
 
 fn object_cache_extension() -> &'static str {
     if cfg!(windows) { "obj" } else { "o" }
+}
+
+fn native_cache_extension() -> &'static str {
+    if cfg!(windows) { "exe" } else { "out" }
 }
 
 struct TempPathGuard(PathBuf);
