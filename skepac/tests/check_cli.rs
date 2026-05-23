@@ -2265,6 +2265,49 @@ fn main() -> Int {
 }
 
 #[test]
+fn build_native_timings_report_cached_link_restore_phases() {
+    let tmp = make_temp_dir("skepac_build_native_timings");
+    let source = tmp.join("main.sk");
+    let out = tmp.join(format!("main.{}", exe_ext()));
+    fs::write(
+        &source,
+        r#"
+fn main() -> Int {
+  return 7;
+}
+"#,
+    )
+    .expect("write source");
+
+    let first = Command::new(skepac_bin())
+        .arg("build-native")
+        .arg(&source)
+        .arg(&out)
+        .output()
+        .expect("run first build-native");
+    assert!(first.status.success(), "{first:?}");
+    fs::remove_file(&out).expect("remove built output");
+
+    let second = Command::new(skepac_bin())
+        .arg("build-native")
+        .arg(&source)
+        .arg(&out)
+        .env("SKEPAC_TIMINGS", "1")
+        .output()
+        .expect("run second build-native with timings");
+    assert!(second.status.success(), "{second:?}");
+
+    let stdout = String::from_utf8_lossy(&second.stdout);
+    assert!(stdout.contains("built native (cached link):"), "stdout was: {stdout}");
+    assert!(stdout.contains("timing[build-native] frontend="), "stdout was: {stdout}");
+    assert!(
+        stdout.contains("timing[build-native] restore_cached_link="),
+        "stdout was: {stdout}"
+    );
+    assert!(stdout.contains("timing[build-native] total="), "stdout was: {stdout}");
+}
+
+#[test]
 fn build_native_reuses_cached_link_artifact_across_output_paths() {
     let tmp = make_temp_dir("skepac_build_native_cross_output_cache");
     let source = tmp.join("main.sk");

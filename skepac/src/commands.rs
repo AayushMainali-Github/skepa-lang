@@ -2,7 +2,10 @@ use std::fs;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::{collections::hash_map::DefaultHasher, time::UNIX_EPOCH};
+use std::{
+    collections::hash_map::DefaultHasher,
+    time::{Instant, UNIX_EPOCH},
+};
 
 use skeplib::codegen;
 use skeplib::ir;
@@ -46,65 +49,86 @@ pub fn check_file(path: &str) -> Result<i32, String> {
 }
 
 pub fn build_object_file(input: &str, output: &str) -> Result<i32, String> {
+    let mut timings = BuildTimings::new("build-obj");
+    let phase_start = Instant::now();
     let graph = match load_frontend_valid_graph(input) {
         Ok(graph) => graph,
         Err(code) => return Ok(code),
     };
+    timings.record("frontend", phase_start.elapsed());
     let input_path = Path::new(input);
     let output_path = Path::new(output);
     let source_fingerprint = project_source_fingerprint(&graph);
     let cache_object = cached_object_path(input_path, &source_fingerprint);
     if cache_object.exists() {
+        let copy_start = Instant::now();
         if let Some(parent) = output_path.parent() {
             fs::create_dir_all(parent).map_err(|err| err.to_string())?;
         }
         fs::copy(&cache_object, output_path).map_err(|err| err.to_string())?;
+        timings.record("copy_cached_object", copy_start.elapsed());
         println!("built object (cached): {output}");
+        timings.finish_and_print();
         return Ok(EXIT_OK as i32);
     }
+    let lower_start = Instant::now();
     let program = match compile_project_graph_or_report(&graph, input) {
         Ok(program) => program,
         Err(code) => return Ok(code),
     };
+    timings.record("ir_lowering", lower_start.elapsed());
     if let Some(parent) = cache_object.parent() {
         fs::create_dir_all(parent).map_err(|err| err.to_string())?;
     }
+    let codegen_start = Instant::now();
     if let Err(err) = codegen::compile_program_to_object_file(&program, &cache_object) {
         eprintln!("[E-CODEGEN][codegen] {err}");
         return Ok(EXIT_CODEGEN as i32);
     }
+    timings.record("object_codegen", codegen_start.elapsed());
+    let copy_start = Instant::now();
     if let Some(parent) = output_path.parent() {
         fs::create_dir_all(parent).map_err(|err| err.to_string())?;
     }
     fs::copy(&cache_object, output_path).map_err(|err| err.to_string())?;
+    timings.record("copy_output", copy_start.elapsed());
     println!("built object: {output}");
+    timings.finish_and_print();
     Ok(EXIT_OK as i32)
 }
 
 pub fn build_native_file(input: &str, output: &str) -> Result<i32, String> {
+    let mut timings = BuildTimings::new("build-native");
+    let phase_start = Instant::now();
     let graph = match load_frontend_valid_graph(input) {
         Ok(graph) => graph,
         Err(code) => return Ok(code),
     };
+    timings.record("frontend", phase_start.elapsed());
     let input_path = Path::new(input);
     let output_path = Path::new(output);
     let source_fingerprint = project_source_fingerprint(&graph);
     let cache_object = cached_object_path(input_path, &source_fingerprint);
     let had_cached_object = cache_object.exists();
     if !had_cached_object {
+        let lower_start = Instant::now();
         let program = match compile_project_graph_or_report(&graph, input) {
             Ok(program) => program,
             Err(code) => return Ok(code),
         };
+        timings.record("ir_lowering", lower_start.elapsed());
         if let Some(parent) = cache_object.parent() {
             fs::create_dir_all(parent).map_err(|err| err.to_string())?;
         }
+        let codegen_start = Instant::now();
         if let Err(err) = codegen::compile_program_to_object_file(&program, &cache_object) {
             eprintln!("[E-CODEGEN][codegen] {err}");
             return Ok(EXIT_CODEGEN as i32);
         }
+        timings.record("object_codegen", codegen_start.elapsed());
     }
 
+    let fingerprint_start = Instant::now();
     let Some((runtime_path, runtime_modified, runtime_len)) = runtime_archive_details() else {
         eprintln!("[E-CODEGEN][codegen] native runtime library missing");
         return Ok(EXIT_CODEGEN as i32);
@@ -116,36 +140,46 @@ pub fn build_native_file(input: &str, output: &str) -> Result<i32, String> {
         runtime_len,
     );
     let output_fingerprint = native_output_fingerprint(output_path, &artifact_fingerprint);
+    timings.record("fingerprint", fingerprint_start.elapsed());
     if build_output_cache_hit(output_path, &output_fingerprint) {
         println!("built native (cached): {output}");
+        timings.finish_and_print();
         return Ok(EXIT_OK as i32);
     }
 
     let cached_native = cached_native_path(input_path, &artifact_fingerprint);
     if cached_native.exists() {
+        let copy_start = Instant::now();
         if let Some(parent) = output_path.parent() {
             fs::create_dir_all(parent).map_err(|err| err.to_string())?;
         }
         fs::copy(&cached_native, output_path).map_err(|err| err.to_string())?;
         write_build_output_cache(output_path, &output_fingerprint);
+        timings.record("restore_cached_link", copy_start.elapsed());
         println!("built native (cached link): {output}");
+        timings.finish_and_print();
         return Ok(EXIT_OK as i32);
     }
 
+    let link_start = Instant::now();
     if let Err(err) = codegen::link_object_file_to_executable(&cache_object, output_path) {
         eprintln!("[E-CODEGEN][codegen] {err}");
         return Ok(EXIT_CODEGEN as i32);
     }
+    timings.record("native_link", link_start.elapsed());
+    let copy_start = Instant::now();
     if let Some(parent) = cached_native.parent() {
         fs::create_dir_all(parent).map_err(|err| err.to_string())?;
     }
     fs::copy(output_path, &cached_native).map_err(|err| err.to_string())?;
     write_build_output_cache(output_path, &output_fingerprint);
+    timings.record("store_cached_link", copy_start.elapsed());
     if had_cached_object {
         println!("built native (cached object): {output}");
     } else {
         println!("built native: {output}");
     }
+    timings.finish_and_print();
     Ok(EXIT_OK as i32)
 }
 
@@ -447,6 +481,44 @@ fn object_cache_extension() -> &'static str {
 
 fn native_cache_extension() -> &'static str {
     if cfg!(windows) { "exe" } else { "out" }
+}
+
+struct BuildTimings {
+    label: &'static str,
+    enabled: bool,
+    started: Instant,
+    phases: Vec<(&'static str, u128)>,
+}
+
+impl BuildTimings {
+    fn new(label: &'static str) -> Self {
+        Self {
+            label,
+            enabled: std::env::var_os("SKEPAC_TIMINGS").is_some(),
+            started: Instant::now(),
+            phases: Vec::new(),
+        }
+    }
+
+    fn record(&mut self, phase: &'static str, elapsed: std::time::Duration) {
+        if self.enabled {
+            self.phases.push((phase, elapsed.as_micros()));
+        }
+    }
+
+    fn finish_and_print(&self) {
+        if !self.enabled {
+            return;
+        }
+        for (phase, micros) in &self.phases {
+            println!("timing[{}] {}={}us", self.label, phase, micros);
+        }
+        println!(
+            "timing[{}] total={}us",
+            self.label,
+            self.started.elapsed().as_micros()
+        );
+    }
 }
 
 struct TempPathGuard(PathBuf);

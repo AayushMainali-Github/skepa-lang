@@ -51,6 +51,8 @@ skepac build-llvm-ir app.sk app.ll
 
 `build-obj` and `build-native` keep local cache metadata, compiled object artifacts, and reusable linked native outputs under `.skepac-cache/`, so unchanged builds can skip recompilation, relink from a cached object, or restore a missing executable from the cached linked artifact.
 
+Set `SKEPAC_TIMINGS=1` to print per-phase timing lines for `build-obj` and `build-native` when you want to inspect cache hits, codegen cost, and link cost locally.
+
 ## Project Layout
 
 Skepa projects are file-system based. The CLI takes an explicit entry file, usually `main.sk`.
