@@ -109,25 +109,25 @@ pub fn build_native_file(input: &str, output: &str) -> Result<i32, String> {
         eprintln!("[E-CODEGEN][codegen] native runtime library missing");
         return Ok(EXIT_CODEGEN as i32);
     };
-    let fingerprint = native_link_fingerprint(
-        output_path,
+    let artifact_fingerprint = native_link_artifact_fingerprint(
         &cache_object,
         &runtime_path,
         runtime_modified,
         runtime_len,
     );
-    if build_output_cache_hit(output_path, &fingerprint) {
+    let output_fingerprint = native_output_fingerprint(output_path, &artifact_fingerprint);
+    if build_output_cache_hit(output_path, &output_fingerprint) {
         println!("built native (cached): {output}");
         return Ok(EXIT_OK as i32);
     }
 
-    let cached_native = cached_native_path(input_path, &fingerprint);
+    let cached_native = cached_native_path(input_path, &artifact_fingerprint);
     if cached_native.exists() {
         if let Some(parent) = output_path.parent() {
             fs::create_dir_all(parent).map_err(|err| err.to_string())?;
         }
         fs::copy(&cached_native, output_path).map_err(|err| err.to_string())?;
-        write_build_output_cache(output_path, &fingerprint);
+        write_build_output_cache(output_path, &output_fingerprint);
         println!("built native (cached link): {output}");
         return Ok(EXIT_OK as i32);
     }
@@ -140,7 +140,7 @@ pub fn build_native_file(input: &str, output: &str) -> Result<i32, String> {
         fs::create_dir_all(parent).map_err(|err| err.to_string())?;
     }
     fs::copy(output_path, &cached_native).map_err(|err| err.to_string())?;
-    write_build_output_cache(output_path, &fingerprint);
+    write_build_output_cache(output_path, &output_fingerprint);
     if had_cached_object {
         println!("built native (cached object): {output}");
     } else {
@@ -277,16 +277,14 @@ fn project_source_fingerprint(graph: &ModuleGraph) -> String {
     format!("{:016x}", hasher.finish())
 }
 
-fn native_link_fingerprint(
-    output: &Path,
+fn native_link_artifact_fingerprint(
     object_path: &Path,
     runtime_path: &Path,
     runtime_modified: u128,
     runtime_len: u64,
 ) -> String {
     let mut hasher = DefaultHasher::new();
-    "skepac-native-link-cache-v1".hash(&mut hasher);
-    output.to_string_lossy().hash(&mut hasher);
+    "skepac-native-link-artifact-cache-v1".hash(&mut hasher);
     if let Ok(meta) = fs::metadata(object_path) {
         object_path.to_string_lossy().hash(&mut hasher);
         if let Ok(modified) = meta.modified()
@@ -299,14 +297,44 @@ fn native_link_fingerprint(
     runtime_path.to_string_lossy().hash(&mut hasher);
     runtime_modified.hash(&mut hasher);
     runtime_len.hash(&mut hasher);
-    if let Ok((tool, args)) = codegen::link_command_for_executable(object_path, output, runtime_path) {
+    let placeholder_output = Path::new("__skepa_cached_output__");
+    if let Ok((tool, args)) =
+        codegen::link_command_for_executable(object_path, placeholder_output, runtime_path)
+    {
         tool.hash(&mut hasher);
-        for arg in args {
+        for arg in normalized_link_args(args) {
             arg.hash(&mut hasher);
         }
     }
 
     format!("{:016x}", hasher.finish())
+}
+
+fn native_output_fingerprint(output: &Path, artifact_fingerprint: &str) -> String {
+    let mut hasher = DefaultHasher::new();
+    "skepac-native-output-cache-v1".hash(&mut hasher);
+    output.to_string_lossy().hash(&mut hasher);
+    artifact_fingerprint.hash(&mut hasher);
+    format!("{:016x}", hasher.finish())
+}
+
+fn normalized_link_args(args: Vec<String>) -> Vec<String> {
+    let mut normalized = Vec::with_capacity(args.len());
+    let mut skip_next = false;
+    for arg in args {
+        if skip_next {
+            skip_next = false;
+            continue;
+        }
+        if arg == "-o" {
+            normalized.push(arg);
+            normalized.push("<output>".to_string());
+            skip_next = true;
+            continue;
+        }
+        normalized.push(arg);
+    }
+    normalized
 }
 
 fn runtime_archive_details() -> Option<(PathBuf, u128, u64)> {

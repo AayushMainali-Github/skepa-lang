@@ -2265,6 +2265,47 @@ fn main() -> Int {
 }
 
 #[test]
+fn build_native_reuses_cached_link_artifact_across_output_paths() {
+    let tmp = make_temp_dir("skepac_build_native_cross_output_cache");
+    let source = tmp.join("main.sk");
+    let out_a = tmp.join(format!("main_a.{}", exe_ext()));
+    let out_b = tmp.join(format!("main_b.{}", exe_ext()));
+    fs::write(
+        &source,
+        r#"
+fn main() -> Int {
+  return 7;
+}
+"#,
+    )
+    .expect("write source");
+
+    let first = Command::new(skepac_bin())
+        .arg("build-native")
+        .arg(&source)
+        .arg(&out_a)
+        .output()
+        .expect("run first build-native");
+    assert!(first.status.success(), "{first:?}");
+    assert!(out_a.exists());
+
+    let second = Command::new(skepac_bin())
+        .arg("build-native")
+        .arg(&source)
+        .arg(&out_b)
+        .output()
+        .expect("run second build-native");
+    assert!(second.status.success(), "{second:?}");
+
+    let stdout = String::from_utf8_lossy(&second.stdout);
+    assert!(
+        stdout.contains("built native (cached link):"),
+        "stdout was: {stdout}"
+    );
+    assert!(out_b.exists());
+}
+
+#[test]
 fn build_native_reuses_cached_object_from_prior_build_obj() {
     let tmp = make_temp_dir("skepac_build_native_cached_object");
     let source = tmp.join("main.sk");
