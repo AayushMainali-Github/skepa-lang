@@ -93,54 +93,35 @@ pub fn compile_program_to_object_file(
     program: &IrProgram,
     path: &Path,
 ) -> Result<(), CodegenError> {
-    compile_program_to_object_file_with_tools(program, path, "llvm-as", "opt", "llc")
+    compile_program_to_object_file_with_tools(program, path, "opt", "llc")
 }
 
 fn compile_program_to_object_file_with_tools(
     program: &IrProgram,
     path: &Path,
-    llvm_as: &str,
     opt: &str,
     llc: &str,
 ) -> Result<(), CodegenError> {
     let mut timings = CodegenTimings::new("object");
-    let bc_path = temp_codegen_path("module", "bc");
-    let opt_bc_path = temp_codegen_path("module_opt", "bc");
     let ll_path = temp_codegen_path("module", "ll");
+    let opt_bc_path = temp_codegen_path("module_opt", "bc");
     let emit_start = Instant::now();
     write_program_llvm_ir(program, &ll_path)?;
     timings.record("llvm_ir_emit", emit_start.elapsed());
-    let assemble_start = Instant::now();
-    let assemble_result = run_tool(
-        llvm_as,
-        &[
-            ll_path.as_os_str().to_string_lossy().as_ref(),
-            "-o",
-            bc_path.as_os_str().to_string_lossy().as_ref(),
-        ],
-    );
-    timings.record("llvm_as", assemble_start.elapsed());
-    let _ = fs::remove_file(&ll_path);
-    if let Err(err) = assemble_result {
-        let _ = fs::remove_file(&bc_path);
-        let _ = fs::remove_file(&opt_bc_path);
-        timings.finish_and_print();
-        return Err(err);
-    }
     let opt_start = Instant::now();
     let opt_result = run_tool(
         opt,
         &[
             "-passes=mem2reg,instcombine,simplifycfg,loop-simplify,loop-unroll",
             "-unroll-threshold=10000",
-            bc_path.as_os_str().to_string_lossy().as_ref(),
+            ll_path.as_os_str().to_string_lossy().as_ref(),
             "-o",
             opt_bc_path.as_os_str().to_string_lossy().as_ref(),
         ],
     );
     timings.record("opt", opt_start.elapsed());
     if let Err(err) = opt_result {
-        let _ = fs::remove_file(&bc_path);
+        let _ = fs::remove_file(&ll_path);
         let _ = fs::remove_file(&opt_bc_path);
         timings.finish_and_print();
         return Err(err);
@@ -157,7 +138,7 @@ fn compile_program_to_object_file_with_tools(
         ],
     );
     timings.record("llc", llc_start.elapsed());
-    let _ = fs::remove_file(&bc_path);
+    let _ = fs::remove_file(&ll_path);
     let _ = fs::remove_file(&opt_bc_path);
     timings.finish_and_print();
     result
@@ -602,7 +583,6 @@ fn main() -> Int {
         let err = compile_program_to_object_file_with_tools(
             &program,
             &obj_path,
-            "llvm-as",
             "opt",
             "definitely-missing-llc-test-tool",
         )
@@ -675,7 +655,6 @@ fn main() -> Int {
         let err = compile_program_to_object_file_with_tools(
             &program,
             &obj_path,
-            "llvm-as",
             "definitely-missing-opt-test-tool",
             "llc",
         )
