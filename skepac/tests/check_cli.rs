@@ -2454,6 +2454,135 @@ fn main() -> Int {
 }
 
 #[test]
+fn build_native_restores_cached_link_after_comment_only_source_change_when_output_is_deleted() {
+    let tmp = make_temp_dir("skepac_build_native_cached_ir_restore");
+    let source = tmp.join("main.sk");
+    let out = tmp.join(format!("main.{}", exe_ext()));
+    fs::write(
+        &source,
+        r#"
+fn main() -> Int {
+  return 7;
+}
+"#,
+    )
+    .expect("write source");
+
+    let first = Command::new(skepac_bin())
+        .arg("build-native")
+        .arg(&source)
+        .arg(&out)
+        .output()
+        .expect("run first build-native");
+    assert!(first.status.success(), "{first:?}");
+
+    fs::write(
+        &source,
+        r#"
+// comment-only source edit should not change lowered IR
+fn main() -> Int {
+  return 7;
+}
+"#,
+    )
+    .expect("rewrite source");
+    fs::remove_file(&out).expect("remove output");
+
+    let second = Command::new(skepac_bin())
+        .env("SKEPAC_TIMINGS", "1")
+        .arg("build-native")
+        .arg(&source)
+        .arg(&out)
+        .output()
+        .expect("run second build-native");
+    assert!(second.status.success(), "{second:?}");
+
+    let stdout = String::from_utf8_lossy(&second.stdout);
+    assert!(
+        stdout.contains("built native (cached link):"),
+        "stdout was: {stdout}"
+    );
+    assert!(
+        stdout.contains("reuse_cached_ir_object="),
+        "stdout was: {stdout}"
+    );
+    assert!(
+        stdout.contains("restore_cached_link="),
+        "stdout was: {stdout}"
+    );
+    assert!(
+        !stdout.contains("object_codegen="),
+        "stdout was: {stdout}"
+    );
+    assert!(!stdout.contains("native_link="), "stdout was: {stdout}");
+}
+
+#[test]
+fn build_native_reuses_cached_ir_artifact_for_comment_only_multi_module_edit() {
+    let tmp = make_temp_dir("skepac_build_native_multi_cached_ir");
+    fs::create_dir_all(tmp.join("utils")).expect("create utils");
+    let main = tmp.join("main.sk");
+    let util = tmp.join("utils").join("math.sk");
+    let out = tmp.join(format!("main.{}", exe_ext()));
+
+    fs::write(
+        &util,
+        r#"
+fn add(a: Int, b: Int) -> Int { return a + b; }
+export { add };
+"#,
+    )
+    .expect("write util");
+    fs::write(
+        &main,
+        r#"
+from utils.math import add;
+fn main() -> Int { return add(20, 22); }
+"#,
+    )
+    .expect("write main");
+
+    let first = Command::new(skepac_bin())
+        .arg("build-native")
+        .arg(&main)
+        .arg(&out)
+        .output()
+        .expect("run first build-native");
+    assert!(first.status.success(), "{first:?}");
+
+    fs::write(
+        &util,
+        r#"
+// comment-only module edit should not change lowered IR
+fn add(a: Int, b: Int) -> Int { return a + b; }
+export { add };
+"#,
+    )
+    .expect("rewrite util");
+
+    let second = Command::new(skepac_bin())
+        .env("SKEPAC_TIMINGS", "1")
+        .arg("build-native")
+        .arg(&main)
+        .arg(&out)
+        .output()
+        .expect("run second build-native");
+    assert!(second.status.success(), "{second:?}");
+
+    let stdout = String::from_utf8_lossy(&second.stdout);
+    assert!(stdout.contains("built native (cached):"), "stdout was: {stdout}");
+    assert!(
+        stdout.contains("reuse_cached_ir_object="),
+        "stdout was: {stdout}"
+    );
+    assert!(
+        !stdout.contains("object_codegen="),
+        "stdout was: {stdout}"
+    );
+    assert!(!stdout.contains("native_link="), "stdout was: {stdout}");
+}
+
+#[test]
 fn build_native_reuses_cached_object_from_prior_build_obj() {
     let tmp = make_temp_dir("skepac_build_native_cached_object");
     let source = tmp.join("main.sk");
