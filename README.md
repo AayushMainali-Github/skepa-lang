@@ -53,7 +53,7 @@ skepac build-llvm-ir app.sk app.ll
 
 Set `SKEPAC_TIMINGS=1` to print per-phase timing lines for `build-obj` and `build-native` when you want to inspect cache hits, codegen cost, and link cost locally.
 
-Set `SKEPA_CODEGEN_TIMINGS=1` to print lower-level backend stage timings from `skeplib` itself, including LLVM IR emit, `llvm-as`, `opt`, `llc`, and native link phases.
+Set `SKEPA_CODEGEN_TIMINGS=1` to print lower-level backend stage timings from `skeplib` itself, including LLVM IR emit, `llvm-as`, `clang` object codegen, and native link phases.
 
 ## Project Layout
 

@@ -2648,7 +2648,7 @@ fn main() -> Int {
     assert_cli_failure_class(&output, CliFailureClass::Codegen);
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("native toolchain failure"));
-    assert!(stderr.contains("opt") || stderr.contains("llc"));
+    assert!(stderr.contains("clang"));
 }
 
 #[test]

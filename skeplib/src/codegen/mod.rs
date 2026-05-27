@@ -93,53 +93,34 @@ pub fn compile_program_to_object_file(
     program: &IrProgram,
     path: &Path,
 ) -> Result<(), CodegenError> {
-    compile_program_to_object_file_with_tools(program, path, "opt", "llc")
+    compile_program_to_object_file_with_tools(program, path, "clang")
 }
 
 fn compile_program_to_object_file_with_tools(
     program: &IrProgram,
     path: &Path,
-    opt: &str,
-    llc: &str,
+    clang: &str,
 ) -> Result<(), CodegenError> {
     let mut timings = CodegenTimings::new("object");
     let ll_path = temp_codegen_path("module", "ll");
-    let opt_bc_path = temp_codegen_path("module_opt", "bc");
     let emit_start = Instant::now();
     write_program_llvm_ir(program, &ll_path)?;
     timings.record("llvm_ir_emit", emit_start.elapsed());
-    let opt_start = Instant::now();
-    let opt_result = run_tool(
-        opt,
-        &[
-            "-passes=mem2reg,instcombine,simplifycfg,loop-simplify,loop-unroll",
-            "-unroll-threshold=10000",
-            ll_path.as_os_str().to_string_lossy().as_ref(),
-            "-o",
-            opt_bc_path.as_os_str().to_string_lossy().as_ref(),
-        ],
-    );
-    timings.record("opt", opt_start.elapsed());
-    if let Err(err) = opt_result {
-        let _ = fs::remove_file(&ll_path);
-        let _ = fs::remove_file(&opt_bc_path);
-        timings.finish_and_print();
-        return Err(err);
-    }
-    let llc_start = Instant::now();
+    let clang_start = Instant::now();
     let result = run_tool(
-        llc,
+        clang,
         &[
             "-O3",
-            "-filetype=obj",
-            opt_bc_path.as_os_str().to_string_lossy().as_ref(),
+            "-c",
+            "-x",
+            "ir",
+            ll_path.as_os_str().to_string_lossy().as_ref(),
             "-o",
             path.as_os_str().to_string_lossy().as_ref(),
         ],
     );
-    timings.record("llc", llc_start.elapsed());
+    timings.record("clang_codegen", clang_start.elapsed());
     let _ = fs::remove_file(&ll_path);
-    let _ = fs::remove_file(&opt_bc_path);
     timings.finish_and_print();
     result
 }
@@ -578,19 +559,20 @@ fn main() -> Int {
     #[test]
     fn missing_llc_reports_clean_tool_error() {
         let program = simple_program();
-        let obj_path =
-            temp_codegen_test_path("missing_llc", if cfg!(windows) { "obj" } else { "o" });
+        let obj_path = temp_codegen_test_path(
+            "missing_clang_object_codegen",
+            if cfg!(windows) { "obj" } else { "o" },
+        );
         let err = compile_program_to_object_file_with_tools(
             &program,
             &obj_path,
-            "opt",
-            "definitely-missing-llc-test-tool",
+            "definitely-missing-clang-object-test-tool",
         )
-        .expect_err("missing llc should be reported");
+        .expect_err("missing clang object codegen should be reported");
         let _ = fs::remove_file(&obj_path);
         match err {
             CodegenError::Tool(msg) => {
-                assert!(msg.contains("failed to run `definitely-missing-llc-test-tool`"));
+                assert!(msg.contains("failed to run `definitely-missing-clang-object-test-tool`"));
             }
             other => panic!("unexpected error kind: {other:?}"),
         }
@@ -642,27 +624,28 @@ fn main() -> Int {
     #[test]
     fn codegen_timing_line_format_is_stable() {
         assert_eq!(
-            format_timing_line("object", "llc", 1234),
-            "timing[codegen:object] llc=1234us"
+            format_timing_line("object", "clang_codegen", 1234),
+            "timing[codegen:object] clang_codegen=1234us"
         );
     }
 
     #[test]
     fn missing_opt_reports_clean_tool_error() {
         let program = simple_program();
-        let obj_path =
-            temp_codegen_test_path("missing_opt", if cfg!(windows) { "obj" } else { "o" });
+        let obj_path = temp_codegen_test_path(
+            "missing_object_codegen",
+            if cfg!(windows) { "obj" } else { "o" },
+        );
         let err = compile_program_to_object_file_with_tools(
             &program,
             &obj_path,
-            "definitely-missing-opt-test-tool",
-            "llc",
+            "definitely-missing-object-test-tool",
         )
-        .expect_err("missing opt should be reported");
+        .expect_err("missing object codegen tool should be reported");
         let _ = fs::remove_file(&obj_path);
         match err {
             CodegenError::Tool(msg) => {
-                assert!(msg.contains("failed to run `definitely-missing-opt-test-tool`"));
+                assert!(msg.contains("failed to run `definitely-missing-object-test-tool`"));
             }
             other => panic!("unexpected error kind: {other:?}"),
         }
