@@ -234,6 +234,7 @@ fn main() -> Int {
 fn shipped_examples_check_and_run_through_cli() {
     let hello = example_entry("hello/main.sk");
     let inventory = example_entry("inventory/main.sk");
+    let nested_loops = example_entry("nested_loops/main.sk");
 
     let hello_check = Command::new(skepac_bin())
         .arg("check")
@@ -248,6 +249,17 @@ fn shipped_examples_check_and_run_through_cli() {
         .output()
         .expect("check inventory example");
     assert_eq!(inventory_check.status.code(), Some(0), "{inventory_check:?}");
+
+    let nested_loops_check = Command::new(skepac_bin())
+        .arg("check")
+        .arg(&nested_loops)
+        .output()
+        .expect("check nested_loops example");
+    assert_eq!(
+        nested_loops_check.status.code(),
+        Some(0),
+        "{nested_loops_check:?}"
+    );
 
     let inventory_run = Command::new(skepac_bin())
         .arg("run")

@@ -1,0 +1,30 @@
+import io;
+
+fn mix_outer(i: Int) -> Int {
+  return ((i * 17) ^ (i << 2)) + (i & 31);
+}
+
+fn mix_inner(outer: Int, i: Int, j: Int) -> Int {
+  return (outer + (j * 13)) ^ ((i + j) << 1);
+}
+
+fn main() -> Int {
+  let checksum = 0;
+  let row_seed = 0;
+
+  for (let i = 0; i < 10000; i = i + 1) {
+    row_seed = mix_outer(i);
+
+    for (let j = 0; j < 10000; j = j + 1) {
+      let mixed = mix_inner(row_seed, i, j);
+      checksum = checksum + (mixed & 255);
+      checksum = checksum ^ ((i * 3) + (j & 127));
+      checksum = checksum + ((row_seed % 97) * ((j % 11) + 1));
+      checksum = checksum + ((mixed >> 3) & 63);
+    }
+  }
+
+  io.println("nested loop benchmark finished");
+  io.printInt(checksum);
+  return 0;
+}

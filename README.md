@@ -101,12 +101,15 @@ Shipped sample apps live under `examples/`.
   - minimal single-file program
 - `examples/inventory/main.sk`
   - multi-file project with structs, `Vec`, imports, and user-facing output
+- `examples/nested_loops/main.sk`
+  - CPU-heavy nested-loop sample with 10k x 10k iteration space and cross-loop integer mixing
 
 Try them with:
 
 ```bash
 skepac check examples/hello/main.sk
 skepac run examples/inventory/main.sk
+skepac check examples/nested_loops/main.sk
 ```
 
 Folder namespaces map directly to import paths:
