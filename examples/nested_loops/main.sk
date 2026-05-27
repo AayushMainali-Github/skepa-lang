@@ -1,3 +1,4 @@
+import datetime;
 import io;
 
 fn mix_outer(i: Int) -> Int {
@@ -9,6 +10,7 @@ fn mix_inner(outer: Int, i: Int, j: Int) -> Int {
 }
 
 fn main() -> Int {
+  let started = datetime.nowMillis();
   let checksum = 0;
   let row_seed = 0;
 
@@ -25,6 +27,9 @@ fn main() -> Int {
   }
 
   io.println("nested loop benchmark finished");
+  let elapsed = datetime.nowMillis() - started;
+  io.println("nested loop elapsed ms");
+  io.printInt(elapsed);
   io.printInt(checksum);
   return 0;
 }
