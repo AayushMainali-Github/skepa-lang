@@ -15,3 +15,5 @@ extern_tmp*
 extern_win*
 notes.txt
 target-*
+/target/criterion/
+**/.skepac-cache/

@@ -4,7 +4,10 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::{fs, io};
+use std::{
+    fs, io,
+    time::{Duration, Instant},
+};
 
 use crate::ir::IrProgram;
 
@@ -66,8 +69,12 @@ fn compile_program_to_bitcode_file_with_tool(
     path: &Path,
     llvm_as: &str,
 ) -> Result<(), CodegenError> {
+    let mut timings = CodegenTimings::new("bitcode");
     let ll_path = temp_codegen_path("module", "ll");
+    let emit_start = Instant::now();
     write_program_llvm_ir(program, &ll_path)?;
+    timings.record("llvm_ir_emit", emit_start.elapsed());
+    let assemble_start = Instant::now();
     let result = run_tool(
         llvm_as,
         &[
@@ -76,7 +83,9 @@ fn compile_program_to_bitcode_file_with_tool(
             path.as_os_str().to_string_lossy().as_ref(),
         ],
     );
+    timings.record("llvm_as", assemble_start.elapsed());
     let _ = fs::remove_file(&ll_path);
+    timings.finish_and_print();
     result
 }
 
@@ -94,9 +103,31 @@ fn compile_program_to_object_file_with_tools(
     opt: &str,
     llc: &str,
 ) -> Result<(), CodegenError> {
+    let mut timings = CodegenTimings::new("object");
     let bc_path = temp_codegen_path("module", "bc");
     let opt_bc_path = temp_codegen_path("module_opt", "bc");
-    compile_program_to_bitcode_file_with_tool(program, &bc_path, llvm_as)?;
+    let ll_path = temp_codegen_path("module", "ll");
+    let emit_start = Instant::now();
+    write_program_llvm_ir(program, &ll_path)?;
+    timings.record("llvm_ir_emit", emit_start.elapsed());
+    let assemble_start = Instant::now();
+    let assemble_result = run_tool(
+        llvm_as,
+        &[
+            ll_path.as_os_str().to_string_lossy().as_ref(),
+            "-o",
+            bc_path.as_os_str().to_string_lossy().as_ref(),
+        ],
+    );
+    timings.record("llvm_as", assemble_start.elapsed());
+    let _ = fs::remove_file(&ll_path);
+    if let Err(err) = assemble_result {
+        let _ = fs::remove_file(&bc_path);
+        let _ = fs::remove_file(&opt_bc_path);
+        timings.finish_and_print();
+        return Err(err);
+    }
+    let opt_start = Instant::now();
     let opt_result = run_tool(
         opt,
         &[
@@ -107,11 +138,14 @@ fn compile_program_to_object_file_with_tools(
             opt_bc_path.as_os_str().to_string_lossy().as_ref(),
         ],
     );
+    timings.record("opt", opt_start.elapsed());
     if let Err(err) = opt_result {
         let _ = fs::remove_file(&bc_path);
         let _ = fs::remove_file(&opt_bc_path);
+        timings.finish_and_print();
         return Err(err);
     }
+    let llc_start = Instant::now();
     let result = run_tool(
         llc,
         &[
@@ -122,16 +156,24 @@ fn compile_program_to_object_file_with_tools(
             path.as_os_str().to_string_lossy().as_ref(),
         ],
     );
+    timings.record("llc", llc_start.elapsed());
     let _ = fs::remove_file(&bc_path);
     let _ = fs::remove_file(&opt_bc_path);
+    timings.finish_and_print();
     result
 }
 
 pub fn compile_program_to_executable(program: &IrProgram, path: &Path) -> Result<(), CodegenError> {
+    let mut timings = CodegenTimings::new("native");
     let obj_path = temp_codegen_path("module", object_extension());
+    let object_start = Instant::now();
     compile_program_to_object_file(program, &obj_path)?;
+    timings.record("object_codegen", object_start.elapsed());
+    let link_start = Instant::now();
     let result = link_object_file_to_executable(&obj_path, path);
+    timings.record("native_link", link_start.elapsed());
     let _ = fs::remove_file(&obj_path);
+    timings.finish_and_print();
     result
 }
 
@@ -234,6 +276,47 @@ fn temp_codegen_path(name: &str, ext: &str) -> std::path::PathBuf {
 
 fn object_extension() -> &'static str {
     if cfg!(windows) { "obj" } else { "o" }
+}
+
+struct CodegenTimings {
+    label: &'static str,
+    enabled: bool,
+    started: Instant,
+    phases: Vec<(&'static str, Duration)>,
+}
+
+impl CodegenTimings {
+    fn new(label: &'static str) -> Self {
+        Self {
+            label,
+            enabled: std::env::var_os("SKEPA_CODEGEN_TIMINGS").is_some(),
+            started: Instant::now(),
+            phases: Vec::new(),
+        }
+    }
+
+    fn record(&mut self, phase: &'static str, elapsed: Duration) {
+        if self.enabled {
+            self.phases.push((phase, elapsed));
+        }
+    }
+
+    fn finish_and_print(&self) {
+        if !self.enabled {
+            return;
+        }
+        for (phase, elapsed) in &self.phases {
+            println!("{}", format_timing_line(self.label, phase, elapsed.as_micros()));
+        }
+        println!(
+            "{}",
+            format_timing_line(self.label, "total", self.started.elapsed().as_micros())
+        );
+    }
+}
+
+fn format_timing_line(label: &str, phase: &str, micros: u128) -> String {
+    format!("timing[codegen:{label}] {phase}={micros}us")
 }
 
 fn runtime_library_path() -> Result<PathBuf, CodegenError> {
@@ -345,7 +428,8 @@ mod tests {
     use super::{
         CodegenError, compile_program_to_bitcode_file_with_tool,
         compile_program_to_object_file_with_tools, compile_program_to_llvm_ir,
-        compile_program_llvm_ir_section, link_args_for_executable, link_command_for_executable,
+        compile_program_llvm_ir_section, format_timing_line, link_args_for_executable,
+        link_command_for_executable,
         link_object_file_to_executable_with_tool, run_tool, runtime_library_path_in_target_dir,
     };
     use crate::ir;
@@ -573,6 +657,14 @@ fn main() -> Int {
                 .expect("link command");
         assert_eq!(tool, "clang");
         assert_eq!(args.first().map(String::as_str), Some("input.o"));
+    }
+
+    #[test]
+    fn codegen_timing_line_format_is_stable() {
+        assert_eq!(
+            format_timing_line("object", "llc", 1234),
+            "timing[codegen:object] llc=1234us"
+        );
     }
 
     #[test]
