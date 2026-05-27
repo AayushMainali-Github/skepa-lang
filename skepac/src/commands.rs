@@ -147,25 +147,22 @@ pub fn build_native_file(input: &str, output: &str) -> Result<i32, String> {
     }
 
     let fingerprint_start = Instant::now();
-    let Some((runtime_path, runtime_modified, runtime_len)) = runtime_archive_details() else {
+    let Some(runtime_inputs) = runtime_link_inputs() else {
         eprintln!("[E-CODEGEN][codegen] native runtime library missing");
         return Ok(EXIT_CODEGEN as i32);
     };
     let artifact_fingerprint = if let Some(ir_identity) = &ir_artifact_identity {
-        native_ir_artifact_fingerprint(ir_identity, &runtime_path, runtime_modified, runtime_len)
+        native_ir_artifact_fingerprint(ir_identity, &runtime_inputs)
     } else {
         let object_identity =
             object_identity.unwrap_or_else(|| fallback_object_identity(&object_for_build));
-        native_link_artifact_fingerprint(
-            &object_identity,
-            &runtime_path,
-            runtime_modified,
-            runtime_len,
-        )
+        native_link_artifact_fingerprint(&object_identity, &runtime_inputs)
     };
     let output_fingerprint = native_output_fingerprint(output_path, &artifact_fingerprint);
     timings.record("fingerprint", fingerprint_start.elapsed());
     if build_output_cache_hit(output_path, &output_fingerprint) {
+        codegen::sync_runtime_sidecars_for_output(output_path)
+            .map_err(|err| err.to_string())?;
         println!("built native (cached): {output}");
         timings.finish_and_print();
         return Ok(EXIT_OK as i32);
@@ -175,6 +172,8 @@ pub fn build_native_file(input: &str, output: &str) -> Result<i32, String> {
     if cached_native.exists() {
         let copy_start = Instant::now();
         materialize_cached_artifact(&cached_native, output_path).map_err(|err| err.to_string())?;
+        codegen::sync_runtime_sidecars_for_output(output_path)
+            .map_err(|err| err.to_string())?;
         write_build_output_cache(output_path, &output_fingerprint);
         timings.record("restore_cached_link", copy_start.elapsed());
         println!("built native (cached link): {output}");
@@ -239,6 +238,9 @@ pub fn run_native_file(input: &str) -> Result<i32, String> {
         Err(code) => return Ok(code),
     };
     let exe_path = temp_native_path();
+    if let Some(parent) = exe_path.parent() {
+        fs::create_dir_all(parent).map_err(|err| err.to_string())?;
+    }
     let _cleanup = TempPathGuard::new(exe_path.clone());
     if let Err(err) = codegen::compile_program_to_executable(&program, &exe_path) {
         eprintln!("[E-CODEGEN][codegen] {err}");
@@ -340,22 +342,19 @@ fn project_source_fingerprint(graph: &ModuleGraph) -> String {
     format!("{:016x}", hasher.finish())
 }
 
-fn native_link_artifact_fingerprint(
-    object_identity: &str,
-    runtime_path: &Path,
-    runtime_modified: u128,
-    runtime_len: u64,
-) -> String {
+fn native_link_artifact_fingerprint(object_identity: &str, runtime: &codegen::RuntimeLinkInputs) -> String {
     let mut hasher = DefaultHasher::new();
-    "skepac-native-link-artifact-cache-v3".hash(&mut hasher);
+    "skepac-native-link-artifact-cache-v4".hash(&mut hasher);
     object_identity.hash(&mut hasher);
-    runtime_path.to_string_lossy().hash(&mut hasher);
-    runtime_modified.hash(&mut hasher);
-    runtime_len.hash(&mut hasher);
+    for (path, modified, len) in &runtime.cache_inputs {
+        path.to_string_lossy().hash(&mut hasher);
+        modified.hash(&mut hasher);
+        len.hash(&mut hasher);
+    }
     let placeholder_object = Path::new("__skepa_cached_object__");
     let placeholder_output = Path::new("__skepa_cached_output__");
     if let Ok((tool, args)) =
-        codegen::link_command_for_executable(placeholder_object, placeholder_output, runtime_path)
+        codegen::link_command_for_executable(placeholder_object, placeholder_output, &runtime.link_path)
     {
         tool.hash(&mut hasher);
         for arg in normalized_link_args(args) {
@@ -366,24 +365,21 @@ fn native_link_artifact_fingerprint(
     format!("{:016x}", hasher.finish())
 }
 
-fn native_ir_artifact_fingerprint(
-    ir_identity: &str,
-    runtime_path: &Path,
-    runtime_modified: u128,
-    runtime_len: u64,
-) -> String {
+fn native_ir_artifact_fingerprint(ir_identity: &str, runtime: &codegen::RuntimeLinkInputs) -> String {
     let mut hasher = DefaultHasher::new();
-    "skepac-native-ir-artifact-cache-v1".hash(&mut hasher);
+    "skepac-native-ir-artifact-cache-v2".hash(&mut hasher);
     ir_identity.hash(&mut hasher);
-    runtime_path.to_string_lossy().hash(&mut hasher);
-    runtime_modified.hash(&mut hasher);
-    runtime_len.hash(&mut hasher);
+    for (path, modified, len) in &runtime.cache_inputs {
+        path.to_string_lossy().hash(&mut hasher);
+        modified.hash(&mut hasher);
+        len.hash(&mut hasher);
+    }
     let placeholder_input = Path::new("__skepa_cached_input__.ll");
     let placeholder_output = Path::new("__skepa_cached_output__");
     if let Ok((tool, args)) = codegen::native_command_for_llvm_ir(
         placeholder_input,
         placeholder_output,
-        runtime_path,
+        &runtime.link_path,
     ) {
         tool.hash(&mut hasher);
         for arg in normalized_link_args(args) {
@@ -457,50 +453,8 @@ fn normalized_link_args(args: Vec<String>) -> Vec<String> {
     normalized
 }
 
-fn runtime_archive_details() -> Option<(PathBuf, u128, u64)> {
-    let workspace_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()?
-        .to_path_buf();
-    let profile = if cfg!(debug_assertions) {
-        "debug"
-    } else {
-        "release"
-    };
-    let target_dir = workspace_root.join("target").join(profile);
-    let candidate_dirs = [target_dir.join("deps"), target_dir];
-    let mut candidates = Vec::new();
-    for dir in candidate_dirs {
-        if !dir.exists() {
-            continue;
-        }
-        let entries = fs::read_dir(&dir).ok()?;
-        for entry in entries.flatten() {
-            let path = entry.path();
-            let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
-                continue;
-            };
-            let matches = if cfg!(windows) {
-                (name.starts_with("libskepart-") && name.ends_with(".a"))
-                    || (name.starts_with("skepart-") && name.ends_with(".lib"))
-                    || name == "skepart.lib"
-            } else {
-                name.starts_with("libskepart-") && name.ends_with(".a")
-            };
-            if matches {
-                candidates.push(path);
-            }
-        }
-    }
-    candidates.sort();
-    let path = candidates.pop()?;
-    let meta = fs::metadata(&path).ok()?;
-    let modified = meta
-        .modified()
-        .ok()?
-        .duration_since(UNIX_EPOCH)
-        .ok()?
-        .as_nanos();
-    Some((path, modified, meta.len()))
+fn runtime_link_inputs() -> Option<codegen::RuntimeLinkInputs> {
+    codegen::runtime_link_inputs().ok()
 }
 
 fn build_output_cache_hit(output: &Path, fingerprint: &str) -> bool {
@@ -665,7 +619,11 @@ impl TempPathGuard {
 
 impl Drop for TempPathGuard {
     fn drop(&mut self) {
-        let _ = fs::remove_file(&self.0);
+        if let Some(parent) = self.0.parent() {
+            let _ = fs::remove_dir_all(parent);
+        } else {
+            let _ = fs::remove_file(&self.0);
+        }
     }
 }
 
@@ -675,7 +633,9 @@ fn temp_native_path() -> PathBuf {
         .expect("time should be monotonic enough for temp path")
         .as_nanos();
     let ext = if cfg!(windows) { "exe" } else { "out" };
-    std::env::temp_dir().join(format!("skepac_run_{nanos}.{ext}"))
+    std::env::temp_dir()
+        .join(format!("skepac_run_{nanos}"))
+        .join(format!("main.{ext}"))
 }
 
 #[cfg(test)]

@@ -2170,6 +2170,7 @@ fn build_native_writes_executable_and_runs() {
     let tmp = make_temp_dir("skepac_build_native");
     let source = tmp.join("main.sk");
     let out = tmp.join(format!("main.{}", exe_ext()));
+    let runtime_sidecar = tmp.join("skepart.dll");
     fs::write(
         &source,
         r#"
@@ -2189,6 +2190,9 @@ fn main() -> Int {
 
     assert!(output.status.success(), "{:?}", output);
     assert!(out.exists());
+    if cfg!(windows) {
+        assert!(runtime_sidecar.exists(), "runtime sidecar missing");
+    }
 
     let run = Command::new(&out)
         .output()
@@ -2201,6 +2205,7 @@ fn build_native_reuses_cached_output_when_inputs_are_unchanged() {
     let tmp = make_temp_dir("skepac_build_native_cached");
     let source = tmp.join("main.sk");
     let out = tmp.join(format!("main.{}", exe_ext()));
+    let runtime_sidecar = tmp.join("skepart.dll");
     fs::write(
         &source,
         r#"
@@ -2231,6 +2236,59 @@ fn main() -> Int {
     assert!(
         stdout.contains("built native (cached):"),
         "stdout was: {stdout}"
+    );
+    if cfg!(windows) {
+        assert!(runtime_sidecar.exists(), "runtime sidecar missing");
+    }
+}
+
+#[test]
+fn build_native_cached_output_restores_missing_runtime_sidecar() {
+    if !cfg!(windows) {
+        return;
+    }
+
+    let tmp = make_temp_dir("skepac_build_native_cached_sidecar");
+    let source = tmp.join("main.sk");
+    let out = tmp.join(format!("main.{}", exe_ext()));
+    let runtime_sidecar = tmp.join("skepart.dll");
+    fs::write(
+        &source,
+        r#"
+fn main() -> Int {
+  return 7;
+}
+"#,
+    )
+    .expect("write source");
+
+    let first = Command::new(skepac_bin())
+        .arg("build-native")
+        .arg(&source)
+        .arg(&out)
+        .output()
+        .expect("run first build-native");
+    assert!(first.status.success(), "{first:?}");
+    assert!(runtime_sidecar.exists(), "runtime sidecar missing after first build");
+
+    fs::remove_file(&runtime_sidecar).expect("remove runtime sidecar");
+
+    let second = Command::new(skepac_bin())
+        .arg("build-native")
+        .arg(&source)
+        .arg(&out)
+        .output()
+        .expect("run second build-native");
+    assert!(second.status.success(), "{second:?}");
+
+    let stdout = String::from_utf8_lossy(&second.stdout);
+    assert!(
+        stdout.contains("built native (cached):"),
+        "stdout was: {stdout}"
+    );
+    assert!(
+        runtime_sidecar.exists(),
+        "runtime sidecar missing after cached rebuild"
     );
 }
 

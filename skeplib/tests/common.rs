@@ -335,10 +335,17 @@ pub fn assert_native_matches_ir_error_kind(src: &str, expected: RtErrorKind) {
 
 fn native_run_program(program: &IrProgram) -> NativeRunResult {
     let exe_path = temp_artifact_path("native_test", exe_ext());
+    if let Some(parent) = exe_path.parent() {
+        fs::create_dir_all(parent).expect("create native temp dir");
+    }
     codegen::compile_program_to_executable(program, &exe_path)
         .expect("native executable build should succeed");
     let output = run_output(&mut Command::new(&exe_path)).expect("native executable should run");
-    let _ = fs::remove_file(&exe_path);
+    if let Some(parent) = exe_path.parent() {
+        let _ = fs::remove_dir_all(parent);
+    } else {
+        let _ = fs::remove_file(&exe_path);
+    }
     NativeRunResult { output }
 }
 
@@ -349,7 +356,9 @@ pub fn make_temp_dir(prefix: &str) -> PathBuf {
 }
 
 fn temp_artifact_path(label: &str, ext: &str) -> PathBuf {
-    std::env::temp_dir().join(format!("skepa_{label}_{}.{ext}", unique_suffix()))
+    std::env::temp_dir()
+        .join(format!("skepa_{label}_{}", unique_suffix()))
+        .join(format!("main.{ext}"))
 }
 
 fn unique_suffix() -> String {

@@ -51,6 +51,8 @@ skepac build-llvm-ir app.sk app.ll
 
 `build-obj` and `build-native` keep local cache metadata, compiled object artifacts, and reusable linked native outputs under `.skepac-cache/`, so unchanged builds can skip recompilation, relink from a cached object, or restore a missing executable from the cached linked artifact.
 
+On Windows GNU builds, `build-native` emits the executable plus `skepart.dll` beside it. Keep both files together when you move or run the built artifact.
+
 Set `SKEPAC_TIMINGS=1` to print per-phase timing lines for `build-obj` and `build-native` when you want to inspect cache hits, codegen cost, and link cost locally.
 
 Set `SKEPA_CODEGEN_TIMINGS=1` to print lower-level backend stage timings from `skeplib` itself, including LLVM IR emit, `llvm-as`, `clang` object codegen, and native link phases.

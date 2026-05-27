@@ -12,6 +12,18 @@ use std::io::Write;
 
 use crate::ir::IrProgram;
 
+#[derive(Debug, Clone)]
+pub struct RuntimeLinkInputs {
+    pub link_path: PathBuf,
+    pub cache_inputs: Vec<(PathBuf, u128, u64)>,
+}
+
+#[derive(Debug, Clone)]
+struct RuntimeLinkArtifacts {
+    link_lib: PathBuf,
+    sidecar_lib: Option<PathBuf>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CodegenError {
     Unsupported(&'static str),
@@ -138,10 +150,11 @@ pub fn compile_program_to_executable(program: &IrProgram, path: &Path) -> Result
 }
 
 pub fn link_object_file_to_executable(object_path: &Path, path: &Path) -> Result<(), CodegenError> {
-    let runtime = runtime_library_path()?;
-    let (tool, args) = link_command_for_executable(object_path, path, &runtime)?;
+    let runtime = runtime_link_artifacts()?;
+    let (tool, args) = link_command_for_executable(object_path, path, &runtime.link_lib)?;
     let args = args.iter().map(String::as_str).collect::<Vec<_>>();
-    run_tool(&tool, &args)
+    run_tool(&tool, &args)?;
+    sync_runtime_sidecars(path, &runtime)
 }
 
 pub fn link_command_for_executable(
@@ -316,11 +329,12 @@ fn compile_llvm_ir_to_executable_with_tool(
     path: &Path,
     clang: &str,
 ) -> Result<(), CodegenError> {
-    let runtime = runtime_library_path()?;
+    let runtime = runtime_link_artifacts()?;
     let stdin_input = Path::new("-");
-    let (_tool, args) = native_command_for_llvm_ir(stdin_input, path, &runtime)?;
+    let (_tool, args) = native_command_for_llvm_ir(stdin_input, path, &runtime.link_lib)?;
     let args = args.iter().map(String::as_str).collect::<Vec<_>>();
-    run_tool_with_stdin(clang, llvm_ir, &args)
+    run_tool_with_stdin(clang, llvm_ir, &args)?;
+    sync_runtime_sidecars(path, &runtime)
 }
 
 struct CodegenTimings {
@@ -364,7 +378,24 @@ fn format_timing_line(label: &str, phase: &str, micros: u128) -> String {
     format!("timing[codegen:{label}] {phase}={micros}us")
 }
 
-fn runtime_library_path() -> Result<PathBuf, CodegenError> {
+pub fn runtime_link_inputs() -> Result<RuntimeLinkInputs, CodegenError> {
+    let artifacts = runtime_link_artifacts()?;
+    let mut cache_inputs = vec![runtime_file_details(&artifacts.link_lib)?];
+    if let Some(sidecar) = &artifacts.sidecar_lib {
+        cache_inputs.push(runtime_file_details(sidecar)?);
+    }
+    Ok(RuntimeLinkInputs {
+        link_path: artifacts.link_lib,
+        cache_inputs,
+    })
+}
+
+pub fn sync_runtime_sidecars_for_output(path: &Path) -> Result<(), CodegenError> {
+    let runtime = runtime_link_artifacts()?;
+    sync_runtime_sidecars(path, &runtime)
+}
+
+fn runtime_link_artifacts() -> Result<RuntimeLinkArtifacts, CodegenError> {
     let workspace_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .ok_or_else(|| CodegenError::Tool("failed to locate workspace root".into()))?
@@ -393,39 +424,86 @@ fn runtime_library_path() -> Result<PathBuf, CodegenError> {
                 "release".to_string()
             }
         });
-    runtime_library_path_in_target_dir(&workspace_root.join("target").join(profile))
+    runtime_link_artifacts_in_target_dir(&workspace_root.join("target").join(profile))
 }
 
-fn runtime_library_path_in_target_dir(target_dir: &Path) -> Result<PathBuf, CodegenError> {
-    fn is_runtime_archive(path: &Path) -> bool {
-        path.file_name()
-            .and_then(|name| name.to_str())
-            .map(|name| {
-                if cfg!(windows) {
-                    (name.starts_with("libskepart-") && name.ends_with(".a"))
-                        || (name.starts_with("skepart-") && name.ends_with(".lib"))
-                        || name == "skepart.lib"
-                } else {
-                    name.starts_with("libskepart-") && name.ends_with(".a")
-                }
-            })
-            .unwrap_or(false)
-    }
-
+fn runtime_link_artifacts_in_target_dir(target_dir: &Path) -> Result<RuntimeLinkArtifacts, CodegenError> {
     let candidate_dirs = [target_dir.join("deps"), target_dir.to_path_buf()];
-    let mut candidates = Vec::new();
+    let mut static_candidates = Vec::new();
+    let mut shared_import_candidates = Vec::new();
+    let mut shared_sidecar_candidates = Vec::new();
     for dir in candidate_dirs {
         if !dir.exists() {
             continue;
         }
-        let mut found = fs::read_dir(&dir)
+        let found = fs::read_dir(&dir)
             .map_err(|err| CodegenError::Io(err.to_string()))?
             .filter_map(|entry| entry.ok())
             .map(|entry| entry.path())
-            .filter(|path| is_runtime_archive(path))
             .collect::<Vec<_>>();
-        candidates.append(&mut found);
+        for path in found {
+            let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+                continue;
+            };
+            if cfg!(all(windows, not(target_env = "msvc"))) {
+                if name.starts_with("libskepart") && name.ends_with(".dll.a") {
+                    shared_import_candidates.push(path);
+                    continue;
+                }
+                if name.starts_with("skepart") && name.ends_with(".dll") {
+                    shared_sidecar_candidates.push(path);
+                    continue;
+                }
+            } else if cfg!(all(windows, target_env = "msvc")) {
+                if name.starts_with("skepart") && name.ends_with(".dll.lib") {
+                    shared_import_candidates.push(path);
+                    continue;
+                }
+                if name.starts_with("skepart") && name.ends_with(".dll") {
+                    shared_sidecar_candidates.push(path);
+                    continue;
+                }
+            }
+
+            let is_static = if cfg!(windows) {
+                (name.starts_with("libskepart-") && name.ends_with(".a"))
+                    || (name.starts_with("skepart-") && name.ends_with(".lib"))
+                    || name == "skepart.lib"
+            } else {
+                name.starts_with("libskepart-") && name.ends_with(".a")
+            };
+            if is_static {
+                static_candidates.push(path);
+            }
+        }
     }
+
+    if cfg!(windows) {
+        sort_runtime_candidates(&mut shared_import_candidates);
+        sort_runtime_candidates(&mut shared_sidecar_candidates);
+        if let (Some(link_lib), Some(sidecar_lib)) = (
+            shared_import_candidates.into_iter().next(),
+            shared_sidecar_candidates.into_iter().next(),
+        ) {
+            return Ok(RuntimeLinkArtifacts {
+                link_lib,
+                sidecar_lib: Some(sidecar_lib),
+            });
+        }
+    }
+
+    sort_runtime_candidates(&mut static_candidates);
+    if let Some(path) = static_candidates.into_iter().next() {
+        Ok(RuntimeLinkArtifacts {
+            link_lib: path,
+            sidecar_lib: None,
+        })
+    } else {
+        missing_runtime_error(target_dir)
+    }
+}
+
+fn sort_runtime_candidates(candidates: &mut [PathBuf]) {
     candidates.sort_by(|left, right| {
         let left_key = left
             .metadata()
@@ -441,15 +519,45 @@ fn runtime_library_path_in_target_dir(target_dir: &Path) -> Result<PathBuf, Code
             .cmp(&right_key)
             .then_with(|| left.file_name().cmp(&right.file_name()))
     });
-    if let Some(path) = candidates.into_iter().next() {
-        Ok(path)
-    } else {
-        let deps_dir = target_dir.join("deps");
-        Err(CodegenError::Tool(format!(
-            "native runtime library missing under {}",
-            deps_dir.display()
-        )))
+}
+
+fn missing_runtime_error(target_dir: &Path) -> Result<RuntimeLinkArtifacts, CodegenError> {
+    let deps_dir = target_dir.join("deps");
+    Err(CodegenError::Tool(format!(
+        "native runtime library missing under {}",
+        deps_dir.display()
+    )))
+}
+
+fn runtime_file_details(path: &Path) -> Result<(PathBuf, u128, u64), CodegenError> {
+    let meta = fs::metadata(path).map_err(|err| CodegenError::Io(err.to_string()))?;
+    let modified = meta
+        .modified()
+        .map_err(|err| CodegenError::Io(err.to_string()))?
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|err| CodegenError::Io(err.to_string()))?
+        .as_nanos();
+    Ok((path.to_path_buf(), modified, meta.len()))
+}
+
+fn sync_runtime_sidecars(path: &Path, runtime: &RuntimeLinkArtifacts) -> Result<(), CodegenError> {
+    let Some(sidecar) = &runtime.sidecar_lib else {
+        return Ok(());
+    };
+    let sidecar_name = sidecar
+        .file_name()
+        .ok_or_else(|| CodegenError::Tool("runtime sidecar missing file name".into()))?;
+    let parent = path.parent().unwrap_or_else(|| Path::new("."));
+    fs::create_dir_all(parent).map_err(|err| CodegenError::Io(err.to_string()))?;
+    let destination = parent.join(sidecar_name);
+    if destination == *sidecar {
+        return Ok(());
     }
+    if destination.exists() {
+        fs::remove_file(&destination).map_err(|err| CodegenError::Io(err.to_string()))?;
+    }
+    fs::copy(sidecar, &destination).map_err(|err| CodegenError::Io(err.to_string()))?;
+    Ok(())
 }
 
 fn runtime_native_libraries() -> Vec<&'static str> {
@@ -475,7 +583,7 @@ mod tests {
         compile_program_to_object_file_with_tools, compile_program_to_llvm_ir,
         compile_program_llvm_ir_section, format_timing_line, link_args_for_executable,
         link_command_for_executable,
-        link_object_file_to_executable_with_tool, run_tool, runtime_library_path_in_target_dir,
+        link_object_file_to_executable_with_tool, run_tool, runtime_link_artifacts_in_target_dir,
     };
     use crate::ir;
     use crate::codegen::llvm::LlvmEmitSection;
@@ -583,8 +691,8 @@ fn main() -> Int {
                 .as_nanos()
         ));
         fs::create_dir_all(&target_dir).expect("temp target dir");
-        let err =
-            runtime_library_path_in_target_dir(&target_dir).expect_err("runtime should be missing");
+        let err = runtime_link_artifacts_in_target_dir(&target_dir)
+            .expect_err("runtime should be missing");
         let _ = fs::remove_dir_all(&target_dir);
         match err {
             CodegenError::Tool(msg) => {
@@ -611,11 +719,11 @@ fn main() -> Int {
         fs::write(&older, []).expect("older archive");
         std::thread::sleep(std::time::Duration::from_millis(10));
         fs::write(&newer, []).expect("newer archive");
-        let selected =
-            runtime_library_path_in_target_dir(&target_dir).expect("runtime archive should exist");
+        let selected = runtime_link_artifacts_in_target_dir(&target_dir)
+            .expect("runtime archive should exist");
         let _ = fs::remove_dir_all(&target_dir);
         assert_eq!(
-            selected.file_name().and_then(|name| name.to_str()),
+            selected.link_lib.file_name().and_then(|name| name.to_str()),
             Some("libskepart-zzzz9999.a")
         );
     }
