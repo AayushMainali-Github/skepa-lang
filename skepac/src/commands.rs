@@ -81,6 +81,7 @@ pub fn build_object_file(input: &str, output: &str) -> Result<i32, String> {
     let ir_cache_object = cached_ir_object_path(input_path, &ir_fingerprint);
     if ir_cache_object.exists() {
         let copy_start = Instant::now();
+        write_object_identity(&ir_cache_object, &ir_fingerprint);
         if let Some(parent) = output_path.parent() {
             fs::create_dir_all(parent).map_err(|err| err.to_string())?;
         }
@@ -102,7 +103,9 @@ pub fn build_object_file(input: &str, output: &str) -> Result<i32, String> {
         return Ok(EXIT_CODEGEN as i32);
     }
     timings.record("object_codegen", codegen_start.elapsed());
+    write_object_identity(&ir_cache_object, &ir_fingerprint);
     fs::copy(&ir_cache_object, &cache_object).map_err(|err| err.to_string())?;
+    write_object_identity(&cache_object, &ir_fingerprint);
     let copy_start = Instant::now();
     if let Some(parent) = output_path.parent() {
         fs::create_dir_all(parent).map_err(|err| err.to_string())?;
@@ -127,6 +130,7 @@ pub fn build_native_file(input: &str, output: &str) -> Result<i32, String> {
     let source_fingerprint = project_source_fingerprint(&graph);
     let cache_object = cached_object_path(input_path, &source_fingerprint);
     let mut object_for_build = cache_object.clone();
+    let mut object_identity = read_object_identity(&cache_object);
     let mut had_cached_object = cache_object.exists();
     if !had_cached_object {
         let lower_start = Instant::now();
@@ -140,6 +144,7 @@ pub fn build_native_file(input: &str, output: &str) -> Result<i32, String> {
         if ir_cache_object.exists() {
             let reuse_start = Instant::now();
             object_for_build = ir_cache_object;
+            object_identity = Some(ir_fingerprint);
             timings.record("reuse_cached_ir_object", reuse_start.elapsed());
             had_cached_object = true;
         } else {
@@ -155,8 +160,11 @@ pub fn build_native_file(input: &str, output: &str) -> Result<i32, String> {
                 return Ok(EXIT_CODEGEN as i32);
             }
             timings.record("object_codegen", codegen_start.elapsed());
+            write_object_identity(&ir_cache_object, &ir_fingerprint);
             fs::copy(&ir_cache_object, &cache_object).map_err(|err| err.to_string())?;
+            write_object_identity(&cache_object, &ir_fingerprint);
             object_for_build = cache_object.clone();
+            object_identity = Some(ir_fingerprint);
         }
     }
 
@@ -165,8 +173,10 @@ pub fn build_native_file(input: &str, output: &str) -> Result<i32, String> {
         eprintln!("[E-CODEGEN][codegen] native runtime library missing");
         return Ok(EXIT_CODEGEN as i32);
     };
+    let object_identity =
+        object_identity.unwrap_or_else(|| fallback_object_identity(&object_for_build));
     let artifact_fingerprint = native_link_artifact_fingerprint(
-        &object_for_build,
+        &object_identity,
         &runtime_path,
         runtime_modified,
         runtime_len,
@@ -344,23 +354,14 @@ fn project_source_fingerprint(graph: &ModuleGraph) -> String {
 }
 
 fn native_link_artifact_fingerprint(
-    object_path: &Path,
+    object_identity: &str,
     runtime_path: &Path,
     runtime_modified: u128,
     runtime_len: u64,
 ) -> String {
     let mut hasher = DefaultHasher::new();
-    "skepac-native-link-artifact-cache-v2".hash(&mut hasher);
-    if let Ok(bytes) = fs::read(object_path) {
-        bytes.hash(&mut hasher);
-    } else if let Ok(meta) = fs::metadata(object_path) {
-        if let Ok(modified) = meta.modified()
-            && let Ok(duration) = modified.duration_since(UNIX_EPOCH)
-        {
-            duration.as_nanos().hash(&mut hasher);
-        }
-        meta.len().hash(&mut hasher);
-    }
+    "skepac-native-link-artifact-cache-v3".hash(&mut hasher);
+    object_identity.hash(&mut hasher);
     runtime_path.to_string_lossy().hash(&mut hasher);
     runtime_modified.hash(&mut hasher);
     runtime_len.hash(&mut hasher);
@@ -506,6 +507,41 @@ fn cached_native_path(input: &Path, link_fingerprint: &str) -> PathBuf {
     cache_root_for_input(input)
         .join("native")
         .join(format!("{link_fingerprint}.{}", native_cache_extension()))
+}
+
+fn object_identity_path(object_path: &Path) -> PathBuf {
+    PathBuf::from(format!("{}.identity", object_path.to_string_lossy()))
+}
+
+fn write_object_identity(object_path: &Path, identity: &str) {
+    let identity_path = object_identity_path(object_path);
+    if let Some(parent) = identity_path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    let _ = fs::write(identity_path, identity);
+}
+
+fn read_object_identity(object_path: &Path) -> Option<String> {
+    fs::read_to_string(object_identity_path(object_path))
+        .ok()
+        .map(|text| text.trim().to_string())
+        .filter(|text| !text.is_empty())
+}
+
+fn fallback_object_identity(object_path: &Path) -> String {
+    let mut hasher = DefaultHasher::new();
+    "skepac-object-identity-fallback-v1".hash(&mut hasher);
+    if let Ok(bytes) = fs::read(object_path) {
+        bytes.hash(&mut hasher);
+    } else if let Ok(meta) = fs::metadata(object_path) {
+        if let Ok(modified) = meta.modified()
+            && let Ok(duration) = modified.duration_since(UNIX_EPOCH)
+        {
+            duration.as_nanos().hash(&mut hasher);
+        }
+        meta.len().hash(&mut hasher);
+    }
+    format!("{:016x}", hasher.finish())
 }
 
 fn cache_root_for_input(input: &Path) -> PathBuf {
