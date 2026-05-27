@@ -30,6 +30,9 @@ fn main() -> Int {
   let elapsed = datetime.nowMillis() - started;
   io.println("nested loop elapsed ms");
   io.printInt(elapsed);
+  io.println("");
+  io.println("nested loop checksum");
   io.printInt(checksum);
+  io.println("");
   return 0;
 }
