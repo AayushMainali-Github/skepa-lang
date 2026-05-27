@@ -127,14 +127,14 @@ fn compile_program_to_object_file_with_tools(
 
 pub fn compile_program_to_executable(program: &IrProgram, path: &Path) -> Result<(), CodegenError> {
     let mut timings = CodegenTimings::new("native");
-    let obj_path = temp_codegen_path("module", object_extension());
-    let object_start = Instant::now();
-    compile_program_to_object_file(program, &obj_path)?;
-    timings.record("object_codegen", object_start.elapsed());
-    let link_start = Instant::now();
-    let result = link_object_file_to_executable(&obj_path, path);
-    timings.record("native_link", link_start.elapsed());
-    let _ = fs::remove_file(&obj_path);
+    let ll_path = temp_codegen_path("module", "ll");
+    let emit_start = Instant::now();
+    write_program_llvm_ir(program, &ll_path)?;
+    timings.record("llvm_ir_emit", emit_start.elapsed());
+    let clang_start = Instant::now();
+    let result = compile_llvm_ir_to_executable_with_tool(&ll_path, path, "clang");
+    timings.record("clang_native", clang_start.elapsed());
+    let _ = fs::remove_file(&ll_path);
     timings.finish_and_print();
     result
 }
@@ -236,8 +236,66 @@ fn temp_codegen_path(name: &str, ext: &str) -> std::path::PathBuf {
     std::env::temp_dir().join(format!("skepa_codegen_{name}_{pid}_{nanos}_{seq}.{ext}"))
 }
 
-fn object_extension() -> &'static str {
-    if cfg!(windows) { "obj" } else { "o" }
+fn native_args_for_llvm_ir(input: &str, runtime: &str, output: &str) -> Vec<String> {
+    let mut args = vec![
+        "-O3".to_string(),
+        "-x".to_string(),
+        "ir".to_string(),
+        input.to_string(),
+        "-x".to_string(),
+        "none".to_string(),
+    ];
+    if cfg!(all(windows, target_env = "msvc")) {
+        args.push(runtime.to_string());
+        args.extend([
+            "-Xlinker".to_string(),
+            "/NODEFAULTLIB:libucrt".to_string(),
+            "-Xlinker".to_string(),
+            "/DEFAULTLIB:ucrt".to_string(),
+            "-Xlinker".to_string(),
+            "/DEFAULTLIB:vcruntime".to_string(),
+            "-Xlinker".to_string(),
+            "/DEFAULTLIB:msvcrt".to_string(),
+            "-Xlinker".to_string(),
+            "/DEFAULTLIB:legacy_stdio_definitions".to_string(),
+            "-Xlinker".to_string(),
+            "/DEFAULTLIB:oldnames".to_string(),
+        ]);
+    } else if cfg!(windows) {
+        args.extend([
+            "-Wl,--start-group".to_string(),
+            runtime.to_string(),
+            "-Wl,--end-group".to_string(),
+        ]);
+    } else {
+        args.push(runtime.to_string());
+        args.push("-no-pie".to_string());
+    }
+    args.extend(["-o".to_string(), output.to_string()]);
+    args.extend(runtime_native_libraries().into_iter().map(str::to_string));
+    args
+}
+
+pub fn native_command_for_llvm_ir(
+    llvm_ir_path: &Path,
+    path: &Path,
+    runtime: &Path,
+) -> Result<(String, Vec<String>), CodegenError> {
+    let input = llvm_ir_path.as_os_str().to_string_lossy().into_owned();
+    let runtime = runtime.as_os_str().to_string_lossy().into_owned();
+    let output = path.as_os_str().to_string_lossy().into_owned();
+    Ok(("clang".to_string(), native_args_for_llvm_ir(&input, &runtime, &output)))
+}
+
+fn compile_llvm_ir_to_executable_with_tool(
+    llvm_ir_path: &Path,
+    path: &Path,
+    clang: &str,
+) -> Result<(), CodegenError> {
+    let runtime = runtime_library_path()?;
+    let (_tool, args) = native_command_for_llvm_ir(llvm_ir_path, path, &runtime)?;
+    let args = args.iter().map(String::as_str).collect::<Vec<_>>();
+    run_tool(clang, &args)
 }
 
 struct CodegenTimings {

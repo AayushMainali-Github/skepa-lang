@@ -2442,14 +2442,8 @@ fn main() -> Int {
 
     let stdout = String::from_utf8_lossy(&second.stdout);
     assert!(stdout.contains("built native (cached):"), "stdout was: {stdout}");
-    assert!(
-        stdout.contains("reuse_cached_ir_object="),
-        "stdout was: {stdout}"
-    );
-    assert!(
-        !stdout.contains("object_codegen="),
-        "stdout was: {stdout}"
-    );
+    assert!(!stdout.contains("object_codegen="), "stdout was: {stdout}");
+    assert!(!stdout.contains("native_codegen="), "stdout was: {stdout}");
     assert!(!stdout.contains("native_link="), "stdout was: {stdout}");
 }
 
@@ -2502,18 +2496,9 @@ fn main() -> Int {
         stdout.contains("built native (cached link):"),
         "stdout was: {stdout}"
     );
-    assert!(
-        stdout.contains("reuse_cached_ir_object="),
-        "stdout was: {stdout}"
-    );
-    assert!(
-        stdout.contains("restore_cached_link="),
-        "stdout was: {stdout}"
-    );
-    assert!(
-        !stdout.contains("object_codegen="),
-        "stdout was: {stdout}"
-    );
+    assert!(stdout.contains("restore_cached_link="), "stdout was: {stdout}");
+    assert!(!stdout.contains("object_codegen="), "stdout was: {stdout}");
+    assert!(!stdout.contains("native_codegen="), "stdout was: {stdout}");
     assert!(!stdout.contains("native_link="), "stdout was: {stdout}");
 }
 
@@ -2571,14 +2556,8 @@ export { add };
 
     let stdout = String::from_utf8_lossy(&second.stdout);
     assert!(stdout.contains("built native (cached):"), "stdout was: {stdout}");
-    assert!(
-        stdout.contains("reuse_cached_ir_object="),
-        "stdout was: {stdout}"
-    );
-    assert!(
-        !stdout.contains("object_codegen="),
-        "stdout was: {stdout}"
-    );
+    assert!(!stdout.contains("object_codegen="), "stdout was: {stdout}");
+    assert!(!stdout.contains("native_codegen="), "stdout was: {stdout}");
     assert!(!stdout.contains("native_link="), "stdout was: {stdout}");
 }
 

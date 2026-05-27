@@ -131,6 +131,8 @@ pub fn build_native_file(input: &str, output: &str) -> Result<i32, String> {
     let cache_object = cached_object_path(input_path, &source_fingerprint);
     let mut object_for_build = cache_object.clone();
     let mut object_identity = read_object_identity(&cache_object);
+    let mut ir_artifact_identity: Option<String> = None;
+    let mut lowered_program = None;
     let mut had_cached_object = cache_object.exists();
     if !had_cached_object {
         let lower_start = Instant::now();
@@ -140,6 +142,7 @@ pub fn build_native_file(input: &str, output: &str) -> Result<i32, String> {
         };
         timings.record("ir_lowering", lower_start.elapsed());
         let ir_fingerprint = ir_program_fingerprint(&program);
+        ir_artifact_identity = Some(ir_fingerprint.clone());
         let ir_cache_object = cached_ir_object_path(input_path, &ir_fingerprint);
         if ir_cache_object.exists() {
             let reuse_start = Instant::now();
@@ -148,23 +151,7 @@ pub fn build_native_file(input: &str, output: &str) -> Result<i32, String> {
             timings.record("reuse_cached_ir_object", reuse_start.elapsed());
             had_cached_object = true;
         } else {
-            if let Some(parent) = cache_object.parent() {
-                fs::create_dir_all(parent).map_err(|err| err.to_string())?;
-            }
-            if let Some(parent) = ir_cache_object.parent() {
-                fs::create_dir_all(parent).map_err(|err| err.to_string())?;
-            }
-            let codegen_start = Instant::now();
-            if let Err(err) = codegen::compile_program_to_object_file(&program, &ir_cache_object) {
-                eprintln!("[E-CODEGEN][codegen] {err}");
-                return Ok(EXIT_CODEGEN as i32);
-            }
-            timings.record("object_codegen", codegen_start.elapsed());
-            write_object_identity(&ir_cache_object, &ir_fingerprint);
-            fs::copy(&ir_cache_object, &cache_object).map_err(|err| err.to_string())?;
-            write_object_identity(&cache_object, &ir_fingerprint);
-            object_for_build = cache_object.clone();
-            object_identity = Some(ir_fingerprint);
+            lowered_program = Some(program);
         }
     }
 
@@ -173,14 +160,18 @@ pub fn build_native_file(input: &str, output: &str) -> Result<i32, String> {
         eprintln!("[E-CODEGEN][codegen] native runtime library missing");
         return Ok(EXIT_CODEGEN as i32);
     };
-    let object_identity =
-        object_identity.unwrap_or_else(|| fallback_object_identity(&object_for_build));
-    let artifact_fingerprint = native_link_artifact_fingerprint(
-        &object_identity,
-        &runtime_path,
-        runtime_modified,
-        runtime_len,
-    );
+    let artifact_fingerprint = if let Some(ir_identity) = &ir_artifact_identity {
+        native_ir_artifact_fingerprint(ir_identity, &runtime_path, runtime_modified, runtime_len)
+    } else {
+        let object_identity =
+            object_identity.unwrap_or_else(|| fallback_object_identity(&object_for_build));
+        native_link_artifact_fingerprint(
+            &object_identity,
+            &runtime_path,
+            runtime_modified,
+            runtime_len,
+        )
+    };
     let output_fingerprint = native_output_fingerprint(output_path, &artifact_fingerprint);
     timings.record("fingerprint", fingerprint_start.elapsed());
     if build_output_cache_hit(output_path, &output_fingerprint) {
@@ -203,12 +194,21 @@ pub fn build_native_file(input: &str, output: &str) -> Result<i32, String> {
         return Ok(EXIT_OK as i32);
     }
 
-    let link_start = Instant::now();
-    if let Err(err) = codegen::link_object_file_to_executable(&object_for_build, output_path) {
-        eprintln!("[E-CODEGEN][codegen] {err}");
-        return Ok(EXIT_CODEGEN as i32);
+    if let Some(program) = lowered_program {
+        let codegen_start = Instant::now();
+        if let Err(err) = codegen::compile_program_to_executable(&program, output_path) {
+            eprintln!("[E-CODEGEN][codegen] {err}");
+            return Ok(EXIT_CODEGEN as i32);
+        }
+        timings.record("native_codegen", codegen_start.elapsed());
+    } else {
+        let link_start = Instant::now();
+        if let Err(err) = codegen::link_object_file_to_executable(&object_for_build, output_path) {
+            eprintln!("[E-CODEGEN][codegen] {err}");
+            return Ok(EXIT_CODEGEN as i32);
+        }
+        timings.record("native_link", link_start.elapsed());
     }
-    timings.record("native_link", link_start.elapsed());
     let copy_start = Instant::now();
     if let Some(parent) = cached_native.parent() {
         fs::create_dir_all(parent).map_err(|err| err.to_string())?;
@@ -376,6 +376,33 @@ fn native_link_artifact_fingerprint(
         }
     }
 
+    format!("{:016x}", hasher.finish())
+}
+
+fn native_ir_artifact_fingerprint(
+    ir_identity: &str,
+    runtime_path: &Path,
+    runtime_modified: u128,
+    runtime_len: u64,
+) -> String {
+    let mut hasher = DefaultHasher::new();
+    "skepac-native-ir-artifact-cache-v1".hash(&mut hasher);
+    ir_identity.hash(&mut hasher);
+    runtime_path.to_string_lossy().hash(&mut hasher);
+    runtime_modified.hash(&mut hasher);
+    runtime_len.hash(&mut hasher);
+    let placeholder_input = Path::new("__skepa_cached_input__.ll");
+    let placeholder_output = Path::new("__skepa_cached_output__");
+    if let Ok((tool, args)) = codegen::native_command_for_llvm_ir(
+        placeholder_input,
+        placeholder_output,
+        runtime_path,
+    ) {
+        tool.hash(&mut hasher);
+        for arg in normalized_link_args(args) {
+            arg.hash(&mut hasher);
+        }
+    }
     format!("{:016x}", hasher.finish())
 }
 
