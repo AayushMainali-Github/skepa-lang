@@ -2,12 +2,13 @@ pub mod llvm;
 
 use std::fmt;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::{
     fs, io,
     time::{Duration, Instant},
 };
+use std::io::Write;
 
 use crate::ir::IrProgram;
 
@@ -102,39 +103,36 @@ fn compile_program_to_object_file_with_tools(
     clang: &str,
 ) -> Result<(), CodegenError> {
     let mut timings = CodegenTimings::new("object");
-    let ll_path = temp_codegen_path("module", "ll");
     let emit_start = Instant::now();
-    write_program_llvm_ir(program, &ll_path)?;
+    let ir = compile_program_to_llvm_ir(program)?;
     timings.record("llvm_ir_emit", emit_start.elapsed());
     let clang_start = Instant::now();
-    let result = run_tool(
+    let result = run_tool_with_stdin(
         clang,
+        &ir,
         &[
             "-O3",
             "-c",
             "-x",
             "ir",
-            ll_path.as_os_str().to_string_lossy().as_ref(),
+            "-",
             "-o",
             path.as_os_str().to_string_lossy().as_ref(),
         ],
     );
     timings.record("clang_codegen", clang_start.elapsed());
-    let _ = fs::remove_file(&ll_path);
     timings.finish_and_print();
     result
 }
 
 pub fn compile_program_to_executable(program: &IrProgram, path: &Path) -> Result<(), CodegenError> {
     let mut timings = CodegenTimings::new("native");
-    let ll_path = temp_codegen_path("module", "ll");
     let emit_start = Instant::now();
-    write_program_llvm_ir(program, &ll_path)?;
+    let ir = compile_program_to_llvm_ir(program)?;
     timings.record("llvm_ir_emit", emit_start.elapsed());
     let clang_start = Instant::now();
-    let result = compile_llvm_ir_to_executable_with_tool(&ll_path, path, "clang");
+    let result = compile_llvm_ir_to_executable_with_tool(&ir, path, "clang");
     timings.record("clang_native", clang_start.elapsed());
-    let _ = fs::remove_file(&ll_path);
     timings.finish_and_print();
     result
 }
@@ -211,6 +209,32 @@ fn run_tool(tool: &str, args: &[&str]) -> Result<(), CodegenError> {
         .args(args)
         .output()
         .map_err(|err| CodegenError::Tool(format!("failed to run `{tool}`: {err}")))?;
+    map_tool_output(tool, output)
+}
+
+fn run_tool_with_stdin(tool: &str, stdin_text: &str, args: &[&str]) -> Result<(), CodegenError> {
+    let mut child = Command::new(tool)
+        .args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|err| CodegenError::Tool(format!("failed to run `{tool}`: {err}")))?;
+    let mut stdin = child
+        .stdin
+        .take()
+        .ok_or_else(|| CodegenError::Tool(format!("failed to open stdin for `{tool}`")))?;
+    stdin
+        .write_all(stdin_text.as_bytes())
+        .map_err(|err| CodegenError::Tool(format!("failed to write stdin for `{tool}`: {err}")))?;
+    drop(stdin);
+    let output = child
+        .wait_with_output()
+        .map_err(|err| CodegenError::Tool(format!("failed to wait for `{tool}`: {err}")))?;
+    map_tool_output(tool, output)
+}
+
+fn map_tool_output(tool: &str, output: std::process::Output) -> Result<(), CodegenError> {
     if output.status.success() {
         return Ok(());
     }
@@ -288,14 +312,15 @@ pub fn native_command_for_llvm_ir(
 }
 
 fn compile_llvm_ir_to_executable_with_tool(
-    llvm_ir_path: &Path,
+    llvm_ir: &str,
     path: &Path,
     clang: &str,
 ) -> Result<(), CodegenError> {
     let runtime = runtime_library_path()?;
-    let (_tool, args) = native_command_for_llvm_ir(llvm_ir_path, path, &runtime)?;
+    let stdin_input = Path::new("-");
+    let (_tool, args) = native_command_for_llvm_ir(stdin_input, path, &runtime)?;
     let args = args.iter().map(String::as_str).collect::<Vec<_>>();
-    run_tool(clang, &args)
+    run_tool_with_stdin(clang, llvm_ir, &args)
 }
 
 struct CodegenTimings {

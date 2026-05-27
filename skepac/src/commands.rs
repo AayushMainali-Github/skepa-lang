@@ -62,10 +62,7 @@ pub fn build_object_file(input: &str, output: &str) -> Result<i32, String> {
     let cache_object = cached_object_path(input_path, &source_fingerprint);
     if cache_object.exists() {
         let copy_start = Instant::now();
-        if let Some(parent) = output_path.parent() {
-            fs::create_dir_all(parent).map_err(|err| err.to_string())?;
-        }
-        fs::copy(&cache_object, output_path).map_err(|err| err.to_string())?;
+        materialize_cached_artifact(&cache_object, output_path).map_err(|err| err.to_string())?;
         timings.record("copy_cached_object", copy_start.elapsed());
         println!("built object (cached): {output}");
         timings.finish_and_print();
@@ -82,10 +79,7 @@ pub fn build_object_file(input: &str, output: &str) -> Result<i32, String> {
     if ir_cache_object.exists() {
         let copy_start = Instant::now();
         write_object_identity(&ir_cache_object, &ir_fingerprint);
-        if let Some(parent) = output_path.parent() {
-            fs::create_dir_all(parent).map_err(|err| err.to_string())?;
-        }
-        fs::copy(&ir_cache_object, output_path).map_err(|err| err.to_string())?;
+        materialize_cached_artifact(&ir_cache_object, output_path).map_err(|err| err.to_string())?;
         timings.record("reuse_cached_ir_object", copy_start.elapsed());
         println!("built object (cached ir): {output}");
         timings.finish_and_print();
@@ -104,13 +98,10 @@ pub fn build_object_file(input: &str, output: &str) -> Result<i32, String> {
     }
     timings.record("object_codegen", codegen_start.elapsed());
     write_object_identity(&ir_cache_object, &ir_fingerprint);
-    fs::copy(&ir_cache_object, &cache_object).map_err(|err| err.to_string())?;
+    store_cached_artifact(&ir_cache_object, &cache_object).map_err(|err| err.to_string())?;
     write_object_identity(&cache_object, &ir_fingerprint);
     let copy_start = Instant::now();
-    if let Some(parent) = output_path.parent() {
-        fs::create_dir_all(parent).map_err(|err| err.to_string())?;
-    }
-    fs::copy(&ir_cache_object, output_path).map_err(|err| err.to_string())?;
+    materialize_cached_artifact(&ir_cache_object, output_path).map_err(|err| err.to_string())?;
     timings.record("copy_output", copy_start.elapsed());
     println!("built object: {output}");
     timings.finish_and_print();
@@ -183,10 +174,7 @@ pub fn build_native_file(input: &str, output: &str) -> Result<i32, String> {
     let cached_native = cached_native_path(input_path, &artifact_fingerprint);
     if cached_native.exists() {
         let copy_start = Instant::now();
-        if let Some(parent) = output_path.parent() {
-            fs::create_dir_all(parent).map_err(|err| err.to_string())?;
-        }
-        fs::copy(&cached_native, output_path).map_err(|err| err.to_string())?;
+        materialize_cached_artifact(&cached_native, output_path).map_err(|err| err.to_string())?;
         write_build_output_cache(output_path, &output_fingerprint);
         timings.record("restore_cached_link", copy_start.elapsed());
         println!("built native (cached link): {output}");
@@ -196,6 +184,7 @@ pub fn build_native_file(input: &str, output: &str) -> Result<i32, String> {
 
     if let Some(program) = lowered_program {
         let codegen_start = Instant::now();
+        prepare_output_path(output_path).map_err(|err| err.to_string())?;
         if let Err(err) = codegen::compile_program_to_executable(&program, output_path) {
             eprintln!("[E-CODEGEN][codegen] {err}");
             return Ok(EXIT_CODEGEN as i32);
@@ -203,6 +192,7 @@ pub fn build_native_file(input: &str, output: &str) -> Result<i32, String> {
         timings.record("native_codegen", codegen_start.elapsed());
     } else {
         let link_start = Instant::now();
+        prepare_output_path(output_path).map_err(|err| err.to_string())?;
         if let Err(err) = codegen::link_object_file_to_executable(&object_for_build, output_path) {
             eprintln!("[E-CODEGEN][codegen] {err}");
             return Ok(EXIT_CODEGEN as i32);
@@ -210,10 +200,7 @@ pub fn build_native_file(input: &str, output: &str) -> Result<i32, String> {
         timings.record("native_link", link_start.elapsed());
     }
     let copy_start = Instant::now();
-    if let Some(parent) = cached_native.parent() {
-        fs::create_dir_all(parent).map_err(|err| err.to_string())?;
-    }
-    fs::copy(output_path, &cached_native).map_err(|err| err.to_string())?;
+    store_cached_artifact(output_path, &cached_native).map_err(|err| err.to_string())?;
     write_build_output_cache(output_path, &output_fingerprint);
     timings.record("store_cached_link", copy_start.elapsed());
     if had_cached_object {
@@ -412,6 +399,43 @@ fn native_output_fingerprint(output: &Path, artifact_fingerprint: &str) -> Strin
     output.to_string_lossy().hash(&mut hasher);
     artifact_fingerprint.hash(&mut hasher);
     format!("{:016x}", hasher.finish())
+}
+
+fn prepare_output_path(path: &Path) -> std::io::Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    if path.exists() {
+        fs::remove_file(path)?;
+    }
+    Ok(())
+}
+
+fn materialize_cached_artifact(source: &Path, destination: &Path) -> std::io::Result<()> {
+    prepare_output_path(destination)?;
+    match fs::hard_link(source, destination) {
+        Ok(()) => Ok(()),
+        Err(_) => {
+            fs::copy(source, destination)?;
+            Ok(())
+        }
+    }
+}
+
+fn store_cached_artifact(source: &Path, cache_path: &Path) -> std::io::Result<()> {
+    if let Some(parent) = cache_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    if cache_path.exists() {
+        fs::remove_file(cache_path)?;
+    }
+    match fs::hard_link(source, cache_path) {
+        Ok(()) => Ok(()),
+        Err(_) => {
+            fs::copy(source, cache_path)?;
+            Ok(())
+        }
+    }
 }
 
 fn normalized_link_args(args: Vec<String>) -> Vec<String> {
@@ -652,4 +676,52 @@ fn temp_native_path() -> PathBuf {
         .as_nanos();
     let ext = if cfg!(windows) { "exe" } else { "out" };
     std::env::temp_dir().join(format!("skepac_run_{nanos}.{ext}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{materialize_cached_artifact, prepare_output_path, store_cached_artifact};
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_test_dir(name: &str) -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        std::env::temp_dir().join(format!("skepac_commands_{name}_{nanos}"))
+    }
+
+    #[test]
+    fn cached_artifact_helpers_replace_existing_files() {
+        let dir = temp_test_dir("cached_artifact_helpers");
+        fs::create_dir_all(&dir).expect("temp dir");
+        let source = dir.join("source.bin");
+        let destination = dir.join("destination.bin");
+        let cache = dir.join("cache.bin");
+
+        fs::write(&source, b"fresh").expect("source");
+        fs::write(&destination, b"stale").expect("destination");
+        fs::write(&cache, b"old").expect("cache");
+
+        materialize_cached_artifact(&source, &destination).expect("materialize");
+        store_cached_artifact(&source, &cache).expect("store");
+
+        assert_eq!(fs::read(&destination).expect("destination read"), b"fresh");
+        assert_eq!(fs::read(&cache).expect("cache read"), b"fresh");
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn prepare_output_path_removes_existing_file() {
+        let dir = temp_test_dir("prepare_output_path");
+        fs::create_dir_all(&dir).expect("temp dir");
+        let path = dir.join("output.bin");
+        fs::write(&path, b"old").expect("output");
+        prepare_output_path(&path).expect("prepare");
+        assert!(!path.exists());
+        let _ = fs::remove_dir_all(dir);
+    }
 }
