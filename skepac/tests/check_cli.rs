@@ -2349,6 +2349,111 @@ fn main() -> Int {
 }
 
 #[test]
+fn build_obj_reuses_cached_ir_object_after_comment_only_source_change() {
+    let tmp = make_temp_dir("skepac_build_obj_cached_ir");
+    let source = tmp.join("main.sk");
+    let out = tmp.join(format!("main.{}", obj_ext()));
+    fs::write(
+        &source,
+        r#"
+fn main() -> Int {
+  return 7;
+}
+"#,
+    )
+    .expect("write source");
+
+    let first = Command::new(skepac_bin())
+        .arg("build-obj")
+        .arg(&source)
+        .arg(&out)
+        .output()
+        .expect("run first build-obj");
+    assert!(first.status.success(), "{first:?}");
+
+    fs::write(
+        &source,
+        r#"
+// comment-only source edit should not change lowered IR
+fn main() -> Int {
+  return 7;
+}
+"#,
+    )
+    .expect("rewrite source");
+
+    let second = Command::new(skepac_bin())
+        .arg("build-obj")
+        .arg(&source)
+        .arg(&out)
+        .output()
+        .expect("run second build-obj");
+    assert!(second.status.success(), "{second:?}");
+
+    let stdout = String::from_utf8_lossy(&second.stdout);
+    assert!(
+        stdout.contains("built object (cached ir):"),
+        "stdout was: {stdout}"
+    );
+}
+
+#[test]
+fn build_native_reuses_cached_ir_artifact_after_comment_only_source_change() {
+    let tmp = make_temp_dir("skepac_build_native_cached_ir");
+    let source = tmp.join("main.sk");
+    let out = tmp.join(format!("main.{}", exe_ext()));
+    fs::write(
+        &source,
+        r#"
+fn main() -> Int {
+  return 7;
+}
+"#,
+    )
+    .expect("write source");
+
+    let first = Command::new(skepac_bin())
+        .arg("build-native")
+        .arg(&source)
+        .arg(&out)
+        .output()
+        .expect("run first build-native");
+    assert!(first.status.success(), "{first:?}");
+
+    fs::write(
+        &source,
+        r#"
+// comment-only source edit should not change lowered IR
+fn main() -> Int {
+  return 7;
+}
+"#,
+    )
+    .expect("rewrite source");
+
+    let second = Command::new(skepac_bin())
+        .env("SKEPAC_TIMINGS", "1")
+        .arg("build-native")
+        .arg(&source)
+        .arg(&out)
+        .output()
+        .expect("run second build-native");
+    assert!(second.status.success(), "{second:?}");
+
+    let stdout = String::from_utf8_lossy(&second.stdout);
+    assert!(stdout.contains("built native (cached):"), "stdout was: {stdout}");
+    assert!(
+        stdout.contains("reuse_cached_ir_object="),
+        "stdout was: {stdout}"
+    );
+    assert!(
+        !stdout.contains("object_codegen="),
+        "stdout was: {stdout}"
+    );
+    assert!(!stdout.contains("native_link="), "stdout was: {stdout}");
+}
+
+#[test]
 fn build_native_reuses_cached_object_from_prior_build_obj() {
     let tmp = make_temp_dir("skepac_build_native_cached_object");
     let source = tmp.join("main.sk");
