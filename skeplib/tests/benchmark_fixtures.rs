@@ -20,5 +20,4 @@ fn heavy_project_benchmark_fixture_compiles_and_runs() {
     let entry = bench_fixture_root().join("heavy_project").join("main.sk");
     let output = common::native_run_project_structured(&entry);
     assert_eq!(output.exit_code(), 0);
-    assert!(output.stdout_lossy().contains("heavy project ready"));
 }

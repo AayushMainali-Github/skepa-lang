@@ -16,7 +16,6 @@ fn main() -> Int {
   map.insert(counts, "baseline", totalCount(items));
   let total = option.unwrapSome(map.get(counts, "baseline"));
   let report = reportValue();
-  io.println("heavy project ready");
   if (total == 12 && report == 6) {
     return 0;
   }

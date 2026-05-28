@@ -453,8 +453,6 @@ fn project_benches(c: &mut Criterion) {
                 let output = run_output(&mut Command::new(&path)).expect("run project executable");
                 let _ = fs::remove_file(path);
                 assert_eq!(output.status.code(), Some(0), "{output:?}");
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                assert!(stdout.contains("heavy project ready"), "stdout was: {stdout}");
             },
             BatchSize::SmallInput,
         );
