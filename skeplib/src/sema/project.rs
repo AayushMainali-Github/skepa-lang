@@ -73,31 +73,21 @@ fn analyze_project_graph_impl(
 fn analyze_project_graph_phased_impl(
     graph: &ModuleGraph,
 ) -> Result<(SemaResult, DiagnosticBag, DiagnosticBag), Vec<ResolveError>> {
-    let mut programs = HashMap::<ModuleId, Program>::new();
     let parse_diags_all = DiagnosticBag::new();
     let mut sema_diags_all = DiagnosticBag::new();
-    let mut module_paths = HashMap::<ModuleId, std::path::PathBuf>::new();
-    for (id, unit) in &graph.modules {
-        module_paths.insert(id.clone(), unit.path.clone());
-        programs.insert(id.clone(), unit.program.clone());
-    }
 
     let mut module_apis = HashMap::<ModuleId, ModuleApi>::new();
-    for (id, program) in &programs {
-        module_apis.insert(id.clone(), build_module_api(program));
+    for (id, unit) in &graph.modules {
+        module_apis.insert(id.clone(), build_module_api(&unit.program));
     }
     let export_maps = build_export_maps(graph)?;
 
-    for (id, program) in &programs {
-        let ctx = build_external_context(id, program, graph, &module_apis, &export_maps);
-        let source = graph.modules.get(id).map(|unit| unit.source.as_str());
-        let mut checker = Checker::new(program, source);
+    for (id, unit) in &graph.modules {
+        let ctx = build_external_context(id, &unit.program, graph, &module_apis, &export_maps);
+        let mut checker = Checker::new(&unit.program, Some(unit.source.as_str()));
         checker.apply_external_context(ctx);
-        checker.check_program(program);
-        let path = module_paths
-            .get(id)
-            .cloned()
-            .unwrap_or_else(|| std::path::PathBuf::from(id));
+        checker.check_program(&unit.program);
+        let path = unit.path.clone();
         for d in checker.diagnostics.into_vec() {
             sema_diags_all.push(d.with_path(path.clone()));
         }
@@ -189,7 +179,7 @@ fn build_external_context(
                 wildcard,
                 items,
             } => {
-                let targets = resolve_import_module_targets(graph, path);
+                let targets = resolve_import_module_targets(graph, path.as_slice());
                 if targets.len() != 1 {
                     continue;
                 }
@@ -279,7 +269,7 @@ fn build_external_context(
                 }
             }
             ImportDecl::ImportModule { path, .. } => {
-                let targets = resolve_import_module_targets(graph, path);
+                let targets = resolve_import_module_targets(graph, path.as_slice());
                 for target in targets {
                     let target_id = target.clone();
                     let Some(exports) = export_maps.get(&target_id) else {

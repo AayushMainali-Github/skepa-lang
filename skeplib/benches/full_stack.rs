@@ -3,6 +3,8 @@ use skeplib::codegen;
 use skeplib::codegen::llvm::LlvmEmitSection;
 use skeplib::ir::{IrInterpreter, lowering};
 use skeplib::parser::Parser;
+use skeplib::resolver::resolve_project;
+use skeplib::sema::analyze_project_graph_phased;
 use skeplib::sema::analyze_source;
 use std::fs;
 use std::path::PathBuf;
@@ -388,14 +390,47 @@ fn native_pipeline_stage_benches(c: &mut Criterion) {
 
 fn project_benches(c: &mut Criterion) {
     let entry = project_entry();
+    let graph = resolve_project(&entry).expect("resolve project fixture");
+    let (sema_result, _parse_diags, sema_diags) =
+        analyze_project_graph_phased(&graph).expect("analyze project fixture");
+    assert!(
+        !sema_result.has_errors && sema_diags.is_empty(),
+        "unexpected project diagnostics"
+    );
     let ir = lowering::compile_project_entry_unoptimized(&entry)
         .expect("lower project fixture");
     let mut group = c.benchmark_group("project_full_stack");
 
-    group.bench_function("project_ir_lowering/heavy_project", |b| {
+    group.bench_function("project_resolve/heavy_project", |b| {
+        b.iter(|| {
+            let resolved = resolve_project(black_box(&entry)).expect("resolve project");
+            black_box(resolved);
+        });
+    });
+
+    group.bench_function("project_sema_after_resolve/heavy_project", |b| {
+        b.iter(|| {
+            let analyzed =
+                analyze_project_graph_phased(black_box(&graph)).expect("analyze project");
+            black_box(analyzed);
+        });
+    });
+
+    group.bench_function("project_frontend_and_ir_lowering/heavy_project", |b| {
         b.iter(|| {
             let lowered =
                 lowering::compile_project_entry_unoptimized(black_box(&entry)).expect("lower project");
+            black_box(lowered);
+        });
+    });
+
+    group.bench_function("project_ir_lowering_after_frontend/heavy_project", |b| {
+        b.iter(|| {
+            let lowered = lowering::compile_project_graph_after_frontend_unoptimized(
+                black_box(&graph),
+                black_box(&entry),
+            )
+            .expect("lower validated project");
             black_box(lowered);
         });
     });
