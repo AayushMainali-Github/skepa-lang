@@ -7,7 +7,7 @@ use skeplib::resolver::resolve_project;
 use skeplib::sema::analyze_project_graph_phased;
 use skeplib::sema::analyze_source;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -106,6 +106,35 @@ fn unique_suffix() -> String {
 
 fn temp_artifact_path(label: &str, ext: &str) -> PathBuf {
     std::env::temp_dir().join(format!("skepa_bench_{label}_{}.{ext}", unique_suffix()))
+}
+
+fn temp_bench_dir(label: &str) -> PathBuf {
+    std::env::temp_dir().join(format!("skepa_bench_{label}_{}", unique_suffix()))
+}
+
+fn copy_dir_recursive(src: &Path, dst: &Path) {
+    fs::create_dir_all(dst).expect("create bench temp dir");
+    for entry in fs::read_dir(src).expect("read source dir") {
+        let entry = entry.expect("dir entry");
+        let entry_path = entry.path();
+        let destination = dst.join(entry.file_name());
+        if entry_path.is_dir() {
+            copy_dir_recursive(&entry_path, &destination);
+        } else {
+            fs::copy(&entry_path, &destination).expect("copy fixture file");
+        }
+    }
+}
+
+fn mutate_heavy_project_dependency(root: &Path) {
+    let totals = root.join("stats").join("totals.sk");
+    let source = fs::read_to_string(&totals).expect("read totals module");
+    let mutated = source.replace(
+        "  return first.count + second.count + third.count;\n",
+        "  let bonus = 1;\n  return first.count + second.count + third.count + bonus - 1;\n",
+    );
+    assert_ne!(mutated, source, "benchmark mutation should change source");
+    fs::write(&totals, mutated).expect("write mutated totals module");
 }
 
 fn run_output(command: &mut Command) -> std::io::Result<std::process::Output> {
@@ -453,6 +482,37 @@ fn project_benches(c: &mut Criterion) {
                 let output = run_output(&mut Command::new(&path)).expect("run project executable");
                 let _ = fs::remove_file(path);
                 assert_eq!(output.status.code(), Some(0), "{output:?}");
+            },
+            BatchSize::SmallInput,
+        );
+    });
+
+    group.bench_function("project_dependency_edit_build_and_run/heavy_project", |b| {
+        b.iter_batched(
+            || {
+                let fixture = fixture_root().join("heavy_project");
+                let temp_root = temp_bench_dir("heavy_project_mutation");
+                copy_dir_recursive(&fixture, &temp_root);
+                let entry = temp_root.join("main.sk");
+                let seed_ir =
+                    lowering::compile_project_entry_unoptimized(&entry).expect("seed lower project");
+                let seed_exe = temp_root.join(format!("seed.{}", exe_ext()));
+                codegen::compile_program_to_executable(&seed_ir, &seed_exe)
+                    .expect("seed native build");
+                let _ = fs::remove_file(&seed_exe);
+                mutate_heavy_project_dependency(&temp_root);
+                (temp_root, entry)
+            },
+            |(temp_root, entry)| {
+                let ir =
+                    lowering::compile_project_entry_unoptimized(&entry).expect("rebuild lower project");
+                let exe = temp_root.join(format!("mutated.{}", exe_ext()));
+                codegen::compile_program_to_executable(black_box(&ir), &exe)
+                    .expect("rebuild executable");
+                let output = run_output(&mut Command::new(&exe)).expect("run mutated executable");
+                assert_eq!(output.status.code(), Some(0), "{output:?}");
+                let _ = fs::remove_file(&exe);
+                let _ = fs::remove_dir_all(&temp_root);
             },
             BatchSize::SmallInput,
         );

@@ -82,20 +82,17 @@ pub fn compile_project_graph_after_frontend_unoptimized(
     let mut lowerer = IrLowerer::new_project();
     let mut out = lowerer.builder.begin_program();
     let mut init_functions_by_module = std::collections::HashMap::new();
-    let mut modules = Vec::new();
     let mut ids = graph.modules.keys().cloned().collect::<Vec<_>>();
     ids.sort();
-    for id in ids {
-        let module = &graph.modules[&id];
-        modules.push((id, module.program.clone()));
-    }
 
-    for (id, program) in &modules {
+    for id in &ids {
+        let program = &graph.modules[id].program;
         lowerer.configure_project_module(id, program, graph, &export_maps);
         lowerer.register_program_items(program, &mut out);
     }
 
-    for (id, program) in &modules {
+    for id in &ids {
+        let program = &graph.modules[id].program;
         lowerer.configure_project_module(id, program, graph, &export_maps);
         let init_name = lowerer.qualify_name("__globals_init");
         lowerer.lower_program_bodies(program, &mut out);
