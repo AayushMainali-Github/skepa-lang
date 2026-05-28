@@ -97,7 +97,11 @@ fn ffi_function_and_container_surfaces_work() {
     );
     let got_opt = unsafe { skp_rt_vec_get_option(vec_ptr, 0) };
     let got_missing = unsafe { skp_rt_vec_get_option(vec_ptr, 99) };
-    let opt = unsafe { (*(got_opt as *mut RtValue)).expect_option().expect("option") };
+    let opt = unsafe {
+        (*(got_opt as *mut RtValue))
+            .expect_option()
+            .expect("option")
+    };
     let missing = unsafe {
         (*(got_missing as *mut RtValue))
             .expect_option()

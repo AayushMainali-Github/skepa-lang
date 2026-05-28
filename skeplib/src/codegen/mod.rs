@@ -1,6 +1,7 @@
 pub mod llvm;
 
 use std::fmt;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -8,9 +9,9 @@ use std::{
     fs, io,
     time::{Duration, Instant},
 };
-use std::io::Write;
 
 use crate::ir::IrProgram;
+use crate::ir::{FunctionId, GlobalId};
 
 #[derive(Debug, Clone)]
 pub struct RuntimeLinkInputs {
@@ -55,6 +56,40 @@ impl From<io::Error> for CodegenError {
 
 pub fn compile_program_to_llvm_ir(program: &IrProgram) -> Result<String, CodegenError> {
     llvm::compile_program(program)
+}
+
+fn compile_program_to_llvm_ir_with_ownership(
+    program: &IrProgram,
+    owned_functions: std::collections::HashSet<FunctionId>,
+    owned_globals: std::collections::HashSet<GlobalId>,
+    ctor_priority: u32,
+    module_init_function: Option<FunctionId>,
+) -> Result<String, CodegenError> {
+    llvm::compile_program_with_ownership(
+        program,
+        llvm::OwnershipPlan::partitioned(
+            owned_functions,
+            owned_globals,
+            ctor_priority,
+            module_init_function,
+        ),
+    )
+}
+
+pub fn compile_program_partition_to_llvm_ir(
+    program: &IrProgram,
+    owned_functions: std::collections::HashSet<FunctionId>,
+    owned_globals: std::collections::HashSet<GlobalId>,
+    ctor_priority: u32,
+    module_init_function: Option<FunctionId>,
+) -> Result<String, CodegenError> {
+    compile_program_to_llvm_ir_with_ownership(
+        program,
+        owned_functions,
+        owned_globals,
+        ctor_priority,
+        module_init_function,
+    )
 }
 
 pub fn compile_program_llvm_ir_section(
@@ -137,6 +172,60 @@ fn compile_program_to_object_file_with_tools(
     result
 }
 
+pub fn compile_llvm_ir_to_object_file(llvm_ir: &str, path: &Path) -> Result<(), CodegenError> {
+    run_tool_with_stdin(
+        "clang",
+        llvm_ir,
+        &[
+            "-O3",
+            "-c",
+            "-x",
+            "ir",
+            "-",
+            "-o",
+            path.as_os_str().to_string_lossy().as_ref(),
+        ],
+    )
+}
+
+fn compile_program_to_object_file_with_ownership(
+    program: &IrProgram,
+    path: &Path,
+    clang: &str,
+    owned_functions: std::collections::HashSet<FunctionId>,
+    owned_globals: std::collections::HashSet<GlobalId>,
+    ctor_priority: u32,
+    module_init_function: Option<FunctionId>,
+) -> Result<(), CodegenError> {
+    let mut timings = CodegenTimings::new("object");
+    let emit_start = Instant::now();
+    let ir = compile_program_to_llvm_ir_with_ownership(
+        program,
+        owned_functions,
+        owned_globals,
+        ctor_priority,
+        module_init_function,
+    )?;
+    timings.record("llvm_ir_emit", emit_start.elapsed());
+    let clang_start = Instant::now();
+    let result = run_tool_with_stdin(
+        clang,
+        &ir,
+        &[
+            "-O3",
+            "-c",
+            "-x",
+            "ir",
+            "-",
+            "-o",
+            path.as_os_str().to_string_lossy().as_ref(),
+        ],
+    );
+    timings.record("clang_codegen", clang_start.elapsed());
+    timings.finish_and_print();
+    result
+}
+
 pub fn compile_program_to_executable(program: &IrProgram, path: &Path) -> Result<(), CodegenError> {
     let mut timings = CodegenTimings::new("native");
     let emit_start = Instant::now();
@@ -150,8 +239,15 @@ pub fn compile_program_to_executable(program: &IrProgram, path: &Path) -> Result
 }
 
 pub fn link_object_file_to_executable(object_path: &Path, path: &Path) -> Result<(), CodegenError> {
+    link_object_files_to_executable(&[object_path.to_path_buf()], path)
+}
+
+pub fn link_object_files_to_executable(
+    object_paths: &[PathBuf],
+    path: &Path,
+) -> Result<(), CodegenError> {
     let runtime = runtime_link_artifacts()?;
-    let (tool, args) = link_command_for_executable(object_path, path, &runtime.link_lib)?;
+    let (tool, args) = link_command_for_objects(object_paths, path, &runtime.link_lib)?;
     let args = args.iter().map(String::as_str).collect::<Vec<_>>();
     run_tool(&tool, &args)?;
     sync_runtime_sidecars(path, &runtime)
@@ -162,10 +258,21 @@ pub fn link_command_for_executable(
     path: &Path,
     runtime: &Path,
 ) -> Result<(String, Vec<String>), CodegenError> {
-    let object = object_path.as_os_str().to_string_lossy().into_owned();
+    link_command_for_objects(&[object_path.to_path_buf()], path, runtime)
+}
+
+pub fn link_command_for_objects(
+    object_paths: &[PathBuf],
+    path: &Path,
+    runtime: &Path,
+) -> Result<(String, Vec<String>), CodegenError> {
+    let objects = object_paths
+        .iter()
+        .map(|path| path.as_os_str().to_string_lossy().into_owned())
+        .collect::<Vec<_>>();
     let runtime = runtime.as_os_str().to_string_lossy().into_owned();
     let output = path.as_os_str().to_string_lossy().into_owned();
-    let args = link_args_for_executable(&object, &runtime, &output);
+    let args = link_args_for_executable(&objects, &runtime, &output);
     Ok(("clang".to_string(), args))
 }
 
@@ -179,13 +286,13 @@ fn link_object_file_to_executable_with_tool(
     let object = object_path.as_os_str().to_string_lossy().into_owned();
     let runtime = runtime.as_os_str().to_string_lossy().into_owned();
     let output = path.as_os_str().to_string_lossy().into_owned();
-    let args = link_args_for_executable(&object, &runtime, &output);
+    let args = link_args_for_executable(&[object], &runtime, &output);
     let args = args.iter().map(String::as_str).collect::<Vec<_>>();
     run_tool(clang, &args)
 }
 
-fn link_args_for_executable(object: &str, runtime: &str, output: &str) -> Vec<String> {
-    let mut args = vec![object.to_string()];
+fn link_args_for_executable(objects: &[String], runtime: &str, output: &str) -> Vec<String> {
+    let mut args = objects.to_vec();
     if cfg!(all(windows, target_env = "msvc")) {
         args.push(runtime.to_string());
         args.extend([
@@ -223,6 +330,25 @@ fn run_tool(tool: &str, args: &[&str]) -> Result<(), CodegenError> {
         .output()
         .map_err(|err| CodegenError::Tool(format!("failed to run `{tool}`: {err}")))?;
     map_tool_output(tool, output)
+}
+
+pub fn compile_program_partition_to_object_file(
+    program: &IrProgram,
+    path: &Path,
+    owned_functions: std::collections::HashSet<FunctionId>,
+    owned_globals: std::collections::HashSet<GlobalId>,
+    ctor_priority: u32,
+    module_init_function: Option<FunctionId>,
+) -> Result<(), CodegenError> {
+    compile_program_to_object_file_with_ownership(
+        program,
+        path,
+        "clang",
+        owned_functions,
+        owned_globals,
+        ctor_priority,
+        module_init_function,
+    )
 }
 
 fn run_tool_with_stdin(tool: &str, stdin_text: &str, args: &[&str]) -> Result<(), CodegenError> {
@@ -321,7 +447,10 @@ pub fn native_command_for_llvm_ir(
     let input = llvm_ir_path.as_os_str().to_string_lossy().into_owned();
     let runtime = runtime.as_os_str().to_string_lossy().into_owned();
     let output = path.as_os_str().to_string_lossy().into_owned();
-    Ok(("clang".to_string(), native_args_for_llvm_ir(&input, &runtime, &output)))
+    Ok((
+        "clang".to_string(),
+        native_args_for_llvm_ir(&input, &runtime, &output),
+    ))
 }
 
 fn compile_llvm_ir_to_executable_with_tool(
@@ -365,7 +494,10 @@ impl CodegenTimings {
             return;
         }
         for (phase, elapsed) in &self.phases {
-            println!("{}", format_timing_line(self.label, phase, elapsed.as_micros()));
+            println!(
+                "{}",
+                format_timing_line(self.label, phase, elapsed.as_micros())
+            );
         }
         println!(
             "{}",
@@ -427,7 +559,9 @@ fn runtime_link_artifacts() -> Result<RuntimeLinkArtifacts, CodegenError> {
     runtime_link_artifacts_in_target_dir(&workspace_root.join("target").join(profile))
 }
 
-fn runtime_link_artifacts_in_target_dir(target_dir: &Path) -> Result<RuntimeLinkArtifacts, CodegenError> {
+fn runtime_link_artifacts_in_target_dir(
+    target_dir: &Path,
+) -> Result<RuntimeLinkArtifacts, CodegenError> {
     let candidate_dirs = [target_dir.join("deps"), target_dir.to_path_buf()];
     let mut static_candidates = Vec::new();
     let mut shared_import_candidates = Vec::new();
@@ -584,15 +718,14 @@ fn runtime_native_libraries() -> Vec<&'static str> {
 #[cfg(test)]
 mod tests {
     use super::{
-        CodegenError, compile_program_to_bitcode_file_with_tool,
-        compile_program_to_object_file_with_tools, compile_program_to_llvm_ir,
-        compile_program_llvm_ir_section, format_timing_line, link_args_for_executable,
-        link_command_for_executable,
-        link_object_file_to_executable_with_tool, run_tool, runtime_link_artifacts_in_target_dir,
-        sync_runtime_sidecars, RuntimeLinkArtifacts,
+        CodegenError, RuntimeLinkArtifacts, compile_program_llvm_ir_section,
+        compile_program_to_bitcode_file_with_tool, compile_program_to_llvm_ir,
+        compile_program_to_object_file_with_tools, format_timing_line, link_args_for_executable,
+        link_command_for_executable, link_object_file_to_executable_with_tool, run_tool,
+        runtime_link_artifacts_in_target_dir, sync_runtime_sidecars,
     };
-    use crate::ir;
     use crate::codegen::llvm::LlvmEmitSection;
+    use crate::ir;
     use std::fs;
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -618,7 +751,7 @@ fn main() -> Int {
 
     #[test]
     fn native_link_args_disable_pie_on_non_windows() {
-        let args = link_args_for_executable("input.o", "libskepart.a", "out");
+        let args = link_args_for_executable(&["input.o".to_string()], "libskepart.a", "out");
         if cfg!(windows) {
             assert!(!args.iter().any(|arg| arg == "-no-pie"));
         } else {
@@ -643,7 +776,7 @@ fn main() -> Int {
 
     #[test]
     fn native_link_args_use_gnu_group_flags_only_on_windows_gnu() {
-        let args = link_args_for_executable("input.o", "libskepart.a", "out");
+        let args = link_args_for_executable(&["input.o".to_string()], "libskepart.a", "out");
         let has_start_group = args.iter().any(|arg| arg == "-Wl,--start-group");
         let has_end_group = args.iter().any(|arg| arg == "-Wl,--end-group");
         let has_nodefaultlib_libucrt = args.iter().any(|arg| arg == "/NODEFAULTLIB:libucrt");
@@ -664,7 +797,7 @@ fn main() -> Int {
 
     #[test]
     fn native_link_args_include_windows_runtime_libraries_only_on_windows() {
-        let args = link_args_for_executable("input.o", "libskepart.a", "out");
+        let args = link_args_for_executable(&["input.o".to_string()], "libskepart.a", "out");
         let has_kernel = args.iter().any(|arg| arg == "-lkernel32");
         let has_dbghelp = args.iter().any(|arg| arg == "-ldbghelp");
         let has_security_framework = args.iter().any(|arg| arg == "Security");
@@ -844,9 +977,8 @@ fn main() -> Int {
         let object_path = PathBuf::from("input.o");
         let output_path = PathBuf::from("out");
         let runtime_path = PathBuf::from("libskepart.a");
-        let (tool, args) =
-            link_command_for_executable(&object_path, &output_path, &runtime_path)
-                .expect("link command");
+        let (tool, args) = link_command_for_executable(&object_path, &output_path, &runtime_path)
+            .expect("link command");
         assert_eq!(tool, "clang");
         assert_eq!(args.first().map(String::as_str), Some("input.o"));
     }

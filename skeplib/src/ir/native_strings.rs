@@ -1,5 +1,6 @@
 use crate::ir::{
-    BuiltinCall, ConstValue, Instr, IrFunction, IrProgram, LocalId, Operand, TempId, Terminator,
+    BuiltinCall, ConstValue, FunctionId, Instr, IrFunction, IrProgram, LocalId, Operand, TempId,
+    Terminator,
 };
 use std::collections::{HashMap, HashSet};
 
@@ -87,6 +88,20 @@ impl NativeStringPlan {
 }
 
 pub fn collect_program_string_constants(program: &IrProgram) -> Vec<String> {
+    collect_program_string_constants_filtered(program, |_| true)
+}
+
+pub fn collect_program_string_constants_for_functions(
+    program: &IrProgram,
+    owned_functions: &std::collections::HashSet<FunctionId>,
+) -> Vec<String> {
+    collect_program_string_constants_filtered(program, |func| owned_functions.contains(&func.id))
+}
+
+fn collect_program_string_constants_filtered(
+    program: &IrProgram,
+    include_func: impl Fn(&IrFunction) -> bool,
+) -> Vec<String> {
     let mut ordered = Vec::new();
     let mut seen = HashSet::new();
 
@@ -97,6 +112,9 @@ pub fn collect_program_string_constants(program: &IrProgram) -> Vec<String> {
     };
 
     for func in &program.functions {
+        if !include_func(func) {
+            continue;
+        }
         let plan = NativeStringPlan::analyze(func);
         for value in plan.temps.values().chain(plan.locals.values()) {
             if let ConstValue::String(value) = value {

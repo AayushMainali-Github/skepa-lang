@@ -19,7 +19,8 @@ fn fixture_root() -> PathBuf {
 }
 
 fn single_source() -> String {
-    fs::read_to_string(fixture_root().join("heavy_single.sk")).expect("read single benchmark fixture")
+    fs::read_to_string(fixture_root().join("heavy_single.sk"))
+        .expect("read single benchmark fixture")
 }
 
 fn project_entry() -> PathBuf {
@@ -168,22 +169,30 @@ fn parser_and_sema_benches(c: &mut Criterion) {
     let source = single_source();
     let mut group = c.benchmark_group("frontend_single_file");
 
-    group.bench_with_input(BenchmarkId::new("parse", "heavy_single"), &source, |b, src| {
-        b.iter(|| {
-            let (program, diags) = Parser::parse_source(black_box(src));
-            assert!(diags.is_empty(), "unexpected parser diagnostics");
-            black_box(program);
-        });
-    });
+    group.bench_with_input(
+        BenchmarkId::new("parse", "heavy_single"),
+        &source,
+        |b, src| {
+            b.iter(|| {
+                let (program, diags) = Parser::parse_source(black_box(src));
+                assert!(diags.is_empty(), "unexpected parser diagnostics");
+                black_box(program);
+            });
+        },
+    );
 
-    group.bench_with_input(BenchmarkId::new("sema", "heavy_single"), &source, |b, src| {
-        b.iter(|| {
-            let (result, diags) = analyze_source(black_box(src));
-            assert!(diags.is_empty(), "unexpected sema diagnostics");
-            assert!(!result.has_errors, "unexpected sema failure");
-            black_box(result);
-        });
-    });
+    group.bench_with_input(
+        BenchmarkId::new("sema", "heavy_single"),
+        &source,
+        |b, src| {
+            b.iter(|| {
+                let (result, diags) = analyze_source(black_box(src));
+                assert!(diags.is_empty(), "unexpected sema diagnostics");
+                assert!(!result.has_errors, "unexpected sema failure");
+                black_box(result);
+            });
+        },
+    );
 
     group.finish();
 }
@@ -195,8 +204,8 @@ fn ir_and_codegen_benches(c: &mut Criterion) {
 
     group.bench_function("ir_lowering/heavy_single", |b| {
         b.iter(|| {
-            let lowered =
-                lowering::compile_source_unoptimized(black_box(&source)).expect("lower valid source");
+            let lowered = lowering::compile_source_unoptimized(black_box(&source))
+                .expect("lower valid source");
             black_box(lowered);
         });
     });
@@ -220,22 +229,18 @@ fn ir_and_codegen_benches(c: &mut Criterion) {
 
     group.bench_function("llvm_ir_emit_module/heavy_single", |b| {
         b.iter(|| {
-            let llvm_ir = codegen::compile_program_llvm_ir_section(
-                black_box(&ir),
-                LlvmEmitSection::Module,
-            )
-            .expect("emit module llvm ir section");
+            let llvm_ir =
+                codegen::compile_program_llvm_ir_section(black_box(&ir), LlvmEmitSection::Module)
+                    .expect("emit module llvm ir section");
             black_box(llvm_ir);
         });
     });
 
     group.bench_function("llvm_ir_emit_runtime/heavy_single", |b| {
         b.iter(|| {
-            let llvm_ir = codegen::compile_program_llvm_ir_section(
-                black_box(&ir),
-                LlvmEmitSection::Runtime,
-            )
-            .expect("emit runtime llvm ir section");
+            let llvm_ir =
+                codegen::compile_program_llvm_ir_section(black_box(&ir), LlvmEmitSection::Runtime)
+                    .expect("emit runtime llvm ir section");
             black_box(llvm_ir);
         });
     });
@@ -402,7 +407,8 @@ fn native_pipeline_stage_benches(c: &mut Criterion) {
 
     group.bench_function("binary_run/heavy_single", |b| {
         b.iter(|| {
-            let output = run_output(&mut Command::new(&exe_input)).expect("run existing executable");
+            let output =
+                run_output(&mut Command::new(&exe_input)).expect("run existing executable");
             assert_eq!(output.status.code(), Some(0), "{output:?}");
             black_box(output);
         });
@@ -426,8 +432,7 @@ fn project_benches(c: &mut Criterion) {
         !sema_result.has_errors && sema_diags.is_empty(),
         "unexpected project diagnostics"
     );
-    let ir = lowering::compile_project_entry_unoptimized(&entry)
-        .expect("lower project fixture");
+    let ir = lowering::compile_project_entry_unoptimized(&entry).expect("lower project fixture");
     let mut group = c.benchmark_group("project_full_stack");
 
     group.bench_function("project_resolve/heavy_project", |b| {
@@ -447,8 +452,8 @@ fn project_benches(c: &mut Criterion) {
 
     group.bench_function("project_frontend_and_ir_lowering/heavy_project", |b| {
         b.iter(|| {
-            let lowered =
-                lowering::compile_project_entry_unoptimized(black_box(&entry)).expect("lower project");
+            let lowered = lowering::compile_project_entry_unoptimized(black_box(&entry))
+                .expect("lower project");
             black_box(lowered);
         });
     });
@@ -494,8 +499,8 @@ fn project_benches(c: &mut Criterion) {
                 let temp_root = temp_bench_dir("heavy_project_mutation");
                 copy_dir_recursive(&fixture, &temp_root);
                 let entry = temp_root.join("main.sk");
-                let seed_ir =
-                    lowering::compile_project_entry_unoptimized(&entry).expect("seed lower project");
+                let seed_ir = lowering::compile_project_entry_unoptimized(&entry)
+                    .expect("seed lower project");
                 let seed_exe = temp_root.join(format!("seed.{}", exe_ext()));
                 codegen::compile_program_to_executable(&seed_ir, &seed_exe)
                     .expect("seed native build");
@@ -504,8 +509,8 @@ fn project_benches(c: &mut Criterion) {
                 (temp_root, entry)
             },
             |(temp_root, entry)| {
-                let ir =
-                    lowering::compile_project_entry_unoptimized(&entry).expect("rebuild lower project");
+                let ir = lowering::compile_project_entry_unoptimized(&entry)
+                    .expect("rebuild lower project");
                 let exe = temp_root.join(format!("mutated.{}", exe_ext()));
                 codegen::compile_program_to_executable(black_box(&ir), &exe)
                     .expect("rebuild executable");

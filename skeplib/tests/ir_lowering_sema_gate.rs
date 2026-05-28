@@ -49,7 +49,9 @@ fn main() -> Int {
     let err = lowering::compile_project_entry_unoptimized(&root.join("main.sk"))
         .expect_err("project IR lowering entrypoint should reject sema-invalid project");
     assert!(
-        err.iter().any(|e| e.message.contains("Project semantic analysis failed before IR lowering")
+        err.iter().any(|e| e
+            .message
+            .contains("Project semantic analysis failed before IR lowering")
             && e.message.contains("Argument 1")),
         "expected sema-gate diagnostic, got: {err:#?}"
     );

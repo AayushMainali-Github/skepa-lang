@@ -7,8 +7,8 @@ use std::thread;
 mod common;
 
 use common::{
-    CliFailureClass, assert_cli_failure_class, assert_diag_code_and_message, exe_ext,
-    example_entry, make_temp_dir, obj_ext, skepac_bin, write_temp_file,
+    CliFailureClass, assert_cli_failure_class, assert_diag_code_and_message, example_entry,
+    exe_ext, make_temp_dir, obj_ext, skepac_bin, write_temp_file,
 };
 
 #[cfg(target_os = "windows")]
@@ -248,7 +248,11 @@ fn shipped_examples_check_and_run_through_cli() {
         .arg(&inventory)
         .output()
         .expect("check inventory example");
-    assert_eq!(inventory_check.status.code(), Some(0), "{inventory_check:?}");
+    assert_eq!(
+        inventory_check.status.code(),
+        Some(0),
+        "{inventory_check:?}"
+    );
 
     let nested_loops_check = Command::new(skepac_bin())
         .arg("check")
@@ -268,7 +272,10 @@ fn shipped_examples_check_and_run_through_cli() {
         .expect("run inventory example");
     assert_eq!(inventory_run.status.code(), Some(0), "{inventory_run:?}");
     let stdout = String::from_utf8_lossy(&inventory_run.stdout);
-    assert!(stdout.contains("inventory total ready"), "stdout was: {stdout}");
+    assert!(
+        stdout.contains("inventory total ready"),
+        "stdout was: {stdout}"
+    );
 }
 
 #[test]
@@ -2269,7 +2276,10 @@ fn main() -> Int {
         .output()
         .expect("run first build-native");
     assert!(first.status.success(), "{first:?}");
-    assert!(runtime_sidecar.exists(), "runtime sidecar missing after first build");
+    assert!(
+        runtime_sidecar.exists(),
+        "runtime sidecar missing after first build"
+    );
 
     fs::remove_file(&runtime_sidecar).expect("remove runtime sidecar");
 
@@ -2368,13 +2378,22 @@ fn main() -> Int {
     assert!(second.status.success(), "{second:?}");
 
     let stdout = String::from_utf8_lossy(&second.stdout);
-    assert!(stdout.contains("built native (cached link):"), "stdout was: {stdout}");
-    assert!(stdout.contains("timing[build-native] frontend="), "stdout was: {stdout}");
+    assert!(
+        stdout.contains("built native (cached link):"),
+        "stdout was: {stdout}"
+    );
+    assert!(
+        stdout.contains("timing[build-native] frontend="),
+        "stdout was: {stdout}"
+    );
     assert!(
         stdout.contains("timing[build-native] restore_cached_link="),
         "stdout was: {stdout}"
     );
-    assert!(stdout.contains("timing[build-native] total="), "stdout was: {stdout}");
+    assert!(
+        stdout.contains("timing[build-native] total="),
+        "stdout was: {stdout}"
+    );
 }
 
 #[test]
@@ -2511,7 +2530,10 @@ fn main() -> Int {
     assert!(second.status.success(), "{second:?}");
 
     let stdout = String::from_utf8_lossy(&second.stdout);
-    assert!(stdout.contains("built native (cached):"), "stdout was: {stdout}");
+    assert!(
+        stdout.contains("built native (cached):"),
+        "stdout was: {stdout}"
+    );
     assert!(!stdout.contains("object_codegen="), "stdout was: {stdout}");
     assert!(!stdout.contains("native_codegen="), "stdout was: {stdout}");
     assert!(!stdout.contains("native_link="), "stdout was: {stdout}");
@@ -2566,7 +2588,10 @@ fn main() -> Int {
         stdout.contains("built native (cached link):"),
         "stdout was: {stdout}"
     );
-    assert!(stdout.contains("restore_cached_link="), "stdout was: {stdout}");
+    assert!(
+        stdout.contains("restore_cached_link="),
+        "stdout was: {stdout}"
+    );
     assert!(!stdout.contains("object_codegen="), "stdout was: {stdout}");
     assert!(!stdout.contains("native_codegen="), "stdout was: {stdout}");
     assert!(!stdout.contains("native_link="), "stdout was: {stdout}");
@@ -2625,10 +2650,79 @@ export { add };
     assert!(second.status.success(), "{second:?}");
 
     let stdout = String::from_utf8_lossy(&second.stdout);
-    assert!(stdout.contains("built native (cached):"), "stdout was: {stdout}");
+    assert!(
+        stdout.contains("built native (cached):"),
+        "stdout was: {stdout}"
+    );
     assert!(!stdout.contains("object_codegen="), "stdout was: {stdout}");
     assert!(!stdout.contains("native_codegen="), "stdout was: {stdout}");
     assert!(!stdout.contains("native_link="), "stdout was: {stdout}");
+}
+
+#[test]
+fn build_native_partitioned_semantic_dependency_edit_reports_partition_timings() {
+    let tmp = make_temp_dir("skepac_build_native_partitioned_dependency_edit");
+    fs::create_dir_all(tmp.join("utils")).expect("create utils");
+    let main = tmp.join("main.sk");
+    let util = tmp.join("utils").join("math.sk");
+    let out = tmp.join(format!("main.{}", exe_ext()));
+
+    fs::write(
+        &util,
+        r#"
+fn add(a: Int, b: Int) -> Int { return a + b; }
+export { add };
+"#,
+    )
+    .expect("write util");
+    fs::write(
+        &main,
+        r#"
+from utils.math import add;
+fn main() -> Int { return add(20, 22); }
+"#,
+    )
+    .expect("write main");
+
+    let first = Command::new(skepac_bin())
+        .arg("build-native")
+        .arg(&main)
+        .arg(&out)
+        .output()
+        .expect("run first build-native");
+    assert!(first.status.success(), "{first:?}");
+
+    fs::write(
+        &util,
+        r#"
+fn add(a: Int, b: Int) -> Int {
+  let sum = a + b;
+  return sum + 1 - 1;
+}
+export { add };
+"#,
+    )
+    .expect("rewrite util");
+
+    let second = Command::new(skepac_bin())
+        .env("SKEPAC_TIMINGS", "1")
+        .arg("build-native")
+        .arg(&main)
+        .arg(&out)
+        .output()
+        .expect("run second build-native");
+    assert!(second.status.success(), "{second:?}");
+
+    let stdout = String::from_utf8_lossy(&second.stdout);
+    assert!(
+        stdout.contains("built native (partitioned):"),
+        "stdout was: {stdout}"
+    );
+    assert!(
+        stdout.contains("module_object_codegen="),
+        "stdout was: {stdout}"
+    );
+    assert!(stdout.contains("native_link="), "stdout was: {stdout}");
 }
 
 #[test]

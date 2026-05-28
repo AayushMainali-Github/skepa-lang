@@ -17,9 +17,9 @@ mod stmt;
 use context::{ExternFunctionSig, FunctionLowering, FunctionSig, IrLowerer};
 
 pub use project::{
-    compile_project_entry, compile_project_entry_unoptimized,
-    compile_project_graph, compile_project_graph_after_frontend,
-    compile_project_graph_after_frontend_unoptimized, compile_project_graph_unoptimized,
+    compile_project_entry, compile_project_entry_unoptimized, compile_project_graph,
+    compile_project_graph_after_frontend, compile_project_graph_after_frontend_unoptimized,
+    compile_project_graph_unoptimized,
 };
 
 pub fn compile_source(source: &str) -> Result<IrProgram, DiagnosticBag> {

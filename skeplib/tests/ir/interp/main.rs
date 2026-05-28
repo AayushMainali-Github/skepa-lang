@@ -178,10 +178,10 @@ impl RtHost for TestHost {
         right: &str,
     ) -> RtResult<i64> {
         self.net_lookup_handle_kind(symbol)?;
-        self.out.lock().expect("lock trace").push_str(&format!(
-            "[fficall2stringint {}={left}|{right}]",
-            symbol.id
-        ));
+        self.out
+            .lock()
+            .expect("lock trace")
+            .push_str(&format!("[fficall2stringint {}={left}|{right}]", symbol.id));
         Ok((left == right) as i64)
     }
 
@@ -1438,7 +1438,10 @@ fn main() -> Int {
 
     let trace = trace.lock().expect("lock trace").clone();
     assert!(trace.contains("[ffiopen test-lib=0]"), "trace was: {trace}");
-    assert!(trace.contains("[ffibind 0:compare=1]"), "trace was: {trace}");
+    assert!(
+        trace.contains("[ffibind 0:compare=1]"),
+        "trace was: {trace}"
+    );
     assert!(
         trace.contains("[fficall2stringint 1=same|same]"),
         "trace was: {trace}"

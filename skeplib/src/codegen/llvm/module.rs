@@ -1,4 +1,5 @@
 use crate::codegen::CodegenError;
+use crate::codegen::llvm::OwnershipPlan;
 use crate::codegen::llvm::strings::{encode_c_string, runtime_string_symbol};
 use crate::codegen::llvm::types::llvm_ty;
 use crate::codegen::llvm::value::{llvm_float_literal, llvm_symbol};
@@ -22,8 +23,20 @@ pub fn ensure_reserved_symbol_space(program: &IrProgram) -> Result<(), CodegenEr
     Ok(())
 }
 
-pub fn emit_globals(program: &IrProgram, out: &mut Vec<String>) -> Result<(), CodegenError> {
+pub fn emit_globals(
+    program: &IrProgram,
+    ownership: &OwnershipPlan,
+    out: &mut Vec<String>,
+) -> Result<(), CodegenError> {
     for global in &program.globals {
+        if !ownership.owns_global(global.id) {
+            out.push(format!(
+                "@g{} = external global {}, align 8",
+                global.id.0,
+                llvm_ty(&global.ty)?,
+            ));
+            continue;
+        }
         let init = match &global.init {
             Some(Operand::Const(ConstValue::Int(v)))
                 if matches!(global.ty, crate::ir::IrType::Int) =>
@@ -131,6 +144,7 @@ pub fn emit_runtime_string_init(
 pub fn emit_module_initializer(
     program: &IrProgram,
     string_literals: &HashMap<String, String>,
+    module_init_function: Option<crate::ir::FunctionId>,
     out: &mut Vec<String>,
 ) -> Result<String, CodegenError> {
     let init_name = "__skp_codegen_init".to_string();
@@ -145,15 +159,15 @@ pub fn emit_module_initializer(
             llvm_symbol("__skp_init_runtime_strings")
         ));
     }
-    if let Some(module_init) = &program.module_init {
+    if let Some(module_init_function) = module_init_function {
         let init = program
             .functions
             .iter()
-            .find(|func| func.id == module_init.function)
+            .find(|func| func.id == module_init_function)
             .ok_or_else(|| {
                 CodegenError::InvalidIr(format!(
                     "module_init points at missing function {:?}",
-                    module_init.function
+                    module_init_function
                 ))
             })?;
         out.push(format!("  call void {}()", llvm_symbol(&init.name)));

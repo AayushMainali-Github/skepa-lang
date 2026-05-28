@@ -160,7 +160,10 @@ pub unsafe extern "C" fn skp_rt_vec_get_option(vec: *mut RtVec, index: i64) -> *
                 "vec pointer must not be null",
             ));
         }
-        Ok(boxed_value(crate::builtins::vec::get(unsafe { &*vec }, index)))
+        Ok(boxed_value(crate::builtins::vec::get(
+            unsafe { &*vec },
+            index,
+        )))
     }) {
         Ok(value) => value,
         Err(err) => {

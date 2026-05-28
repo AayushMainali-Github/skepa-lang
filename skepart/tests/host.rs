@@ -929,7 +929,9 @@ fn noop_host_maps_panicked_task_join_to_invalid_argument() {
         ))
         .expect("store running task");
 
-    let err = host.task_join(task).expect_err("panic should map to runtime error");
+    let err = host
+        .task_join(task)
+        .expect_err("panic should map to runtime error");
     assert_eq!(err.kind, skepart::RtErrorKind::InvalidArgument);
     assert!(err.message.contains("spawned task panicked"));
     assert_eq!(

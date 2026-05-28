@@ -3,12 +3,14 @@ use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::{
+    collections::HashSet,
     collections::hash_map::DefaultHasher,
     time::{Instant, UNIX_EPOCH},
 };
 
 use skeplib::codegen;
 use skeplib::ir;
+use skeplib::ir::{FunctionId, GlobalId};
 use skeplib::resolver::{ModuleGraph, ResolveError, resolve_project};
 use skeplib::sema::analyze_project_graph_phased;
 
@@ -79,7 +81,8 @@ pub fn build_object_file(input: &str, output: &str) -> Result<i32, String> {
     if ir_cache_object.exists() {
         let copy_start = Instant::now();
         write_object_identity(&ir_cache_object, &ir_fingerprint);
-        materialize_cached_artifact(&ir_cache_object, output_path).map_err(|err| err.to_string())?;
+        materialize_cached_artifact(&ir_cache_object, output_path)
+            .map_err(|err| err.to_string())?;
         timings.record("reuse_cached_ir_object", copy_start.elapsed());
         println!("built object (cached ir): {output}");
         timings.finish_and_print();
@@ -119,6 +122,9 @@ pub fn build_native_file(input: &str, output: &str) -> Result<i32, String> {
     let input_path = Path::new(input);
     let output_path = Path::new(output);
     let source_fingerprint = project_source_fingerprint(&graph);
+    if graph.modules.len() > 1 {
+        return build_native_multi_module(&graph, input, input_path, output_path, timings);
+    }
     let cache_object = cached_object_path(input_path, &source_fingerprint);
     let mut object_for_build = cache_object.clone();
     let mut object_identity = read_object_identity(&cache_object);
@@ -161,8 +167,7 @@ pub fn build_native_file(input: &str, output: &str) -> Result<i32, String> {
     let output_fingerprint = native_output_fingerprint(output_path, &artifact_fingerprint);
     timings.record("fingerprint", fingerprint_start.elapsed());
     if build_output_cache_hit(output_path, &output_fingerprint) {
-        codegen::sync_runtime_sidecars_for_output(output_path)
-            .map_err(|err| err.to_string())?;
+        codegen::sync_runtime_sidecars_for_output(output_path).map_err(|err| err.to_string())?;
         println!("built native (cached): {output}");
         timings.finish_and_print();
         return Ok(EXIT_OK as i32);
@@ -172,8 +177,7 @@ pub fn build_native_file(input: &str, output: &str) -> Result<i32, String> {
     if cached_native.exists() {
         let copy_start = Instant::now();
         materialize_cached_artifact(&cached_native, output_path).map_err(|err| err.to_string())?;
-        codegen::sync_runtime_sidecars_for_output(output_path)
-            .map_err(|err| err.to_string())?;
+        codegen::sync_runtime_sidecars_for_output(output_path).map_err(|err| err.to_string())?;
         write_build_output_cache(output_path, &output_fingerprint);
         timings.record("restore_cached_link", copy_start.elapsed());
         println!("built native (cached link): {output}");
@@ -207,6 +211,117 @@ pub fn build_native_file(input: &str, output: &str) -> Result<i32, String> {
     } else {
         println!("built native: {output}");
     }
+    timings.finish_and_print();
+    Ok(EXIT_OK as i32)
+}
+
+fn build_native_multi_module(
+    graph: &ModuleGraph,
+    input: &str,
+    input_path: &Path,
+    output_path: &Path,
+    mut timings: BuildTimings,
+) -> Result<i32, String> {
+    let lower_start = Instant::now();
+    let program = match compile_project_graph_or_report(graph, input) {
+        Ok(program) => program,
+        Err(code) => return Ok(code),
+    };
+    timings.record("ir_lowering", lower_start.elapsed());
+
+    let partition_start = Instant::now();
+    let partitions = project_native_partitions(graph, &program);
+    let runtime_inputs = match runtime_link_inputs() {
+        Some(inputs) => inputs,
+        None => {
+            eprintln!("[E-CODEGEN][codegen] native runtime library missing");
+            return Ok(EXIT_CODEGEN as i32);
+        }
+    };
+    timings.record("partition_plan", partition_start.elapsed());
+
+    let mut object_paths = Vec::with_capacity(partitions.len());
+    let mut object_identities = Vec::with_capacity(partitions.len());
+    let mut reused_count = 0usize;
+    let mut compiled = std::time::Duration::ZERO;
+    for partition in &partitions {
+        let llvm_ir = match codegen::compile_program_partition_to_llvm_ir(
+            &program,
+            partition.owned_functions.clone(),
+            partition.owned_globals.clone(),
+            partition.ctor_priority,
+            partition.module_init_function,
+        ) {
+            Ok(ir) => ir,
+            Err(err) => {
+                eprintln!("[E-CODEGEN][codegen] {err}");
+                return Ok(EXIT_CODEGEN as i32);
+            }
+        };
+        let fingerprint = text_fingerprint(&llvm_ir);
+        let cache_object = cached_partition_object_path(input_path, &partition.label, &fingerprint);
+        if cache_object.exists() {
+            object_paths.push(cache_object);
+            object_identities.push(fingerprint);
+            reused_count += 1;
+            continue;
+        }
+        let compile_start = Instant::now();
+        if let Some(parent) = cache_object.parent() {
+            fs::create_dir_all(parent).map_err(|err| err.to_string())?;
+        }
+        if let Err(err) = codegen::compile_llvm_ir_to_object_file(&llvm_ir, &cache_object) {
+            eprintln!("[E-CODEGEN][codegen] {err}");
+            return Ok(EXIT_CODEGEN as i32);
+        }
+        compiled += compile_start.elapsed();
+        object_paths.push(cache_object);
+        object_identities.push(fingerprint);
+    }
+    if !compiled.is_zero() {
+        timings.record("module_object_codegen", compiled);
+    }
+    if reused_count != 0 {
+        timings.record_count("reused_cached_module_objects", reused_count);
+    }
+
+    let fingerprint_start = Instant::now();
+    let artifact_fingerprint =
+        native_link_artifact_fingerprint_many(&object_identities, &runtime_inputs);
+    let output_fingerprint = native_output_fingerprint(output_path, &artifact_fingerprint);
+    timings.record("fingerprint", fingerprint_start.elapsed());
+    if build_output_cache_hit(output_path, &output_fingerprint) {
+        codegen::sync_runtime_sidecars_for_output(output_path).map_err(|err| err.to_string())?;
+        println!("built native (cached): {}", output_path.display());
+        timings.finish_and_print();
+        return Ok(EXIT_OK as i32);
+    }
+
+    let cached_native = cached_native_path(input_path, &artifact_fingerprint);
+    if cached_native.exists() {
+        let copy_start = Instant::now();
+        materialize_cached_artifact(&cached_native, output_path).map_err(|err| err.to_string())?;
+        codegen::sync_runtime_sidecars_for_output(output_path).map_err(|err| err.to_string())?;
+        write_build_output_cache(output_path, &output_fingerprint);
+        timings.record("restore_cached_link", copy_start.elapsed());
+        println!("built native (cached link): {}", output_path.display());
+        timings.finish_and_print();
+        return Ok(EXIT_OK as i32);
+    }
+
+    let link_start = Instant::now();
+    prepare_output_path(output_path).map_err(|err| err.to_string())?;
+    if let Err(err) = codegen::link_object_files_to_executable(&object_paths, output_path) {
+        eprintln!("[E-CODEGEN][codegen] {err}");
+        return Ok(EXIT_CODEGEN as i32);
+    }
+    timings.record("native_link", link_start.elapsed());
+
+    let copy_start = Instant::now();
+    store_cached_artifact(output_path, &cached_native).map_err(|err| err.to_string())?;
+    write_build_output_cache(output_path, &output_fingerprint);
+    timings.record("store_cached_link", copy_start.elapsed());
+    println!("built native (partitioned): {}", output_path.display());
     timings.finish_and_print();
     Ok(EXIT_OK as i32)
 }
@@ -342,7 +457,66 @@ fn project_source_fingerprint(graph: &ModuleGraph) -> String {
     format!("{:016x}", hasher.finish())
 }
 
-fn native_link_artifact_fingerprint(object_identity: &str, runtime: &codegen::RuntimeLinkInputs) -> String {
+#[derive(Clone)]
+struct ProjectNativePartition {
+    label: String,
+    owned_functions: HashSet<FunctionId>,
+    owned_globals: HashSet<GlobalId>,
+    ctor_priority: u32,
+    module_init_function: Option<FunctionId>,
+}
+
+fn project_native_partitions(
+    graph: &ModuleGraph,
+    program: &ir::IrProgram,
+) -> Vec<ProjectNativePartition> {
+    let mut partitions = Vec::new();
+    let mut module_ids = graph.modules.keys().cloned().collect::<Vec<_>>();
+    module_ids.sort();
+    for module_id in module_ids {
+        let owned_functions = program
+            .functions
+            .iter()
+            .filter(|func| func.name.starts_with(&format!("{module_id}::")))
+            .map(|func| func.id)
+            .collect::<HashSet<_>>();
+        let owned_globals = program
+            .globals
+            .iter()
+            .filter(|global| global.name.starts_with(&format!("{module_id}::")))
+            .map(|global| global.id)
+            .collect::<HashSet<_>>();
+        partitions.push(ProjectNativePartition {
+            label: module_id.clone(),
+            owned_functions,
+            owned_globals,
+            ctor_priority: 65_534,
+            module_init_function: None,
+        });
+    }
+
+    let wrapper_functions = program
+        .functions
+        .iter()
+        .filter(|func| func.name == "__globals_init" || func.name == "main")
+        .map(|func| func.id)
+        .collect::<HashSet<_>>();
+    let wrapper_module_init = program.module_init.as_ref().map(|init| init.function);
+    partitions.push(ProjectNativePartition {
+        label: "__wrapper".to_string(),
+        owned_functions: wrapper_functions,
+        owned_globals: HashSet::new(),
+        ctor_priority: 65_535,
+        module_init_function: wrapper_module_init,
+    });
+
+    partitions
+}
+
+fn native_link_artifact_fingerprint(
+    object_identity: &str,
+    runtime: &codegen::RuntimeLinkInputs,
+) -> String {
     let mut hasher = DefaultHasher::new();
     "skepac-native-link-artifact-cache-v4".hash(&mut hasher);
     object_identity.hash(&mut hasher);
@@ -353,9 +527,11 @@ fn native_link_artifact_fingerprint(object_identity: &str, runtime: &codegen::Ru
     }
     let placeholder_object = Path::new("__skepa_cached_object__");
     let placeholder_output = Path::new("__skepa_cached_output__");
-    if let Ok((tool, args)) =
-        codegen::link_command_for_executable(placeholder_object, placeholder_output, &runtime.link_path)
-    {
+    if let Ok((tool, args)) = codegen::link_command_for_executable(
+        placeholder_object,
+        placeholder_output,
+        &runtime.link_path,
+    ) {
         tool.hash(&mut hasher);
         for arg in normalized_link_args(args) {
             arg.hash(&mut hasher);
@@ -365,7 +541,39 @@ fn native_link_artifact_fingerprint(object_identity: &str, runtime: &codegen::Ru
     format!("{:016x}", hasher.finish())
 }
 
-fn native_ir_artifact_fingerprint(ir_identity: &str, runtime: &codegen::RuntimeLinkInputs) -> String {
+fn native_link_artifact_fingerprint_many(
+    object_identities: &[String],
+    runtime: &codegen::RuntimeLinkInputs,
+) -> String {
+    let mut hasher = DefaultHasher::new();
+    "skepac-native-link-artifact-cache-v5".hash(&mut hasher);
+    for identity in object_identities {
+        identity.hash(&mut hasher);
+    }
+    for (path, modified, len) in &runtime.cache_inputs {
+        path.to_string_lossy().hash(&mut hasher);
+        modified.hash(&mut hasher);
+        len.hash(&mut hasher);
+    }
+    let placeholder_objects = [PathBuf::from("__skepa_cached_object__.o")];
+    let placeholder_output = Path::new("__skepa_cached_output__");
+    if let Ok((tool, args)) = codegen::link_command_for_objects(
+        &placeholder_objects,
+        placeholder_output,
+        &runtime.link_path,
+    ) {
+        tool.hash(&mut hasher);
+        for arg in normalized_link_args(args) {
+            arg.hash(&mut hasher);
+        }
+    }
+    format!("{:016x}", hasher.finish())
+}
+
+fn native_ir_artifact_fingerprint(
+    ir_identity: &str,
+    runtime: &codegen::RuntimeLinkInputs,
+) -> String {
     let mut hasher = DefaultHasher::new();
     "skepac-native-ir-artifact-cache-v2".hash(&mut hasher);
     ir_identity.hash(&mut hasher);
@@ -514,6 +722,19 @@ fn cached_native_path(input: &Path, link_fingerprint: &str) -> PathBuf {
         .join(format!("{link_fingerprint}.{}", native_cache_extension()))
 }
 
+fn cached_partition_object_path(input: &Path, label: &str, fingerprint: &str) -> PathBuf {
+    let safe_label = label
+        .chars()
+        .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '_' })
+        .collect::<String>();
+    cache_root_for_input(input)
+        .join("partition-objects")
+        .join(format!(
+            "{safe_label}_{fingerprint}.{}",
+            object_cache_extension()
+        ))
+}
+
 fn object_identity_path(object_path: &Path) -> PathBuf {
     PathBuf::from(format!("{}.identity", object_path.to_string_lossy()))
 }
@@ -550,7 +771,8 @@ fn fallback_object_identity(object_path: &Path) -> String {
 }
 
 fn cache_root_for_input(input: &Path) -> PathBuf {
-    input.parent()
+    input
+        .parent()
         .map(Path::to_path_buf)
         .unwrap_or_else(|| PathBuf::from("."))
         .join(".skepac-cache")
@@ -571,11 +793,19 @@ fn ir_program_fingerprint(program: &ir::IrProgram) -> String {
     format!("{:016x}", hasher.finish())
 }
 
+fn text_fingerprint(text: &str) -> String {
+    let mut hasher = DefaultHasher::new();
+    "skepac-text-fingerprint-v1".hash(&mut hasher);
+    text.hash(&mut hasher);
+    format!("{:016x}", hasher.finish())
+}
+
 struct BuildTimings {
     label: &'static str,
     enabled: bool,
     started: Instant,
     phases: Vec<(&'static str, u128)>,
+    counters: Vec<(&'static str, usize)>,
 }
 
 impl BuildTimings {
@@ -585,6 +815,7 @@ impl BuildTimings {
             enabled: std::env::var_os("SKEPAC_TIMINGS").is_some(),
             started: Instant::now(),
             phases: Vec::new(),
+            counters: Vec::new(),
         }
     }
 
@@ -594,12 +825,21 @@ impl BuildTimings {
         }
     }
 
+    fn record_count(&mut self, phase: &'static str, value: usize) {
+        if self.enabled {
+            self.counters.push((phase, value));
+        }
+    }
+
     fn finish_and_print(&self) {
         if !self.enabled {
             return;
         }
         for (phase, micros) in &self.phases {
             println!("timing[{}] {}={}us", self.label, phase, micros);
+        }
+        for (phase, value) in &self.counters {
+            println!("timing[{}] {}={}", self.label, phase, value);
         }
         println!(
             "timing[{}] total={}us",

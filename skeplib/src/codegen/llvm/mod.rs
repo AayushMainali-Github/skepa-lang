@@ -21,6 +21,8 @@ mod value;
 use crate::codegen::CodegenError;
 use crate::ir::IrProgram;
 
+pub(crate) use context::OwnershipPlan;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LlvmEmitSection {
     Module,
@@ -37,4 +39,11 @@ pub fn compile_program_section(
     section: LlvmEmitSection,
 ) -> Result<String, CodegenError> {
     context::LlvmEmitter::new(program).emit_section(section)
+}
+
+pub(crate) fn compile_program_with_ownership(
+    program: &IrProgram,
+    ownership: OwnershipPlan,
+) -> Result<String, CodegenError> {
+    context::LlvmEmitter::new_with_ownership(program, ownership).emit_program()
 }

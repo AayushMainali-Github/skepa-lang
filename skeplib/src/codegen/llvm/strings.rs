@@ -1,8 +1,22 @@
-use crate::ir::{IrProgram, collect_program_string_constants};
-use std::collections::HashMap;
+use crate::ir::{
+    FunctionId, IrProgram, collect_program_string_constants,
+    collect_program_string_constants_for_functions,
+};
+use std::collections::{HashMap, HashSet};
 
 pub fn collect_string_literals(program: &IrProgram) -> HashMap<String, String> {
     collect_program_string_constants(program)
+        .into_iter()
+        .enumerate()
+        .map(|(index, value)| (value, format!("@.str.{index}")))
+        .collect()
+}
+
+pub fn collect_string_literals_for_functions(
+    program: &IrProgram,
+    owned_functions: &HashSet<FunctionId>,
+) -> HashMap<String, String> {
+    collect_program_string_constants_for_functions(program, owned_functions)
         .into_iter()
         .enumerate()
         .map(|(index, value)| (value, format!("@.str.{index}")))

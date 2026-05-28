@@ -905,6 +905,7 @@ impl Checker {
     }
 
     fn error(&mut self, message: String) {
-        self.diagnostics.error(message, self.current_fallback_span());
+        self.diagnostics
+            .error(message, self.current_fallback_span());
     }
 }

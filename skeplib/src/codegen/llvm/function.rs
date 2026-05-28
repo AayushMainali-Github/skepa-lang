@@ -36,6 +36,20 @@ pub fn emit_function_header(func: &IrFunction) -> Result<Vec<String>, CodegenErr
     )])
 }
 
+pub fn emit_function_declaration(func: &IrFunction) -> Result<String, CodegenError> {
+    let ret_ty = llvm_ty(&func.ret_ty)?;
+    let params = func
+        .params
+        .iter()
+        .map(|param| Ok(llvm_ty(&param.ty)?.to_string()))
+        .collect::<Result<Vec<_>, CodegenError>>()?
+        .join(", ");
+    Ok(format!(
+        "declare {ret_ty} {}({params})",
+        llvm_function_symbol(&func.name, &func.ret_ty)
+    ))
+}
+
 pub fn estimated_function_line_capacity(func: &IrFunction, lowered: &LoweredIrFunction) -> usize {
     let mut lines = 2usize;
     for (idx, block) in func.blocks.iter().enumerate() {

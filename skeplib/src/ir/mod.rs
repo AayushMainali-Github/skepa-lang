@@ -26,7 +26,7 @@ pub use native_aggregates::{NativeAggregatePlan, NativeArrayPlan, NativeStructPl
 pub use native_calls::{NativeCallLowering, NativeCallPlan};
 pub use native_strings::{
     NativeStringBuiltinLowering, NativeStringPlan, NativeStringValue,
-    collect_program_string_constants,
+    collect_program_string_constants, collect_program_string_constants_for_functions,
 };
 pub use nativeability::{NativeLocalKind, NativeabilityAnalysis};
 pub use pretty::PrettyIr;

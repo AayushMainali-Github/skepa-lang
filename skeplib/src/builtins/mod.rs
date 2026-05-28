@@ -106,8 +106,7 @@ pub fn find_builtin_spec_any(package: &str, name: &str) -> Option<BuiltinSpec> {
 }
 
 pub fn all_builtin_specs() -> impl Iterator<Item = BuiltinSpec> {
-    all_builtin_specs_any()
-        .filter(|spec| spec.meta.visibility == BuiltinVisibility::Public)
+    all_builtin_specs_any().filter(|spec| spec.meta.visibility == BuiltinVisibility::Public)
 }
 
 pub fn all_builtin_specs_any() -> impl Iterator<Item = BuiltinSpec> {

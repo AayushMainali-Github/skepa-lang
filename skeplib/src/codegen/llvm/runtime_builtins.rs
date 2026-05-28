@@ -29,12 +29,13 @@ pub fn emit_builtin_call(
     lowered: &LoweredIrFunction,
     string_literals: &HashMap<String, String>,
 ) -> Result<(), CodegenError> {
-    let spec = find_builtin_spec_any(&call.builtin.package, &call.builtin.name).ok_or_else(|| {
-        CodegenError::InvalidIr(format!(
-            "unknown builtin {}.{}",
-            call.builtin.package, call.builtin.name
-        ))
-    })?;
+    let spec =
+        find_builtin_spec_any(&call.builtin.package, &call.builtin.name).ok_or_else(|| {
+            CodegenError::InvalidIr(format!(
+                "unknown builtin {}.{}",
+                call.builtin.package, call.builtin.name
+            ))
+        })?;
 
     if spec.meta.can_const_fold {
         match lowered.builtin_string_lowering(call.builtin, call.args) {
