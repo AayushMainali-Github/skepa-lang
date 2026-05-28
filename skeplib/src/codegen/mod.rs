@@ -556,7 +556,12 @@ fn sync_runtime_sidecars(path: &Path, runtime: &RuntimeLinkArtifacts) -> Result<
     if destination.exists() {
         fs::remove_file(&destination).map_err(|err| CodegenError::Io(err.to_string()))?;
     }
-    fs::copy(sidecar, &destination).map_err(|err| CodegenError::Io(err.to_string()))?;
+    match fs::hard_link(sidecar, &destination) {
+        Ok(()) => {}
+        Err(_) => {
+            fs::copy(sidecar, &destination).map_err(|err| CodegenError::Io(err.to_string()))?;
+        }
+    }
     Ok(())
 }
 
@@ -584,6 +589,7 @@ mod tests {
         compile_program_llvm_ir_section, format_timing_line, link_args_for_executable,
         link_command_for_executable,
         link_object_file_to_executable_with_tool, run_tool, runtime_link_artifacts_in_target_dir,
+        sync_runtime_sidecars, RuntimeLinkArtifacts,
     };
     use crate::ir;
     use crate::codegen::llvm::LlvmEmitSection;
@@ -726,6 +732,39 @@ fn main() -> Int {
             selected.link_lib.file_name().and_then(|name| name.to_str()),
             Some("libskepart-zzzz9999.a")
         );
+    }
+
+    #[test]
+    fn runtime_sidecar_sync_replaces_existing_destination() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "skepa_codegen_sidecar_sync_{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        fs::create_dir_all(&temp_dir).expect("temp dir");
+        let runtime_dir = temp_dir.join("runtime");
+        let output_dir = temp_dir.join("out");
+        fs::create_dir_all(&runtime_dir).expect("runtime dir");
+        fs::create_dir_all(&output_dir).expect("output dir");
+
+        let sidecar = runtime_dir.join("skepart.dll");
+        let exe = output_dir.join(if cfg!(windows) { "app.exe" } else { "app.out" });
+        let destination = output_dir.join("skepart.dll");
+
+        fs::write(&sidecar, b"fresh").expect("sidecar");
+        fs::write(&destination, b"stale").expect("existing dest");
+
+        let runtime = RuntimeLinkArtifacts {
+            link_lib: runtime_dir.join("libskepart.dll.a"),
+            sidecar_lib: Some(sidecar.clone()),
+        };
+
+        sync_runtime_sidecars(&exe, &runtime).expect("sync sidecar");
+        assert_eq!(fs::read(&destination).expect("destination"), b"fresh");
+
+        let _ = fs::remove_dir_all(temp_dir);
     }
 
     #[test]
