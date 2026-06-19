@@ -1,4 +1,5 @@
 use crate::codegen::CodegenError;
+use crate::codegen::llvm::OwnershipPlan;
 use crate::codegen::llvm::runtime_builtins;
 use crate::codegen::llvm::runtime_containers;
 use crate::codegen::llvm::runtime_decls::runtime_declarations;
@@ -15,11 +16,15 @@ pub fn ensure_supported(instr: &Instr) -> Result<(), CodegenError> {
     Ok(())
 }
 
-pub fn emit_runtime_decls(program: &IrProgram, out: &mut Vec<String>) -> Result<(), CodegenError> {
+pub fn emit_runtime_decls(
+    program: &IrProgram,
+    ownership: &OwnershipPlan,
+    out: &mut Vec<String>,
+) -> Result<(), CodegenError> {
     for (_, decl) in runtime_declarations() {
         out.push((*decl).into());
     }
-    runtime_indirect::emit_indirect_call_dispatch(program, out)?;
+    runtime_indirect::emit_indirect_call_dispatch(program, ownership, out)?;
     Ok(())
 }
 

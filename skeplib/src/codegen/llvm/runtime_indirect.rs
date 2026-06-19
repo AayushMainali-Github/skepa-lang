@@ -1,4 +1,5 @@
 use crate::codegen::CodegenError;
+use crate::codegen::llvm::OwnershipPlan;
 use crate::codegen::llvm::calls::{self, DirectCall};
 use crate::codegen::llvm::runtime_boxing::{
     emit_abort_if_error, emit_boxed_arg_array, emit_free_boxed_value, emit_free_boxed_values,
@@ -100,13 +101,23 @@ pub fn emit_indirect_call(
 
 pub fn emit_indirect_call_dispatch(
     program: &IrProgram,
+    ownership: &OwnershipPlan,
     out: &mut Vec<String>,
 ) -> Result<(), CodegenError> {
     for func in &program.functions {
-        out.extend(emit_indirect_wrapper(func)?);
-        out.push(String::new());
+        if ownership.owns_function(func.id) {
+            out.extend(emit_indirect_wrapper(func)?);
+            out.push(String::new());
+        } else {
+            out.push(emit_indirect_wrapper_declaration(func));
+            out.push(String::new());
+        }
     }
     Ok(())
+}
+
+fn emit_indirect_wrapper_declaration(func: &IrFunction) -> String {
+    format!("declare ptr @__skp_rt_fnwrap_{}(i64, ptr)", func.id.0)
 }
 
 fn emit_indirect_wrapper(func: &IrFunction) -> Result<Vec<String>, CodegenError> {

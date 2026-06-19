@@ -148,7 +148,7 @@ impl<'a> LlvmEmitter<'a> {
 
     fn emit_runtime_section_lines(&self) -> Result<Vec<String>, CodegenError> {
         let mut out = Vec::new();
-        runtime::emit_runtime_decls(self.program, &mut out)?;
+        runtime::emit_runtime_decls(self.program, &self.ownership, &mut out)?;
         out.push(String::new());
         Ok(out)
     }
