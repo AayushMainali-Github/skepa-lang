@@ -838,6 +838,7 @@ fn canonicalize_llvm_ssa_names(text: &str) -> String {
     let mut i = 0usize;
     let mut temp_ids = std::collections::HashMap::<String, usize>::new();
     let mut value_ids = std::collections::HashMap::<String, usize>::new();
+    let mut block_ids = std::collections::HashMap::<String, usize>::new();
 
     while i < bytes.len() {
         let Some(prefix) = bytes.get(i..i + 2) else {
@@ -847,37 +848,53 @@ fn canonicalize_llvm_ssa_names(text: &str) -> String {
         };
         let is_temp = prefix == b"%t";
         let is_value = prefix == b"%v";
-        if !(is_temp || is_value) {
-            out.push(bytes[i] as char);
-            i += 1;
-            continue;
+        if is_temp || is_value {
+            let mut j = i + 2;
+            while j < bytes.len() && bytes[j].is_ascii_digit() {
+                j += 1;
+            }
+            if j > i + 2 {
+                let name = &text[i..j];
+                let next_index = if is_temp {
+                    let id = temp_ids.len();
+                    *temp_ids.entry(name.to_string()).or_insert(id)
+                } else {
+                    let id = value_ids.len();
+                    *value_ids.entry(name.to_string()).or_insert(id)
+                };
+
+                if is_temp {
+                    out.push_str(&format!("%t{next_index}"));
+                } else {
+                    out.push_str(&format!("%v{next_index}"));
+                }
+                i = j;
+                continue;
+            }
         }
 
-        let mut j = i + 2;
-        while j < bytes.len() && bytes[j].is_ascii_digit() {
-            j += 1;
-        }
-        if j == i + 2 {
-            out.push(bytes[i] as char);
-            i += 1;
-            continue;
+        if bytes[i] == b'b' && bytes.get(i + 1) == Some(&b'b') {
+            let mut j = i + 2;
+            while j < bytes.len() && bytes[j].is_ascii_digit() {
+                j += 1;
+            }
+            if j > i + 2 && bytes.get(j) == Some(&b'_') {
+                let mut k = j + 1;
+                while k < bytes.len() && (bytes[k].is_ascii_alphanumeric() || bytes[k] == b'_') {
+                    k += 1;
+                }
+                let name = &text[i..k];
+                let suffix = &text[j..k];
+                let id = block_ids.len();
+                let next_index = *block_ids.entry(name.to_string()).or_insert(id);
+                out.push_str(&format!("bb{next_index}{suffix}"));
+                i = k;
+                continue;
+            }
         }
 
-        let name = &text[i..j];
-        let next_index = if is_temp {
-            let id = temp_ids.len();
-            *temp_ids.entry(name.to_string()).or_insert(id)
-        } else {
-            let id = value_ids.len();
-            *value_ids.entry(name.to_string()).or_insert(id)
-        };
-
-        if is_temp {
-            out.push_str(&format!("%t{next_index}"));
-        } else {
-            out.push_str(&format!("%v{next_index}"));
-        }
-        i = j;
+        out.push(bytes[i] as char);
+        i += 1;
     }
 
     out
@@ -1013,9 +1030,9 @@ mod tests {
 
     #[test]
     fn llvm_ssa_name_canonicalization_stabilizes_fingerprint_noise() {
-        let first = "define i64 @main() {\n  %t2 = call i64 @foo()\n  %v8 = add i64 %t2, 1\n  ret i64 %v8\n}\n";
+        let first = "define i64 @main() {\nbb13_entry:\n  %t2 = call i64 @foo()\n  %v8 = add i64 %t2, 1\n  br label %bb14_exit\nbb14_exit:\n  ret i64 %v8\n}\n";
         let second =
-            "define i64 @main() {\n  %t4 = call i64 @foo()\n  %v11 = add i64 %t4, 1\n  ret i64 %v11\n}\n";
+            "define i64 @main() {\nbb16_entry:\n  %t4 = call i64 @foo()\n  %v11 = add i64 %t4, 1\n  br label %bb19_exit\nbb19_exit:\n  ret i64 %v11\n}\n";
 
         assert_eq!(
             canonicalize_llvm_ssa_names(first),

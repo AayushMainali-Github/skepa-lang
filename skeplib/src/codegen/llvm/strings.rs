@@ -5,7 +5,9 @@ use crate::ir::{
 use std::collections::{HashMap, HashSet};
 
 pub fn collect_string_literals(program: &IrProgram) -> HashMap<String, String> {
-    collect_program_string_constants(program)
+    let mut values = collect_program_string_constants(program);
+    values.sort();
+    values
         .into_iter()
         .enumerate()
         .map(|(index, value)| (value, format!("@.str.{index}")))
@@ -16,7 +18,9 @@ pub fn collect_string_literals_for_functions(
     program: &IrProgram,
     owned_functions: &HashSet<FunctionId>,
 ) -> HashMap<String, String> {
-    collect_program_string_constants_for_functions(program, owned_functions)
+    let mut values = collect_program_string_constants_for_functions(program, owned_functions);
+    values.sort();
+    values
         .into_iter()
         .enumerate()
         .map(|(index, value)| (value, format!("@.str.{index}")))

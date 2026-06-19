@@ -96,7 +96,9 @@ pub fn emit_string_literal_storage(
     if string_literals.is_empty() {
         return;
     }
-    for (value, name) in string_literals {
+    let mut entries = string_literals.iter().collect::<Vec<_>>();
+    entries.sort_by(|a, b| a.1.cmp(b.1));
+    for (value, name) in entries {
         let bytes = encode_c_string(value);
         out.push(format!(
             "{name} = private unnamed_addr constant [{} x i8] c\"{}\", align 1",
@@ -117,7 +119,9 @@ pub fn emit_runtime_string_init(
     let mut lines = vec!["define internal void @\"__skp_init_runtime_strings\"() {".into()];
     lines.push("entry:".into());
     let mut counter = 0usize;
-    for (value, name) in string_literals {
+    let mut entries = string_literals.iter().collect::<Vec<_>>();
+    entries.sort_by(|a, b| a.1.cmp(b.1));
+    for (value, name) in entries {
         let gep = format!("%v{counter}");
         counter += 1;
         let bytes = value.len() + 1;
