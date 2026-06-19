@@ -2660,7 +2660,7 @@ export { add };
 }
 
 #[test]
-fn build_native_partitioned_semantic_dependency_edit_reports_partition_timings() {
+fn build_native_partitioned_semantic_dependency_edit_reuses_unchanged_partition_objects() {
     let tmp = make_temp_dir("skepac_build_native_partitioned_dependency_edit");
     fs::create_dir_all(tmp.join("utils")).expect("create utils");
     let main = tmp.join("main.sk");
@@ -2716,6 +2716,10 @@ export { add };
     let stdout = String::from_utf8_lossy(&second.stdout);
     assert!(
         stdout.contains("built native (partitioned):"),
+        "stdout was: {stdout}"
+    );
+    assert!(
+        stdout.contains("reused_cached_module_objects="),
         "stdout was: {stdout}"
     );
     assert!(

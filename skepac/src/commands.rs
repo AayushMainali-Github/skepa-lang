@@ -223,7 +223,7 @@ fn build_native_multi_module(
     mut timings: BuildTimings,
 ) -> Result<i32, String> {
     let lower_start = Instant::now();
-    let program = match compile_project_graph_or_report(graph, input) {
+    let program = match compile_project_graph_unoptimized_or_report(graph, input) {
         Ok(program) => program,
         Err(code) => return Ok(code),
     };
@@ -260,6 +260,8 @@ fn build_native_multi_module(
         };
         let fingerprint = text_fingerprint(&llvm_ir);
         let cache_object = cached_partition_object_path(input_path, &partition.label, &fingerprint);
+        maybe_write_partition_debug_ir(input_path, &partition.label, &llvm_ir)
+            .map_err(|err| err.to_string())?;
         if cache_object.exists() {
             object_paths.push(cache_object);
             object_identities.push(fingerprint);
@@ -433,6 +435,19 @@ fn resolve_project_or_report(input: &str) -> Result<ModuleGraph, i32> {
 
 fn compile_project_graph_or_report(graph: &ModuleGraph, input: &str) -> Result<ir::IrProgram, i32> {
     match ir::lowering::compile_project_graph_after_frontend(graph, Path::new(input)) {
+        Ok(program) => Ok(program),
+        Err(message) => {
+            eprintln!("[E-CODEGEN][codegen] {message}");
+            Err(EXIT_RESOLVE as i32)
+        }
+    }
+}
+
+fn compile_project_graph_unoptimized_or_report(
+    graph: &ModuleGraph,
+    input: &str,
+) -> Result<ir::IrProgram, i32> {
+    match ir::lowering::compile_project_graph_after_frontend_unoptimized(graph, Path::new(input)) {
         Ok(program) => Ok(program),
         Err(message) => {
             eprintln!("[E-CODEGEN][codegen] {message}");
@@ -735,6 +750,23 @@ fn cached_partition_object_path(input: &Path, label: &str, fingerprint: &str) ->
         ))
 }
 
+fn maybe_write_partition_debug_ir(input: &Path, label: &str, llvm_ir: &str) -> std::io::Result<()> {
+    if std::env::var_os("SKEPAC_DEBUG_PARTITION_LLVM").is_none() {
+        return Ok(());
+    }
+    let safe_label = label
+        .chars()
+        .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '_' })
+        .collect::<String>();
+    let path = cache_root_for_input(input)
+        .join("partition-llvm")
+        .join(format!("{safe_label}.ll"));
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(path, llvm_ir)
+}
+
 fn object_identity_path(object_path: &Path) -> PathBuf {
     PathBuf::from(format!("{}.identity", object_path.to_string_lossy()))
 }
@@ -796,8 +828,59 @@ fn ir_program_fingerprint(program: &ir::IrProgram) -> String {
 fn text_fingerprint(text: &str) -> String {
     let mut hasher = DefaultHasher::new();
     "skepac-text-fingerprint-v1".hash(&mut hasher);
-    text.hash(&mut hasher);
+    canonicalize_llvm_ssa_names(text).hash(&mut hasher);
     format!("{:016x}", hasher.finish())
+}
+
+fn canonicalize_llvm_ssa_names(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let mut out = String::with_capacity(text.len());
+    let mut i = 0usize;
+    let mut temp_ids = std::collections::HashMap::<String, usize>::new();
+    let mut value_ids = std::collections::HashMap::<String, usize>::new();
+
+    while i < bytes.len() {
+        let Some(prefix) = bytes.get(i..i + 2) else {
+            out.push(bytes[i] as char);
+            i += 1;
+            continue;
+        };
+        let is_temp = prefix == b"%t";
+        let is_value = prefix == b"%v";
+        if !(is_temp || is_value) {
+            out.push(bytes[i] as char);
+            i += 1;
+            continue;
+        }
+
+        let mut j = i + 2;
+        while j < bytes.len() && bytes[j].is_ascii_digit() {
+            j += 1;
+        }
+        if j == i + 2 {
+            out.push(bytes[i] as char);
+            i += 1;
+            continue;
+        }
+
+        let name = &text[i..j];
+        let next_index = if is_temp {
+            let id = temp_ids.len();
+            *temp_ids.entry(name.to_string()).or_insert(id)
+        } else {
+            let id = value_ids.len();
+            *value_ids.entry(name.to_string()).or_insert(id)
+        };
+
+        if is_temp {
+            out.push_str(&format!("%t{next_index}"));
+        } else {
+            out.push_str(&format!("%v{next_index}"));
+        }
+        i = j;
+    }
+
+    out
 }
 
 struct BuildTimings {
@@ -880,7 +963,10 @@ fn temp_native_path() -> PathBuf {
 
 #[cfg(test)]
 mod tests {
-    use super::{materialize_cached_artifact, prepare_output_path, store_cached_artifact};
+    use super::{
+        canonicalize_llvm_ssa_names, materialize_cached_artifact, prepare_output_path,
+        store_cached_artifact, text_fingerprint,
+    };
     use std::fs;
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -923,5 +1009,18 @@ mod tests {
         prepare_output_path(&path).expect("prepare");
         assert!(!path.exists());
         let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn llvm_ssa_name_canonicalization_stabilizes_fingerprint_noise() {
+        let first = "define i64 @main() {\n  %t2 = call i64 @foo()\n  %v8 = add i64 %t2, 1\n  ret i64 %v8\n}\n";
+        let second =
+            "define i64 @main() {\n  %t4 = call i64 @foo()\n  %v11 = add i64 %t4, 1\n  ret i64 %v11\n}\n";
+
+        assert_eq!(
+            canonicalize_llvm_ssa_names(first),
+            canonicalize_llvm_ssa_names(second)
+        );
+        assert_eq!(text_fingerprint(first), text_fingerprint(second));
     }
 }
