@@ -17,3 +17,5 @@ notes.txt
 target-*
 /target/criterion/
 **/.skepac-cache/
+/benchmarks/comparison/.work/
+/benchmarks/comparison/results/

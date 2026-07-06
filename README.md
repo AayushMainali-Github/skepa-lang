@@ -57,6 +57,20 @@ Set `SKEPAC_TIMINGS=1` to print per-phase timing lines for `build-obj` and `buil
 
 Set `SKEPA_CODEGEN_TIMINGS=1` to print lower-level backend stage timings from `skeplib` itself, including LLVM IR emit, `llvm-as`, `clang` object codegen, and native link phases.
 
+## Benchmarks
+
+Compiler-internal Criterion benchmarks live in `skeplib/benches/full_stack.rs`:
+
+```bash
+cargo bench -p skeplib --bench full_stack
+```
+
+Cross-language comparison benchmarks live in `benchmarks/comparison/` and generate detailed CSV, JSON, and Markdown reports:
+
+```powershell
+.\benchmarks\comparison\run.ps1
+```
+
 ## Project Layout
 
 Skepa projects are file-system based. The CLI takes an explicit entry file, usually `main.sk`.
