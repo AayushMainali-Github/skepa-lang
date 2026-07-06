@@ -38,10 +38,12 @@ fn obj_ext() -> &'static str {
 fn runtime_archive_name(name: &str) -> bool {
     if cfg!(windows) {
         (name.starts_with("libskepart-") && name.ends_with(".a"))
+            || name == "libskepart.a"
+            || name == "libskepart.dll.a"
             || (name.starts_with("skepart-") && name.ends_with(".lib"))
             || name == "skepart.lib"
     } else {
-        name.starts_with("libskepart-") && name.ends_with(".a")
+        (name.starts_with("libskepart-") && name.ends_with(".a")) || name == "libskepart.a"
     }
 }
 
@@ -57,25 +59,30 @@ fn runtime_library_path() -> PathBuf {
             "release".to_string()
         }
     });
-    let target_dir = workspace_root.join("target").join(profile);
-    for dir in [target_dir.join("deps"), target_dir] {
-        if !dir.exists() {
-            continue;
-        }
-        let mut candidates = fs::read_dir(&dir)
-            .expect("read target dir")
-            .filter_map(|entry| entry.ok())
-            .map(|entry| entry.path())
-            .filter(|path| {
-                path.file_name()
-                    .and_then(|name| name.to_str())
-                    .map(runtime_archive_name)
-                    .unwrap_or(false)
-            })
-            .collect::<Vec<_>>();
-        candidates.sort();
-        if let Some(path) = candidates.pop() {
-            return path;
+    let mut target_dirs = vec![workspace_root.join("target").join(&profile)];
+    if profile == "bench" {
+        target_dirs.push(workspace_root.join("target").join("release"));
+    }
+    for target_dir in target_dirs {
+        for dir in [target_dir.join("deps"), target_dir] {
+            if !dir.exists() {
+                continue;
+            }
+            let mut candidates = fs::read_dir(&dir)
+                .expect("read target dir")
+                .filter_map(|entry| entry.ok())
+                .map(|entry| entry.path())
+                .filter(|path| {
+                    path.file_name()
+                        .and_then(|name| name.to_str())
+                        .map(runtime_archive_name)
+                        .unwrap_or(false)
+                })
+                .collect::<Vec<_>>();
+            candidates.sort();
+            if let Some(path) = candidates.pop() {
+                return path;
+            }
         }
     }
     panic!("runtime archive missing under target profile dir");
