@@ -124,6 +124,20 @@ fn main() -> Int {
 }
 
 #[test]
+fn reports_out_of_range_integer_literal_in_match_pattern() {
+    let src = r#"
+fn main() -> Int {
+  match (1) {
+    999999999999999999999999999999 => { return 1; }
+    _ => { return 0; }
+  }
+}
+"#;
+    let diags = parse_err(src);
+    assert_has_diag(&diags, "is out of range for `Int`");
+}
+
+#[test]
 fn parses_match_statement_with_option_and_result_variant_patterns() {
     let src = r#"
 fn main() -> Int {

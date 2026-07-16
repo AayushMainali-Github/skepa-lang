@@ -507,3 +507,14 @@ fn main() -> Int {
         other => panic!("expected complex chained index expression, got {other:?}"),
     }
 }
+
+#[test]
+fn reports_out_of_range_integer_literal() {
+    let src = r#"
+fn main() -> Int {
+  return 999999999999999999999999999999;
+}
+"#;
+    let diags = parse_err(src);
+    assert_has_diag(&diags, "is out of range for `Int`");
+}
