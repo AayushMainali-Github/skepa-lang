@@ -37,6 +37,33 @@ fn main() -> Int {
 }
 
 #[test]
+fn sema_rejects_unknown_type_in_local_let_annotation() {
+    let src = r#"
+fn main() -> Int {
+  let x: Option[FakeStruct] = None();
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert_has_diag(&diags, "Unknown type in let `x`: `FakeStruct`");
+}
+
+#[test]
+fn sema_rejects_unknown_type_in_for_init_let_annotation() {
+    let src = r#"
+fn main() -> Int {
+  for (let i: FakeStruct = 0; i < 1; i = i + 1) {
+  }
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert_has_diag(&diags, "Unknown type in let `i`: `FakeStruct`");
+}
+
+#[test]
 fn sema_accepts_map_type_in_signatures_and_locals() {
     let src = r#"
 fn id(data: Map[String, Int]) -> Map[String, Int] {
