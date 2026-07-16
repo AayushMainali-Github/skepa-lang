@@ -63,27 +63,40 @@ fn instr_dst(instr: &Instr) -> Option<crate::ir::TempId> {
 }
 
 fn is_pure(instr: &Instr) -> bool {
-    matches!(
-        instr,
+    match instr {
         Instr::Const { .. }
-            | Instr::Copy { .. }
-            | Instr::Unary { .. }
-            | Instr::Binary { .. }
-            | Instr::Compare { .. }
-            | Instr::Logic { .. }
-            | Instr::LoadGlobal { .. }
-            | Instr::LoadLocal { .. }
-            | Instr::MakeArray { .. }
-            | Instr::MakeArrayRepeat { .. }
-            | Instr::VecNew { .. }
-            | Instr::VecLen { .. }
-            | Instr::ArrayGet { .. }
-            | Instr::VecGet { .. }
-            | Instr::VecDelete { .. }
-            | Instr::MakeStruct { .. }
-            | Instr::StructGet { .. }
-            | Instr::MakeClosure { .. }
-    )
+        | Instr::Copy { .. }
+        | Instr::Compare { .. }
+        | Instr::Logic { .. }
+        | Instr::LoadGlobal { .. }
+        | Instr::LoadLocal { .. }
+        | Instr::MakeArray { .. }
+        | Instr::MakeArrayRepeat { .. }
+        | Instr::VecNew { .. }
+        | Instr::VecLen { .. }
+        | Instr::MakeStruct { .. }
+        | Instr::StructGet { .. }
+        | Instr::MakeClosure { .. } => true,
+        // Negation can trap on i64::MIN in debug builds.
+        Instr::Unary {
+            op: crate::ir::UnaryOp::Neg,
+            ..
+        } => false,
+        Instr::Unary { .. } => true,
+        // Division/remainder and shifts can trap at runtime.
+        Instr::Binary {
+            op:
+                crate::ir::BinaryOp::Div
+                | crate::ir::BinaryOp::Mod
+                | crate::ir::BinaryOp::Shl
+                | crate::ir::BinaryOp::Shr,
+            ..
+        } => false,
+        Instr::Binary { .. } => true,
+        // Indexing may trap; VecDelete mutates the vector.
+        Instr::ArrayGet { .. } | Instr::VecGet { .. } | Instr::VecDelete { .. } => false,
+        _ => false,
+    }
 }
 
 fn collect_terminator_uses(term: &Terminator, live: &mut HashSet<crate::ir::TempId>) {
