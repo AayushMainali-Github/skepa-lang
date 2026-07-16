@@ -528,9 +528,31 @@ pub fn sync_runtime_sidecars_for_output(path: &Path) -> Result<(), CodegenError>
 }
 
 fn runtime_link_artifacts() -> Result<RuntimeLinkArtifacts, CodegenError> {
+    runtime_link_artifacts_from_search_dirs(&runtime_search_dirs())
+}
+
+fn runtime_search_dirs() -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    if let Ok(dir) = std::env::var("SKEPA_RUNTIME_DIR") {
+        let trimmed = dir.trim();
+        if !trimmed.is_empty() {
+            dirs.push(PathBuf::from(trimmed));
+        }
+    }
+    if let Ok(exe) = std::env::current_exe()
+        && let Some(parent) = exe.parent()
+    {
+        push_unique_runtime_search_dir(&mut dirs, parent.to_path_buf());
+    }
+    if let Some(workspace_target) = workspace_target_dir() {
+        push_unique_runtime_search_dir(&mut dirs, workspace_target);
+    }
+    dirs
+}
+
+fn workspace_target_dir() -> Option<PathBuf> {
     let workspace_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .ok_or_else(|| CodegenError::Tool("failed to locate workspace root".into()))?
+        .parent()?
         .to_path_buf();
     let profile = std::env::var("PROFILE")
         .ok()
@@ -556,12 +578,32 @@ fn runtime_link_artifacts() -> Result<RuntimeLinkArtifacts, CodegenError> {
                 "release".to_string()
             }
         });
-    runtime_link_artifacts_in_target_dir(&workspace_root.join("target").join(profile))
+    Some(workspace_root.join("target").join(profile))
 }
 
-fn runtime_link_artifacts_in_target_dir(
-    target_dir: &Path,
+fn push_unique_runtime_search_dir(dirs: &mut Vec<PathBuf>, candidate: PathBuf) {
+    if dirs.iter().any(|existing| existing == &candidate) {
+        return;
+    }
+    dirs.push(candidate);
+}
+
+fn runtime_link_artifacts_from_search_dirs(
+    search_dirs: &[PathBuf],
 ) -> Result<RuntimeLinkArtifacts, CodegenError> {
+    let mut searched = Vec::new();
+    for dir in search_dirs {
+        searched.push(dir.clone());
+        if let Some(artifacts) = find_runtime_link_artifacts_in_dir(dir)? {
+            return Ok(artifacts);
+        }
+    }
+    missing_runtime_error_for_dirs(&searched)
+}
+
+fn find_runtime_link_artifacts_in_dir(
+    target_dir: &Path,
+) -> Result<Option<RuntimeLinkArtifacts>, CodegenError> {
     let candidate_dirs = [target_dir.join("deps"), target_dir.to_path_buf()];
     let mut static_candidates = Vec::new();
     let mut shared_import_candidates = Vec::new();
@@ -612,21 +654,21 @@ fn runtime_link_artifacts_in_target_dir(
             shared_import_candidates.into_iter().next(),
             shared_sidecar_candidates.into_iter().next(),
         ) {
-            return Ok(RuntimeLinkArtifacts {
+            return Ok(Some(RuntimeLinkArtifacts {
                 link_lib,
                 sidecar_lib: Some(sidecar_lib),
-            });
+            }));
         }
     }
 
     sort_runtime_candidates(&mut static_candidates);
     if let Some(path) = static_candidates.into_iter().next() {
-        Ok(RuntimeLinkArtifacts {
+        Ok(Some(RuntimeLinkArtifacts {
             link_lib: path,
             sidecar_lib: None,
-        })
+        }))
     } else {
-        missing_runtime_error(target_dir)
+        Ok(None)
     }
 }
 
@@ -659,11 +701,17 @@ fn sort_runtime_candidates(candidates: &mut [PathBuf]) {
     });
 }
 
-fn missing_runtime_error(target_dir: &Path) -> Result<RuntimeLinkArtifacts, CodegenError> {
-    let deps_dir = target_dir.join("deps");
+fn missing_runtime_error_for_dirs(dirs: &[PathBuf]) -> Result<RuntimeLinkArtifacts, CodegenError> {
+    let searched = if dirs.is_empty() {
+        "(no search directories)".to_string()
+    } else {
+        dirs.iter()
+            .map(|dir| dir.join("deps").display().to_string())
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
     Err(CodegenError::Tool(format!(
-        "native runtime library missing under {}",
-        deps_dir.display()
+        "native runtime library missing under {searched}; place libskepart beside skepac or set SKEPA_RUNTIME_DIR"
     )))
 }
 
@@ -726,7 +774,7 @@ mod tests {
         compile_program_to_bitcode_file_with_tool, compile_program_to_llvm_ir,
         compile_program_to_object_file_with_tools, format_timing_line, link_args_for_executable,
         link_command_for_executable, link_object_file_to_executable_with_tool, run_tool,
-        runtime_link_artifacts_in_target_dir, sync_runtime_sidecars,
+        runtime_link_artifacts_from_search_dirs, sync_runtime_sidecars,
     };
     use crate::codegen::llvm::LlvmEmitSection;
     use crate::ir;
@@ -834,13 +882,14 @@ fn main() -> Int {
                 .as_nanos()
         ));
         fs::create_dir_all(&target_dir).expect("temp target dir");
-        let err = runtime_link_artifacts_in_target_dir(&target_dir)
+        let err = runtime_link_artifacts_from_search_dirs(std::slice::from_ref(&target_dir))
             .expect_err("runtime should be missing");
         let _ = fs::remove_dir_all(&target_dir);
         match err {
             CodegenError::Tool(msg) => {
                 assert!(msg.contains("native runtime library missing under"));
                 assert!(msg.contains("deps"));
+                assert!(msg.contains("SKEPA_RUNTIME_DIR"));
             }
             other => panic!("unexpected error kind: {other:?}"),
         }
@@ -862,7 +911,7 @@ fn main() -> Int {
         fs::write(&older, []).expect("older archive");
         std::thread::sleep(std::time::Duration::from_millis(10));
         fs::write(&newer, []).expect("newer archive");
-        let selected = runtime_link_artifacts_in_target_dir(&target_dir)
+        let selected = runtime_link_artifacts_from_search_dirs(std::slice::from_ref(&target_dir))
             .expect("runtime archive should exist");
         let _ = fs::remove_dir_all(&target_dir);
         assert_eq!(
@@ -884,13 +933,74 @@ fn main() -> Int {
         fs::create_dir_all(&deps_dir).expect("temp deps dir");
         let archive = deps_dir.join("libskepart.a");
         fs::write(&archive, []).expect("unhashed archive");
-        let selected = runtime_link_artifacts_in_target_dir(&target_dir)
+        let selected = runtime_link_artifacts_from_search_dirs(std::slice::from_ref(&target_dir))
             .expect("unhashed runtime archive should be discovered");
         let _ = fs::remove_dir_all(&target_dir);
         assert_eq!(
             selected.link_lib.file_name().and_then(|name| name.to_str()),
             Some("libskepart.a")
         );
+    }
+
+    #[test]
+    fn runtime_library_discovery_accepts_archive_beside_executable_dir() {
+        let runtime_dir = std::env::temp_dir().join(format!(
+            "skepa_codegen_runtime_exe_relative_{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        fs::create_dir_all(&runtime_dir).expect("temp runtime dir");
+        let archive = runtime_dir.join("libskepart.a");
+        fs::write(&archive, []).expect("exe-relative archive");
+        let selected = runtime_link_artifacts_from_search_dirs(std::slice::from_ref(&runtime_dir))
+            .expect("exe-relative runtime archive should be discovered");
+        let _ = fs::remove_dir_all(&runtime_dir);
+        assert_eq!(selected.link_lib, archive);
+    }
+
+    #[test]
+    fn runtime_library_search_prefers_earlier_directory() {
+        let root = std::env::temp_dir().join(format!(
+            "skepa_codegen_runtime_search_order_{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        let first = root.join("first");
+        let second = root.join("second");
+        fs::create_dir_all(&first).expect("first dir");
+        fs::create_dir_all(&second).expect("second dir");
+        let first_archive = first.join("libskepart.a");
+        let second_archive = second.join("libskepart.a");
+        fs::write(&first_archive, b"first").expect("first archive");
+        fs::write(&second_archive, b"second").expect("second archive");
+        let selected = runtime_link_artifacts_from_search_dirs(&[first.clone(), second.clone()])
+            .expect("runtime archive should be discovered");
+        let _ = fs::remove_dir_all(&root);
+        assert_eq!(selected.link_lib, first_archive);
+    }
+
+    #[test]
+    fn runtime_library_search_falls_through_missing_directories() {
+        let root = std::env::temp_dir().join(format!(
+            "skepa_codegen_runtime_search_fallback_{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        let missing = root.join("missing");
+        let present = root.join("present");
+        fs::create_dir_all(&present).expect("present dir");
+        let archive = present.join("libskepart.a");
+        fs::write(&archive, []).expect("fallback archive");
+        let selected = runtime_link_artifacts_from_search_dirs(&[missing, present.clone()])
+            .expect("fallback runtime archive should be discovered");
+        let _ = fs::remove_dir_all(&root);
+        assert_eq!(selected.link_lib, archive);
     }
 
     #[test]

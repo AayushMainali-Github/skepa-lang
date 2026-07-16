@@ -126,6 +126,8 @@ jobs:
           PKG="skepa-${OS_LOWER}-x64"
           mkdir -p "$PKG"
           cp target/release/skepac "$PKG/"
+          # build-native links against libskepart; ship it beside skepac for exe-relative discovery
+          cp target/release/libskepart.a "$PKG/"
           cp README.md "$PKG/"
           cp DOCS.md "$PKG/"
           tar -czf "$ARCHIVE_DIR/$PKG.tar.gz" "$PKG"
@@ -138,6 +140,24 @@ jobs:
           $pkg = "skepa-windows-x64"
           New-Item -ItemType Directory -Force $pkg | Out-Null
           Copy-Item target\release\skepac.exe "$pkg\"
+          # build-native links against skepart; ship link + sidecar artifacts beside skepac
+          $runtimeArtifacts = @(
+            "target\release\skepart.dll",
+            "target\release\skepart.dll.lib",
+            "target\release\libskepart.dll.a",
+            "target\release\libskepart.a",
+            "target\release\skepart.lib"
+          )
+          $copied = $false
+          foreach ($path in $runtimeArtifacts) {
+            if (Test-Path $path) {
+              Copy-Item $path "$pkg\"
+              $copied = $true
+            }
+          }
+          if (-not $copied) {
+            throw "No skepart runtime artifacts found under target\release for packaging"
+          }
           Copy-Item README.md "$pkg\"
           Copy-Item DOCS.md "$pkg\"
           Compress-Archive -Path $pkg -DestinationPath "dist\$pkg.zip" -Force

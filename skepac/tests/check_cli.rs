@@ -8,7 +8,7 @@ mod common;
 
 use common::{
     CliFailureClass, assert_cli_failure_class, assert_diag_code_and_message, example_entry,
-    exe_ext, make_temp_dir, obj_ext, skepac_bin, write_temp_file,
+    exe_ext, make_temp_dir, obj_ext, repo_root, skepac_bin, write_temp_file,
 };
 
 #[cfg(target_os = "windows")]
@@ -2205,6 +2205,93 @@ fn main() -> Int {
         .output()
         .expect("native executable should run");
     assert_eq!(run.status.code(), Some(7));
+}
+
+fn copy_workspace_runtime_artifacts(dest_dir: &std::path::Path) {
+    let release_dir = repo_root().join("target").join("release");
+    let debug_dir = repo_root().join("target").join("debug");
+    let names = [
+        "libskepart.a",
+        "skepart.dll",
+        "skepart.dll.lib",
+        "libskepart.dll.a",
+        "skepart.lib",
+    ];
+    let mut copied = false;
+    for profile_dir in [&release_dir, &debug_dir] {
+        for name in names {
+            let src = profile_dir.join(name);
+            if src.exists() {
+                fs::copy(&src, dest_dir.join(name)).expect("copy runtime artifact");
+                copied = true;
+            }
+        }
+        if copied {
+            return;
+        }
+        let deps = profile_dir.join("deps");
+        if !deps.exists() {
+            continue;
+        }
+        for entry in fs::read_dir(&deps).expect("read deps") {
+            let entry = entry.expect("deps entry");
+            let path = entry.path();
+            let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+                continue;
+            };
+            let is_runtime = name == "libskepart.a"
+                || name.starts_with("libskepart-") && name.ends_with(".a")
+                || name == "skepart.dll"
+                || name.starts_with("skepart") && name.ends_with(".dll")
+                || name == "libskepart.dll.a"
+                || name.ends_with(".dll.lib")
+                || name == "skepart.lib";
+            if is_runtime {
+                fs::copy(&path, dest_dir.join(name)).expect("copy deps runtime artifact");
+                copied = true;
+            }
+        }
+        if copied {
+            return;
+        }
+    }
+    panic!("workspace skepart runtime artifacts not found under target/{{release,debug}}");
+}
+
+#[test]
+fn build_native_uses_skepa_runtime_dir_override() {
+    let tmp = make_temp_dir("skepac_build_native_runtime_dir");
+    let runtime_dir = tmp.join("runtime");
+    fs::create_dir_all(&runtime_dir).expect("runtime dir");
+    copy_workspace_runtime_artifacts(&runtime_dir);
+
+    let source = tmp.join("main.sk");
+    let out = tmp.join(format!("main.{}", exe_ext()));
+    fs::write(
+        &source,
+        r#"
+fn main() -> Int {
+  return 9;
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .env("SKEPA_RUNTIME_DIR", &runtime_dir)
+        .arg("build-native")
+        .arg(&source)
+        .arg(&out)
+        .output()
+        .expect("run skepac build-native with SKEPA_RUNTIME_DIR");
+
+    assert!(output.status.success(), "{:?}", output);
+    assert!(out.exists());
+
+    let run = Command::new(&out)
+        .output()
+        .expect("native executable should run");
+    assert_eq!(run.status.code(), Some(9));
 }
 
 #[test]
