@@ -453,7 +453,12 @@ impl Checker {
         };
 
         match (inner_ty, expected_ret) {
-            (TypeInfo::Option { value }, TypeInfo::Option { value: expected_value }) => {
+            (
+                TypeInfo::Option { value },
+                TypeInfo::Option {
+                    value: expected_value,
+                },
+            ) => {
                 if !Self::types_compatible(&value, &expected_value) {
                     self.error(format!(
                         "`?` option value type mismatch: expression has {}, but the enclosing function returns {}",
