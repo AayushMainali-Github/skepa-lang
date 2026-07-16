@@ -1031,8 +1031,7 @@ mod tests {
     #[test]
     fn llvm_ssa_name_canonicalization_stabilizes_fingerprint_noise() {
         let first = "define i64 @main() {\nbb13_entry:\n  %t2 = call i64 @foo()\n  %v8 = add i64 %t2, 1\n  br label %bb14_exit\nbb14_exit:\n  ret i64 %v8\n}\n";
-        let second =
-            "define i64 @main() {\nbb16_entry:\n  %t4 = call i64 @foo()\n  %v11 = add i64 %t4, 1\n  br label %bb19_exit\nbb19_exit:\n  ret i64 %v11\n}\n";
+        let second = "define i64 @main() {\nbb16_entry:\n  %t4 = call i64 @foo()\n  %v11 = add i64 %t4, 1\n  br label %bb19_exit\nbb19_exit:\n  ret i64 %v11\n}\n";
 
         assert_eq!(
             canonicalize_llvm_ssa_names(first),
