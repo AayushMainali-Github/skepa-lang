@@ -340,10 +340,7 @@ impl Parser {
                 Ok(v) => v,
                 Err(_) => {
                     self.diagnostics.error(
-                        format!(
-                            "Integer literal `{}` is out of range for `Int`",
-                            tok.lexeme
-                        ),
+                        format!("Integer literal `{}` is out of range for `Int`", tok.lexeme),
                         tok.span,
                     );
                     return None;
