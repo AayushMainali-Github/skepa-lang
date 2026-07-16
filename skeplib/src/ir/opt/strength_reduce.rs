@@ -63,16 +63,13 @@ fn reduce_add(
     right: Operand,
 ) -> Option<Instr> {
     match (&left, &right) {
-        (_, Operand::Const(ConstValue::Int(0))) | (_, Operand::Const(ConstValue::Float(0.0))) => {
-            Some(Instr::Copy { dst, ty, src: left })
-        }
-        (Operand::Const(ConstValue::Int(0)), _) | (Operand::Const(ConstValue::Float(0.0)), _) => {
-            Some(Instr::Copy {
-                dst,
-                ty,
-                src: right,
-            })
-        }
+        // Float ±0.0 is not a safe identity because of signed zero.
+        (_, Operand::Const(ConstValue::Int(0))) => Some(Instr::Copy { dst, ty, src: left }),
+        (Operand::Const(ConstValue::Int(0)), _) => Some(Instr::Copy {
+            dst,
+            ty,
+            src: right,
+        }),
         _ => None,
     }
 }
@@ -84,9 +81,7 @@ fn reduce_sub(
     right: Operand,
 ) -> Option<Instr> {
     match right {
-        Operand::Const(ConstValue::Int(0)) | Operand::Const(ConstValue::Float(0.0)) => {
-            Some(Instr::Copy { dst, ty, src: left })
-        }
+        Operand::Const(ConstValue::Int(0)) => Some(Instr::Copy { dst, ty, src: left }),
         _ => None,
     }
 }
