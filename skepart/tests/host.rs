@@ -1384,18 +1384,12 @@ fn noop_host_rejects_fetch_method_and_content_type_control_chars() {
     );
 
     let content_type_options = skepart::RtMap::new();
-    content_type_options.insert(
-        "method",
-        skepart::RtValue::String(RtString::from("POST")),
-    );
+    content_type_options.insert("method", skepart::RtValue::String(RtString::from("POST")));
     content_type_options.insert(
         "contentType",
         skepart::RtValue::String(RtString::from("text/plain\r\nInjected: yes")),
     );
-    content_type_options.insert(
-        "body",
-        skepart::RtValue::String(RtString::from("payload")),
-    );
+    content_type_options.insert("body", skepart::RtValue::String(RtString::from("payload")));
     let injected_content_type = host
         .net_fetch("http://example.com/", &content_type_options)
         .expect_err("control characters in contentType should fail");
