@@ -162,10 +162,6 @@ pub fn raw_string_ptr(
 }
 
 pub fn llvm_float_literal(value: f64) -> String {
-    let literal = value.to_string();
-    if literal.contains(['.', 'e', 'E']) {
-        literal
-    } else {
-        format!("{literal}.0")
-    }
+    // LLVM textual IR rejects NaN/inf from Display; always emit a hex bit pattern.
+    format!("0x{:016X}", value.to_bits())
 }
