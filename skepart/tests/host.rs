@@ -1363,6 +1363,56 @@ fn noop_host_rejects_urls_with_http_control_character_injection() {
 }
 
 #[test]
+fn noop_host_rejects_fetch_method_and_content_type_control_chars() {
+    let mut host = NoopHost::default();
+
+    let method_options = skepart::RtMap::new();
+    method_options.insert(
+        "method",
+        skepart::RtValue::String(RtString::from("GET\r\nInjected: yes")),
+    );
+    let injected_method = host
+        .net_fetch("http://example.com/", &method_options)
+        .expect_err("control characters in method should fail");
+    assert_eq!(injected_method.kind, skepart::RtErrorKind::InvalidArgument);
+    assert!(
+        injected_method
+            .message
+            .contains("method must not contain control characters"),
+        "unexpected message: {}",
+        injected_method.message
+    );
+
+    let content_type_options = skepart::RtMap::new();
+    content_type_options.insert(
+        "method",
+        skepart::RtValue::String(RtString::from("POST")),
+    );
+    content_type_options.insert(
+        "contentType",
+        skepart::RtValue::String(RtString::from("text/plain\r\nInjected: yes")),
+    );
+    content_type_options.insert(
+        "body",
+        skepart::RtValue::String(RtString::from("payload")),
+    );
+    let injected_content_type = host
+        .net_fetch("http://example.com/", &content_type_options)
+        .expect_err("control characters in contentType should fail");
+    assert_eq!(
+        injected_content_type.kind,
+        skepart::RtErrorKind::InvalidArgument
+    );
+    assert!(
+        injected_content_type
+            .message
+            .contains("contentType must not contain control characters"),
+        "unexpected message: {}",
+        injected_content_type.message
+    );
+}
+
+#[test]
 fn noop_host_supports_basic_fetch_over_loopback() {
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind http listener");
     let addr = listener.local_addr().expect("listener addr");

@@ -1251,6 +1251,9 @@ impl RtHost for NoopHost {
             None => String::new(),
         };
 
+        reject_http_control_chars("method", &method)?;
+        reject_http_control_chars("contentType", &content_type)?;
+
         let method = method.to_uppercase();
         let response = self.http_request_with_content_type(url, &method, &body, &content_type)?;
         let map = RtMap::new();
