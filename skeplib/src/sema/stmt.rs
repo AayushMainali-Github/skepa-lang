@@ -325,10 +325,7 @@ impl Checker {
                 let expr_ty = self.check_expr(value, scopes);
                 let var_ty = match ty {
                     Some(t) => {
-                        self.check_decl_type_exists(
-                            t,
-                            format!("Unknown type in let `{name}`"),
-                        );
+                        self.check_decl_type_exists(t, format!("Unknown type in let `{name}`"));
                         let declared = TypeInfo::from_ast(t);
                         if Self::is_vec_new_call(value) {
                             match &declared {
