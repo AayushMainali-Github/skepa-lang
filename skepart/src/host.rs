@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::ffi::OsString;
 use std::fs;
-use std::io::{Read, Write};
+use std::io::{BufRead, Read, Write};
 use std::net::{TcpListener, TcpStream, ToSocketAddrs};
 use std::path::PathBuf;
 use std::process::Command;
@@ -665,6 +665,11 @@ impl RtHost for NoopHost {
             .flush()
             .map_err(|err| RtError::io(err.to_string()))?;
         Ok(())
+    }
+
+    fn io_read_line(&mut self) -> RtResult<RtString> {
+        let mut stdin = std::io::stdin().lock();
+        read_line_trimmed(&mut stdin)
     }
 
     fn datetime_now_unix(&mut self) -> RtResult<i64> {
@@ -1937,10 +1942,25 @@ fn unit_interval_from_bits(state: u64) -> f64 {
     (state >> 11) as f64 / ((1u64 << 53) as f64)
 }
 
+fn read_line_trimmed(reader: &mut impl BufRead) -> RtResult<RtString> {
+    let mut line = String::new();
+    reader
+        .read_line(&mut line)
+        .map_err(|err| RtError::io(err.to_string()))?;
+    if line.ends_with('\n') {
+        line.pop();
+        if line.ends_with('\r') {
+            line.pop();
+        }
+    }
+    Ok(RtString::from(line))
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{unit_interval_from_bits, NoopHost, RtHost};
+    use super::{read_line_trimmed, unit_interval_from_bits, NoopHost, RtHost};
     use crate::RtString;
+    use std::io::Cursor;
 
     #[cfg(windows)]
     fn ffi_test_library_path() -> &'static str {
@@ -2038,5 +2058,25 @@ mod tests {
         };
         let sampled = host.random_float().expect("random float");
         assert!((0.0..1.0).contains(&sampled), "got {sampled}");
+    }
+
+    #[test]
+    fn read_line_trimmed_strips_unix_and_windows_newlines() {
+        assert_eq!(
+            read_line_trimmed(&mut Cursor::new("hello\n")).expect("unix"),
+            RtString::from("hello")
+        );
+        assert_eq!(
+            read_line_trimmed(&mut Cursor::new("hello\r\n")).expect("windows"),
+            RtString::from("hello")
+        );
+        assert_eq!(
+            read_line_trimmed(&mut Cursor::new("eof-only")).expect("eof"),
+            RtString::from("eof-only")
+        );
+        assert_eq!(
+            read_line_trimmed(&mut Cursor::new("")).expect("empty"),
+            RtString::from("")
+        );
     }
 }
