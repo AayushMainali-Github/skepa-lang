@@ -64,4 +64,4 @@ When changing user-visible commands, testing patterns, or architecture boundarie
 - `README.md`
 - `TESTING.md`
 - `AGENTS.md`
-- `CONTRIBUTING.md` if contributor workflow changes
+- `.github/CONTRIBUTING.md` if contributor workflow changes
