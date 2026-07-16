@@ -27,7 +27,20 @@ impl Checker {
         let Some(prefix) = self.module_namespaces.get(&parts[0]).cloned() else {
             return Ok(None);
         };
+        // Unaliased `import ns` stores a one-segment prefix for both file modules
+        // (`ns.sk`) and folder namespaces (`ns/`). Prefer an exact registered export
+        // at `{ns}.{symbol}` (file-module / same-level export) before requiring the
+        // folder form `{ns}.{file}.{symbol}`.
         if prefix.len() == 1 && parts.len() < 3 {
+            let mut fq = prefix.clone();
+            fq.extend_from_slice(&parts[1..]);
+            let target = fq.join(".");
+            if self.functions.contains_key(&target)
+                || self.globals.contains_key(&target)
+                || self.operators.contains_key(&target)
+            {
+                return Ok(Some(target));
+            }
             return Err(format!(
                 "Invalid namespace call `{}`: `import {}` introduces a folder namespace, so calls must use the form `{}.<file>.<symbol>(...)`",
                 parts.join("."),
