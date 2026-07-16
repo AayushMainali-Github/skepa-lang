@@ -599,14 +599,7 @@ fn runtime_link_artifacts_in_target_dir(
                 }
             }
 
-            let is_static = if cfg!(windows) {
-                (name.starts_with("libskepart-") && name.ends_with(".a"))
-                    || (name.starts_with("skepart-") && name.ends_with(".lib"))
-                    || name == "skepart.lib"
-            } else {
-                name.starts_with("libskepart-") && name.ends_with(".a")
-            };
-            if is_static {
+            if is_static_runtime_archive(name) {
                 static_candidates.push(path);
             }
         }
@@ -634,6 +627,17 @@ fn runtime_link_artifacts_in_target_dir(
         })
     } else {
         missing_runtime_error(target_dir)
+    }
+}
+
+fn is_static_runtime_archive(name: &str) -> bool {
+    if cfg!(windows) {
+        (name.starts_with("libskepart-") && name.ends_with(".a"))
+            || name == "libskepart.a"
+            || (name.starts_with("skepart-") && name.ends_with(".lib"))
+            || name == "skepart.lib"
+    } else {
+        (name.starts_with("libskepart-") && name.ends_with(".a")) || name == "libskepart.a"
     }
 }
 
@@ -864,6 +868,28 @@ fn main() -> Int {
         assert_eq!(
             selected.link_lib.file_name().and_then(|name| name.to_str()),
             Some("libskepart-zzzz9999.a")
+        );
+    }
+
+    #[test]
+    fn runtime_library_discovery_accepts_unhashed_archive_name() {
+        let target_dir = std::env::temp_dir().join(format!(
+            "skepa_codegen_runtime_unhashed_{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        let deps_dir = target_dir.join("deps");
+        fs::create_dir_all(&deps_dir).expect("temp deps dir");
+        let archive = deps_dir.join("libskepart.a");
+        fs::write(&archive, []).expect("unhashed archive");
+        let selected = runtime_link_artifacts_in_target_dir(&target_dir)
+            .expect("unhashed runtime archive should be discovered");
+        let _ = fs::remove_dir_all(&target_dir);
+        assert_eq!(
+            selected.link_lib.file_name().and_then(|name| name.to_str()),
+            Some("libskepart.a")
         );
     }
 
