@@ -731,8 +731,8 @@ impl RtHost for NoopHost {
             .wrapping_mul(6364136223846793005)
             .wrapping_add(1);
         let span = (i128::from(max) - i128::from(min) + 1) as u128;
-        let offset = (u128::from(self.random_state) % span) as i64;
-        Ok(min + offset)
+        let offset = (u128::from(self.random_state) % span) as i128;
+        Ok((i128::from(min) + offset) as i64)
     }
 
     fn random_float(&mut self) -> RtResult<f64> {
@@ -2091,5 +2091,15 @@ mod tests {
             .random_int(0, i64::MAX)
             .expect("large inclusive range should not overflow");
         assert!((0..=i64::MAX).contains(&value));
+    }
+
+    #[test]
+    fn random_int_handles_full_i64_span_without_debug_overflow() {
+        let mut host = NoopHost::default();
+        host.random_state = 0x8000_0000_0000_0000;
+        let value = host
+            .random_int(i64::MIN, i64::MAX)
+            .expect("full i64 inclusive range should not overflow");
+        assert!((i64::MIN..=i64::MAX).contains(&value));
     }
 }
