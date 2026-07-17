@@ -170,6 +170,16 @@ impl Checker {
                     );
                 }
             }
+            TypeInfo::Bool => {
+                let has_true = seen_literals.contains("bool:true");
+                let has_false = seen_literals.contains("bool:false");
+                if !(has_true && has_false) {
+                    self.error(
+                        "Non-exhaustive match on Bool: add both `true` and `false` arms, or add a wildcard arm `_`"
+                            .to_string(),
+                    );
+                }
+            }
             _ => {
                 self.error(format!(
                     "Non-exhaustive match on {}: add a wildcard arm `_`",

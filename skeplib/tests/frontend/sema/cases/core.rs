@@ -1100,6 +1100,39 @@ fn main() -> Int {
 }
 
 #[test]
+fn sema_accepts_exhaustive_bool_match() {
+    let src = r#"
+fn main() -> Int {
+  let b: Bool = true;
+  match (b) {
+    true => { return 1; }
+    false => { return 0; }
+  }
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
+
+#[test]
+fn sema_rejects_non_exhaustive_bool_match() {
+    let src = r#"
+fn main() -> Int {
+  let b: Bool = true;
+  match (b) {
+    true => { return 1; }
+  }
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert_has_diag(
+        &diags,
+        "Non-exhaustive match on Bool: add both `true` and `false` arms, or add a wildcard arm `_`",
+    );
+}
+
+#[test]
 fn sema_rejects_match_wildcard_not_last() {
     let src = r#"
 fn main() -> Int {
