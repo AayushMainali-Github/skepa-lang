@@ -14,13 +14,17 @@ Download from GitHub Releases:
 - Linux: `skepa-linux-x64.tar.gz`
 - macOS: `skepa-macos-x64.tar.gz`
 
-Extract and add binaries to `PATH`.
+Extract the archive and keep `skepac` together with the shipped runtime library (`libskepart.a` on Unix, plus `skepart.dll` / import libs on Windows). Add that directory to `PATH`.
+
+`build-native` finds the runtime beside the `skepac` executable. To point at a different location, set `SKEPA_RUNTIME_DIR` to a directory that contains the runtime library.
 
 ### 2) Install from GitHub with Cargo
 
 ```bash
 cargo install --git https://github.com/AayushMainali-Github/skepa-lang skepac
 ```
+
+`cargo install` only installs the `skepac` binary. For `build-native`, also place `libskepart.a` (and on Windows the `skepart` DLL / import libs) beside `skepac`, or set `SKEPA_RUNTIME_DIR`. Prefer the prebuilt archives or the local install scripts below when you need native builds.
 
 ### 3) Build/install locally
 
@@ -34,11 +38,14 @@ Linux/macOS (bash):
 ./scripts/install.sh
 ```
 
+These scripts install `skepac` and copy the native runtime library next to it.
+
 Manual:
 ```bash
 cargo install --path skepac
+cargo build --release -p skepart
+# then copy target/release/libskepart.a (and Windows DLL artifacts) beside ~/.cargo/bin/skepac
 ```
-
 ## Run
 
 ```bash
@@ -52,6 +59,8 @@ skepac build-llvm-ir app.sk app.ll
 `build-obj` and `build-native` keep local cache metadata, compiled object artifacts, and reusable linked native outputs under `.skepac-cache/`, so unchanged builds can skip recompilation, relink from a cached object, or restore a missing executable from the cached linked artifact.
 
 On Windows GNU builds, `build-native` emits the executable plus `skepart.dll` beside it. Keep both files together when you move or run the built artifact.
+
+If `build-native` reports that the native runtime library is missing, ensure `libskepart` is next to `skepac` or set `SKEPA_RUNTIME_DIR`.
 
 Set `SKEPAC_TIMINGS=1` to print per-phase timing lines for `build-obj` and `build-native` when you want to inspect cache hits, codegen cost, and link cost locally.
 
