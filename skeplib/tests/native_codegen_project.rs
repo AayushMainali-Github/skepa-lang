@@ -97,3 +97,30 @@ fn main() -> Int {
     assert!(llvm_ir.contains("call ptr @skp_rt_call_builtin("));
     assert!(!llvm_ir.contains("call ptr @skp_rt_builtin_str_slice("));
 }
+
+#[test]
+fn llvm_codegen_emits_unordered_fcmp_for_float_inequality() {
+    let source = r#"
+fn main() -> Int {
+  let x = 1.5;
+  let y = 2.0;
+  if (x != y) {
+    return 1;
+  }
+  return 0;
+}
+"#;
+
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let llvm_ir =
+        codegen::compile_program_to_llvm_ir(&program).expect("LLVM lowering should succeed");
+
+    assert!(
+        llvm_ir.contains("fcmp une double"),
+        "expected unordered float != lowering, got:\n{llvm_ir}"
+    );
+    assert!(
+        !llvm_ir.contains("fcmp one double"),
+        "ordered fcmp one must not be used for float !="
+    );
+}

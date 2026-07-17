@@ -104,7 +104,7 @@ pub fn emit_compare(
         crate::ir::IrType::Float => {
             let pred = match op {
                 CmpOp::Eq => "oeq",
-                CmpOp::Ne => "one",
+                CmpOp::Ne => "une",
                 CmpOp::Lt => "olt",
                 CmpOp::Le => "ole",
                 CmpOp::Gt => "ogt",
