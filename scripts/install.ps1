@@ -11,12 +11,12 @@ if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
 
 $root = Split-Path -Parent $PSScriptRoot
 
-$args = @("install")
+$cargoArgs = @("install")
 if ($Force) {
-  $args += "--force"
+  $cargoArgs += "--force"
 }
 
 Write-Host "Installing skepac..."
-& cargo @args --path (Join-Path $root "skepac")
+& cargo @cargoArgs --path (Join-Path $root "skepac")
 
-Write-Host "Done. Ensure `%USERPROFILE%\.cargo\bin` is on PATH."
+Write-Host "Done. Ensure `$env:USERPROFILE\.cargo\bin` is on PATH."
