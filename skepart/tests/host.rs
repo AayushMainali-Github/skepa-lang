@@ -1341,7 +1341,7 @@ fn noop_host_rejects_urls_with_http_control_character_injection() {
     assert!(
         injected_path
             .message
-            .contains("path must not contain control characters"),
+            .contains("net.parseUrl path must not contain control characters"),
         "unexpected message: {}",
         injected_path.message
     );
@@ -1356,7 +1356,7 @@ fn noop_host_rejects_urls_with_http_control_character_injection() {
     assert!(
         injected_host
             .message
-            .contains("host must not contain control characters"),
+            .contains("net.parseUrl host must not contain control characters"),
         "unexpected message: {}",
         injected_host.message
     );
@@ -1378,7 +1378,7 @@ fn noop_host_rejects_fetch_method_and_content_type_control_chars() {
     assert!(
         injected_method
             .message
-            .contains("method must not contain control characters"),
+            .contains("net.fetch method must not contain control characters"),
         "unexpected message: {}",
         injected_method.message
     );
@@ -1400,7 +1400,7 @@ fn noop_host_rejects_fetch_method_and_content_type_control_chars() {
     assert!(
         injected_content_type
             .message
-            .contains("contentType must not contain control characters"),
+            .contains("net.fetch contentType must not contain control characters"),
         "unexpected message: {}",
         injected_content_type.message
     );

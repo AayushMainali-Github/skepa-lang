@@ -1251,8 +1251,8 @@ impl RtHost for NoopHost {
             None => String::new(),
         };
 
-        reject_http_control_chars("method", &method)?;
-        reject_http_control_chars("contentType", &content_type)?;
+        reject_http_control_chars("net.fetch", "method", &method)?;
+        reject_http_control_chars("net.fetch", "contentType", &content_type)?;
 
         let method = method.to_uppercase();
         let response = self.http_request_with_content_type(url, &method, &body, &content_type)?;
@@ -1640,12 +1640,12 @@ fn parse_url_parts(url: &str) -> RtResult<ParsedUrlParts> {
         path = tail.to_string();
     }
 
-    reject_http_control_chars("scheme", scheme)?;
-    reject_http_control_chars("host", &host)?;
-    reject_http_control_chars("port", &port)?;
-    reject_http_control_chars("path", &path)?;
-    reject_http_control_chars("query", &query)?;
-    reject_http_control_chars("fragment", &fragment)?;
+    reject_http_control_chars("net.parseUrl", "scheme", scheme)?;
+    reject_http_control_chars("net.parseUrl", "host", &host)?;
+    reject_http_control_chars("net.parseUrl", "port", &port)?;
+    reject_http_control_chars("net.parseUrl", "path", &path)?;
+    reject_http_control_chars("net.parseUrl", "query", &query)?;
+    reject_http_control_chars("net.parseUrl", "fragment", &fragment)?;
 
     Ok(ParsedUrlParts {
         scheme: scheme.to_string(),
@@ -1657,14 +1657,14 @@ fn parse_url_parts(url: &str) -> RtResult<ParsedUrlParts> {
     })
 }
 
-fn reject_http_control_chars(component: &str, value: &str) -> RtResult<()> {
+fn reject_http_control_chars(api: &str, component: &str, value: &str) -> RtResult<()> {
     if value
         .chars()
         .any(|ch| ch.is_control() || matches!(ch, '\u{7f}'))
     {
         return Err(RtError::new(
             RtErrorKind::InvalidArgument,
-            format!("net.parseUrl {component} must not contain control characters"),
+            format!("{api} {component} must not contain control characters"),
         ));
     }
     Ok(())
