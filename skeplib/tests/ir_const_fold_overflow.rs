@@ -18,9 +18,11 @@ fn main() -> Int {
 
 #[test]
 fn const_fold_does_not_fold_min_div_neg_one() {
+    // Avoid writing i64::MIN as a positive token (out of range for Int literals).
+    // Fold MAX+1 to MIN first, then ensure MIN / -1 stays unfolded.
     let source = r#"
 fn main() -> Int {
-  return -9223372036854775808 / -1;
+  return (9223372036854775807 + 1) / -1;
 }
 "#;
 
