@@ -197,7 +197,7 @@ fn resolve_const(
 
 fn eval_unary(op: UnaryOp, value: &ConstValue) -> Option<ConstValue> {
     match (op, value) {
-        (UnaryOp::Neg, ConstValue::Int(v)) => Some(ConstValue::Int(-v)),
+        (UnaryOp::Neg, ConstValue::Int(v)) => Some(ConstValue::Int(v.wrapping_neg())),
         (UnaryOp::Neg, ConstValue::Float(v)) => Some(ConstValue::Float(-v)),
         (UnaryOp::Not, ConstValue::Bool(v)) => Some(ConstValue::Bool(!v)),
         (UnaryOp::BitNot, ConstValue::Int(v)) => Some(ConstValue::Int(!v)),
@@ -207,13 +207,25 @@ fn eval_unary(op: UnaryOp, value: &ConstValue) -> Option<ConstValue> {
 
 fn eval_binary(op: BinaryOp, left: &ConstValue, right: &ConstValue) -> Option<ConstValue> {
     match (op, left, right) {
-        (BinaryOp::Add, ConstValue::Int(a), ConstValue::Int(b)) => Some(ConstValue::Int(a + b)),
-        (BinaryOp::Sub, ConstValue::Int(a), ConstValue::Int(b)) => Some(ConstValue::Int(a - b)),
-        (BinaryOp::Mul, ConstValue::Int(a), ConstValue::Int(b)) => Some(ConstValue::Int(a * b)),
+        (BinaryOp::Add, ConstValue::Int(a), ConstValue::Int(b)) => {
+            Some(ConstValue::Int(a.wrapping_add(*b)))
+        }
+        (BinaryOp::Sub, ConstValue::Int(a), ConstValue::Int(b)) => {
+            Some(ConstValue::Int(a.wrapping_sub(*b)))
+        }
+        (BinaryOp::Mul, ConstValue::Int(a), ConstValue::Int(b)) => {
+            Some(ConstValue::Int(a.wrapping_mul(*b)))
+        }
         (BinaryOp::Div, ConstValue::Int(_), ConstValue::Int(0)) => None,
-        (BinaryOp::Div, ConstValue::Int(a), ConstValue::Int(b)) => Some(ConstValue::Int(a / b)),
+        (BinaryOp::Div, ConstValue::Int(a), ConstValue::Int(-1)) if *a == i64::MIN => None,
+        (BinaryOp::Div, ConstValue::Int(a), ConstValue::Int(b)) => {
+            Some(ConstValue::Int(a.wrapping_div(*b)))
+        }
         (BinaryOp::Mod, ConstValue::Int(_), ConstValue::Int(0)) => None,
-        (BinaryOp::Mod, ConstValue::Int(a), ConstValue::Int(b)) => Some(ConstValue::Int(a % b)),
+        (BinaryOp::Mod, ConstValue::Int(a), ConstValue::Int(-1)) if *a == i64::MIN => None,
+        (BinaryOp::Mod, ConstValue::Int(a), ConstValue::Int(b)) => {
+            Some(ConstValue::Int(a.wrapping_rem(*b)))
+        }
         (BinaryOp::BitAnd, ConstValue::Int(a), ConstValue::Int(b)) => Some(ConstValue::Int(a & b)),
         (BinaryOp::BitOr, ConstValue::Int(a), ConstValue::Int(b)) => Some(ConstValue::Int(a | b)),
         (BinaryOp::BitXor, ConstValue::Int(a), ConstValue::Int(b)) => Some(ConstValue::Int(a ^ b)),
