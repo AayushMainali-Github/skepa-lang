@@ -2095,8 +2095,10 @@ mod tests {
 
     #[test]
     fn random_int_handles_full_i64_span_without_debug_overflow() {
-        let mut host = NoopHost::default();
-        host.random_state = 0x8000_0000_0000_0000;
+        let mut host = NoopHost {
+            random_state: 0x8000_0000_0000_0000,
+            ..NoopHost::default()
+        };
         let value = host
             .random_int(i64::MIN, i64::MAX)
             .expect("full i64 inclusive range should not overflow");
