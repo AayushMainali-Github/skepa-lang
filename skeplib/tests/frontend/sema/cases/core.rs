@@ -1652,3 +1652,20 @@ fn bad_value(x: Int) -> Int {
         "`?` expects an Option[...] or Result[..., ...] expression",
     );
 }
+
+#[test]
+fn sema_rejects_option_try_value_type_mismatch() {
+    let src = r#"
+fn bad(x: Option[Int]) -> Option[String] {
+  let v = x?;
+  return Some("x");
+}
+
+fn main() -> Int {
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert_has_diag(&diags, "`?` option value type mismatch");
+}
