@@ -162,10 +162,28 @@ pub fn raw_string_ptr(
 }
 
 pub fn llvm_float_literal(value: f64) -> String {
-    let literal = value.to_string();
-    if literal.contains(['.', 'e', 'E']) {
-        literal
-    } else {
-        format!("{literal}.0")
+    // LLVM textual IR rejects NaN/inf from Display; always emit a hex bit pattern.
+    format!("0x{:016X}", value.to_bits())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::llvm_float_literal;
+
+    #[test]
+    fn llvm_float_literal_emits_hex_for_nan_and_inf() {
+        let nan = llvm_float_literal(f64::NAN);
+        let pos_inf = llvm_float_literal(f64::INFINITY);
+        let neg_inf = llvm_float_literal(f64::NEG_INFINITY);
+        let finite = llvm_float_literal(1.5);
+
+        assert!(nan.starts_with("0x"), "nan={nan}");
+        assert!(pos_inf.starts_with("0x"), "inf={pos_inf}");
+        assert!(neg_inf.starts_with("0x"), "neginf={neg_inf}");
+        assert!(finite.starts_with("0x"), "finite={finite}");
+        assert!(!nan.contains("NaN") && !nan.to_lowercase().contains("nan"));
+        assert!(!pos_inf.to_lowercase().contains("inf"));
+        assert!(!neg_inf.to_lowercase().contains("inf"));
+        assert_eq!(finite, format!("0x{:016X}", 1.5f64.to_bits()));
     }
 }
