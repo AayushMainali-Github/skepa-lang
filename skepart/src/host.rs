@@ -734,7 +734,7 @@ impl RtHost for NoopHost {
             .random_state
             .wrapping_mul(6364136223846793005)
             .wrapping_add(1);
-        Ok((self.random_state as f64) / (u64::MAX as f64))
+        Ok(unit_interval_from_bits(self.random_state))
     }
 
     fn fs_exists(&mut self, path: &str) -> RtResult<bool> {
@@ -1932,9 +1932,14 @@ fn is_leap_year(year: i32) -> bool {
     (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
 }
 
+/// Map a full `u64` state into the half-open unit interval `[0.0, 1.0)`.
+fn unit_interval_from_bits(state: u64) -> f64 {
+    (state >> 11) as f64 / ((1u64 << 53) as f64)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{NoopHost, RtHost};
+    use super::{unit_interval_from_bits, NoopHost, RtHost};
     use crate::RtString;
 
     #[cfg(windows)]
@@ -2020,5 +2025,18 @@ mod tests {
         assert_eq!(host.os_arg(2).expect("arg2"), RtString::from("main.sk"));
         let err = host.os_arg(3).expect_err("missing arg should fail");
         assert_eq!(err.kind, crate::RtErrorKind::IndexOutOfBounds);
+    }
+
+    #[test]
+    fn random_float_u64_max_maps_below_one() {
+        let value = unit_interval_from_bits(u64::MAX);
+        assert!((0.0..1.0).contains(&value), "got {value}");
+
+        let mut host = NoopHost {
+            random_state: u64::MAX,
+            ..NoopHost::default()
+        };
+        let sampled = host.random_float().expect("random float");
+        assert!((0.0..1.0).contains(&sampled), "got {sampled}");
     }
 }
