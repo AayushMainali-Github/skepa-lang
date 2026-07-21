@@ -438,7 +438,7 @@ fn compile_project_graph_or_report(graph: &ModuleGraph, input: &str) -> Result<i
         Ok(program) => Ok(program),
         Err(message) => {
             eprintln!("[E-CODEGEN][codegen] {message}");
-            Err(EXIT_RESOLVE as i32)
+            Err(EXIT_CODEGEN as i32)
         }
     }
 }
@@ -451,7 +451,7 @@ fn compile_project_graph_unoptimized_or_report(
         Ok(program) => Ok(program),
         Err(message) => {
             eprintln!("[E-CODEGEN][codegen] {message}");
-            Err(EXIT_RESOLVE as i32)
+            Err(EXIT_CODEGEN as i32)
         }
     }
 }

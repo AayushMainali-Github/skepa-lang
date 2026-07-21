@@ -2857,6 +2857,35 @@ fn main() -> Int {
 }
 
 #[test]
+fn run_reports_ir_lowering_failure_as_codegen() {
+    let tmp = make_temp_dir("skepac_run_lowering_exit_codegen");
+    let source = write_temp_file(
+        &tmp,
+        "main.sk",
+        r#"
+let counter: Int = 0;
+fn main() -> Int {
+  counter = counter + 1;
+  return counter;
+}
+"#,
+    );
+
+    let output = Command::new(skepac_bin())
+        .arg("run")
+        .arg(&source)
+        .output()
+        .expect("run skepac run");
+
+    assert_cli_failure_class(&output, CliFailureClass::Codegen);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("assignment to unknown local `counter`"),
+        "stderr was: {stderr}"
+    );
+}
+
+#[test]
 fn build_obj_reports_toolchain_failure_cleanly() {
     let tmp = make_temp_dir("skepac_build_obj_no_toolchain");
     let source = tmp.join("main.sk");
