@@ -472,10 +472,18 @@ impl Checker {
             (
                 TypeInfo::Result { ok, err },
                 TypeInfo::Result {
-                    ok: _,
+                    ok: expected_ok,
                     err: expected_err,
                 },
             ) => {
+                if !Self::types_compatible(&ok, &expected_ok) {
+                    self.error(format!(
+                        "`?` result ok type mismatch: expression has {}, but the enclosing function returns {}",
+                        display_type(&ok),
+                        display_type(&expected_ok)
+                    ));
+                    return TypeInfo::Unknown;
+                }
                 if !Self::types_compatible(&err, &expected_err) {
                     self.error(format!(
                         "`?` result error type mismatch: expression has {}, but the enclosing function returns {}",
