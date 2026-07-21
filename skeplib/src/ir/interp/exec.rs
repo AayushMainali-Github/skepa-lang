@@ -146,7 +146,12 @@ impl<'a> IrInterpreter<'a> {
                     RtValue::Array(items) => {
                         items.get(index).map_err(IrInterpError::from_runtime)?
                     }
-                    _ => return Err(IrInterpError::TypeMismatch("array get on non-array")),
+                    RtValue::Vec(items) => items.get(index).map_err(IrInterpError::from_runtime)?,
+                    _ => {
+                        return Err(IrInterpError::TypeMismatch(
+                            "array/vec get on non-indexable value",
+                        ));
+                    }
                 };
                 frame.temps.insert(*dst, value);
             }

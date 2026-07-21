@@ -432,6 +432,21 @@ fn main() -> Int {
 }
 
 #[test]
+fn native_and_ir_accept_vec_subscript_indexing() {
+    let source = r#"
+import vec;
+
+fn main() -> Int {
+  let xs: Vec[Int] = vec.new();
+  vec.push(xs, 10);
+  vec.push(xs, 20);
+  return xs[0] + xs[1];
+}
+"#;
+    assert_native_and_ir_accept_same_int_source(source, 30);
+}
+
+#[test]
 fn ir_rejects_runtime_error_sources() {
     assert_ir_rejects_source(
         r#"
@@ -446,6 +461,17 @@ fn main() -> Int {
 fn main() -> Int {
   let arr: [Int; 2] = [1; 2];
   return arr[3];
+}
+"#,
+        RtErrorKind::IndexOutOfBounds,
+    );
+    assert_ir_rejects_source(
+        r#"
+import vec;
+
+fn main() -> Int {
+  let xs: Vec[Int] = vec.new();
+  return xs[0];
 }
 "#,
         RtErrorKind::IndexOutOfBounds,

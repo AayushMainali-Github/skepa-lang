@@ -323,6 +323,37 @@ pub fn emit_array_get(
             }
         }
     }
+    let container_ty = infer_operand_type(func, array);
+    if matches!(container_ty, IrType::Vec { .. }) {
+        let vec = operand_load(
+            names,
+            array,
+            func,
+            lines,
+            counter,
+            &IrType::Vec {
+                elem: Box::new(elem_ty.clone()),
+            },
+            string_literals,
+        )?;
+        let index = operand_load(
+            names,
+            index,
+            func,
+            lines,
+            counter,
+            &IrType::Int,
+            string_literals,
+        )?;
+        let raw = format!("%v{counter}");
+        *counter += 1;
+        lines.push(format!(
+            "  {raw} = call ptr @skp_rt_vec_get(ptr {vec}, i64 {index})"
+        ));
+        emit_abort_if_error(lines);
+        return emit_unbox_value(names, dst, elem_ty, &raw, lines);
+    }
+
     let array = operand_load(
         names,
         array,
