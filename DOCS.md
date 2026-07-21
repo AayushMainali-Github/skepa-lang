@@ -1362,8 +1362,9 @@ Behavior:
 - `datetime.nowUnix` / `nowMillis` read the host system clock.
 
 Notes:
-- `datetime.parseUnix` expects `YYYY-MM-DDTHH:MM:SSZ`.
+- `datetime.parseUnix` accepts `YYYY-MM-DDTHH:MM:SSZ` (whole seconds) and `YYYY-MM-DDTHH:MM:SS.mmmZ` (optional fractional seconds). Fractional seconds are parsed and discarded; the returned Unix timestamp has whole-second precision.
 - `datetime.parseUnix` returns `Ok(Int)` on valid input and `Err(String)` on invalid input.
+- Strings produced by `datetime.fromMillis` (which include a `.mmm` suffix when milliseconds are non-zero) are accepted by `datetime.parseUnix`, enabling correct round-trip parsing.
 
 ### 8.8 `random`
 
