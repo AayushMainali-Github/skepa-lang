@@ -1729,3 +1729,20 @@ fn main() -> Int {
     assert!(result.has_errors);
     assert_has_diag(&diags, "`?` option value type mismatch");
 }
+
+#[test]
+fn sema_rejects_result_try_ok_type_mismatch() {
+    let src = r#"
+fn bad(x: Result[Int, String]) -> Result[Float, String] {
+  let v = x?;
+  return Ok(1.0);
+}
+
+fn main() -> Int {
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert_has_diag(&diags, "`?` result ok type mismatch");
+}
