@@ -198,6 +198,9 @@ impl IrLowerer {
                 let index = self.compile_expr(func, lowering, index)?;
                 let elem_ty = self.array_element_type(func, &array);
                 let dst = self.builder.push_temp(func, elem_ty.clone());
+                // Array and Vec share trapping subscript semantics (element type T).
+                // ArrayGet lowers to skp_rt_array_get / skp_rt_vec_get based on the
+                // operand type — VecGet is reserved for vec.get which returns Option[T].
                 self.builder.push_instr(
                     func,
                     lowering.current_block,

@@ -220,3 +220,19 @@ fn main() -> Int {
     common::assert_native_matches_ir_value(float_src, skepart::value::RtValue::Int(1));
     common::assert_native_matches_ir_value(string_src, skepart::value::RtValue::Int(1));
 }
+
+#[test]
+fn native_and_ir_support_vec_subscript_indexing() {
+    let src = r#"
+import vec;
+
+fn main() -> Int {
+  let xs: Vec[Int] = vec.new();
+  vec.push(xs, 10);
+  vec.push(xs, 20);
+  return xs[0] + xs[1];
+}
+"#;
+
+    common::assert_native_matches_ir_value(src, skepart::value::RtValue::Int(30));
+}
