@@ -349,10 +349,60 @@ fn noop_host_supports_print_and_time_defaults() {
 }
 
 #[test]
+fn datetime_from_millis_round_trips_through_parse_unix() {
+    // Regression: fromMillis emits fractional seconds (e.g. "1970-01-01T00:00:01.234Z")
+    // that parseUnix previously rejected with "invalid second".  After the fix,
+    // parseUnix strips the fractional part and returns the whole-second truncation.
+    let mut host = NoopHost::default();
+
+    // 1234 ms -> 1 whole second, 234 ms remainder
+    let s = host
+        .datetime_from_millis(1234)
+        .expect("fromMillis should succeed");
+    assert_eq!(s, RtString::from("1970-01-01T00:00:01.234Z"));
+    let ts = host
+        .datetime_parse_unix(s.as_str())
+        .expect("parseUnix must accept fromMillis output");
+    // Fractional seconds are discarded; whole-second part is 1.
+    assert_eq!(ts, 1);
+
+    // Zero milliseconds -> no fractional part in the formatted string.
+    let s0 = host
+        .datetime_from_millis(0)
+        .expect("fromMillis(0) should succeed");
+    assert_eq!(s0, RtString::from("1970-01-01T00:00:00Z"));
+    let ts0 = host
+        .datetime_parse_unix(s0.as_str())
+        .expect("parseUnix must accept fromMillis(0) output");
+    assert_eq!(ts0, 0);
+
+    // Exact multiple of 1000 ms -> whole seconds only, no fractional part.
+    let s_exact = host
+        .datetime_from_millis(60_000)
+        .expect("fromMillis(60_000) should succeed");
+    assert_eq!(s_exact, RtString::from("1970-01-01T00:01:00Z"));
+    let ts_exact = host
+        .datetime_parse_unix(s_exact.as_str())
+        .expect("parseUnix must accept fromMillis(60_000) output");
+    assert_eq!(ts_exact, 60);
+
+    // Large value with non-zero millis remainder.
+    let s_large = host
+        .datetime_from_millis(1_700_000_000_999)
+        .expect("fromMillis large should succeed");
+    let ts_large = host
+        .datetime_parse_unix(s_large.as_str())
+        .expect("parseUnix must accept large fromMillis output");
+    // parseUnix returns whole-second truncation.
+    assert_eq!(ts_large, 1_700_000_000);
+}
+
+#[test]
 fn recording_host_captures_output_and_overrides_services() {
     let mut host = RecordingHostBuilder::seeded().build();
     host.io_print("a").expect("print");
     host.io_println("b").expect("println");
+
     assert_eq!(host.output, "ab\n");
     assert_eq!(
         host.io_read_line().expect("read line"),

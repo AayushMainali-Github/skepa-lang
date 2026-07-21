@@ -1850,7 +1850,11 @@ fn parse_iso8601_utc(value: &str) -> RtResult<i64> {
     let mut time_parts = time.split(':');
     let hour: u32 = parse_part(time_parts.next(), "hour")?;
     let minute: u32 = parse_part(time_parts.next(), "minute")?;
-    let second: u32 = parse_part(time_parts.next(), "second")?;
+    // Strip optional fractional seconds (e.g. ".234" in "01.234") so that
+    // strings produced by datetime.fromMillis round-trip through parseUnix.
+    let raw_second = time_parts.next();
+    let second_str = raw_second.map(|s| s.split_once('.').map_or(s, |(w, _)| w));
+    let second: u32 = parse_part(second_str, "second")?;
     if time_parts.next().is_some() {
         return Err(RtError::new(
             RtErrorKind::InvalidArgument,
