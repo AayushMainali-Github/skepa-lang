@@ -52,6 +52,50 @@ fn main() -> Int { return 0; }
 }
 
 #[test]
+fn parses_impl_methods_with_documented_self_type() {
+    let src = r#"
+struct Counter { n: Int }
+
+impl Counter {
+  fn bump(self: Counter) -> Int {
+    return self.n;
+  }
+
+  fn add(self: Counter, delta: Int) -> Int {
+    return self.n + delta;
+  }
+}
+
+fn main() -> Int {
+  let c = Counter { n: 1 };
+  return c.bump();
+}
+"#;
+    let program = parse_ok(src);
+    let method = &program.impls[0].methods[0];
+    assert_eq!(method.params[0].name, "self");
+    assert_eq!(method.params[0].ty, TypeName::Named("Counter".to_string()));
+    assert_eq!(program.impls[0].methods[1].params.len(), 2);
+}
+
+#[test]
+fn reports_mismatched_self_receiver_type() {
+    let src = r#"
+struct Counter { n: Int }
+
+impl Counter {
+  fn bump(self: Int) -> Int {
+    return self.n;
+  }
+}
+
+fn main() -> Int { return 0; }
+"#;
+    let diags = parse_err(src);
+    assert_has_diag(&diags, "Method `self` type must be `Counter`, got Int");
+}
+
+#[test]
 fn reports_invalid_struct_field_missing_colon() {
     let src = r#"
 struct User {

@@ -875,9 +875,29 @@ impl Parser {
             loop {
                 let param_name = self.expect_ident("Expected parameter name")?;
                 if param_name.lexeme == "self" {
+                    let ty = if self.at(TokenKind::Colon) {
+                        self.bump();
+                        let annotated =
+                            self.expect_type_name("Expected receiver type after `self:`")?;
+                        match &annotated {
+                            TypeName::Named(name) if name == receiver_ty => annotated,
+                            other => {
+                                self.diagnostics.error(
+                                    format!(
+                                        "Method `self` type must be `{receiver_ty}`, got {}",
+                                        other.as_str()
+                                    ),
+                                    param_name.span,
+                                );
+                                TypeName::Named(receiver_ty.to_string())
+                            }
+                        }
+                    } else {
+                        TypeName::Named(receiver_ty.to_string())
+                    };
                     params.push(Param {
                         name: "self".to_string(),
-                        ty: TypeName::Named(receiver_ty.to_string()),
+                        ty,
                     });
                 } else {
                     self.expect(TokenKind::Colon, "Expected `:` after parameter name")?;
