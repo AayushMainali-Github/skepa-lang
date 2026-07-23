@@ -2859,6 +2859,37 @@ fn main() -> Int {
 #[test]
 fn run_reports_ir_lowering_failure_as_codegen() {
     let tmp = make_temp_dir("skepac_run_lowering_exit_codegen");
+    // Assigning to a function binding still passes check today but is not a
+    // lowerable Ident store target (unlike module globals, which now lower).
+    let source = write_temp_file(
+        &tmp,
+        "main.sk",
+        r#"
+fn bump() -> Int { return 1; }
+fn main() -> Int {
+  bump = bump;
+  return 0;
+}
+"#,
+    );
+
+    let output = Command::new(skepac_bin())
+        .arg("run")
+        .arg(&source)
+        .output()
+        .expect("run skepac run");
+
+    assert_cli_failure_class(&output, CliFailureClass::Codegen);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("assignment to unknown local `bump`"),
+        "stderr was: {stderr}"
+    );
+}
+
+#[test]
+fn run_executes_global_ident_assignment_end_to_end() {
+    let tmp = make_temp_dir("skepac_run_global_ident_assign");
     let source = write_temp_file(
         &tmp,
         "main.sk",
@@ -2877,12 +2908,7 @@ fn main() -> Int {
         .output()
         .expect("run skepac run");
 
-    assert_cli_failure_class(&output, CliFailureClass::Codegen);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("assignment to unknown local `counter`"),
-        "stderr was: {stderr}"
-    );
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
 }
 
 #[test]
