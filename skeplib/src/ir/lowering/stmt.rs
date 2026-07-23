@@ -74,26 +74,38 @@ impl IrLowerer {
                     Some(value) => value,
                     None => return false,
                 };
-                let Some(&local) = lowering.locals.get(name) else {
-                    self.unsupported(format!("assignment to unknown local `{name}`"));
-                    return false;
-                };
-                let ty = func
-                    .locals
-                    .iter()
-                    .find(|entry| entry.id == local)
-                    .map(|entry| entry.ty.clone())
-                    .unwrap_or(IrType::Unknown);
-                self.builder.push_instr(
-                    func,
-                    lowering.current_block,
-                    Instr::StoreLocal {
-                        local,
-                        ty,
-                        value: rhs,
-                    },
-                );
-                true
+                if let Some(&local) = lowering.locals.get(name) {
+                    let ty = func
+                        .locals
+                        .iter()
+                        .find(|entry| entry.id == local)
+                        .map(|entry| entry.ty.clone())
+                        .unwrap_or(IrType::Unknown);
+                    self.builder.push_instr(
+                        func,
+                        lowering.current_block,
+                        Instr::StoreLocal {
+                            local,
+                            ty,
+                            value: rhs,
+                        },
+                    );
+                    return true;
+                }
+                if let Some((global, ty)) = self.resolve_assign_global(name) {
+                    self.builder.push_instr(
+                        func,
+                        lowering.current_block,
+                        Instr::StoreGlobal {
+                            global,
+                            ty,
+                            value: rhs,
+                        },
+                    );
+                    return true;
+                }
+                self.unsupported(format!("assignment to unknown local `{name}`"));
+                false
             }
             Stmt::Assign {
                 target: AssignTarget::Index { base, index },
@@ -640,6 +652,15 @@ impl IrLowerer {
                 .map(|candidate| &candidate.terminator),
             Some(Terminator::Unreachable)
         )
+    }
+
+    fn resolve_assign_global(&self, name: &str) -> Option<(crate::ir::GlobalId, IrType)> {
+        self.imported_global_names
+            .get(name)
+            .and_then(|qualified| self.globals.get(qualified))
+            .or_else(|| self.globals.get(name))
+            .or_else(|| self.globals.get(&self.qualify_name(name)))
+            .cloned()
     }
 
     fn try_compile_typed_empty_array_let(
