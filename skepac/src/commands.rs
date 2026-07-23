@@ -223,7 +223,7 @@ fn build_native_multi_module(
     mut timings: BuildTimings,
 ) -> Result<i32, String> {
     let lower_start = Instant::now();
-    let program = match compile_project_graph_unoptimized_or_report(graph, input) {
+    let program = match compile_project_graph_or_report(graph, input) {
         Ok(program) => program,
         Err(code) => return Ok(code),
     };
@@ -435,19 +435,6 @@ fn resolve_project_or_report(input: &str) -> Result<ModuleGraph, i32> {
 
 fn compile_project_graph_or_report(graph: &ModuleGraph, input: &str) -> Result<ir::IrProgram, i32> {
     match ir::lowering::compile_project_graph_after_frontend(graph, Path::new(input)) {
-        Ok(program) => Ok(program),
-        Err(message) => {
-            eprintln!("[E-CODEGEN][codegen] {message}");
-            Err(EXIT_CODEGEN as i32)
-        }
-    }
-}
-
-fn compile_project_graph_unoptimized_or_report(
-    graph: &ModuleGraph,
-    input: &str,
-) -> Result<ir::IrProgram, i32> {
-    match ir::lowering::compile_project_graph_after_frontend_unoptimized(graph, Path::new(input)) {
         Ok(program) => Ok(program),
         Err(message) => {
             eprintln!("[E-CODEGEN][codegen] {message}");
