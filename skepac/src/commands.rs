@@ -223,10 +223,13 @@ fn build_native_multi_module(
     mut timings: BuildTimings,
 ) -> Result<i32, String> {
     let lower_start = Instant::now();
-    let program = match compile_project_graph_unoptimized_or_report(graph, input) {
+    let mut program = match compile_project_graph_unoptimized_or_report(graph, input) {
         Ok(program) => program,
         Err(code) => return Ok(code),
     };
+    // Apply the shared opt pipeline, but skip inlining so module partitions stay
+    // independently cacheable (cross-module inlining couples fingerprints).
+    ir::opt::optimize_program_for_partitions(&mut program);
     timings.record("ir_lowering", lower_start.elapsed());
 
     let partition_start = Instant::now();
