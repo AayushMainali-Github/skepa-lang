@@ -279,12 +279,10 @@ impl<'a> LlvmEmitter<'a> {
             | Instr::VecDelete { .. }
             | Instr::MakeStruct { .. }
             | Instr::StructGet { .. }
-            | Instr::StructSet { .. } => {
+            | Instr::StructSet { .. }
+            | Instr::Logic { .. } => {
                 unreachable!("scalar/core/runtime instructions handled earlier")
             }
-            Instr::Logic { .. } => Err(CodegenError::Unsupported(
-                "Logic instructions should be lowered to control flow before LLVM emission",
-            )),
         }
     }
 }

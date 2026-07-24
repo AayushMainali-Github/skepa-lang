@@ -3,7 +3,8 @@ use crate::codegen::llvm::calls::{self, DirectCall};
 use crate::codegen::llvm::types::llvm_ty;
 use crate::codegen::llvm::value::{ValueNames, operand_load};
 use crate::ir::{
-    Instr, IrFunction, IrProgram, LoweredIrFunction, NativeArrayPlan, NativeStructPlan,
+    Instr, IrFunction, IrProgram, IrType, LogicOp, LoweredIrFunction, NativeArrayPlan,
+    NativeStructPlan,
 };
 use std::collections::HashMap;
 
@@ -179,6 +180,38 @@ pub fn emit_core_instr(
                 counter,
                 string_literals,
             )?;
+            Ok(true)
+        }
+        Instr::Logic {
+            dst,
+            op,
+            left,
+            right,
+        } => {
+            let dest = names.temp(*dst)?;
+            let left = operand_load(
+                names,
+                left,
+                func,
+                lines,
+                counter,
+                &IrType::Bool,
+                string_literals,
+            )?;
+            let right = operand_load(
+                names,
+                right,
+                func,
+                lines,
+                counter,
+                &IrType::Bool,
+                string_literals,
+            )?;
+            let opcode = match op {
+                LogicOp::And => "and",
+                LogicOp::Or => "or",
+            };
+            lines.push(format!("  {dest} = {opcode} i1 {left}, {right}"));
             Ok(true)
         }
         _ => Ok(false),
