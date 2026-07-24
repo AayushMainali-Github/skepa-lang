@@ -62,3 +62,30 @@ fn main() -> Int {
         "lowering should not invent a local operator target for the imported name"
     );
 }
+
+#[test]
+fn project_lowers_operator_when_export_precedes_opr() {
+    let project = common::TempProject::new("project_export_before_opr");
+    project.file(
+        "ops.sk",
+        r#"
+export { add };
+opr add(a: Int, b: Int) -> Int precedence 5 { return a + b; }
+"#,
+    );
+    let entry = project.file(
+        "main.sk",
+        r#"
+from ops import add;
+fn main() -> Int {
+  return 2 `add` 3;
+}
+"#,
+    );
+
+    let program = lowering::compile_project_entry(&entry).expect("project lowering should succeed");
+    let value = IrInterpreter::new(&program)
+        .run_main()
+        .expect("IR interpreter should run");
+    assert_eq!(value, RtValue::Int(5));
+}
