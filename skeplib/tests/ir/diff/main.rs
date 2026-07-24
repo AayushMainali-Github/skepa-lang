@@ -490,6 +490,21 @@ fn main() -> String {
 }
 
 #[test]
+fn native_and_ir_accept_same_global_ident_assignment() {
+    let source = r#"
+let counter: Int = 1;
+fn bump() -> Int {
+  counter = counter + 1;
+  return counter;
+}
+fn main() -> Int {
+  return bump();
+}
+"#;
+    assert_native_and_ir_accept_same_int_source(source, 2);
+}
+
+#[test]
 fn native_and_ir_accept_same_match_or_pattern() {
     let source = r#"
 fn main() -> Int {
