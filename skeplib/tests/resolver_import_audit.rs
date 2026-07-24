@@ -74,6 +74,27 @@ fn main() -> Int { return 1 `xoxo` 2; }
 }
 
 #[test]
+fn accepts_operator_export_declared_before_opr() {
+    let project = common::TempProject::new("export_before_opr_precedence");
+    project.file(
+        "ops.sk",
+        r#"
+export { add };
+opr add(a: Int, b: Int) -> Int precedence 5 { return a + b; }
+"#,
+    );
+    let entry = project.file(
+        "main.sk",
+        r#"
+from ops import add;
+fn main() -> Int { return 2 `add` 3; }
+"#,
+    );
+
+    resolve_project(&entry).expect("export before opr should still export operator precedence");
+}
+
+#[test]
 fn rejects_duplicate_imported_operator_precedence_before_parse() {
     let project = common::TempProject::new("duplicate_imported_operator_precedence");
     project.file(

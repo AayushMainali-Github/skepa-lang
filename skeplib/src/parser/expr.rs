@@ -9,6 +9,13 @@ enum InfixOp {
     Custom(String),
 }
 
+#[derive(Debug, Clone)]
+enum InfixPeek {
+    None,
+    Known(InfixOp, i64),
+    UnknownCustom,
+}
+
 impl Parser {
     pub(super) fn parse_expr(&mut self) -> Option<Expr> {
         self.parse_binary_expr(0)
@@ -56,59 +63,78 @@ impl Parser {
     fn parse_binary_expr(&mut self, min_precedence: i64) -> Option<Expr> {
         let mut expr = self.parse_unary()?;
 
-        while let Some((op, precedence)) = self.peek_infix_operator() {
-            if precedence < min_precedence {
-                break;
-            }
+        loop {
+            match self.peek_infix_operator() {
+                InfixPeek::None => break,
+                InfixPeek::UnknownCustom => {
+                    // Diagnostic already emitted. Skip the operator and absorb a
+                    // following RHS so recovery does not invent precedence-0 binding
+                    // or leave trailing tokens that truncate the enclosing function.
+                    self.skip_backtick_operator();
+                    let _ = self.parse_binary_expr(0);
+                    break;
+                }
+                InfixPeek::Known(op, precedence) => {
+                    if precedence < min_precedence {
+                        break;
+                    }
 
-            self.consume_infix_operator(&op)?;
-            let rhs = self.parse_binary_expr(precedence + 1)?;
-            expr = match op {
-                InfixOp::Builtin(op) => Expr::Binary {
-                    left: Box::new(expr),
-                    op,
-                    right: Box::new(rhs),
-                },
-                InfixOp::Custom(operator) => Expr::CustomInfix {
-                    left: Box::new(expr),
-                    operator,
-                    right: Box::new(rhs),
-                },
-            };
+                    self.consume_infix_operator(&op)?;
+                    let rhs = self.parse_binary_expr(precedence + 1)?;
+                    expr = match op {
+                        InfixOp::Builtin(op) => Expr::Binary {
+                            left: Box::new(expr),
+                            op,
+                            right: Box::new(rhs),
+                        },
+                        InfixOp::Custom(operator) => Expr::CustomInfix {
+                            left: Box::new(expr),
+                            operator,
+                            right: Box::new(rhs),
+                        },
+                    };
+                }
+            }
         }
 
         Some(expr)
     }
 
-    fn peek_infix_operator(&mut self) -> Option<(InfixOp, i64)> {
+    fn peek_infix_operator(&mut self) -> InfixPeek {
         match self.current().kind {
-            TokenKind::OrOr => Some((InfixOp::Builtin(BinaryOp::OrOr), 1)),
-            TokenKind::AndAnd => Some((InfixOp::Builtin(BinaryOp::AndAnd), 2)),
-            TokenKind::EqEq => Some((InfixOp::Builtin(BinaryOp::EqEq), 3)),
-            TokenKind::Neq => Some((InfixOp::Builtin(BinaryOp::Neq), 3)),
-            TokenKind::Lt => Some((InfixOp::Builtin(BinaryOp::Lt), 4)),
-            TokenKind::Lte => Some((InfixOp::Builtin(BinaryOp::Lte), 4)),
-            TokenKind::Gt => Some((InfixOp::Builtin(BinaryOp::Gt), 4)),
-            TokenKind::Gte => Some((InfixOp::Builtin(BinaryOp::Gte), 4)),
-            TokenKind::Pipe => Some((InfixOp::Builtin(BinaryOp::BitOr), 5)),
-            TokenKind::Caret => Some((InfixOp::Builtin(BinaryOp::BitXor), 6)),
-            TokenKind::Amp => Some((InfixOp::Builtin(BinaryOp::BitAnd), 7)),
-            TokenKind::Shl => Some((InfixOp::Builtin(BinaryOp::Shl), 8)),
-            TokenKind::Shr => Some((InfixOp::Builtin(BinaryOp::Shr), 8)),
-            TokenKind::Plus => Some((InfixOp::Builtin(BinaryOp::Add), 9)),
-            TokenKind::Minus => Some((InfixOp::Builtin(BinaryOp::Sub), 9)),
-            TokenKind::Star => Some((InfixOp::Builtin(BinaryOp::Mul), 10)),
-            TokenKind::Slash => Some((InfixOp::Builtin(BinaryOp::Div), 10)),
-            TokenKind::Percent => Some((InfixOp::Builtin(BinaryOp::Mod), 10)),
+            TokenKind::OrOr => InfixPeek::Known(InfixOp::Builtin(BinaryOp::OrOr), 1),
+            TokenKind::AndAnd => InfixPeek::Known(InfixOp::Builtin(BinaryOp::AndAnd), 2),
+            TokenKind::EqEq => InfixPeek::Known(InfixOp::Builtin(BinaryOp::EqEq), 3),
+            TokenKind::Neq => InfixPeek::Known(InfixOp::Builtin(BinaryOp::Neq), 3),
+            TokenKind::Lt => InfixPeek::Known(InfixOp::Builtin(BinaryOp::Lt), 4),
+            TokenKind::Lte => InfixPeek::Known(InfixOp::Builtin(BinaryOp::Lte), 4),
+            TokenKind::Gt => InfixPeek::Known(InfixOp::Builtin(BinaryOp::Gt), 4),
+            TokenKind::Gte => InfixPeek::Known(InfixOp::Builtin(BinaryOp::Gte), 4),
+            TokenKind::Pipe => InfixPeek::Known(InfixOp::Builtin(BinaryOp::BitOr), 5),
+            TokenKind::Caret => InfixPeek::Known(InfixOp::Builtin(BinaryOp::BitXor), 6),
+            TokenKind::Amp => InfixPeek::Known(InfixOp::Builtin(BinaryOp::BitAnd), 7),
+            TokenKind::Shl => InfixPeek::Known(InfixOp::Builtin(BinaryOp::Shl), 8),
+            TokenKind::Shr => InfixPeek::Known(InfixOp::Builtin(BinaryOp::Shr), 8),
+            TokenKind::Plus => InfixPeek::Known(InfixOp::Builtin(BinaryOp::Add), 9),
+            TokenKind::Minus => InfixPeek::Known(InfixOp::Builtin(BinaryOp::Sub), 9),
+            TokenKind::Star => InfixPeek::Known(InfixOp::Builtin(BinaryOp::Mul), 10),
+            TokenKind::Slash => InfixPeek::Known(InfixOp::Builtin(BinaryOp::Div), 10),
+            TokenKind::Percent => InfixPeek::Known(InfixOp::Builtin(BinaryOp::Mod), 10),
             TokenKind::Backtick => {
-                let operator = self.tokens.get(self.idx + 1)?;
-                let closing = self.tokens.get(self.idx + 2)?;
+                let Some(operator) = self.tokens.get(self.idx + 1) else {
+                    return InfixPeek::None;
+                };
+                let Some(closing) = self.tokens.get(self.idx + 2) else {
+                    return InfixPeek::None;
+                };
                 if operator.kind != TokenKind::Ident || closing.kind != TokenKind::Backtick {
                     self.error_here_expected("Expected backtick operator in the form `` `name` ``");
-                    return None;
+                    return InfixPeek::None;
                 }
-                let precedence = match self.custom_operator_precedences.get(&operator.lexeme) {
-                    Some(precedence) => *precedence,
+                match self.custom_operator_precedences.get(&operator.lexeme) {
+                    Some(precedence) => {
+                        InfixPeek::Known(InfixOp::Custom(operator.lexeme.clone()), *precedence)
+                    }
                     None => {
                         self.diagnostics.error(
                             format!(
@@ -117,12 +143,23 @@ impl Parser {
                             ),
                             operator.span,
                         );
-                        0
+                        InfixPeek::UnknownCustom
                     }
-                };
-                Some((InfixOp::Custom(operator.lexeme.clone()), precedence))
+                }
             }
-            _ => None,
+            _ => InfixPeek::None,
+        }
+    }
+
+    fn skip_backtick_operator(&mut self) {
+        if self.at(TokenKind::Backtick) {
+            self.bump();
+        }
+        if self.at(TokenKind::Ident) {
+            self.bump();
+        }
+        if self.at(TokenKind::Backtick) {
+            self.bump();
         }
     }
 

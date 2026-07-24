@@ -94,6 +94,9 @@ impl Parser {
         let mut out = SourceHeaderInfo::default();
         let mut idx = 0usize;
         let mut brace_depth = 0usize;
+        // Collect export aliases first; resolve operator precedences after the full
+        // scan so `export { op };` before `opr op ...` still publishes precedence.
+        let mut pending_exported_names: Vec<(String, String)> = Vec::new();
 
         while idx < tokens.len() {
             match tokens[idx].kind {
@@ -281,12 +284,7 @@ impl Parser {
                             } else {
                                 local_name.clone()
                             };
-                        if let Some(precedence) =
-                            out.local_operator_precedences.get(&local_name).copied()
-                        {
-                            out.local_exported_operator_precedences
-                                .insert(export_name, precedence);
-                        }
+                        pending_exported_names.push((local_name, export_name));
                         if !matches!(tokens.get(scan).map(|t| t.kind), Some(TokenKind::Comma)) {
                             continue;
                         }
@@ -358,6 +356,13 @@ impl Parser {
                 _ => {
                     idx += 1;
                 }
+            }
+        }
+
+        for (local_name, export_name) in pending_exported_names {
+            if let Some(precedence) = out.local_operator_precedences.get(&local_name).copied() {
+                out.local_exported_operator_precedences
+                    .insert(export_name, precedence);
             }
         }
 

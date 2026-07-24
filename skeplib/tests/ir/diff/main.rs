@@ -502,4 +502,15 @@ fn main() -> Int {
 }
 "#;
     assert_native_and_ir_accept_same_int_source(source, 2);
+fn native_and_ir_accept_same_match_or_pattern() {
+    let source = r#"
+fn main() -> Int {
+  let x: Int = 1;
+  match (x) {
+    1 | 2 => { return 42; }
+    _ => { return 0; }
+  }
+}
+"#;
+    assert_native_and_ir_accept_same_int_source(source, 42);
 }

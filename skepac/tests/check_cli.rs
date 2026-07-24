@@ -2747,6 +2747,76 @@ export { add };
 }
 
 #[test]
+fn build_native_multi_module_applies_ir_optimization_and_matches_run() {
+    let tmp = make_temp_dir("skepac_build_native_multi_optimize");
+    fs::create_dir_all(tmp.join("utils")).expect("create utils");
+    let main = tmp.join("main.sk");
+    let util = tmp.join("utils").join("math.sk");
+    let out = tmp.join(format!("main.{}", exe_ext()));
+
+    fs::write(
+        &util,
+        r#"
+export { answer };
+fn answer() -> Int { return 20 + 22; }
+"#,
+    )
+    .expect("write util");
+    fs::write(
+        &main,
+        r#"
+from utils.math import answer;
+fn main() -> Int { return answer(); }
+"#,
+    )
+    .expect("write main");
+
+    let run = Command::new(skepac_bin())
+        .arg("run")
+        .arg(&main)
+        .output()
+        .expect("run skepac run");
+    assert_eq!(run.status.code(), Some(42), "{run:?}");
+
+    let build = Command::new(skepac_bin())
+        .env("SKEPAC_DEBUG_PARTITION_LLVM", "1")
+        .arg("build-native")
+        .arg(&main)
+        .arg(&out)
+        .output()
+        .expect("run build-native");
+    assert!(build.status.success(), "{build:?}");
+
+    let native = Command::new(&out)
+        .output()
+        .expect("execute partitioned native binary");
+    assert_eq!(native.status.code(), Some(42), "{native:?}");
+
+    let partition_llvm_dir = tmp.join(".skepac-cache").join("partition-llvm");
+    assert!(
+        partition_llvm_dir.is_dir(),
+        "expected partition LLVM dump at {}",
+        partition_llvm_dir.display()
+    );
+    let mut saw_folded_const = false;
+    for entry in fs::read_dir(&partition_llvm_dir).expect("read partition llvm dir") {
+        let path = entry.expect("dir entry").path();
+        if path.extension().and_then(|ext| ext.to_str()) != Some("ll") {
+            continue;
+        }
+        let ir = fs::read_to_string(&path).expect("read partition llvm");
+        if ir.contains("ret i64 42") {
+            saw_folded_const = true;
+            break;
+        }
+    }
+    assert!(
+        saw_folded_const,
+        "multi-module build-native should run the IR optimization pipeline before partitioning"
+    );
+}
+
+#[test]
 fn build_native_partitioned_semantic_dependency_edit_reuses_unchanged_partition_objects() {
     let tmp = make_temp_dir("skepac_build_native_partitioned_dependency_edit");
     fs::create_dir_all(tmp.join("utils")).expect("create utils");
