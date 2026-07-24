@@ -518,3 +518,34 @@ fn main() -> Int {
     let diags = parse_err(src);
     assert_has_diag(&diags, "is out of range for `Int`");
 }
+
+#[test]
+fn unknown_custom_operator_does_not_bind_at_precedence_zero() {
+    let src = r#"
+fn main() -> Int {
+  return 1 `unknown` 2 + 3;
+}
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert_has_diag(
+        &diags,
+        "Unknown operator `unknown`; declare it locally or import it with `from ... import ...` so its precedence is known during parsing",
+    );
+    assert!(
+        !diags.as_slice().is_empty(),
+        "unknown operator should produce a diagnostic"
+    );
+    match &program.functions[0].body[0] {
+        Stmt::Return(Some(expr)) => {
+            assert!(
+                !matches!(expr, Expr::CustomInfix { .. }),
+                "unknown operator must not invent a CustomInfix node; got {expr:?}"
+            );
+            assert!(
+                matches!(expr, Expr::IntLit(1)),
+                "recovery should keep the left operand instead of binding RHS at precedence 0; got {expr:?}"
+            );
+        }
+        other => panic!("expected return statement, got {other:?}"),
+    }
+}
