@@ -6,7 +6,9 @@ fn release_workflow_dispatch_requires_and_uses_a_tag() {
         "{}/../.github/workflows/release.yml",
         env!("CARGO_MANIFEST_DIR")
     );
-    let workflow = fs::read_to_string(workflow_path).expect("release workflow should exist");
+    let workflow = fs::read_to_string(workflow_path)
+        .expect("release workflow should exist")
+        .replace("\r\n", "\n");
 
     assert!(
         workflow.contains("workflow_dispatch:\n    inputs:\n      tag_name:"),
