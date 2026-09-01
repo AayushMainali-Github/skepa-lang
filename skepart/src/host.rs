@@ -1379,16 +1379,17 @@ impl NoopHost {
         } else {
             format!("{}?{}", parts.path, parts.query)
         };
+        let host_authority = format_host_authority(&parts.host);
         let host_header = if parts.port.is_empty() {
-            parts.host.clone()
+            host_authority.clone()
         } else {
-            format!("{}:{}", parts.host, parts.port)
+            format!("{host_authority}:{}", parts.port)
         };
         let request = build_http_request(method, &request_path, &host_header, body, content_type);
 
         match parts.scheme.as_str() {
             "http" => {
-                let mut stream = TcpStream::connect(format!("{}:{port}", parts.host))
+                let mut stream = TcpStream::connect(format!("{host_authority}:{port}"))
                     .map_err(|err| RtError::io(err.to_string()))?;
                 stream
                     .write_all(request.as_bytes())
@@ -1396,7 +1397,7 @@ impl NoopHost {
                 read_http_response(stream, method)
             }
             "https" => {
-                let tcp = TcpStream::connect(format!("{}:{port}", parts.host))
+                let tcp = TcpStream::connect(format!("{host_authority}:{port}"))
                     .map_err(|err| RtError::io(err.to_string()))?;
                 let server_name = ServerName::try_from(parts.host.clone()).map_err(|_| {
                     RtError::new(
@@ -1608,7 +1609,13 @@ fn parse_url_parts(url: &str) -> RtResult<ParsedUrlParts> {
                 "net.parseUrl invalid IPv6 host syntax",
             )
         })?;
-        let host = authority[..=end].to_string();
+        if end == 1 {
+            return Err(RtError::new(
+                RtErrorKind::InvalidArgument,
+                "net.parseUrl IPv6 host must not be empty",
+            ));
+        }
+        let host = authority[1..end].to_string();
         let remainder = &authority[end + 1..];
         if remainder.is_empty() {
             (host, String::new())
@@ -1661,6 +1668,14 @@ fn parse_url_parts(url: &str) -> RtResult<ParsedUrlParts> {
         query,
         fragment,
     })
+}
+
+fn format_host_authority(host: &str) -> String {
+    if host.contains(':') && !host.starts_with('[') {
+        format!("[{host}]")
+    } else {
+        host.to_string()
+    }
 }
 
 fn reject_http_control_chars(api: &str, component: &str, value: &str) -> RtResult<()> {
