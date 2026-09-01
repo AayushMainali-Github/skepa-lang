@@ -1555,6 +1555,46 @@ fn main(x: task.Mutex) -> Void {
 }
 
 #[test]
+fn sema_rejects_unknown_types_inside_typed_task_handles() {
+    let src = r#"
+import task;
+
+fn consume(job: task.Task[MissingResult]) -> Void {
+  let jobs: task.Channel[Result[Int, MissingMessage]] = task.channel();
+  return;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("Unknown type in function `consume` parameter `job`: `MissingResult`")
+    }));
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("Unknown type in let `jobs`: `MissingMessage`")
+    }));
+}
+
+#[test]
+fn sema_accepts_user_types_nested_inside_typed_task_handles() {
+    let src = r#"
+import task;
+
+struct Message {
+  value: Int
+}
+
+fn consume(job: task.Task[Option[Message]]) -> Void {
+  let jobs: task.Channel[Result[Message, String]] = task.channel();
+  return;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
+
+#[test]
 fn sema_accepts_typed_task_channels_and_message_flow() {
     let src = r#"
 import task;
