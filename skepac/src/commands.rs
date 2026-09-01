@@ -635,13 +635,8 @@ fn prepare_output_path(path: &Path) -> std::io::Result<()> {
 
 fn materialize_cached_artifact(source: &Path, destination: &Path) -> std::io::Result<()> {
     prepare_output_path(destination)?;
-    match fs::hard_link(source, destination) {
-        Ok(()) => Ok(()),
-        Err(_) => {
-            fs::copy(source, destination)?;
-            Ok(())
-        }
-    }
+    fs::copy(source, destination)?;
+    Ok(())
 }
 
 fn store_cached_artifact(source: &Path, cache_path: &Path) -> std::io::Result<()> {
@@ -651,13 +646,8 @@ fn store_cached_artifact(source: &Path, cache_path: &Path) -> std::io::Result<()
     if cache_path.exists() {
         fs::remove_file(cache_path)?;
     }
-    match fs::hard_link(source, cache_path) {
-        Ok(()) => Ok(()),
-        Err(_) => {
-            fs::copy(source, cache_path)?;
-            Ok(())
-        }
-    }
+    fs::copy(source, cache_path)?;
+    Ok(())
 }
 
 fn normalized_link_args(args: Vec<String>) -> Vec<String> {
@@ -1000,7 +990,7 @@ mod tests {
     }
 
     #[test]
-    fn cached_artifact_helpers_replace_existing_files() {
+    fn cached_artifact_helpers_replace_existing_files_without_sharing_writes() {
         let dir = temp_test_dir("cached_artifact_helpers");
         fs::create_dir_all(&dir).expect("temp dir");
         let source = dir.join("source.bin");
@@ -1016,6 +1006,18 @@ mod tests {
 
         assert_eq!(fs::read(&destination).expect("destination read"), b"fresh");
         assert_eq!(fs::read(&cache).expect("cache read"), b"fresh");
+
+        fs::write(&source, b"source changed").expect("mutate source");
+        assert_eq!(
+            fs::read(&cache).expect("cache read after source mutation"),
+            b"fresh"
+        );
+
+        fs::write(&destination, b"output changed").expect("mutate destination");
+        assert_eq!(
+            fs::read(&cache).expect("cache read after destination mutation"),
+            b"fresh"
+        );
 
         let _ = fs::remove_dir_all(dir);
     }
