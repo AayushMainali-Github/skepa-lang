@@ -1,7 +1,9 @@
 mod common;
 
 use common::RecordingHostBuilder;
-use skepart::{builtins, RtBytes, RtErrorKind, RtFunctionRef, RtHost, RtResult, RtString, RtValue};
+use skepart::{
+    builtins, RtArray, RtBytes, RtErrorKind, RtFunctionRef, RtHost, RtResult, RtString, RtValue,
+};
 
 struct UnsupportedHost;
 
@@ -61,6 +63,33 @@ fn string_vec(items: &[&str]) -> RtValue {
         value.push(RtValue::String(RtString::from(*item)));
     }
     RtValue::Vec(value)
+}
+
+#[test]
+fn builtins_cover_array_search_helpers() {
+    let array = RtValue::Array(RtArray::new(vec![
+        RtValue::Int(2),
+        RtValue::Int(4),
+        RtValue::Int(2),
+    ]));
+
+    assert_eq!(
+        builtins::call("arr", "contains", &[array.clone(), RtValue::Int(4)]).expect("arr.contains"),
+        RtValue::Bool(true)
+    );
+    assert_eq!(
+        builtins::call("arr", "indexOf", &[array.clone(), RtValue::Int(2)]).expect("arr.indexOf"),
+        RtValue::Int(0)
+    );
+    assert_eq!(
+        builtins::call("arr", "indexOf", &[array.clone(), RtValue::Int(9)])
+            .expect("arr.indexOf missing"),
+        RtValue::Int(-1)
+    );
+    assert_eq!(
+        builtins::call("arr", "count", &[array, RtValue::Int(2)]).expect("arr.count"),
+        RtValue::Int(2)
+    );
 }
 
 fn expect_ok_handle(

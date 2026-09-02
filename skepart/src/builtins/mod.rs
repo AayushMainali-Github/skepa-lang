@@ -174,6 +174,15 @@ pub fn call_with_context(
         ),
         ("arr", "len", [array]) => Ok(RtValue::Int(arr::len(&array.expect_array()?))),
         ("arr", "isEmpty", [array]) => Ok(RtValue::Bool(arr::is_empty(&array.expect_array()?))),
+        ("arr", "contains", [array, needle]) => {
+            Ok(RtValue::Bool(arr::contains(&array.expect_array()?, needle)))
+        }
+        ("arr", "indexOf", [array, needle]) => {
+            Ok(RtValue::Int(arr::index_of(&array.expect_array()?, needle)))
+        }
+        ("arr", "count", [array, needle]) => {
+            Ok(RtValue::Int(arr::count(&array.expect_array()?, needle)))
+        }
         ("arr", "first", [array]) => Ok(arr::first(&array.expect_array()?)),
         ("arr", "last", [array]) => Ok(arr::last(&array.expect_array()?)),
         ("arr", "join", [array, sep]) => Ok(RtValue::String(arr::join(
