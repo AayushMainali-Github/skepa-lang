@@ -18,6 +18,7 @@ Free helpers:
 
 - `skp_rt_value_free`
 - `skp_rt_string_free`
+- `skp_rt_bytes_free`
 - `skp_rt_array_free`
 - `skp_rt_vec_free`
 - `skp_rt_map_free`

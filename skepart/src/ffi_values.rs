@@ -4,8 +4,9 @@ use std::slice;
 use crate::array::RtArray;
 use crate::bytes::RtBytes;
 use crate::ffi_support::{
-    boxed_array, boxed_map, boxed_option, boxed_result, boxed_string, boxed_struct, boxed_value,
-    boxed_vec, clear_last_error, clone_value, ffi_try, invalid_argument, set_last_error,
+    boxed_array, boxed_bytes, boxed_map, boxed_option, boxed_result, boxed_string, boxed_struct,
+    boxed_value, boxed_vec, clear_last_error, clone_value, ffi_try, invalid_argument,
+    set_last_error,
 };
 use crate::map::RtMap;
 use crate::option::RtOption;
@@ -423,12 +424,7 @@ pub unsafe extern "C" fn skp_rt_value_to_string(value: *mut RtValue) -> *mut RtS
 
 #[no_mangle]
 pub unsafe extern "C" fn skp_rt_value_to_bytes(value: *mut RtValue) -> *mut RtBytes {
-    match ffi_try(|| {
-        clone_value(value)?
-            .expect_bytes()
-            .map(Box::new)
-            .map(Box::into_raw)
-    }) {
+    match ffi_try(|| clone_value(value)?.expect_bytes().map(boxed_bytes)) {
         Ok(value) => value,
         Err(err) => {
             set_last_error(err);

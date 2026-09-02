@@ -1,6 +1,6 @@
 use std::ffi::c_void;
 
-use skepart::{RtFunctionRef, RtHandle, RtHandleKind, RtValue};
+use skepart::{RtBytes, RtFunctionRef, RtHandle, RtHandleKind, RtValue};
 
 unsafe extern "C" {
     fn skp_rt_string_from_utf8(data: *const u8, len: i64) -> *mut c_void;
@@ -9,7 +9,9 @@ unsafe extern "C" {
     fn skp_rt_value_from_int(value: i64) -> *mut c_void;
     fn skp_rt_value_from_unit() -> *mut c_void;
     fn skp_rt_value_from_string(value: *mut c_void) -> *mut c_void;
+    fn skp_rt_value_from_bytes(value: *mut c_void) -> *mut c_void;
     fn skp_rt_value_to_int(value: *mut c_void) -> i64;
+    fn skp_rt_value_to_bytes(value: *mut c_void) -> *mut c_void;
     fn skp_rt_value_from_function(value: *mut c_void) -> *mut c_void;
     fn skp_rt_value_to_function(value: *mut c_void) -> *mut c_void;
     fn skp_rt_value_from_handle(value: *mut c_void) -> *mut c_void;
@@ -37,6 +39,7 @@ unsafe extern "C" {
     fn skp_rt_last_error_kind() -> i32;
     fn skp_rt_value_free(ptr: *mut c_void);
     fn skp_rt_string_free(ptr: *mut c_void);
+    fn skp_rt_bytes_free(ptr: *mut c_void);
     fn skp_rt_array_free(ptr: *mut c_void);
     fn skp_rt_vec_free(ptr: *mut c_void);
     fn skp_rt_struct_free(ptr: *mut c_void);
@@ -225,6 +228,25 @@ fn ffi_exports_free_helpers_for_boxed_runtime_values() {
         skp_rt_array_free(array);
         skp_rt_vec_free(vec);
         skp_rt_struct_free(strukt);
+        skp_rt_value_free(value);
+    }
+}
+
+#[test]
+fn ffi_exports_bytes_free_helper_for_owned_conversion() {
+    let source = Box::into_raw(Box::new(RtBytes::from(vec![1_u8, 2, 3]))) as *mut c_void;
+    let value = unsafe { skp_rt_value_from_bytes(source) };
+    unsafe { skp_rt_bytes_free(source) };
+
+    let converted = unsafe { skp_rt_value_to_bytes(value) };
+    assert_eq!(
+        unsafe { (*(converted as *mut RtBytes)).as_slice() },
+        &[1, 2, 3]
+    );
+
+    unsafe {
+        skp_rt_bytes_free(converted);
+        skp_rt_bytes_free(std::ptr::null_mut());
         skp_rt_value_free(value);
     }
 }
