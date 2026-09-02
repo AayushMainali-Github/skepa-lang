@@ -11,7 +11,13 @@ use super::context::{FunctionSig, IrLowerer};
 
 pub fn compile_project_entry(entry: &Path) -> Result<IrProgram, Vec<ResolveError>> {
     let mut ir = compile_project_entry_unoptimized(entry)?;
-    opt::optimize_program(&mut ir);
+    opt::optimize_program_checked(&mut ir).map_err(|err| {
+        vec![ResolveError::new(
+            ResolveErrorKind::Codegen,
+            format!("IR verification failed after optimization: {err:?}"),
+            Some(entry.to_path_buf()),
+        )]
+    })?;
     Ok(ir)
 }
 
@@ -28,7 +34,8 @@ pub fn compile_project_entry_unoptimized(entry: &Path) -> Result<IrProgram, Vec<
 
 pub fn compile_project_graph(graph: &ModuleGraph, entry: &Path) -> Result<IrProgram, String> {
     let mut ir = compile_project_graph_unoptimized(graph, entry)?;
-    opt::optimize_program(&mut ir);
+    opt::optimize_program_checked(&mut ir)
+        .map_err(|err| format!("IR verification failed after optimization: {err:?}"))?;
     Ok(ir)
 }
 
@@ -37,7 +44,8 @@ pub fn compile_project_graph_after_frontend(
     entry: &Path,
 ) -> Result<IrProgram, String> {
     let mut ir = compile_project_graph_after_frontend_unoptimized(graph, entry)?;
-    opt::optimize_program(&mut ir);
+    opt::optimize_program_checked(&mut ir)
+        .map_err(|err| format!("IR verification failed after optimization: {err:?}"))?;
     Ok(ir)
 }
 
