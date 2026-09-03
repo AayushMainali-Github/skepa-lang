@@ -24,7 +24,14 @@ pub use project::{
 
 pub fn compile_source(source: &str) -> Result<IrProgram, DiagnosticBag> {
     let mut ir = compile_source_unoptimized(source)?;
-    opt::optimize_program(&mut ir);
+    if let Err(err) = opt::optimize_program_checked(&mut ir) {
+        let mut diags = DiagnosticBag::new();
+        diags.error(
+            format!("IR verification failed after optimization: {err:?}"),
+            Span::default(),
+        );
+        return Err(diags);
+    }
     Ok(ir)
 }
 

@@ -9,7 +9,7 @@ mod loop_simplify;
 mod resolve_calls;
 mod strength_reduce;
 
-use crate::ir::IrProgram;
+use crate::ir::{IrProgram, IrVerifier, IrVerifyError};
 
 #[derive(Debug, Clone, Copy)]
 struct OptimizeOptions {
@@ -20,6 +20,12 @@ pub fn optimize_program(program: &mut IrProgram) {
     optimize_program_with(program, OptimizeOptions { inline: true });
 }
 
+/// Runs the normal optimization pipeline and verifies the resulting IR.
+pub fn optimize_program_checked(program: &mut IrProgram) -> Result<(), IrVerifyError> {
+    optimize_program(program);
+    IrVerifier::verify_program(program)
+}
+
 /// Optimize IR while keeping call boundaries intact.
 ///
 /// Partitioned multi-module native builds cache objects per module. Cross-module
@@ -27,6 +33,14 @@ pub fn optimize_program(program: &mut IrProgram) {
 /// so incremental rebuilds would invalidate unrelated modules.
 pub fn optimize_program_for_partitions(program: &mut IrProgram) {
     optimize_program_with(program, OptimizeOptions { inline: false });
+}
+
+/// Runs the partition-safe optimization pipeline and verifies the resulting IR.
+pub fn optimize_program_for_partitions_checked(
+    program: &mut IrProgram,
+) -> Result<(), IrVerifyError> {
+    optimize_program_for_partitions(program);
+    IrVerifier::verify_program(program)
 }
 
 fn optimize_program_with(program: &mut IrProgram, options: OptimizeOptions) {

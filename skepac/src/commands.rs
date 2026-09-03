@@ -229,7 +229,10 @@ fn build_native_multi_module(
     };
     // Apply the shared opt pipeline, but skip inlining so module partitions stay
     // independently cacheable (cross-module inlining couples fingerprints).
-    ir::opt::optimize_program_for_partitions(&mut program);
+    if let Err(err) = ir::opt::optimize_program_for_partitions_checked(&mut program) {
+        eprintln!("[E-CODEGEN][codegen] IR verification failed after optimization: {err:?}");
+        return Ok(EXIT_CODEGEN as i32);
+    }
     timings.record("ir_lowering", lower_start.elapsed());
 
     let partition_start = Instant::now();
