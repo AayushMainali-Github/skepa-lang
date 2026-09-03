@@ -801,6 +801,25 @@ impl IrLowerer {
         args: &[Operand],
     ) -> Option<IrType> {
         match (package, name) {
+            ("arr", "len") | ("arr", "isEmpty") | ("arr", "contains") => {
+                return Some(if name == "isEmpty" || name == "contains" {
+                    IrType::Bool
+                } else {
+                    IrType::Int
+                });
+            }
+            ("arr", "indexOf") | ("arr", "count") => {
+                return Some(IrType::Int);
+            }
+            ("arr", "join") => {
+                return Some(IrType::String);
+            }
+            ("arr", "first") | ("arr", "last") => {
+                let array = args.first()?;
+                return Some(IrType::Option {
+                    value: Box::new(self.array_element_type(func, array)),
+                });
+            }
             ("option", "some") => {
                 let value = args.first()?;
                 return Some(IrType::Option {
@@ -1044,12 +1063,6 @@ impl IrLowerer {
             ("vec", "get") => {
                 let vec = args.first()?;
                 if let IrType::Vec { elem } = self.infer_operand_type(func, vec) {
-                    return Some(IrType::Option { value: elem });
-                }
-            }
-            ("arr", "first") | ("arr", "last") => {
-                let array = args.first()?;
-                if let IrType::Array { elem, .. } = self.infer_operand_type(func, array) {
                     return Some(IrType::Option { value: elem });
                 }
             }

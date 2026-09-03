@@ -8,6 +8,22 @@ pub fn is_empty(array: &RtArray) -> bool {
     array.is_empty()
 }
 
+pub fn contains(array: &RtArray, needle: &RtValue) -> bool {
+    array.iter().any(|item| &item == needle)
+}
+
+pub fn index_of(array: &RtArray, needle: &RtValue) -> i64 {
+    array
+        .iter()
+        .position(|item| &item == needle)
+        .map(|index| index as i64)
+        .unwrap_or(-1)
+}
+
+pub fn count(array: &RtArray, needle: &RtValue) -> i64 {
+    array.iter().filter(|item| item == needle).count() as i64
+}
+
 pub fn first(array: &RtArray) -> RtValue {
     match array.get(0) {
         Ok(value) => RtValue::Option(RtOption::some(value)),

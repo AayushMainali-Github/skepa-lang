@@ -651,6 +651,38 @@ fn main() -> Int {{
 }
 
 #[test]
+fn run_executes_array_search_helpers_natively() {
+    let tmp = make_temp_dir("skepac_run_array_search_helpers");
+    let source = tmp.join("main.sk");
+    fs::write(
+        &source,
+        r#"
+import arr;
+
+fn main() -> Int {
+  let values: [Int; 3] = [2, 4, 2];
+  if (arr.contains(values, 4)
+      && arr.indexOf(values, 2) == 0
+      && arr.indexOf(values, 9) == -1
+      && arr.count(values, 2) == 2) {
+    return 0;
+  }
+  return 1;
+}
+"#,
+    )
+    .expect("write source");
+
+    let output = Command::new(skepac_bin())
+        .arg("run")
+        .arg(&source)
+        .output()
+        .expect("run skepac run");
+
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+}
+
+#[test]
 fn run_executes_map_program_end_to_end() {
     let tmp = make_temp_dir("skepac_run_map");
     let source = tmp.join("main.sk");
