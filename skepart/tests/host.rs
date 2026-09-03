@@ -1368,6 +1368,17 @@ fn noop_host_parses_urls_into_string_maps() {
         skepart::RtValue::String(RtString::from("frag"))
     );
 
+    let ipv6 = host
+        .net_parse_url("https://[::1]:443/api")
+        .expect("parse IPv6 URL");
+    assert_eq!(
+        ipv6.get("host").expect("IPv6 host"),
+        skepart::RtValue::String(RtString::from("::1"))
+    );
+    assert_eq!(
+        ipv6.get("port").expect("IPv6 port"),
+        skepart::RtValue::String(RtString::from("443"))
+    );
     let with_userinfo = host
         .net_parse_url("http://user:pass@example.com:8080/private")
         .expect("parse url with userinfo");
