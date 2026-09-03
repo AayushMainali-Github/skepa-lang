@@ -97,6 +97,25 @@ fn main() -> Int {
 }
 
 #[test]
+fn match_recovery_preserves_following_function_statements() {
+    let src = r#"
+fn main() -> Int {
+  match (1) {
+    1 { return 1; }
+    _ => { return 0; }
+  }
+  return 2;
+}
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert_has_diag(&diags, "Expected `=>` after match pattern");
+    assert!(matches!(
+        program.functions[0].body.last(),
+        Some(Stmt::Return(Some(Expr::IntLit(2))))
+    ));
+}
+
+#[test]
 fn reports_empty_match_body() {
     let src = r#"
 fn main() -> Int {

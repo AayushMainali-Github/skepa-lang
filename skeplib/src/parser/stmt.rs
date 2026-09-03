@@ -49,9 +49,21 @@ impl Parser {
                 return None;
             }
             while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
-                let pattern = self.parse_match_pattern()?;
-                self.expect(TokenKind::FatArrow, "Expected `=>` after match pattern")?;
-                let body = self.parse_block("Expected `{` before match arm body")?;
+                let Some(pattern) = self.parse_match_pattern() else {
+                    self.synchronize_match_arm();
+                    continue;
+                };
+                if self
+                    .expect(TokenKind::FatArrow, "Expected `=>` after match pattern")
+                    .is_none()
+                {
+                    self.synchronize_match_arm();
+                    continue;
+                }
+                let Some(body) = self.parse_block("Expected `{` before match arm body") else {
+                    self.synchronize_match_arm();
+                    continue;
+                };
                 arms.push(MatchArm { pattern, body });
             }
             self.expect(TokenKind::RBrace, "Expected `}` after match statement")?;
@@ -278,6 +290,37 @@ impl Parser {
                 Expr::Ident(n) => Some(AssignTarget::Ident(n)),
                 Expr::Field { base, field } => Some(AssignTarget::Field { base, field }),
                 _ => None,
+            }
+        }
+    }
+
+    fn synchronize_match_arm(&mut self) {
+        let mut brace_depth = 0usize;
+        while !self.at(TokenKind::Eof) {
+            match self.current().kind {
+                TokenKind::LBrace => {
+                    brace_depth += 1;
+                    self.bump();
+                }
+                TokenKind::RBrace if brace_depth > 0 => {
+                    brace_depth -= 1;
+                    self.bump();
+                    if brace_depth == 0 {
+                        return;
+                    }
+                }
+                TokenKind::RBrace => return,
+                // Always consume a token at the top level.  Some pattern
+                // parsers report an error without advancing (for example,
+                // an empty variant payload), so returning here would make
+                // the enclosing arm loop retry the same token forever.
+                _ if brace_depth == 0 => {
+                    self.bump();
+                    return;
+                }
+                _ => {
+                    self.bump();
+                }
             }
         }
     }
