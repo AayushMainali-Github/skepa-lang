@@ -8,6 +8,7 @@ fn main() -> Int {
   let b = [0; 8];
   return 0;
 }
+
 "#;
     let (program, diags) = Parser::parse_source(src);
     assert_no_diags(&diags);
@@ -23,6 +24,37 @@ fn main() -> Int {
         }
         _ => panic!("expected let"),
     }
+}
+
+#[test]
+fn decodes_unicode_code_point_escapes_in_string_literals() {
+    let src = r#"
+fn main() -> String {
+  return "A\u{1F600}\u{e9}";
+}
+"#;
+    let (program, diags) = Parser::parse_source(src);
+    assert_no_diags(&diags);
+    match &program.functions[0].body[0] {
+        Stmt::Return(Some(Expr::StringLit(value))) => assert_eq!(value, "A😀é"),
+        _ => panic!("expected decoded string return"),
+    }
+}
+
+#[test]
+fn rejects_invalid_unicode_code_point_escapes() {
+    let src = r#"
+fn main() -> String {
+  return "bad \u{110000}";
+}
+"#;
+    let (_program, diags) = Parser::parse_source(src);
+    assert!(
+        diags
+            .as_slice()
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("Invalid Unicode escape"))
+    );
 }
 
 #[test]

@@ -39,6 +39,7 @@ Comments:
 
 String escapes:
 - `\n`, `\t`, `\r`, `\"`, `\\`
+- Unicode code points: `\u{...}` with 1–6 hexadecimal digits (for example, `\u{1F600}`)
 
 Operators and delimiters (selected):
 - arithmetic: `+`, `-`, `*`, `/`, `%`
