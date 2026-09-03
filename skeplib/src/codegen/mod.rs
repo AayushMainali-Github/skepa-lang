@@ -647,18 +647,14 @@ fn find_runtime_link_artifacts_in_dir(
         }
     }
 
-    if cfg!(windows) {
-        sort_runtime_candidates(&mut shared_import_candidates);
-        sort_runtime_candidates(&mut shared_sidecar_candidates);
-        if let (Some(link_lib), Some(sidecar_lib)) = (
-            shared_import_candidates.into_iter().next(),
-            shared_sidecar_candidates.into_iter().next(),
-        ) {
-            return Ok(Some(RuntimeLinkArtifacts {
-                link_lib,
-                sidecar_lib: Some(sidecar_lib),
-            }));
-        }
+    if cfg!(windows)
+        && let Some((link_lib, sidecar_lib)) =
+            select_windows_runtime_pair(&shared_import_candidates, &shared_sidecar_candidates)
+    {
+        return Ok(Some(RuntimeLinkArtifacts {
+            link_lib,
+            sidecar_lib: Some(sidecar_lib),
+        }));
     }
 
     sort_runtime_candidates(&mut static_candidates);
@@ -670,6 +666,58 @@ fn find_runtime_link_artifacts_in_dir(
     } else {
         Ok(None)
     }
+}
+
+fn select_windows_runtime_pair(
+    import_candidates: &[PathBuf],
+    sidecar_candidates: &[PathBuf],
+) -> Option<(PathBuf, PathBuf)> {
+    let mut imports = import_candidates.to_vec();
+    sort_runtime_candidates(&mut imports);
+    let mut sidecars = sidecar_candidates.to_vec();
+    sort_runtime_candidates(&mut sidecars);
+
+    // Prefer the canonical unhashed pair. Hashed Cargo artifacts are accepted
+    // only when both files carry the same hash stem; pairing by independent
+    // modification times can mix artifacts from different builds.
+    let mut keys = Vec::new();
+    for path in &imports {
+        if let Some(key) = windows_runtime_key(path)
+            && !keys.contains(&key)
+        {
+            keys.push(key);
+        }
+    }
+    keys.sort_by_key(|key| (!key.is_empty(), key.clone()));
+    for key in keys {
+        let Some(import) = imports
+            .iter()
+            .find(|path| windows_runtime_key(path).as_deref() == Some(key.as_str()))
+        else {
+            continue;
+        };
+        let Some(sidecar) = sidecars
+            .iter()
+            .find(|path| windows_runtime_key(path).as_deref() == Some(key.as_str()))
+        else {
+            continue;
+        };
+        return Some((import.clone(), sidecar.clone()));
+    }
+    None
+}
+
+fn windows_runtime_key(path: &Path) -> Option<String> {
+    let name = path.file_name()?.to_str()?;
+    let stem = if let Some(value) = name.strip_prefix("libskepart") {
+        value.strip_suffix(".dll.a")?
+    } else {
+        let value = name.strip_prefix("skepart")?;
+        value
+            .strip_suffix(".dll.lib")
+            .or_else(|| value.strip_suffix(".dll"))?
+    };
+    Some(stem.to_string())
 }
 
 fn is_static_runtime_archive(name: &str) -> bool {
@@ -730,12 +778,18 @@ fn sync_runtime_sidecars(path: &Path, runtime: &RuntimeLinkArtifacts) -> Result<
     let Some(sidecar) = &runtime.sidecar_lib else {
         return Ok(());
     };
-    let sidecar_name = sidecar
-        .file_name()
-        .ok_or_else(|| CodegenError::Tool("runtime sidecar missing file name".into()))?;
     let parent = path.parent().unwrap_or_else(|| Path::new("."));
     fs::create_dir_all(parent).map_err(|err| CodegenError::Io(err.to_string()))?;
-    let destination = parent.join(sidecar_name);
+    let destination_name = if cfg!(windows) {
+        PathBuf::from("skepart.dll")
+    } else {
+        PathBuf::from(
+            sidecar
+                .file_name()
+                .ok_or_else(|| CodegenError::Tool("runtime sidecar missing file name".into()))?,
+        )
+    };
+    let destination = parent.join(destination_name);
     if destination == *sidecar {
         return Ok(());
     }
@@ -774,7 +828,8 @@ mod tests {
         compile_program_to_bitcode_file_with_tool, compile_program_to_llvm_ir,
         compile_program_to_object_file_with_tools, format_timing_line, link_args_for_executable,
         link_command_for_executable, link_object_file_to_executable_with_tool, run_tool,
-        runtime_link_artifacts_from_search_dirs, sync_runtime_sidecars,
+        runtime_link_artifacts_from_search_dirs, select_windows_runtime_pair,
+        sync_runtime_sidecars,
     };
     use crate::codegen::llvm::LlvmEmitSection;
     use crate::ir;
@@ -1034,6 +1089,37 @@ fn main() -> Int {
         assert_eq!(fs::read(&destination).expect("destination"), b"fresh");
 
         let _ = fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn windows_runtime_selection_pairs_unhashed_or_matching_hashed_artifacts() {
+        let root = temp_codegen_test_path("windows_runtime_pair", "dir");
+        fs::create_dir_all(&root).expect("temp dir");
+        let hashed_import = root.join("libskepart-deadbeef.dll.a");
+        let hashed_sidecar = root.join("skepart-deadbeef.dll");
+        let plain_import = root.join("libskepart.dll.a");
+        let plain_sidecar = root.join("skepart.dll");
+        for path in [
+            &hashed_import,
+            &hashed_sidecar,
+            &plain_import,
+            &plain_sidecar,
+        ] {
+            fs::write(path, []).expect("runtime candidate");
+        }
+
+        let selected = select_windows_runtime_pair(
+            &[hashed_import.clone(), plain_import.clone()],
+            &[hashed_sidecar.clone(), plain_sidecar.clone()],
+        )
+        .expect("matching runtime pair");
+        assert_eq!(selected, (plain_import, plain_sidecar));
+
+        let selected =
+            select_windows_runtime_pair(&[hashed_import], std::slice::from_ref(&hashed_sidecar))
+                .expect("matching hashed runtime pair");
+        assert_eq!(selected.1, hashed_sidecar);
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]
