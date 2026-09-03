@@ -55,7 +55,7 @@ Release automation:
 ## Reproducibility Expectations
 
 Current baseline:
-- the repo is locked by `Cargo.lock`
+- dependency versions are resolved from the Cargo manifests at build time; `Cargo.lock` is intentionally not committed
 - release packaging uses the repo-root workflow definitions
 - install scripts point at the workspace `skepac` crate directly
 

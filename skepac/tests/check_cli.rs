@@ -2173,6 +2173,52 @@ fn main() -> Int {
 }
 
 #[test]
+fn build_obj_cache_is_not_changed_by_in_place_output_edits() {
+    let tmp = make_temp_dir("skepac_build_obj_cache_isolated");
+    let source = tmp.join("main.sk");
+    let first_out = tmp.join(format!("first.{}", obj_ext()));
+    let second_out = tmp.join(format!("second.{}", obj_ext()));
+    fs::write(
+        &source,
+        r#"
+fn main() -> Int {
+  return 7;
+}
+"#,
+    )
+    .expect("write source");
+
+    let first = Command::new(skepac_bin())
+        .arg("build-obj")
+        .arg(&source)
+        .arg(&first_out)
+        .output()
+        .expect("run first build-obj");
+    assert!(first.status.success(), "{first:?}");
+    let expected = fs::read(&first_out).expect("read first object");
+
+    fs::write(&first_out, b"corrupted in place").expect("mutate first output");
+
+    let second = Command::new(skepac_bin())
+        .arg("build-obj")
+        .arg(&source)
+        .arg(&second_out)
+        .output()
+        .expect("run cached build-obj");
+    assert!(second.status.success(), "{second:?}");
+    assert!(
+        String::from_utf8_lossy(&second.stdout).contains("built object (cached):"),
+        "stdout was: {}",
+        String::from_utf8_lossy(&second.stdout)
+    );
+    assert_eq!(
+        fs::read(&second_out).expect("read restored object"),
+        expected,
+        "editing a user-facing output must not mutate the cached artifact"
+    );
+}
+
+#[test]
 fn build_native_writes_executable_and_runs() {
     let tmp = make_temp_dir("skepac_build_native");
     let source = tmp.join("main.sk");

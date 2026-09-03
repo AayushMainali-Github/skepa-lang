@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use crate::ast::{OperatorDecl, Program, Stmt, TypeName};
 use crate::diagnostic::{DiagnosticBag, Span};
 use crate::parser::Parser;
-use crate::types::{FunctionSig, TypeInfo, is_builtin_opaque_type};
+use crate::types::{FunctionSig, TypeInfo, is_builtin_opaque_type, task_opaque_inner_type_name};
 
 mod calls;
 mod expr;
@@ -729,7 +729,13 @@ impl Checker {
                 self.check_decl_type_exists(ret, err_prefix);
             }
             TypeName::Named(name) => {
-                if self.resolve_named_type_name(name).is_none() {
+                if let Some(inner) = task_opaque_inner_type_name(name) {
+                    for referenced_name in encoded_type_name_references(inner) {
+                        if self.resolve_named_type_name(referenced_name).is_none() {
+                            self.error(format!("{err_prefix}: `{referenced_name}`"));
+                        }
+                    }
+                } else if self.resolve_named_type_name(name).is_none() {
                     self.error(format!("{err_prefix}: `{name}`"));
                 }
             }
@@ -908,4 +914,47 @@ impl Checker {
         self.diagnostics
             .error(message, self.current_fallback_span());
     }
+}
+
+fn encoded_type_name_references(value: &str) -> Vec<&str> {
+    let mut names = Vec::new();
+    let mut start = None;
+
+    for (index, ch) in value
+        .char_indices()
+        .chain(std::iter::once((value.len(), ' ')))
+    {
+        if ch.is_alphanumeric() || ch == '_' || (ch == '.' && start.is_some()) {
+            if start.is_none() && (ch.is_alphabetic() || ch == '_') {
+                start = Some(index);
+            }
+            continue;
+        }
+
+        if let Some(name_start) = start.take() {
+            let name = &value[name_start..index];
+            if !is_encoded_type_keyword(name) {
+                names.push(name);
+            }
+        }
+    }
+
+    names
+}
+
+fn is_encoded_type_keyword(name: &str) -> bool {
+    matches!(
+        name,
+        "Int"
+            | "Float"
+            | "Bool"
+            | "String"
+            | "Bytes"
+            | "Void"
+            | "Option"
+            | "Result"
+            | "Vec"
+            | "Map"
+            | "Fn"
+    )
 }
