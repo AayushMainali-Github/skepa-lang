@@ -101,6 +101,12 @@ pub fn task_task_value_type(name: &str) -> Option<TypeInfo> {
     parse_display_type(inner)
 }
 
+pub fn task_opaque_inner_type_name(name: &str) -> Option<&str> {
+    name.strip_prefix("task.Channel[")
+        .or_else(|| name.strip_prefix("task.Task["))?
+        .strip_suffix(']')
+}
+
 pub fn display_type(value: &TypeInfo) -> String {
     match value {
         TypeInfo::Int => "Int".to_string(),
