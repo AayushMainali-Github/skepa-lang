@@ -1600,6 +1600,18 @@ fn parse_url_parts(url: &str) -> RtResult<ParsedUrlParts> {
             "net.parseUrl URL host must not be empty",
         ));
     }
+    let authority = if let Some((userinfo, host_authority)) = authority.rsplit_once('@') {
+        reject_http_control_chars("net.parseUrl", "userinfo", userinfo)?;
+        if host_authority.is_empty() {
+            return Err(RtError::new(
+                RtErrorKind::InvalidArgument,
+                "net.parseUrl URL host must not be empty",
+            ));
+        }
+        host_authority
+    } else {
+        authority
+    };
 
     let (host, port) = if authority.starts_with('[') {
         let end = authority.find(']').ok_or_else(|| {
