@@ -5,6 +5,7 @@ use std::ffi::c_char;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
 use crate::array::RtArray;
+use crate::bytes::RtBytes;
 use crate::map::RtMap;
 use crate::option::RtOption;
 use crate::result::RtResultValue;
@@ -82,6 +83,10 @@ pub fn boxed_string(value: RtString) -> *mut RtString {
     Box::into_raw(Box::new(value))
 }
 
+pub fn boxed_bytes(value: RtBytes) -> *mut RtBytes {
+    Box::into_raw(Box::new(value))
+}
+
 pub fn boxed_array(value: RtArray) -> *mut RtArray {
     Box::into_raw(Box::new(value))
 }
@@ -130,6 +135,12 @@ unsafe fn free_boxed_value(ptr: *mut RtValue) {
 }
 
 unsafe fn free_boxed_string(ptr: *mut RtString) {
+    if !ptr.is_null() {
+        unsafe { drop(Box::from_raw(ptr)) };
+    }
+}
+
+unsafe fn free_boxed_bytes(ptr: *mut RtBytes) {
     if !ptr.is_null() {
         unsafe { drop(Box::from_raw(ptr)) };
     }
@@ -220,6 +231,11 @@ pub unsafe extern "C" fn skp_rt_value_free(ptr: *mut RtValue) {
 #[no_mangle]
 pub unsafe extern "C" fn skp_rt_string_free(ptr: *mut RtString) {
     unsafe { free_boxed_string(ptr) };
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn skp_rt_bytes_free(ptr: *mut RtBytes) {
+    unsafe { free_boxed_bytes(ptr) };
 }
 
 #[no_mangle]
