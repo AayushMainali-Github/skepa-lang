@@ -1379,6 +1379,17 @@ fn noop_host_parses_urls_into_string_maps() {
         ipv6.get("port").expect("IPv6 port"),
         skepart::RtValue::String(RtString::from("443"))
     );
+    let with_userinfo = host
+        .net_parse_url("http://user:pass@example.com:8080/private")
+        .expect("parse url with userinfo");
+    assert_eq!(
+        with_userinfo.get("host").expect("userinfo host"),
+        skepart::RtValue::String(RtString::from("example.com"))
+    );
+    assert_eq!(
+        with_userinfo.get("port").expect("userinfo port"),
+        skepart::RtValue::String(RtString::from("8080"))
+    );
 }
 
 #[test]
@@ -1472,12 +1483,15 @@ fn noop_host_rejects_fetch_method_and_content_type_control_chars() {
 fn noop_host_supports_basic_fetch_over_loopback() {
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind http listener");
     let addr = listener.local_addr().expect("listener addr");
+    let expected_host = format!("Host: {addr}");
     let server = std::thread::spawn(move || {
         let (mut stream, _) = listener.accept().expect("accept http client");
         let mut buf = [0_u8; 512];
         let read = stream.read(&mut buf).expect("read request");
         let request = String::from_utf8_lossy(&buf[..read]);
         assert!(request.contains("POST /fetch HTTP/1.0"));
+        assert!(request.contains(&expected_host));
+        assert!(!request.contains("user:pass"));
         assert!(request.contains("Content-Type: application/json"));
         assert!(request.ends_with("\r\n\r\n{\"ok\":true}"));
         stream
@@ -1499,7 +1513,7 @@ fn noop_host_supports_basic_fetch_over_loopback() {
         skepart::RtValue::String(RtString::from("application/json")),
     );
     let response = host
-        .net_fetch(&format!("http://{addr}/fetch"), &options)
+        .net_fetch(&format!("http://user:pass@{addr}/fetch"), &options)
         .expect("fetch");
     server.join().expect("server thread");
 

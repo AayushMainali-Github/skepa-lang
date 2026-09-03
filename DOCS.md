@@ -1584,6 +1584,7 @@ Notes:
 - `net.resolve` returns the first resolved address only. It is a convenience helper, not a full DNS result-set API.
 - `net.parseUrl` is a convenience parser for common URLs. Missing optional parts are returned as empty strings in the success map, and invalid URLs return `Err(String)`.
 - IPv6 literal hosts are returned without URL brackets (for example, `::1` for `https://[::1]/`).
+- URL userinfo (`user:pass@`) is excluded from the parsed host and is not converted into an `Authorization` header by `net.fetch`.
 - `net.parseUrl` rejects URL components containing control characters, including CR and LF.
 - `net.fetch` is a synchronous convenience helper layered on top of the runtime networking stack, not a full HTTP client framework.
 - `net.fetch` currently supports `http://` and `https://` URLs only.
