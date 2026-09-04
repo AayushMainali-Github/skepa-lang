@@ -103,6 +103,10 @@ impl IrLowerer {
                                         name.clone(),
                                         format!("{}::{}", sym.module_id, sym.local_name),
                                     );
+                                    self.namespace_call_targets.insert(
+                                        format!("{target}.{name}"),
+                                        format!("{}::{}", sym.module_id, sym.local_name),
+                                    );
                                 }
                                 SymbolKind::Struct => {
                                     self.imported_struct_runtime.insert(
@@ -127,6 +131,10 @@ impl IrLowerer {
                             };
                             match sym.kind {
                                 SymbolKind::Fn => {
+                                    self.namespace_call_targets.insert(
+                                        format!("{target}.{}", item.name),
+                                        format!("{}::{}", sym.module_id, sym.local_name),
+                                    );
                                     self.direct_import_calls.insert(
                                         local,
                                         format!("{}::{}", sym.module_id, sym.local_name),
