@@ -131,6 +131,32 @@ fn main() -> Int {
 }
 
 #[test]
+fn native_container_results_free_owned_boxed_values() {
+    let source = r#"
+import option;
+import vec;
+
+fn main() -> Int {
+  let xs: Vec[Int] = vec.new();
+  vec.push(xs, 7);
+  let first = option.unwrapSome(vec.get(xs, 0));
+  let removed = vec.delete(xs, 0);
+  return first + removed;
+}
+"#;
+
+    let program =
+        ir::lowering::compile_source_unoptimized(source).expect("IR lowering should succeed");
+    let llvm_ir =
+        codegen::compile_program_to_llvm_ir(&program).expect("LLVM lowering should succeed");
+
+    assert!(llvm_ir.contains("call ptr @skp_rt_vec_get_option"));
+    assert!(llvm_ir.contains("call ptr @skp_rt_vec_delete"));
+    assert!(llvm_ir.matches("call void @skp_rt_value_free").count() >= 2);
+    assert_eq!(common::native_run_exit_code_ok(source), 14);
+}
+
+#[test]
 fn llvm_codegen_lowers_str_slice_via_generic_result_dispatch() {
     let source = r#"
 import result;

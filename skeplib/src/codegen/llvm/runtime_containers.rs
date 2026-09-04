@@ -1,6 +1,7 @@
 use crate::codegen::CodegenError;
 use crate::codegen::llvm::runtime_boxing::{
-    emit_abort_if_error, emit_boxed_operand, emit_unbox_value, infer_operand_type,
+    emit_abort_if_error, emit_boxed_operand, emit_free_boxed_value, emit_unbox_value,
+    infer_operand_type,
 };
 use crate::codegen::llvm::value::{ValueNames, operand_load};
 use crate::ir::{
@@ -143,6 +144,7 @@ pub fn emit_array_get(
                     "  {fallback} = call i64 @skp_rt_value_to_int(ptr {raw})"
                 ));
                 emit_abort_if_error(lines);
+                emit_free_boxed_value(&raw, lines);
                 lines.push(format!("  br label %{join}"));
                 lines.push(format!("{join}:"));
                 let phi = incoming
@@ -229,6 +231,7 @@ pub fn emit_array_get(
                     "  {fallback} = call ptr @skp_rt_value_to_string(ptr {raw})"
                 ));
                 emit_abort_if_error(lines);
+                emit_free_boxed_value(&raw, lines);
                 lines.push(format!("  br label %{join}"));
                 lines.push(format!("{join}:"));
                 let phi = incoming
@@ -314,6 +317,7 @@ pub fn emit_array_get(
                     "  {fallback} = call double @skp_rt_value_to_float(ptr {raw})"
                 ));
                 emit_abort_if_error(lines);
+                emit_free_boxed_value(&raw, lines);
                 lines.push(format!("  br label %{join}"));
                 lines.push(format!("{join}:"));
                 lines.push(format!(
@@ -351,7 +355,9 @@ pub fn emit_array_get(
             "  {raw} = call ptr @skp_rt_vec_get(ptr {vec}, i64 {index})"
         ));
         emit_abort_if_error(lines);
-        return emit_unbox_value(names, dst, elem_ty, &raw, lines);
+        emit_unbox_value(names, dst, elem_ty, &raw, lines)?;
+        emit_free_boxed_value(&raw, lines);
+        return Ok(());
     }
 
     let array = operand_load(
@@ -381,7 +387,9 @@ pub fn emit_array_get(
         "  {raw} = call ptr @skp_rt_array_get(ptr {array}, i64 {index})"
     ));
     emit_abort_if_error(lines);
-    emit_unbox_value(names, dst, elem_ty, &raw, lines)
+    emit_unbox_value(names, dst, elem_ty, &raw, lines)?;
+    emit_free_boxed_value(&raw, lines);
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -710,7 +718,9 @@ pub fn emit_vec_get(
         },
         &raw,
         lines,
-    )
+    )?;
+    emit_free_boxed_value(&raw, lines);
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -791,7 +801,9 @@ pub fn emit_vec_delete(
         "  {raw} = call ptr @skp_rt_vec_delete(ptr {vec}, i64 {index})"
     ));
     emit_abort_if_error(lines);
-    emit_unbox_value(names, dst, elem_ty, &raw, lines)
+    emit_unbox_value(names, dst, elem_ty, &raw, lines)?;
+    emit_free_boxed_value(&raw, lines);
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -879,7 +891,9 @@ pub fn emit_struct_get(
         field.index
     ));
     emit_abort_if_error(lines);
-    emit_unbox_value(names, dst, ty, &raw, lines)
+    emit_unbox_value(names, dst, ty, &raw, lines)?;
+    emit_free_boxed_value(&raw, lines);
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
