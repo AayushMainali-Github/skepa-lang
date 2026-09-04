@@ -297,6 +297,9 @@ impl Parser {
     fn synchronize_match_arm(&mut self) {
         let mut brace_depth = 0usize;
         while !self.at(TokenKind::Eof) {
+            if brace_depth == 0 && self.looks_like_match_arm_start() {
+                return;
+            }
             match self.current().kind {
                 TokenKind::LBrace => {
                     brace_depth += 1;
@@ -322,6 +325,65 @@ impl Parser {
                     self.bump();
                 }
             }
+        }
+    }
+
+    fn looks_like_match_arm_start(&self) -> bool {
+        let mut index = self.idx;
+        loop {
+            let Some(token) = self.tokens.get(index) else {
+                return false;
+            };
+            match token.kind {
+                TokenKind::Ident
+                    if token.lexeme == "_"
+                        || matches!(token.lexeme.as_str(), "Some" | "None" | "Ok" | "Err") =>
+                {
+                    index += 1;
+                    if matches!(token.lexeme.as_str(), "Some" | "Ok" | "Err")
+                        && self
+                            .tokens
+                            .get(index)
+                            .is_some_and(|next| next.kind == TokenKind::LParen)
+                    {
+                        index += 1;
+                        if !self
+                            .tokens
+                            .get(index)
+                            .is_some_and(|next| next.kind == TokenKind::Ident)
+                        {
+                            return false;
+                        }
+                        index += 1;
+                        if !self
+                            .tokens
+                            .get(index)
+                            .is_some_and(|next| next.kind == TokenKind::RParen)
+                        {
+                            return false;
+                        }
+                        index += 1;
+                    }
+                }
+                TokenKind::IntLit
+                | TokenKind::FloatLit
+                | TokenKind::KwTrue
+                | TokenKind::KwFalse
+                | TokenKind::StringLit => index += 1,
+                _ => return false,
+            }
+            if self
+                .tokens
+                .get(index)
+                .is_some_and(|next| next.kind == TokenKind::Pipe)
+            {
+                index += 1;
+                continue;
+            }
+            return self
+                .tokens
+                .get(index)
+                .is_some_and(|next| next.kind == TokenKind::FatArrow);
         }
     }
 
