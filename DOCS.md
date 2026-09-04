@@ -1591,6 +1591,7 @@ Notes:
 - URL userinfo (`user:pass@`) is excluded from the parsed host and is not converted into an `Authorization` header by `net.fetch`.
 - `net.parseUrl` rejects URL components containing control characters, including CR and LF.
 - `net.fetch` is a synchronous convenience helper layered on top of the runtime networking stack, not a full HTTP client framework.
+- `net.fetch` is not an SSRF-safe boundary: it connects to the URL's resolved address, including loopback, private, link-local, and metadata-network addresses. Callers must treat URL input as trusted or enforce their own allowlist before calling it.
 - `net.fetch` currently supports `http://` and `https://` URLs only.
 - `net.fetch` reads these option keys when present:
   - `method`
