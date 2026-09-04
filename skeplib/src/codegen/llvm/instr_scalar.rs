@@ -130,7 +130,38 @@ pub fn emit_scalar_instr(
                 lines.push("  call void @skp_rt_raise_division_by_zero()".into());
                 lines.push("  unreachable".into());
                 lines.push(format!("{cont_label}:"));
-                lines.push(format!("  {dest} = {opname} i64 {left}, {right}"));
+                let min_check = format!("%v{counter}");
+                *counter += 1;
+                let neg_one_check = format!("%v{counter}");
+                *counter += 1;
+                let overflow_check = format!("%v{counter}");
+                *counter += 1;
+                let safe_right = format!("%v{counter}");
+                *counter += 1;
+                let raw_result = format!("%v{counter}");
+                *counter += 1;
+                let wrapped_result = if matches!(op, BinaryOp::Div) {
+                    i64::MIN
+                } else {
+                    0
+                };
+                lines.push(format!(
+                    "  {min_check} = icmp eq i64 {left}, {min}",
+                    min = i64::MIN
+                ));
+                lines.push(format!("  {neg_one_check} = icmp eq i64 {right}, -1"));
+                lines.push(format!(
+                    "  {overflow_check} = and i1 {min_check}, {neg_one_check}"
+                ));
+                lines.push(format!(
+                    "  {safe_right} = select i1 {overflow_check}, i64 1, i64 {right}"
+                ));
+                lines.push(format!(
+                    "  {raw_result} = {opname} i64 {left}, {safe_right}"
+                ));
+                lines.push(format!(
+                    "  {dest} = select i1 {overflow_check}, i64 {wrapped_result}, i64 {raw_result}"
+                ));
                 return Ok(true);
             }
             if matches!(ty, crate::ir::IrType::Int) && matches!(op, BinaryOp::Shl | BinaryOp::Shr) {

@@ -27,7 +27,7 @@ impl<'a> IrInterpreter<'a> {
             } => {
                 let value = frame.read_operand(operand, &self.globals)?;
                 let out = match (op, value) {
-                    (UnaryOp::Neg, RtValue::Int(v)) => RtValue::Int(-v),
+                    (UnaryOp::Neg, RtValue::Int(v)) => RtValue::Int(v.wrapping_neg()),
                     (UnaryOp::Neg, RtValue::Float(v)) => RtValue::Float(-v),
                     (UnaryOp::Not, RtValue::Bool(v)) => RtValue::Bool(!v),
                     (UnaryOp::BitNot, RtValue::Int(v)) => RtValue::Int(!v),
@@ -517,15 +517,25 @@ impl<'a> IrInterpreter<'a> {
         right: RtValue,
     ) -> Result<RtValue, IrInterpError> {
         match (op, left, right) {
-            (BinaryOp::Add, RtValue::Int(a), RtValue::Int(b)) => Ok(RtValue::Int(a + b)),
-            (BinaryOp::Sub, RtValue::Int(a), RtValue::Int(b)) => Ok(RtValue::Int(a - b)),
-            (BinaryOp::Mul, RtValue::Int(a), RtValue::Int(b)) => Ok(RtValue::Int(a * b)),
+            (BinaryOp::Add, RtValue::Int(a), RtValue::Int(b)) => {
+                Ok(RtValue::Int(a.wrapping_add(b)))
+            }
+            (BinaryOp::Sub, RtValue::Int(a), RtValue::Int(b)) => {
+                Ok(RtValue::Int(a.wrapping_sub(b)))
+            }
+            (BinaryOp::Mul, RtValue::Int(a), RtValue::Int(b)) => {
+                Ok(RtValue::Int(a.wrapping_mul(b)))
+            }
             (BinaryOp::Div, RtValue::Int(_), RtValue::Int(0))
             | (BinaryOp::Mod, RtValue::Int(_), RtValue::Int(0)) => {
                 Err(IrInterpError::DivisionByZero)
             }
-            (BinaryOp::Div, RtValue::Int(a), RtValue::Int(b)) => Ok(RtValue::Int(a / b)),
-            (BinaryOp::Mod, RtValue::Int(a), RtValue::Int(b)) => Ok(RtValue::Int(a % b)),
+            (BinaryOp::Div, RtValue::Int(a), RtValue::Int(b)) => {
+                Ok(RtValue::Int(a.wrapping_div(b)))
+            }
+            (BinaryOp::Mod, RtValue::Int(a), RtValue::Int(b)) => {
+                Ok(RtValue::Int(a.wrapping_rem(b)))
+            }
             (BinaryOp::BitAnd, RtValue::Int(a), RtValue::Int(b)) => Ok(RtValue::Int(a & b)),
             (BinaryOp::BitOr, RtValue::Int(a), RtValue::Int(b)) => Ok(RtValue::Int(a | b)),
             (BinaryOp::BitXor, RtValue::Int(a), RtValue::Int(b)) => Ok(RtValue::Int(a ^ b)),
