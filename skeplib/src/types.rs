@@ -161,7 +161,7 @@ fn parse_display_type(value: &str) -> Option<TypeInfo> {
             if let Some(inner) = value
                 .strip_prefix("Result[")
                 .and_then(|v| v.strip_suffix(']'))
-                && let Some((ok, err)) = inner.split_once(", ")
+                && let Some((ok, err)) = split_top_level_comma(inner)
             {
                 return Some(TypeInfo::Result {
                     ok: Box::new(parse_display_type(ok)?),
@@ -186,6 +186,22 @@ fn parse_display_type(value: &str) -> Option<TypeInfo> {
     }
 }
 
+fn split_top_level_comma(value: &str) -> Option<(&str, &str)> {
+    let mut depth = 0usize;
+    for (index, ch) in value.char_indices() {
+        match ch {
+            '[' | '(' => depth += 1,
+            ']' | ')' => depth = depth.checked_sub(1)?,
+            ',' if depth == 0 => {
+                let (left, right) = value.split_at(index);
+                return Some((left.trim_end(), right[1..].trim_start()));
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
 pub fn is_builtin_opaque_type(name: &str) -> bool {
     matches!(
         name,
@@ -199,4 +215,40 @@ pub struct FunctionSig {
     pub name: String,
     pub params: Vec<TypeInfo>,
     pub ret: TypeInfo,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{TypeInfo, task_channel_value_type, task_task_value_type};
+
+    #[test]
+    fn task_value_type_parser_handles_nested_result_parameters() {
+        let expected = TypeInfo::Result {
+            ok: Box::new(TypeInfo::Result {
+                ok: Box::new(TypeInfo::Int),
+                err: Box::new(TypeInfo::String),
+            }),
+            err: Box::new(TypeInfo::Bool),
+        };
+
+        assert_eq!(
+            task_channel_value_type("task.Channel[Result[Result[Int, String], Bool]]"),
+            Some(expected)
+        );
+    }
+
+    #[test]
+    fn task_value_type_parser_handles_nested_map_parameters() {
+        let expected = TypeInfo::Map {
+            value: Box::new(TypeInfo::Result {
+                ok: Box::new(TypeInfo::Int),
+                err: Box::new(TypeInfo::String),
+            }),
+        };
+
+        assert_eq!(
+            task_task_value_type("task.Task[Map[String, Result[Int, String]]]"),
+            Some(expected)
+        );
+    }
 }
