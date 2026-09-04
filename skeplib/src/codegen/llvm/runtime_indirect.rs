@@ -43,7 +43,15 @@ pub fn emit_indirect_call(
         }
         NativeCallLowering::Dynamic => {}
     }
-    let callee_ty = infer_operand_type(func, callee);
+    let callee_ty = match callee {
+        crate::ir::Operand::Global(id) => program
+            .globals
+            .iter()
+            .find(|global| global.id == *id)
+            .map(|global| global.ty.clone())
+            .unwrap_or(IrType::Unknown),
+        _ => infer_operand_type(func, callee),
+    };
     let (callee_params, callee_ret) = match &callee_ty {
         IrType::Fn { params, ret } => (params.clone(), ret.as_ref().clone()),
         other => {

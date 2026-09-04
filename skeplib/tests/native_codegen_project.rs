@@ -3,6 +3,20 @@ mod common;
 use skeplib::{codegen, ir};
 
 #[test]
+fn llvm_codegen_emits_function_valued_global_initializer() {
+    let source = r#"
+fn inc(x: Int) -> Int { return x + 1; }
+let f: Fn(Int) -> Int = inc;
+fn main() -> Int { return f(41); }
+"#;
+    let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
+    let llvm_ir = codegen::compile_program_to_llvm_ir(&program)
+        .expect("function-valued global should lower to LLVM");
+    assert!(llvm_ir.contains("@g0 = global ptr null"));
+    assert_eq!(common::native_run_exit_code_ok(source), 42);
+}
+
+#[test]
 fn llvm_codegen_uses_imported_operator_symbol_for_project_infix_calls() {
     let project = common::TempProject::new("codegen_imported_operator_symbol");
     project.file(
