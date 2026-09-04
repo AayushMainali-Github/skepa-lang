@@ -632,11 +632,12 @@ fn resolve_project_reports_bad_import_chain_with_intermediate_module_context() {
 
 #[test]
 fn resolve_project_respects_case_sensitivity_where_relevant() {
-    if cfg!(windows) {
-        return;
-    }
     let root = make_temp_dir("case_sensitive_imports");
     fs::write(root.join("util.sk"), "fn value() -> Int { return 1; }\n").expect("write util");
+    if root.join("UTIL.sk").exists() {
+        let _ = fs::remove_dir_all(root);
+        return;
+    }
     fs::write(
         root.join("main.sk"),
         r#"
