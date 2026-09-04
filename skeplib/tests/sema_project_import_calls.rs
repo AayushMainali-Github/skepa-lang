@@ -47,6 +47,7 @@ fn main() -> Int {
   let b = utils.math.add(1, 2, 3);
   return 0;
 }
+
 "#,
     );
 
@@ -54,6 +55,22 @@ fn main() -> Int {
     assert!(res.has_errors);
     common::assert_has_diag(&diags, "Argument 1 for `add`: expected Int, got String");
     common::assert_has_diag(&diags, "Arity mismatch for `add`: expected 2, got 3");
+}
+
+#[test]
+fn accepts_fully_qualified_call_after_from_import() {
+    let project = common::TempProject::new("from_import_qualified_call");
+    write_math_module(&project);
+    let entry = project.file(
+        "main.sk",
+        r#"
+from utils.math import add;
+fn main() -> Int { return utils.math.add(1, 2); }
+"#,
+    );
+
+    let (res, diags) = analyze_project_entry(&entry).expect("resolver/sema");
+    common::assert_sema_success(&res, &diags);
 }
 
 #[test]

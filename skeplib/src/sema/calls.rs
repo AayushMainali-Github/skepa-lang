@@ -167,6 +167,13 @@ impl Checker {
         }
 
         if let Some(parts) = Self::expr_to_parts(callee) {
+            // `from` imports register both the local binding and its fully
+            // qualified target (for example `utils.math.add`). Resolve that
+            // target directly before applying namespace-specific rules.
+            let joined = parts.join(".");
+            if let Some(sig) = self.functions.get(&joined).cloned() {
+                return self.check_function_sig_call(&sig, args, scopes);
+            }
             match self.resolve_qualified_import_call(&parts) {
                 Ok(Some(target)) => {
                     if let Some(sig) = self.functions.get(&target).cloned() {
