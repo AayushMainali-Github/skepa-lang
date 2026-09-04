@@ -126,6 +126,19 @@ pub fn emit_core_instr(
                     NativeStructPlan::ScalarFields { fields } => {
                         if matches!(value, crate::ir::Operand::Temp(temp) if lowered.temp_root(*temp) == Some(*local))
                         {
+                            let struct_ptr = operand_load(
+                                names,
+                                value,
+                                func,
+                                lines,
+                                counter,
+                                &crate::ir::IrType::Named(String::new()),
+                                string_literals,
+                            )?;
+                            lines.push(format!(
+                                "  store ptr {struct_ptr}, ptr %local{}, align 8",
+                                local.0
+                            ));
                             for (index, field) in fields.iter().enumerate() {
                                 let loaded = operand_load(
                                     names,
