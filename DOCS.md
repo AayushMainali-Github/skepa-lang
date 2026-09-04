@@ -1546,6 +1546,8 @@ Behavior:
 - `net.resolve(host)` resolves the host name and returns `Ok(String)` with the first resolved IP address as text, or `Err(String)` if resolution fails.
 - `net.parseUrl(url)` parses a URL and returns `Ok(Map[String, String])` with keys: `scheme`, `host`, `port`, `path`, `query`, and `fragment`, or `Err(String)` if parsing fails.
 - `net.fetch(url, options)` performs a blocking HTTP request and returns `Ok(Map[String, String])` on success or `Err(String)` on request failure.
+- The response body is buffered in memory and decoded as UTF-8; a response containing invalid UTF-8 bytes is returned as an error rather than exposed as binary data.
+- There is currently no built-in response-size limit. Callers handling untrusted endpoints should use a bounded socket-level protocol until a size-capped fetch API is available.
 - `net.listen(address)` binds a blocking TCP listener, returning `Ok(net.Listener)` on success or `Err(String)` on bind failure. Using port `0` lets the OS choose an ephemeral port.
 - `net.accept(listener)` blocks until a client connects, then returns `Ok(net.Socket)` on success or `Err(String)` on accept failure.
 - `net.read(socket)` performs exactly one blocking read attempt of up to 4096 bytes and returns `Ok(String)` on success or `Err(String)` on I/O failure. It does not assemble a logical message or drain the socket.
