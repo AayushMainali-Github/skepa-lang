@@ -115,6 +115,26 @@ fn main() -> Int {
 }
 
 #[test]
+fn native_and_ir_wrap_integer_overflow_consistently() {
+    let src = r#"
+fn identity(value: Int) -> Int { return value; }
+
+fn main() -> Int {
+  let max = identity(9223372036854775807);
+  let min = max + identity(1);
+  if (min != -9223372036854775807 - identity(1)) { return 1; }
+  if (-min != min) { return 2; }
+  if (min / identity(-1) != min) { return 3; }
+  if (min % identity(-1) != 0) { return 4; }
+  return 0;
+}
+"#;
+
+    assert_eq!(common::native_run_exit_code_ok(src), 0);
+    assert_eq!(common::ir_run_ok(src), skepart::value::RtValue::Int(0));
+}
+
+#[test]
 fn ir_interpreter_reports_array_oob_for_runtime_validation() {
     let src = r#"
 fn main() -> Int {

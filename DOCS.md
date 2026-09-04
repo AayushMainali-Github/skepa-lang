@@ -245,6 +245,12 @@ These are available through namespace paths (`string.case.up(...)`).
 Arithmetic:
 - `+`, `-`, `*`, `/`, `%`
 
+Integer arithmetic uses two's-complement wrapping semantics. Addition, subtraction,
+multiplication, negation, division, and remainder wrap to the `Int` range. Division
+and remainder by zero still raise a runtime error. The `Int.MIN / -1` edge case
+returns `Int.MIN` for division and `0` for remainder consistently in the
+interpreter, optimizer, and native backend.
+
 Comparison:
 - `==`, `!=`, `<`, `<=`, `>`, `>=`
 
