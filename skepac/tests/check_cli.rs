@@ -3036,6 +3036,30 @@ fn main() -> Int {
 }
 
 #[test]
+fn run_executes_qualified_call_after_from_import_natively() {
+    let tmp = make_temp_dir("skepac_run_qualified_from_import");
+    fs::create_dir_all(tmp.join("utils")).expect("create utils directory");
+    write_temp_file(
+        &tmp,
+        "utils/math.sk",
+        "fn add(a: Int, b: Int) -> Int { return a + b; }\nexport { add };\n",
+    );
+    let source = write_temp_file(
+        &tmp,
+        "main.sk",
+        "from utils.math import add;\nfn main() -> Int { return utils.math.add(1, 2); }\n",
+    );
+
+    let output = Command::new(skepac_bin())
+        .arg("run")
+        .arg(&source)
+        .output()
+        .expect("run skepac run");
+
+    assert_eq!(output.status.code(), Some(3), "{output:?}");
+}
+
+#[test]
 fn run_executes_aliased_namespace_reexport_natively() {
     let tmp = make_temp_dir("skepac_run_namespace_reexport");
     write_temp_file(
