@@ -161,7 +161,22 @@ pub fn call_with_context(
             &haystack.expect_string()?,
             &needle.expect_string()?,
         ))),
+        ("str", "startsWith", [value, prefix]) => Ok(RtValue::Bool(str::starts_with(
+            &value.expect_string()?,
+            &prefix.expect_string()?,
+        ))),
+        ("str", "endsWith", [value, suffix]) => Ok(RtValue::Bool(str::ends_with(
+            &value.expect_string()?,
+            &suffix.expect_string()?,
+        ))),
+        ("str", "trim", [value]) => Ok(RtValue::String(str::trim(&value.expect_string()?))),
+        ("str", "toLower", [value]) => Ok(RtValue::String(str::to_lower(&value.expect_string()?))),
+        ("str", "toUpper", [value]) => Ok(RtValue::String(str::to_upper(&value.expect_string()?))),
         ("str", "indexOf", [haystack, needle]) => Ok(RtValue::Int(str::index_of(
+            &haystack.expect_string()?,
+            &needle.expect_string()?,
+        ))),
+        ("str", "lastIndexOf", [haystack, needle]) => Ok(RtValue::Int(str::last_index_of(
             &haystack.expect_string()?,
             &needle.expect_string()?,
         ))),
@@ -172,6 +187,15 @@ pub fn call_with_context(
             usize::try_from(end.expect_int()?)
                 .map_err(|_| RtError::new(RtErrorKind::IndexOutOfBounds, "negative slice end"))?,
         ),
+        ("str", "replace", [value, from, to]) => Ok(RtValue::String(str::replace(
+            &value.expect_string()?,
+            &from.expect_string()?,
+            &to.expect_string()?,
+        ))),
+        ("str", "repeat", [value, count]) => {
+            str::repeat(&value.expect_string()?, count.expect_int()?)
+        }
+        ("str", "isEmpty", [value]) => Ok(RtValue::Bool(str::is_empty(&value.expect_string()?))),
         ("arr", "len", [array]) => Ok(RtValue::Int(arr::len(&array.expect_array()?))),
         ("arr", "isEmpty", [array]) => Ok(RtValue::Bool(arr::is_empty(&array.expect_array()?))),
         ("arr", "contains", [array, needle]) => {

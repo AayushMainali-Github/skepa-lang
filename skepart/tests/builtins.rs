@@ -92,6 +92,102 @@ fn builtins_cover_array_search_helpers() {
     );
 }
 
+#[test]
+fn builtins_cover_string_helpers() {
+    assert_eq!(
+        builtins::call(
+            "str",
+            "startsWith",
+            &[
+                RtValue::String(RtString::from("skepa")),
+                RtValue::String(RtString::from("ske")),
+            ],
+        )
+        .expect("str.startsWith"),
+        RtValue::Bool(true)
+    );
+    assert_eq!(
+        builtins::call(
+            "str",
+            "endsWith",
+            &[
+                RtValue::String(RtString::from("skepa")),
+                RtValue::String(RtString::from("epa")),
+            ],
+        )
+        .expect("str.endsWith"),
+        RtValue::Bool(true)
+    );
+    assert_eq!(
+        builtins::call("str", "trim", &[RtValue::String(RtString::from("  x  "))])
+            .expect("str.trim"),
+        RtValue::String(RtString::from("x"))
+    );
+    assert_eq!(
+        builtins::call(
+            "str",
+            "toLower",
+            &[RtValue::String(RtString::from("SkEpA"))]
+        )
+        .expect("str.toLower"),
+        RtValue::String(RtString::from("skepa"))
+    );
+    assert_eq!(
+        builtins::call(
+            "str",
+            "toUpper",
+            &[RtValue::String(RtString::from("SkEpA"))]
+        )
+        .expect("str.toUpper"),
+        RtValue::String(RtString::from("SKEPA"))
+    );
+    assert_eq!(
+        builtins::call(
+            "str",
+            "lastIndexOf",
+            &[
+                RtValue::String(RtString::from("abca")),
+                RtValue::String(RtString::from("a")),
+            ],
+        )
+        .expect("str.lastIndexOf"),
+        RtValue::Int(3)
+    );
+    assert_eq!(
+        builtins::call(
+            "str",
+            "replace",
+            &[
+                RtValue::String(RtString::from("a-b-b")),
+                RtValue::String(RtString::from("b")),
+                RtValue::String(RtString::from("x")),
+            ],
+        )
+        .expect("str.replace"),
+        RtValue::String(RtString::from("a-x-x"))
+    );
+    assert_eq!(
+        builtins::call(
+            "str",
+            "repeat",
+            &[RtValue::String(RtString::from("ab")), RtValue::Int(3)],
+        )
+        .expect("str.repeat"),
+        RtValue::String(RtString::from("ababab"))
+    );
+    assert_eq!(
+        builtins::call("str", "isEmpty", &[RtValue::String(RtString::from(""))])
+            .expect("str.isEmpty"),
+        RtValue::Bool(true)
+    );
+    assert!(builtins::call(
+        "str",
+        "repeat",
+        &[RtValue::String(RtString::from("x")), RtValue::Int(-1)]
+    )
+    .is_err());
+}
+
 fn expect_ok_handle(
     value: RtValue,
     expected_kind: skepart::RtHandleKind,
