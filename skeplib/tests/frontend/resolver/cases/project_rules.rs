@@ -45,10 +45,10 @@ fn main() -> Int { return 1 `xoxo` 2; }
     )
     .expect("write main");
 
-    let errs = resolve_project(&root.join("main.sk")).expect_err("missing operator export expected");
+    let errs =
+        resolve_project(&root.join("main.sk")).expect_err("missing operator export expected");
     assert!(errs.iter().any(|e| {
-        e.code == "E-IMPORT-NOT-EXPORTED"
-            && e.message.contains("Cannot import operator `xoxo`")
+        e.code == "E-IMPORT-NOT-EXPORTED" && e.message.contains("Cannot import operator `xoxo`")
     }));
     assert!(!errs.iter().any(|e| e.kind == ResolveErrorKind::Parse));
     let _ = fs::remove_dir_all(root);

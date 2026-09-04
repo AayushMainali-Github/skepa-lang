@@ -202,21 +202,21 @@ fn reports_unterminated_block_comment() {
 }
 
 #[test]
-fn reports_single_ampersand_and_pipe() {
-    let (_tokens, diags) = lex("&");
-    assert_eq!(diags.len(), 1);
-    assert!(diags.as_slice()[0].message.contains("&&"));
+fn lexes_single_bitwise_ampersand() {
+    let (tokens, diags) = lex("&");
+    common::assert_no_diags(&diags);
+    assert_eq!(tokens[0].kind, TokenKind::Amp);
 }
 
 #[test]
-fn single_ampersand_reports_error_and_continues_lexing() {
+fn single_ampersand_continues_lexing() {
     let (tokens, diags) = lex("& let ok = 1;");
-    assert_eq!(diags.len(), 1);
-    assert!(diags.as_slice()[0].message.contains("&&"));
+    common::assert_no_diags(&diags);
     let got: Vec<TokenKind> = tokens.into_iter().map(|t| t.kind).collect();
     assert_eq!(
         got,
         vec![
+            TokenKind::Amp,
             TokenKind::KwLet,
             TokenKind::Ident,
             TokenKind::Assign,
@@ -502,11 +502,12 @@ fn comments_split_tokens_cleanly_at_boundaries_and_eof() {
 #[test]
 fn pathological_recovery_reports_many_bad_chars_and_keeps_valid_tokens() {
     let (tokens, diags) = lex("@#^ let ok = 1; $");
-    assert_eq!(diags.len(), 4, "diagnostics: {:?}", diags.as_slice());
+    assert_eq!(diags.len(), 3, "diagnostics: {:?}", diags.as_slice());
     let got: Vec<TokenKind> = tokens.into_iter().map(|t| t.kind).collect();
     assert_eq!(
         got,
         vec![
+            TokenKind::Caret,
             TokenKind::KwLet,
             TokenKind::Ident,
             TokenKind::Assign,

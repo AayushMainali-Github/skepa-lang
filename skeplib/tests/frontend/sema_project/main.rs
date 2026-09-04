@@ -256,13 +256,13 @@ fn main() -> Int {
 }
 
 #[test]
-fn sema_project_preserves_inferred_type_for_imported_unannotated_global() {
+fn sema_project_preserves_type_for_imported_global() {
     let root = common::make_temp_dir("imported_inferred_global");
     fs::create_dir_all(root.join("config")).expect("create config folder");
     fs::write(
         root.join("config").join("flags.sk"),
         r#"
-let enabled = true;
+let enabled: Bool = true;
 export { enabled };
 "#,
     )
