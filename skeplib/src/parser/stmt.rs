@@ -49,9 +49,21 @@ impl Parser {
                 return None;
             }
             while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
-                let pattern = self.parse_match_pattern()?;
-                self.expect(TokenKind::FatArrow, "Expected `=>` after match pattern")?;
-                let body = self.parse_block("Expected `{` before match arm body")?;
+                let Some(pattern) = self.parse_match_pattern() else {
+                    self.synchronize_match_arm();
+                    continue;
+                };
+                if self
+                    .expect(TokenKind::FatArrow, "Expected `=>` after match pattern")
+                    .is_none()
+                {
+                    self.synchronize_match_arm();
+                    continue;
+                }
+                let Some(body) = self.parse_block("Expected `{` before match arm body") else {
+                    self.synchronize_match_arm();
+                    continue;
+                };
                 arms.push(MatchArm { pattern, body });
             }
             self.expect(TokenKind::RBrace, "Expected `}` after match statement")?;
@@ -279,6 +291,99 @@ impl Parser {
                 Expr::Field { base, field } => Some(AssignTarget::Field { base, field }),
                 _ => None,
             }
+        }
+    }
+
+    fn synchronize_match_arm(&mut self) {
+        let mut brace_depth = 0usize;
+        while !self.at(TokenKind::Eof) {
+            if brace_depth == 0 && self.looks_like_match_arm_start() {
+                return;
+            }
+            match self.current().kind {
+                TokenKind::LBrace => {
+                    brace_depth += 1;
+                    self.bump();
+                }
+                TokenKind::RBrace if brace_depth > 0 => {
+                    brace_depth -= 1;
+                    self.bump();
+                    if brace_depth == 0 {
+                        return;
+                    }
+                }
+                TokenKind::RBrace => return,
+                // Always consume a token at the top level.  Some pattern
+                // parsers report an error without advancing (for example,
+                // an empty variant payload), so returning here would make
+                // the enclosing arm loop retry the same token forever.
+                _ if brace_depth == 0 => {
+                    self.bump();
+                    return;
+                }
+                _ => {
+                    self.bump();
+                }
+            }
+        }
+    }
+
+    fn looks_like_match_arm_start(&self) -> bool {
+        let mut index = self.idx;
+        loop {
+            let Some(token) = self.tokens.get(index) else {
+                return false;
+            };
+            match token.kind {
+                TokenKind::Ident
+                    if token.lexeme == "_"
+                        || matches!(token.lexeme.as_str(), "Some" | "None" | "Ok" | "Err") =>
+                {
+                    index += 1;
+                    if matches!(token.lexeme.as_str(), "Some" | "Ok" | "Err")
+                        && self
+                            .tokens
+                            .get(index)
+                            .is_some_and(|next| next.kind == TokenKind::LParen)
+                    {
+                        index += 1;
+                        if !self
+                            .tokens
+                            .get(index)
+                            .is_some_and(|next| next.kind == TokenKind::Ident)
+                        {
+                            return false;
+                        }
+                        index += 1;
+                        if !self
+                            .tokens
+                            .get(index)
+                            .is_some_and(|next| next.kind == TokenKind::RParen)
+                        {
+                            return false;
+                        }
+                        index += 1;
+                    }
+                }
+                TokenKind::IntLit
+                | TokenKind::FloatLit
+                | TokenKind::KwTrue
+                | TokenKind::KwFalse
+                | TokenKind::StringLit => index += 1,
+                _ => return false,
+            }
+            if self
+                .tokens
+                .get(index)
+                .is_some_and(|next| next.kind == TokenKind::Pipe)
+            {
+                index += 1;
+                continue;
+            }
+            return self
+                .tokens
+                .get(index)
+                .is_some_and(|next| next.kind == TokenKind::FatArrow);
         }
     }
 

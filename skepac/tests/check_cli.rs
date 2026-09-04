@@ -3060,6 +3060,34 @@ fn run_executes_qualified_call_after_from_import_natively() {
 }
 
 #[test]
+fn run_executes_aliased_namespace_reexport_natively() {
+    let tmp = make_temp_dir("skepac_run_namespace_reexport");
+    write_temp_file(
+        &tmp,
+        "tools.sk",
+        "fn value() -> Int { return 1; }\nexport { value };\n",
+    );
+    write_temp_file(
+        &tmp,
+        "mod.sk",
+        "import tools;\nexport { tools as toolset };\n",
+    );
+    let source = write_temp_file(
+        &tmp,
+        "main.sk",
+        "from mod import toolset;\nfn main() -> Int { return toolset.value(); }\n",
+    );
+
+    let output = Command::new(skepac_bin())
+        .arg("run")
+        .arg(&source)
+        .output()
+        .expect("run skepac run");
+
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
+}
+
+#[test]
 fn run_executes_global_ident_assignment_end_to_end() {
     let tmp = make_temp_dir("skepac_run_global_ident_assign");
     let source = write_temp_file(

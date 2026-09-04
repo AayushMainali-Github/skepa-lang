@@ -1557,6 +1557,36 @@ fn noop_host_fetch_reports_non_utf8_body_without_treating_headers_as_malformed()
 }
 
 #[test]
+fn noop_host_rejects_http_responses_over_size_limit() {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind http listener");
+    let addr = listener.local_addr().expect("listener addr");
+    let server = std::thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("accept http client");
+        let mut request = [0_u8; 256];
+        let _ = stream.read(&mut request).expect("read request");
+        stream
+            .write_all(b"HTTP/1.0 200 OK\r\nContent-Length: 8388609\r\n\r\n")
+            .expect("write response headers");
+        stream
+            .write_all(&vec![b'x'; 8 * 1024 * 1024 + 1])
+            .expect("write oversized response");
+    });
+
+    let mut host = NoopHost::default();
+    let err = host
+        .net_fetch(&format!("http://{addr}/large"), &skepart::RtMap::new())
+        .expect_err("oversized response should fail");
+    server.join().expect("server thread");
+
+    assert_eq!(err.kind, skepart::RtErrorKind::InvalidArgument);
+    assert!(
+        err.message.contains("8 MiB size limit"),
+        "unexpected message: {}",
+        err.message
+    );
+}
+
+#[test]
 fn noop_host_rejects_tls_connect_with_untrusted_certificate() {
     let cert = generate_simple_self_signed(vec!["localhost".to_string()]).expect("generate cert");
     let cert_der = cert.cert.der().clone();

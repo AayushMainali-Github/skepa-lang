@@ -163,7 +163,7 @@ impl Parser {
 
     pub(super) fn decode_string_escapes(&mut self, raw: &str, span: Span) -> String {
         let mut out = String::with_capacity(raw.len());
-        let mut chars = raw.chars();
+        let mut chars = raw.chars().peekable();
         while let Some(ch) = chars.next() {
             if ch != '\\' {
                 out.push(ch);
@@ -175,6 +175,32 @@ impl Parser {
                 Some('r') => out.push('\r'),
                 Some('"') => out.push('"'),
                 Some('\\') => out.push('\\'),
+                Some('u') if chars.peek() == Some(&'{') => {
+                    chars.next();
+                    let mut digits = String::new();
+                    while let Some(&next) = chars.peek() {
+                        if next == '}' {
+                            break;
+                        }
+                        digits.push(next);
+                        chars.next();
+                    }
+                    let closed = chars.peek() == Some(&'}');
+                    if closed {
+                        chars.next();
+                    }
+                    let valid = closed
+                        && (1..=6).contains(&digits.len())
+                        && digits.chars().all(|digit| digit.is_ascii_hexdigit());
+                    if let (true, Some(value)) = (valid, u32::from_str_radix(&digits, 16).ok())
+                        && let Some(unicode) = char::from_u32(value)
+                    {
+                        out.push(unicode);
+                    } else {
+                        self.diagnostics
+                            .error("Invalid Unicode escape; expected \\u{1-6 hex digits}", span);
+                    }
+                }
                 Some(other) => {
                     self.diagnostics.error(
                         format!("Invalid escape sequence `\\{other}` in string literal"),

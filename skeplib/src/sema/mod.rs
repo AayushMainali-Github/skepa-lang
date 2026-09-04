@@ -146,6 +146,9 @@ impl Checker {
 
     fn apply_external_context(&mut self, ctx: ModuleExternalContext) {
         self.has_external_context = true;
+        for (name, prefix) in ctx.imported_namespaces {
+            self.module_namespaces.entry(name).or_insert(prefix);
+        }
         for (name, sig) in ctx.imported_functions {
             self.functions.entry(name.clone()).or_insert(sig);
         }
@@ -545,20 +548,23 @@ impl Checker {
     }
 
     fn check_export_declarations(&mut self, program: &Program) {
-        let mut local_exportables = HashSet::new();
+        let mut local_exportables = HashSet::<String>::new();
         let mut global_annotations = HashMap::new();
         for f in &program.functions {
-            local_exportables.insert(f.name.as_str());
+            local_exportables.insert(f.name.clone());
         }
         for s in &program.structs {
-            local_exportables.insert(s.name.as_str());
+            local_exportables.insert(s.name.clone());
         }
         for g in &program.globals {
-            local_exportables.insert(g.name.as_str());
+            local_exportables.insert(g.name.clone());
             global_annotations.insert(g.name.as_str(), g.ty.is_some());
         }
         for operator in &program.operators {
-            local_exportables.insert(operator.name.as_str());
+            local_exportables.insert(operator.name.clone());
+        }
+        for namespace in self.module_namespaces.keys() {
+            local_exportables.insert(namespace.clone());
         }
 
         let mut seen_targets = HashSet::new();

@@ -1709,11 +1709,23 @@ struct HttpResponseParts {
     content_type: String,
 }
 
-fn read_http_response(mut reader: impl Read, method: &str) -> RtResult<HttpResponseParts> {
+const MAX_HTTP_RESPONSE_BYTES: u64 = 8 * 1024 * 1024;
+
+fn read_http_response(reader: impl Read, method: &str) -> RtResult<HttpResponseParts> {
     let mut buf = Vec::new();
     reader
+        .take(MAX_HTTP_RESPONSE_BYTES + 1)
         .read_to_end(&mut buf)
         .map_err(|err| RtError::io(err.to_string()))?;
+    if buf.len() as u64 > MAX_HTTP_RESPONSE_BYTES {
+        return Err(RtError::new(
+            RtErrorKind::InvalidArgument,
+            format!(
+                "net.http{} response exceeds the 8 MiB size limit",
+                http_method_title(method)
+            ),
+        ));
+    }
 
     let head_end = buf
         .windows(4)

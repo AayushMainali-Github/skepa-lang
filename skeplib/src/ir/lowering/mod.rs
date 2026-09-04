@@ -66,6 +66,64 @@ pub fn compile_source_unoptimized(source: &str) -> Result<IrProgram, DiagnosticB
 }
 
 impl IrLowerer {
+    fn configure_imported_namespace(
+        &mut self,
+        local_prefix: &str,
+        namespace: &str,
+        export_maps: &HashMap<String, HashMap<String, crate::resolver::SymbolRef>>,
+    ) {
+        let prefix = format!("{namespace}.");
+        let mut module_ids = export_maps
+            .keys()
+            .filter(|id| id.as_str() == namespace || id.starts_with(&prefix))
+            .cloned()
+            .collect::<Vec<_>>();
+        module_ids.sort();
+
+        for module_id in module_ids {
+            let relative = module_id
+                .strip_prefix(namespace)
+                .map(|suffix| suffix.trim_start_matches('.'))
+                .unwrap_or("");
+            let visible_module = if relative.is_empty() {
+                local_prefix.to_string()
+            } else {
+                format!("{local_prefix}.{relative}")
+            };
+            let Some(exports) = export_maps.get(&module_id) else {
+                continue;
+            };
+
+            for (exported_name, symbol) in exports {
+                let target = format!("{}::{}", symbol.module_id, symbol.local_name);
+                let qualified = format!("{visible_module}.{exported_name}");
+                let same_as_module_leaf = module_id
+                    .rsplit('.')
+                    .next()
+                    .is_some_and(|segment| segment == exported_name);
+                match symbol.kind {
+                    SymbolKind::Fn => {
+                        self.namespace_call_targets
+                            .insert(qualified, target.clone());
+                        if same_as_module_leaf {
+                            self.namespace_call_targets
+                                .insert(visible_module.clone(), target);
+                        }
+                    }
+                    SymbolKind::Struct => {
+                        self.imported_struct_runtime
+                            .insert(format!("{visible_module}.{exported_name}"), target);
+                    }
+                    SymbolKind::GlobalLet => {
+                        self.imported_global_names
+                            .insert(format!("{visible_module}.{exported_name}"), target);
+                    }
+                    SymbolKind::Namespace => {}
+                }
+            }
+        }
+    }
+
     fn configure_project_module(
         &mut self,
         module_id: &str,
@@ -97,6 +155,14 @@ impl IrLowerer {
                     };
                     if *wildcard {
                         for (name, sym) in exports {
+                            if sym.kind == SymbolKind::Namespace {
+                                self.configure_imported_namespace(
+                                    name,
+                                    &sym.module_id,
+                                    export_maps,
+                                );
+                                continue;
+                            }
                             match sym.kind {
                                 SymbolKind::Fn => {
                                     self.direct_import_calls.insert(
@@ -129,6 +195,14 @@ impl IrLowerer {
                             let Some(sym) = exports.get(&item.name) else {
                                 continue;
                             };
+                            if sym.kind == SymbolKind::Namespace {
+                                self.configure_imported_namespace(
+                                    &local,
+                                    &sym.module_id,
+                                    export_maps,
+                                );
+                                continue;
+                            }
                             match sym.kind {
                                 SymbolKind::Fn => {
                                     self.namespace_call_targets.insert(

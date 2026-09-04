@@ -257,11 +257,23 @@ pub fn resolve_project(entry: &Path) -> Result<ModuleGraph, Vec<ResolveError>> {
         .unwrap_or_else(|| PathBuf::from("."));
     let mut graph = ModuleGraph::default();
     let mut headers = HashMap::<ModuleId, crate::parser::SourceHeaderInfo>::new();
+    let mut canonical_paths = HashMap::<PathBuf, (ModuleId, PathBuf)>::new();
     let mut errors = Vec::new();
     let mut queue = VecDeque::new();
     queue.push_back(entry.to_path_buf());
 
     while let Some(path) = queue.pop_front() {
+        let canonical_path = match fs::canonicalize(&path) {
+            Ok(path) => path,
+            Err(e) => {
+                errors.push(ResolveError::new(
+                    ResolveErrorKind::Io,
+                    format!("Failed to canonicalize {}: {}", path.display(), e),
+                    Some(path.clone()),
+                ));
+                continue;
+            }
+        };
         let rel = match path.strip_prefix(&root) {
             Ok(r) => r.to_path_buf(),
             Err(_) => path.clone(),
@@ -273,6 +285,24 @@ pub fn resolve_project(entry: &Path) -> Result<ModuleGraph, Vec<ResolveError>> {
                 continue;
             }
         };
+
+        if let Some((existing_id, existing_path)) = canonical_paths.get(&canonical_path) {
+            if existing_id != &id {
+                errors.push(ResolveError::new(
+                    ResolveErrorKind::DuplicateModuleId,
+                    format!(
+                        "Duplicate module path for ids `{}` and `{}`: {} and {} resolve to the same file",
+                        existing_id,
+                        id,
+                        existing_path.display(),
+                        path.display()
+                    ),
+                    Some(path.clone()),
+                ));
+            }
+            continue;
+        }
+        canonical_paths.insert(canonical_path, (id.clone(), path.clone()));
 
         if let Some(existing) = graph.modules.get(&id) {
             if existing.path != path {
