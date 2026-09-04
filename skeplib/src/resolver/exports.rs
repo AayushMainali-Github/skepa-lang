@@ -412,22 +412,21 @@ pub fn validate_and_build_export_map(
                 let export_name = item.alias.as_ref().unwrap_or(&item.name).clone();
                 let sym = if let Some(sym) = symbols.locals.get(&item.name).cloned() {
                     Some(sym)
-                } else if program
-                    .imports
-                    .iter()
-                    .any(|i| matches!(i, crate::ast::ImportDecl::ImportModule { alias, path } if alias.as_deref() == Some(item.name.as_str()) || path.first().is_some_and(|p| p == &item.name)))
-                {
-                    errors.push(ResolveError::new(
-                        ResolveErrorKind::ExportUnknown,
-                        format!(
-                            "Cannot export module namespace `{}` from module `{}` ({}); namespace re-exports are not supported",
-                            item.name,
-                            module_id,
-                            module_path.display()
-                        ),
-                        Some(module_path.to_path_buf()),
-                    ));
-                    continue;
+                } else if let Some(path) = program.imports.iter().find_map(|import| {
+                    let crate::ast::ImportDecl::ImportModule { path, alias } = import else {
+                        return None;
+                    };
+                    let visible = alias
+                        .as_deref()
+                        .or_else(|| path.first().map(String::as_str));
+                    (visible == Some(item.name.as_str())).then(|| path.clone())
+                }) {
+                    let namespace = path.join(".");
+                    Some(SymbolRef {
+                        module_id: namespace.clone(),
+                        local_name: namespace,
+                        kind: SymbolKind::Namespace,
+                    })
                 } else {
                     None
                 };
