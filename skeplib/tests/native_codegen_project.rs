@@ -17,6 +17,27 @@ fn main() -> Int { return f(41); }
 }
 
 #[test]
+fn native_string_builtins_execute_through_runtime_dispatch() {
+    let source = r#"
+import str;
+
+fn main() -> Int {
+  let value = "  SkEpA  ";
+  if (!str.startsWith(value, "  Sk") || !str.endsWith(value, "A  ")) { return 1; }
+  if (str.trim(value) != "SkEpA") { return 2; }
+  if (str.toLower(value) != "  skepa  " || str.toUpper(value) != "  SKEPA  ") { return 3; }
+  if (str.lastIndexOf("abca", "a") != 3) { return 4; }
+  if (str.replace("a-b-b", "b", "x") != "a-x-x") { return 5; }
+  if (str.repeat("ab", 3) != "ababab") { return 6; }
+  if (!str.isEmpty("")) { return 7; }
+  return 0;
+}
+"#;
+
+    assert_eq!(common::native_run_exit_code_ok(source), 0);
+}
+
+#[test]
 fn llvm_codegen_uses_imported_operator_symbol_for_project_infix_calls() {
     let project = common::TempProject::new("codegen_imported_operator_symbol");
     project.file(
