@@ -187,6 +187,7 @@ Notes:
 ### 4.2 Export Forms
 
 - `export { f, g as h, User, version };`
+- Imported module namespaces can be re-exported under an alias, for example `import tools; export { tools as toolset };`.
 - `export { f } from a.b;`
 - `export * from a.b;`
 - multiple export blocks per file are allowed and merged

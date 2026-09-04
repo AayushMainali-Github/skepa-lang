@@ -1,6 +1,36 @@
 mod common;
 
-use skeplib::resolver::{ResolveErrorKind, resolve_project};
+use skeplib::resolver::{ResolveErrorKind, build_export_maps, resolve_project};
+
+#[cfg(unix)]
+#[test]
+fn rejects_symlinked_module_aliases() {
+    use std::os::unix::fs::symlink;
+
+    let project = common::TempProject::new("symlinked_module_alias");
+    project.file(
+        "b.sk",
+        "fn value() -> Int { return 1; }\nexport { value };\n",
+    );
+    symlink(project.root().join("b.sk"), project.root().join("link.sk"))
+        .expect("create module symlink");
+    let entry = project.file(
+        "main.sk",
+        r#"
+from b import value;
+from link import value as linked;
+fn main() -> Int { return value() + linked(); }
+"#,
+    );
+
+    let errs = resolve_project(&entry).expect_err("symlink alias expected");
+    assert!(errs.iter().any(|e| {
+        e.kind == ResolveErrorKind::DuplicateModuleId
+            && e.message.contains("Duplicate module path")
+            && e.message.contains("b.sk")
+            && e.message.contains("link.sk")
+    }));
+}
 
 #[test]
 fn rejects_unaliased_module_namespace_conflict_with_direct_import() {
@@ -171,8 +201,8 @@ fn main() -> Int { return 1 `xoxo` 2; }
 }
 
 #[test]
-fn rejects_namespace_reexports_until_first_class_support_exists() {
-    let project = common::TempProject::new("namespace_reexport_rejected");
+fn supports_namespace_reexports_with_aliases() {
+    let project = common::TempProject::new("namespace_reexport");
     project.file(
         "tools.sk",
         "fn value() -> Int { return 1; }\nexport { value };\n",
@@ -192,9 +222,12 @@ fn main() -> Int { return 0; }
 "#,
     );
 
-    let errs = resolve_project(&entry).expect_err("namespace re-export expected");
-    assert!(errs.iter().any(|e| {
-        e.kind == ResolveErrorKind::ExportUnknown
-            && e.message.contains("Cannot export module namespace `tools`")
-    }));
+    let graph = resolve_project(&entry).expect("namespace re-export should resolve");
+    let exports = build_export_maps(&graph).expect("export map should resolve");
+    let symbol = exports
+        .get("mod")
+        .and_then(|map| map.get("toolset"))
+        .expect("aliased namespace export");
+    assert_eq!(symbol.kind, skeplib::resolver::SymbolKind::Namespace);
+    assert_eq!(symbol.local_name, "tools");
 }
