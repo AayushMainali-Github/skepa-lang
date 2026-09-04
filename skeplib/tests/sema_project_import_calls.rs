@@ -57,6 +57,26 @@ fn main() -> Int {
 }
 
 #[test]
+fn accepts_call_through_aliased_namespace_reexport() {
+    let project = common::TempProject::new("aliased_namespace_reexport_call");
+    project.file(
+        "tools.sk",
+        "fn value() -> Int { return 1; }\nexport { value };\n",
+    );
+    project.file("mod.sk", "import tools;\nexport { tools as toolset };\n");
+    let entry = project.file(
+        "main.sk",
+        r#"
+from mod import toolset;
+fn main() -> Int { return toolset.value(); }
+"#,
+    );
+
+    let (res, diags) = analyze_project_entry(&entry).expect("resolver/sema");
+    common::assert_sema_success(&res, &diags);
+}
+
+#[test]
 fn accepts_file_module_import_qualified_call() {
     let project = common::TempProject::new("file_module_import_qualified_call");
     project.file(

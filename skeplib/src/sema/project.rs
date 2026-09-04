@@ -4,8 +4,8 @@ use std::path::Path;
 use crate::ast::{ImportDecl, Program};
 use crate::diagnostic::DiagnosticBag;
 use crate::resolver::{
-    ModuleGraph, ModuleId, ResolveError, build_export_maps, resolve_import_module_targets,
-    resolve_project,
+    ExportMap, ModuleGraph, ModuleId, ResolveError, SymbolKind, build_export_maps,
+    resolve_import_module_targets, resolve_project,
 };
 use crate::types::{FunctionSig, TypeInfo};
 
@@ -22,6 +22,7 @@ pub(super) struct ModuleApi {
 
 #[derive(Debug, Clone, Default)]
 pub(super) struct ModuleExternalContext {
+    pub imported_namespaces: HashMap<String, Vec<String>>,
     pub imported_functions: HashMap<String, FunctionSig>,
     pub imported_operators: HashMap<String, FunctionSig>,
     pub imported_structs: HashMap<String, HashMap<String, TypeInfo>>,
@@ -163,6 +164,73 @@ fn build_module_api(program: &Program) -> ModuleApi {
     api
 }
 
+fn import_namespace_members(
+    ctx: &mut ModuleExternalContext,
+    local_prefix: &str,
+    namespace: &str,
+    apis: &HashMap<ModuleId, ModuleApi>,
+    export_maps: &HashMap<ModuleId, ExportMap>,
+) {
+    let prefix = format!("{namespace}.");
+    let mut module_ids = export_maps
+        .keys()
+        .filter(|id| *id == namespace || id.starts_with(&prefix))
+        .cloned()
+        .collect::<Vec<_>>();
+    module_ids.sort();
+    ctx.imported_namespaces
+        .insert(local_prefix.to_string(), vec![local_prefix.to_string()]);
+
+    for module_id in module_ids {
+        let relative = module_id
+            .strip_prefix(namespace)
+            .map(|suffix| suffix.trim_start_matches('.'))
+            .unwrap_or("");
+        let visible_module = if relative.is_empty() {
+            local_prefix.to_string()
+        } else {
+            format!("{local_prefix}.{relative}")
+        };
+        let Some(exports) = export_maps.get(&module_id) else {
+            continue;
+        };
+
+        for (exported_name, symbol) in exports {
+            let Some(api) = apis.get(&symbol.module_id) else {
+                continue;
+            };
+            let qualified = format!("{visible_module}.{exported_name}");
+            match symbol.kind {
+                SymbolKind::Fn => {
+                    if let Some(sig) = api.functions.get(&symbol.local_name).cloned() {
+                        ctx.imported_functions.insert(qualified.clone(), sig);
+                    }
+                    if let Some(sig) = api.operators.get(&symbol.local_name).cloned() {
+                        ctx.imported_operators.insert(qualified, sig);
+                    }
+                }
+                SymbolKind::Struct => {
+                    if let Some(fields) = api.structs.get(&symbol.local_name).cloned() {
+                        ctx.imported_structs.insert(qualified.clone(), fields);
+                    }
+                    if let Some(methods) = api.methods.get(&symbol.local_name).cloned() {
+                        ctx.imported_methods.insert(
+                            qualified.clone(),
+                            rebind_methods_self_type(methods, &symbol.local_name, &qualified),
+                        );
+                    }
+                }
+                SymbolKind::GlobalLet => {
+                    if let Some(ty) = api.globals.get(&symbol.local_name).cloned() {
+                        ctx.imported_globals.insert(qualified, ty);
+                    }
+                }
+                SymbolKind::Namespace => {}
+            }
+        }
+    }
+}
+
 fn build_external_context(
     _module_id: &str,
     program: &Program,
@@ -194,6 +262,16 @@ fn build_external_context(
                         let Some(sym) = exports.get(&name) else {
                             continue;
                         };
+                        if sym.kind == SymbolKind::Namespace {
+                            import_namespace_members(
+                                &mut ctx,
+                                &name,
+                                &sym.module_id,
+                                apis,
+                                export_maps,
+                            );
+                            continue;
+                        }
                         let Some(api) = apis.get(&sym.module_id) else {
                             continue;
                         };
@@ -224,7 +302,7 @@ fn build_external_context(
                                     ctx.imported_globals.insert(name.clone(), ty);
                                 }
                             }
-                            crate::resolver::SymbolKind::Namespace => {}
+                            SymbolKind::Namespace => {}
                         }
                     }
                 } else {
@@ -233,6 +311,16 @@ fn build_external_context(
                         let Some(sym) = exports.get(&item.name) else {
                             continue;
                         };
+                        if sym.kind == SymbolKind::Namespace {
+                            import_namespace_members(
+                                &mut ctx,
+                                &local,
+                                &sym.module_id,
+                                apis,
+                                export_maps,
+                            );
+                            continue;
+                        }
                         let Some(api) = apis.get(&sym.module_id) else {
                             continue;
                         };
@@ -263,7 +351,7 @@ fn build_external_context(
                                     ctx.imported_globals.insert(local, ty);
                                 }
                             }
-                            crate::resolver::SymbolKind::Namespace => {}
+                            SymbolKind::Namespace => {}
                         }
                     }
                 }
