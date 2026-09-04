@@ -30,4 +30,14 @@ fn release_workflow_dispatch_requires_and_uses_a_tag() {
             && workflow.contains("github.ref_name"),
         "the release action must receive the dispatch tag or pushed tag"
     );
+    assert!(
+        workflow.contains("RUNNER_ARCH")
+            && workflow.contains("x64|arm64")
+            && workflow.contains("PKG=\"skepa-${OS_LOWER}-${ARCH_LOWER}\""),
+        "Unix release package names must match the runner architecture"
+    );
+    assert!(
+        !workflow.contains("PKG=\"skepa-${OS_LOWER}-x64\""),
+        "Unix packaging must not label every runner as x64"
+    );
 }

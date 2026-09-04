@@ -11,7 +11,7 @@ Normal CI coverage:
 
 Release artifacts are built for:
 - Linux x64
-- macOS x64
+- macOS arm64 (Apple Silicon)
 - Windows x64
 
 Toolchain assumptions:
@@ -27,7 +27,7 @@ What is covered continuously:
 - CLI native build/run smoke tests
 
 What is not yet guaranteed:
-- non-x64 release artifacts
+- non-x64 release artifacts beyond the macOS arm64 build
 - long-term backwards compatibility for experimental surfaces
 - sanitizer-clean or leak-check-clean builds on every CI run
 - performance stability without separate benchmark review

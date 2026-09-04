@@ -128,7 +128,12 @@ jobs:
           ARCHIVE_DIR="dist"
           mkdir -p "$ARCHIVE_DIR"
           OS_LOWER="$(printf '%s' "$RUNNER_OS" | tr '[:upper:]' '[:lower:]')"
-          PKG="skepa-${OS_LOWER}-x64"
+          ARCH_LOWER="$(printf '%s' "$RUNNER_ARCH" | tr '[:upper:]' '[:lower:]')"
+          case "$ARCH_LOWER" in
+            x64|arm64) ;;
+            *) echo "Unsupported release architecture: $RUNNER_ARCH" >&2; exit 1 ;;
+          esac
+          PKG="skepa-${OS_LOWER}-${ARCH_LOWER}"
           mkdir -p "$PKG"
           cp target/release/skepac "$PKG/"
           # build-native links against libskepart; ship it beside skepac for exe-relative discovery
