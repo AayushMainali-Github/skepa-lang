@@ -464,7 +464,8 @@ fn compile_project_graph_unoptimized_or_report(
 
 fn project_source_fingerprint(graph: &ModuleGraph) -> String {
     let mut hasher = DefaultHasher::new();
-    "skepac-native-source-cache-v1".hash(&mut hasher);
+    "skepac-native-source-cache-v2".hash(&mut hasher);
+    compiler_cache_identity().hash(&mut hasher);
 
     let mut ids = graph.modules.keys().cloned().collect::<Vec<_>>();
     ids.sort();
@@ -539,7 +540,8 @@ fn native_link_artifact_fingerprint(
     runtime: &codegen::RuntimeLinkInputs,
 ) -> String {
     let mut hasher = DefaultHasher::new();
-    "skepac-native-link-artifact-cache-v4".hash(&mut hasher);
+    "skepac-native-link-artifact-cache-v5".hash(&mut hasher);
+    compiler_cache_identity().hash(&mut hasher);
     object_identity.hash(&mut hasher);
     for (path, modified, len) in &runtime.cache_inputs {
         path.to_string_lossy().hash(&mut hasher);
@@ -567,7 +569,8 @@ fn native_link_artifact_fingerprint_many(
     runtime: &codegen::RuntimeLinkInputs,
 ) -> String {
     let mut hasher = DefaultHasher::new();
-    "skepac-native-link-artifact-cache-v5".hash(&mut hasher);
+    "skepac-native-link-artifact-cache-v6".hash(&mut hasher);
+    compiler_cache_identity().hash(&mut hasher);
     for identity in object_identities {
         identity.hash(&mut hasher);
     }
@@ -596,7 +599,8 @@ fn native_ir_artifact_fingerprint(
     runtime: &codegen::RuntimeLinkInputs,
 ) -> String {
     let mut hasher = DefaultHasher::new();
-    "skepac-native-ir-artifact-cache-v2".hash(&mut hasher);
+    "skepac-native-ir-artifact-cache-v3".hash(&mut hasher);
+    compiler_cache_identity().hash(&mut hasher);
     ir_identity.hash(&mut hasher);
     for (path, modified, len) in &runtime.cache_inputs {
         path.to_string_lossy().hash(&mut hasher);
@@ -816,16 +820,25 @@ fn native_cache_extension() -> &'static str {
 
 fn ir_program_fingerprint(program: &ir::IrProgram) -> String {
     let mut hasher = DefaultHasher::new();
-    "skepac-ir-object-cache-v1".hash(&mut hasher);
+    "skepac-ir-object-cache-v2".hash(&mut hasher);
+    compiler_cache_identity().hash(&mut hasher);
     format!("{program:#?}").hash(&mut hasher);
     format!("{:016x}", hasher.finish())
 }
 
 fn text_fingerprint(text: &str) -> String {
     let mut hasher = DefaultHasher::new();
-    "skepac-text-fingerprint-v1".hash(&mut hasher);
+    "skepac-text-fingerprint-v2".hash(&mut hasher);
+    compiler_cache_identity().hash(&mut hasher);
     canonicalize_llvm_ssa_names(text).hash(&mut hasher);
     format!("{:016x}", hasher.finish())
+}
+
+// Bump the codegen component when compiler lowering or native ABI changes. The
+// package version covers released compiler changes; this component protects
+// development builds that keep the same package version.
+fn compiler_cache_identity() -> &'static str {
+    concat!(env!("CARGO_PKG_VERSION"), ":native-codegen-v2")
 }
 
 fn canonicalize_llvm_ssa_names(text: &str) -> String {
@@ -977,10 +990,11 @@ fn temp_native_path() -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::{
-        canonicalize_llvm_ssa_names, materialize_cached_artifact, prepare_output_path,
-        store_cached_artifact, text_fingerprint,
+        canonicalize_llvm_ssa_names, compiler_cache_identity, materialize_cached_artifact,
+        prepare_output_path, store_cached_artifact, text_fingerprint,
     };
     use std::fs;
+    use std::hash::{DefaultHasher, Hash, Hasher};
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -1046,5 +1060,16 @@ mod tests {
             canonicalize_llvm_ssa_names(second)
         );
         assert_eq!(text_fingerprint(first), text_fingerprint(second));
+    }
+
+    #[test]
+    fn cache_identity_includes_compiler_version_and_codegen_schema() {
+        assert!(compiler_cache_identity().starts_with(env!("CARGO_PKG_VERSION")));
+        assert!(compiler_cache_identity().contains("native-codegen-v2"));
+        assert_ne!(text_fingerprint("llvm-ir"), {
+            let mut hasher = DefaultHasher::new();
+            "llvm-ir".hash(&mut hasher);
+            format!("{:016x}", hasher.finish())
+        });
     }
 }
