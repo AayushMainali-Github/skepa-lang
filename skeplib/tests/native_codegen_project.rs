@@ -109,6 +109,7 @@ fn main() -> Int {
   }
   return 0;
 }
+
 "#;
 
     let program = ir::lowering::compile_source(source).expect("IR lowering should succeed");
@@ -123,4 +124,27 @@ fn main() -> Int {
         !llvm_ir.contains("fcmp one double"),
         "ordered fcmp one must not be used for float !="
     );
+}
+
+#[test]
+fn inlined_method_field_mutation_keeps_struct_pointer_valid() {
+    let source = r#"
+struct Counter {
+  n: Int
+}
+
+impl Counter {
+  fn bump(self) -> Int {
+    self.n = self.n + 1;
+    return self.n;
+  }
+}
+
+fn main() -> Int {
+  let c: Counter = Counter { n: 0 };
+  return c.bump();
+}
+"#;
+
+    assert_eq!(common::native_run_exit_code_ok(source), 1);
 }
