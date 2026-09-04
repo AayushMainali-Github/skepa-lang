@@ -17,6 +17,24 @@ fn main() -> Int { return f(41); }
 }
 
 #[test]
+fn native_call_resolution_keeps_branch_dependent_function_values_dynamic() {
+    let source = r#"
+fn inc(x: Int) -> Int { return x + 1; }
+fn dec(x: Int) -> Int { return x - 1; }
+
+fn main() -> Int {
+  let f: Fn(Int) -> Int = inc;
+  if (false) {
+    f = dec;
+  }
+  return f(10);
+}
+"#;
+
+    assert_eq!(common::native_run_exit_code_ok(source), 11);
+}
+
+#[test]
 fn llvm_codegen_uses_imported_operator_symbol_for_project_infix_calls() {
     let project = common::TempProject::new("codegen_imported_operator_symbol");
     project.file(
