@@ -12,7 +12,7 @@ Tools:
 Download from GitHub Releases:
 - Windows: `skepa-windows-x64.zip`
 - Linux: `skepa-linux-x64.tar.gz`
-- macOS: `skepa-macos-x64.tar.gz`
+- macOS Apple Silicon: `skepa-macos-arm64.tar.gz`
 
 Extract the archive and keep `skepac` together with the shipped runtime library (`libskepart.a` on Unix, plus `skepart.dll` / import libs on Windows). Add that directory to `PATH`.
 
