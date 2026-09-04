@@ -1109,6 +1109,21 @@ fn main() -> Int {
     false => { return 0; }
   }
 }
+
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
+
+#[test]
+fn sema_accepts_bool_match_covered_by_one_or_pattern() {
+    let src = r#"
+fn main() -> Int {
+  let b: Bool = true;
+  match (b) {
+    true | false => { return 1; }
+  }
+}
 "#;
     let (result, diags) = analyze_source(src);
     assert_sema_success(&result, &diags);

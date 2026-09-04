@@ -39,6 +39,7 @@ Comments:
 
 String escapes:
 - `\n`, `\t`, `\r`, `\"`, `\\`
+- Unicode code points: `\u{...}` with 1–6 hexadecimal digits (for example, `\u{1F600}`)
 
 Operators and delimiters (selected):
 - arithmetic: `+`, `-`, `*`, `/`, `%`
@@ -1547,6 +1548,7 @@ Behavior:
 - `net.parseUrl(url)` parses a URL and returns `Ok(Map[String, String])` with keys: `scheme`, `host`, `port`, `path`, `query`, and `fragment`, or `Err(String)` if parsing fails.
 - `net.fetch(url, options)` performs a blocking HTTP request and returns `Ok(Map[String, String])` on success or `Err(String)` on request failure.
 - The response is limited to 8 MiB including headers; larger responses fail with `Err(String)` instead of being buffered without bound. Bodies must be valid UTF-8.
+- The response body is buffered in memory and decoded as UTF-8; a response containing invalid UTF-8 bytes is returned as an error rather than exposed as binary data.
 - `net.listen(address)` binds a blocking TCP listener, returning `Ok(net.Listener)` on success or `Err(String)` on bind failure. Using port `0` lets the OS choose an ephemeral port.
 - `net.accept(listener)` blocks until a client connects, then returns `Ok(net.Socket)` on success or `Err(String)` on accept failure.
 - `net.read(socket)` performs exactly one blocking read attempt of up to 4096 bytes and returns `Ok(String)` on success or `Err(String)` on I/O failure. It does not assemble a logical message or drain the socket.
