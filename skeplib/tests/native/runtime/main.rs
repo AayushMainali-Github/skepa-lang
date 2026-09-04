@@ -71,6 +71,7 @@ fn main() -> Int {
 fn ir_interpreter_runs_array_and_vec_program_for_runtime_validation() {
     let src = r#"
 import option;
+import vec;
 
 fn main() -> Int {
   let arr: [Int; 3] = [1; 3];

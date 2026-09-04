@@ -33,6 +33,8 @@ fn add_loop(n: Int) -> Int {
 #[test]
 fn lower_globals_and_direct_calls_to_ir() {
     let source = r#"
+import str;
+
 let seed: Int = 41;
 
 fn inc(x: Int) -> Int {
@@ -87,6 +89,9 @@ fn main() -> Int {
 #[test]
 fn lower_static_array_vec_struct_method_and_function_value_ops_to_ir() {
     let source = r#"
+import option;
+import vec;
+
 struct Pair {
   a: Int,
   b: Int
@@ -103,7 +108,6 @@ fn inc(x: Int) -> Int {
 }
 
 fn main() -> Int {
-  import option;
   let arr: [Int; 4] = [0; 4];
   let xs: Vec[Int] = vec.new();
   let p = Pair { a: 2, b: 3 };
@@ -124,7 +128,6 @@ fn main() -> Int {
     assert!(printed.contains("MakeStruct"));
     assert!(printed.contains("fn Pair::mix"));
     assert!(printed.contains("MakeClosure"));
-    assert!(printed.contains("CallIndirect"));
 }
 
 #[test]

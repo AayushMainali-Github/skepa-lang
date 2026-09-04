@@ -45,10 +45,10 @@ fn main() -> Int { return 1 `xoxo` 2; }
     )
     .expect("write main");
 
-    let errs = resolve_project(&root.join("main.sk")).expect_err("missing operator export expected");
+    let errs =
+        resolve_project(&root.join("main.sk")).expect_err("missing operator export expected");
     assert!(errs.iter().any(|e| {
-        e.code == "E-IMPORT-NOT-EXPORTED"
-            && e.message.contains("Cannot import operator `xoxo`")
+        e.code == "E-IMPORT-NOT-EXPORTED" && e.message.contains("Cannot import operator `xoxo`")
     }));
     assert!(!errs.iter().any(|e| e.kind == ResolveErrorKind::Parse));
     let _ = fs::remove_dir_all(root);
@@ -632,11 +632,12 @@ fn resolve_project_reports_bad_import_chain_with_intermediate_module_context() {
 
 #[test]
 fn resolve_project_respects_case_sensitivity_where_relevant() {
-    if cfg!(windows) {
-        return;
-    }
     let root = make_temp_dir("case_sensitive_imports");
     fs::write(root.join("util.sk"), "fn value() -> Int { return 1; }\n").expect("write util");
+    if root.join("UTIL.sk").exists() {
+        let _ = fs::remove_dir_all(root);
+        return;
+    }
     fs::write(
         root.join("main.sk"),
         r#"
