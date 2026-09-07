@@ -2,6 +2,7 @@
 name = "skeplib"
 version = "0.14.0"
 edition = "2024"
+license.workspace = true
 
 [dependencies]
 skepart = { path = "../skepart" }

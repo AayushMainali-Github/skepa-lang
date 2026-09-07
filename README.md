@@ -5,6 +5,11 @@ Skepa is a statically typed compiled language implemented in Rust.
 Tools:
 - `skepac`: check, run, and build native artifacts
 
+## License
+
+Skepa is dual-licensed under either the [MIT License](./LICENSE-MIT) or the
+[Apache License, Version 2.0](./LICENSE-APACHE), at your option.
+
 ## Install
 
 ### 1) Prebuilt binaries (no Rust)

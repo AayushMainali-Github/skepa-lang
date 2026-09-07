@@ -8,6 +8,10 @@ This repository follows a conventional commit style for commit messages.
 
 Please open an issue before starting work on a bug fix or feature. This gives us a chance to discuss the change, confirm the approach, and avoid duplicated effort.
 
+By submitting a contribution, you agree that it may be distributed as part of
+Skepa under the repository's MIT OR Apache-2.0 license, unless you and the
+project have agreed otherwise in writing.
+
 Pull requests should be tied to an approved issue. If you open a PR without a corresponding issue, you may be asked to open one before the PR can be reviewed.
 
 Create a separate branch for your work instead of committing directly to `main`. A `feature/...` or `fix/...` branch keeps changes isolated and easier to review.

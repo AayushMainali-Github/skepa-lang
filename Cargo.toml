@@ -5,3 +5,6 @@ members = [
   "skepac",
   "skeplib",
 ]
+
+[workspace.package]
+license = "MIT OR Apache-2.0"
