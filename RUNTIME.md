@@ -175,7 +175,11 @@ Exports such as `skp_rt_call_builtin` and `skp_rt_call_function` return a unit b
 - native LLVM codegen calls `skp_rt_abort_if_error()` after fallible runtime helper boundaries
 - the IR interpreter converts `RtErrorKind` into interpreter errors instead of aborting the host process
 
-### Task Panic Mapping
+### Task Panic Mapping (Current Prototype)
+
+This describes the current thread-backed experimental API. The target
+concurrency contract returns task failure through `Result`, as specified in
+`DOCS.md`; that behavior is not fully implemented yet.
 
 If a spawned native task panics, `task.join` maps that failure to:
 

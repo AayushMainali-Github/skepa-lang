@@ -2034,6 +2034,10 @@ fn main() -> Int {
 
 ### 8.14 `task`
 
+This subsection records the current prototype behavior. The target semantics
+are specified in [Concurrency Model](#concurrency-model-target-contract-experimental)
+above and supersede this prototype description as the migration issues land.
+
 Status:
 - Experimental standard-library surface.
 - Available for use, but not yet covered by the same stability promise as the rest of the core builtin surface.
