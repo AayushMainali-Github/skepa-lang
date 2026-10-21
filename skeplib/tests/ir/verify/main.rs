@@ -1,6 +1,6 @@
 use skeplib::ir::{
-    self, BasicBlock, BlockId, FieldRef, FunctionId, Instr, IrFunction, IrLocal, IrProgram,
-    IrStruct, IrTemp, IrType, IrVerifier, StructField, StructId, TempId, Terminator,
+    self, BasicBlock, BlockId, FieldRef, FunctionId, Instr, IrFunction, IrLocal, IrParam,
+    IrProgram, IrStruct, IrTemp, IrType, IrVerifier, StructField, StructId, TempId, Terminator,
 };
 
 #[test]
@@ -599,7 +599,10 @@ fn verifier_rejects_non_shareable_task_payloads_with_field_path() {
                     },
                 }],
                 vec![ir::Operand::Local(ir::LocalId(0))],
-                IrType::Opaque("task.Task[Envelope]".into()),
+                IrType::Result {
+                    ok: Box::new(IrType::Opaque("task.Task[Envelope]".into())),
+                    err: Box::new(IrType::String),
+                },
                 Some(TempId(0)),
             ),
             "join" => (
@@ -676,6 +679,231 @@ fn verifier_rejects_non_shareable_task_payloads_with_field_path() {
                 && ty == "Vec[Int]"
         ));
     }
+}
+
+#[test]
+fn verifier_checks_spawned_code_global_effects_through_direct_calls() {
+    let local_only_global = r#"
+import task;
+import vec;
+
+let values: Vec[Int] = vec.new();
+
+fn read_count() -> Int {
+  return vec.len(values);
+}
+
+fn worker() -> Int {
+  return read_count();
+}
+
+fn main() -> Int {
+  let spawned = task.spawn(worker);
+  return 0;
+}
+"#;
+    let error = ir::lowering::compile_source(local_only_global)
+        .expect_err("spawned code must not read local-only global state");
+    let messages = error
+        .as_slice()
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>();
+    assert!(
+        messages
+            .iter()
+            .any(|message| message.contains("NonShareableConcurrencyValue"))
+    );
+    assert!(
+        messages
+            .iter()
+            .any(|message| message.contains("task.spawn global `values`"))
+    );
+
+    let global_mutation = r#"
+import task;
+
+let counter: Int = 0;
+
+fn worker() -> Int {
+  counter = counter + 1;
+  return counter;
+}
+
+fn main() -> Int {
+  let spawned = task.spawn(worker);
+  return 0;
+}
+"#;
+    let error = ir::lowering::compile_source(global_mutation)
+        .expect_err("spawned code must not mutate global state");
+    let messages = error
+        .as_slice()
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>();
+    assert!(
+        messages
+            .iter()
+            .any(|message| message.contains("UnsafeTaskGlobalMutation"))
+    );
+    assert!(messages.iter().any(|message| message.contains("counter")));
+}
+
+#[test]
+fn verifier_allows_spawned_code_to_read_shareable_globals() {
+    let source = r#"
+import task;
+
+let offset: Int = 5;
+
+fn worker() -> Int {
+  return offset;
+}
+
+fn main() -> Int {
+  let spawned = task.spawn(worker);
+  return 0;
+}
+"#;
+    ir::lowering::compile_source(source).expect("shareable read-only global is safe");
+}
+
+#[test]
+fn verifier_checks_spawn_argument_signatures_and_capabilities() {
+    fn program(expected_arg: IrType, actual_arg: IrType) -> IrProgram {
+        let is_vec = matches!(&actual_arg, IrType::Vec { .. });
+        let arg_operand = if is_vec {
+            ir::Operand::Local(ir::LocalId(0))
+        } else {
+            ir::Operand::Temp(TempId(1))
+        };
+        let mut main_temps = vec![
+            IrTemp {
+                id: TempId(0),
+                ty: IrType::Fn {
+                    params: vec![expected_arg.clone()],
+                    ret: Box::new(IrType::Int),
+                },
+            },
+            IrTemp {
+                id: TempId(2),
+                ty: IrType::Result {
+                    ok: Box::new(IrType::Opaque("task.Task[Int]".into())),
+                    err: Box::new(IrType::String),
+                },
+            },
+        ];
+        let mut main_instrs = vec![Instr::MakeClosure {
+            dst: TempId(0),
+            function: FunctionId(1),
+        }];
+        if !is_vec {
+            main_temps.push(IrTemp {
+                id: TempId(1),
+                ty: actual_arg.clone(),
+            });
+            let value = match &actual_arg {
+                IrType::Int => ir::ConstValue::Int(2),
+                IrType::String => ir::ConstValue::String("bad".into()),
+                _ => unreachable!(),
+            };
+            main_instrs.push(Instr::Const {
+                dst: TempId(1),
+                ty: actual_arg.clone(),
+                value,
+            });
+        }
+        main_instrs.push(Instr::CallBuiltin {
+            dst: Some(TempId(2)),
+            ret_ty: IrType::Result {
+                ok: Box::new(IrType::Opaque("task.Task[Int]".into())),
+                err: Box::new(IrType::String),
+            },
+            builtin: ir::BuiltinCall {
+                package: "task".into(),
+                name: "spawn".into(),
+            },
+            args: vec![ir::Operand::Temp(TempId(0)), arg_operand],
+        });
+
+        let main = IrFunction {
+            id: FunctionId(0),
+            name: "main".into(),
+            params: Vec::new(),
+            locals: if is_vec {
+                vec![IrLocal {
+                    id: ir::LocalId(0),
+                    name: "values".into(),
+                    ty: actual_arg,
+                }]
+            } else {
+                Vec::new()
+            },
+            temps: main_temps,
+            ret_ty: IrType::Int,
+            entry: BlockId(0),
+            blocks: vec![BasicBlock {
+                id: BlockId(0),
+                name: "entry".into(),
+                instrs: main_instrs,
+                terminator: Terminator::Return(Some(ir::Operand::Const(ir::ConstValue::Int(0)))),
+            }],
+        };
+        let task_function = IrFunction {
+            id: FunctionId(1),
+            name: "worker".into(),
+            params: vec![IrParam {
+                id: ir::ParamId(0),
+                name: "value".into(),
+                ty: expected_arg,
+            }],
+            locals: Vec::new(),
+            temps: Vec::new(),
+            ret_ty: IrType::Int,
+            entry: BlockId(0),
+            blocks: vec![BasicBlock {
+                id: BlockId(0),
+                name: "entry".into(),
+                instrs: Vec::new(),
+                terminator: Terminator::Return(Some(ir::Operand::Const(ir::ConstValue::Int(0)))),
+            }],
+        };
+        IrProgram {
+            functions: vec![main, task_function],
+            globals: Vec::new(),
+            structs: Vec::new(),
+            module_init: None,
+        }
+    }
+
+    IrVerifier::verify_program(&program(IrType::Int, IrType::Int))
+        .expect("matching shareable spawn arguments are valid");
+
+    let mismatch = IrVerifier::verify_program(&program(IrType::Int, IrType::String))
+        .expect_err("spawn argument type mismatch must be rejected");
+    assert!(matches!(
+        mismatch,
+        ir::IrVerifyError::BadCallSignature { .. }
+    ));
+
+    let local_only = IrVerifier::verify_program(&program(
+        IrType::Vec {
+            elem: Box::new(IrType::Int),
+        },
+        IrType::Vec {
+            elem: Box::new(IrType::Int),
+        },
+    ))
+    .expect_err("mutable spawn arguments must be rejected");
+    assert!(matches!(
+        local_only,
+        ir::IrVerifyError::NonShareableConcurrencyValue {
+            boundary,
+            capability: skeplib::types::ConcurrencyCapability::LocalOnly,
+            ..
+        } if boundary == "task.spawn argument 1"
+    ));
 }
 
 #[test]

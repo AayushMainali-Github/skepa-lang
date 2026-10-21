@@ -16,15 +16,48 @@ impl RtHost for UnsupportedHost {
 struct ImmediateRuntime;
 
 impl builtins::BuiltinRuntime for ImmediateRuntime {
-    fn call_function(&mut self, function: RtFunctionRef, _args: &[RtValue]) -> RtResult<RtValue> {
+    fn call_function(&mut self, function: RtFunctionRef, args: &[RtValue]) -> RtResult<RtValue> {
         match function.0 {
             7 => Ok(RtValue::Int(99)),
+            8 => args
+                .first()
+                .ok_or_else(|| {
+                    skepart::RtError::new(
+                        skepart::RtErrorKind::InvalidArgument,
+                        "missing function argument",
+                    )
+                })?
+                .expect_int()
+                .map(RtValue::Int),
             _ => Err(skepart::RtError::new(
                 skepart::RtErrorKind::InvalidArgument,
                 format!("unknown runtime function id {}", function.0),
             )),
         }
     }
+}
+
+#[test]
+fn builtins_task_spawn_transports_explicit_arguments() {
+    let mut host = RecordingHostBuilder::seeded().build();
+    let mut runtime = ImmediateRuntime;
+    let spawned = builtins::call_with_host_runtime(
+        &mut host,
+        &mut runtime,
+        "task",
+        "spawn",
+        &[RtValue::Function(RtFunctionRef(8)), RtValue::Int(42)],
+    )
+    .expect("task.spawn");
+    let task = match spawned.expect_result_value().expect("spawn result") {
+        skepart::RtResultValue::Ok(task) => *task,
+        skepart::RtResultValue::Err(error) => panic!("spawn failed: {error:?}"),
+    };
+
+    assert_eq!(
+        builtins::call_with_host(&mut host, "task", "join", &[task]).expect("task.join"),
+        RtValue::Int(42)
+    );
 }
 
 struct ThreadedRuntime;
@@ -54,6 +87,23 @@ impl builtins::BuiltinRuntime for ThreadedRuntime {
             )),
         });
         host.task_store_running(task)
+    }
+}
+
+struct FailingSpawnRuntime;
+
+impl builtins::BuiltinRuntime for FailingSpawnRuntime {
+    fn call_function(&mut self, _function: RtFunctionRef, _args: &[RtValue]) -> RtResult<RtValue> {
+        Ok(RtValue::Int(1))
+    }
+
+    fn spawn_function(
+        &mut self,
+        _host: &mut dyn RtHost,
+        _function: RtFunctionRef,
+        _args: &[RtValue],
+    ) -> RtResult<skepart::RtHandle> {
+        Err(skepart::RtError::io("task registration unavailable"))
     }
 }
 
@@ -629,6 +679,10 @@ fn builtins_cover_spawn_and_join_roundtrip() {
         &[RtValue::Function(RtFunctionRef(7))],
     )
     .expect("task.spawn");
+    let task = match task.expect_result_value().expect("spawn result") {
+        skepart::RtResultValue::Ok(task) => *task,
+        skepart::RtResultValue::Err(error) => panic!("spawn failed: {error:?}"),
+    };
 
     assert_eq!(
         builtins::call_with_host(&mut host, "task", "join", &[task]).expect("task.join"),
@@ -648,11 +702,35 @@ fn builtins_spawn_uses_runtime_spawn_hook_when_available() {
         &[RtValue::Function(RtFunctionRef(7))],
     )
     .expect("task.spawn");
+    let task = match task.expect_result_value().expect("spawn result") {
+        skepart::RtResultValue::Ok(task) => *task,
+        skepart::RtResultValue::Err(error) => panic!("spawn failed: {error:?}"),
+    };
 
     assert_eq!(
         builtins::call_with_host(&mut host, "task", "join", &[task]).expect("task.join"),
         RtValue::Int(123)
     );
+}
+
+#[test]
+fn builtins_task_spawn_returns_runtime_failure_as_result() {
+    let mut host = RecordingHostBuilder::seeded().build();
+    let mut runtime = FailingSpawnRuntime;
+    let result = builtins::call_with_host_runtime(
+        &mut host,
+        &mut runtime,
+        "task",
+        "spawn",
+        &[RtValue::Function(RtFunctionRef(7))],
+    )
+    .expect("task.spawn reports registration failure as a value");
+
+    let skepart::RtResultValue::Err(error) = result.expect_result_value().expect("spawn result")
+    else {
+        panic!("failed task registration should produce Err");
+    };
+    assert!(matches!(*error, RtValue::String(_)));
 }
 
 #[test]

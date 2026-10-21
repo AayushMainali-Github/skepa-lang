@@ -25,6 +25,8 @@ pub(super) fn check_datetime_builtin(
                 sig.ret.clone()
             }
         }
-        BuiltinKind::FormatVariadic | BuiltinKind::ArrayOps => sig.ret.clone(),
+        BuiltinKind::FormatVariadic | BuiltinKind::FunctionVariadic | BuiltinKind::ArrayOps => {
+            sig.ret.clone()
+        }
     }
 }

@@ -20,6 +20,7 @@ mod vec_pkg;
 pub enum BuiltinKind {
     FixedArity,
     FormatVariadic,
+    FunctionVariadic,
     ArrayOps,
 }
 
@@ -276,9 +277,9 @@ fn builtin_meta(package: &str, name: &str) -> BuiltinMeta {
 #[cfg(test)]
 mod tests {
     use super::{
-        BuiltinLowering, BuiltinPurity, BuiltinVisibility, all_builtin_specs,
-        all_builtin_specs_any, find_builtin_sig, find_builtin_sig_any, find_builtin_spec,
-        find_builtin_spec_any,
+        BuiltinKind, BuiltinLowering, BuiltinPurity, BuiltinVisibility, TypeInfo,
+        all_builtin_specs, all_builtin_specs_any, find_builtin_sig, find_builtin_sig_any,
+        find_builtin_spec, find_builtin_spec_any,
     };
 
     #[test]
@@ -340,5 +341,12 @@ mod tests {
         assert!(public.contains(&("ffi", "open")));
         assert!(public.contains(&("task", "spawn")));
         assert!(public.contains(&("net", "connect")));
+    }
+
+    #[test]
+    fn task_spawn_is_registered_as_a_function_variadic_builtin() {
+        let spawn = find_builtin_spec("task", "spawn").expect("public task.spawn signature");
+        assert_eq!(spawn.sig.kind, BuiltinKind::FunctionVariadic);
+        assert_eq!(spawn.sig.params, &[TypeInfo::Unknown]);
     }
 }

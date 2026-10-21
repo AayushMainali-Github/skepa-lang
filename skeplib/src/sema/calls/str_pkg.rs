@@ -17,7 +17,9 @@ pub(super) fn check_str_builtin(
         BuiltinKind::FixedArity => {
             checker.check_fixed_arity_builtin("str", method, args, scopes, sig)
         }
-        BuiltinKind::FormatVariadic | BuiltinKind::ArrayOps => sig.ret.clone(),
+        BuiltinKind::FormatVariadic | BuiltinKind::FunctionVariadic | BuiltinKind::ArrayOps => {
+            sig.ret.clone()
+        }
     };
     match method {
         "slice" => TypeInfo::Result {

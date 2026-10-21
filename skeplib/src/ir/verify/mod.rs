@@ -55,6 +55,16 @@ pub enum IrVerifyError {
         path: Vec<String>,
         ty: String,
     },
+    UnsafeTaskGlobalMutation {
+        function: String,
+        global: String,
+    },
+    UnverifiableTaskCodeEntry {
+        function: String,
+    },
+    UnverifiableTaskCallTarget {
+        function: String,
+    },
     ReturnTypeMismatch {
         function: String,
     },

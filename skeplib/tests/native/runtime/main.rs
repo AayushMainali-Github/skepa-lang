@@ -30,6 +30,26 @@ fn main() -> Int {
 }
 
 #[test]
+fn native_and_interpreter_transport_explicit_task_spawn_arguments() {
+    let source = r#"
+import result;
+import task;
+
+fn job(value: Int) -> Int {
+  return value + 1;
+}
+
+fn main() -> Int {
+  let child: task.Task[Int] = result.unwrapOk(task.spawn(job, 40));
+  return task.join(child) - 41;
+}
+"#;
+
+    assert_eq!(common::ir_run_ok(source), skepart::value::RtValue::Int(0));
+    assert_eq!(common::native_run_exit_code_ok(source), 0);
+}
+
+#[test]
 fn native_exec_runs_core_control_flow_program() {
     let src = r#"
 fn main() -> Int {

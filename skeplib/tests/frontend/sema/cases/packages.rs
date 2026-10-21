@@ -1725,14 +1725,16 @@ fn sema_accepts_task_spawn_and_join_flow() {
     let src = r#"
 import task;
 
-fn job() -> Int {
-  return 21;
+fn job(value: Int) -> Int {
+  return value;
 }
 
 fn main() -> Int {
-  let t: task.Task[Int] = task.spawn(job);
-  let value: Int = task.join(t);
-  return value;
+  let spawned: Result[task.Task[Int], String] = task.spawn(job, 21);
+  match (spawned) {
+    Ok(t) => { return task.join(t); }
+    Err(_) => { return 0; }
+  }
 }
 "#;
     let (result, diags) = analyze_source(src);
@@ -1750,9 +1752,11 @@ fn job() -> Int {
 
 fn main() -> Void {
   let jobs: task.Channel[Int] = task.channel();
-  let t: task.Task[Int] = task.spawn(job);
+  match (task.spawn(job)) {
+    Ok(t) => { task.close(t); }
+    Err(_) => {}
+  }
   task.close(jobs);
-  task.close(t);
   return;
 }
 "#;
@@ -1770,7 +1774,8 @@ fn job(x: Int) -> Int {
 }
 
 fn main() -> Int {
-  let bad: task.Task[Int] = task.spawn(job);
+  let bad = task.spawn(job, "wrong");
+  let missing_argument = task.spawn(job);
   let other: task.Channel[Int] = task.channel();
   let value: Int = task.join(other);
   return value;
@@ -1780,7 +1785,11 @@ fn main() -> Int {
     assert!(result.has_errors);
     assert!(diags.as_slice().iter().any(|d| {
         d.message
-            .contains("task.spawn argument 1 expects Fn() -> T")
+            .contains("task.spawn argument 1 expects Int, got String")
+    }));
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("task.spawn function expects 1 argument(s), got 0")
     }));
     assert!(
         diags
@@ -1788,6 +1797,33 @@ fn main() -> Int {
             .iter()
             .any(|d| d.message.contains("task.join argument 1 expects Task"))
     );
+}
+
+#[test]
+fn sema_rejects_non_shareable_task_spawn_arguments() {
+    let src = r#"
+import task;
+import vec;
+
+fn consume(values: Vec[Int]) -> Int {
+  return vec.len(values);
+}
+
+fn main() -> Int {
+  let values: Vec[Int] = vec.new();
+  let spawned = task.spawn(consume, values);
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|diagnostic| {
+        diagnostic.message.contains("task.spawn argument 1")
+            && diagnostic.message.contains("Vec[Int]")
+            && diagnostic
+                .message
+                .contains("local-only concurrency capability")
+    }));
 }
 
 #[test]

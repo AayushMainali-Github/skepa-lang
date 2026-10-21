@@ -17,6 +17,8 @@ pub(super) fn check_random_builtin(
         BuiltinKind::FixedArity => {
             checker.check_fixed_arity_builtin("random", method, args, scopes, sig)
         }
-        BuiltinKind::FormatVariadic | BuiltinKind::ArrayOps => sig.ret.clone(),
+        BuiltinKind::FormatVariadic | BuiltinKind::FunctionVariadic | BuiltinKind::ArrayOps => {
+            sig.ret.clone()
+        }
     }
 }
