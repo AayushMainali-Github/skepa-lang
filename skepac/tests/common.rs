@@ -1,9 +1,11 @@
 #![allow(dead_code)]
 
 use std::fs;
+use std::io;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::process::{Command, Output, Stdio};
+use std::thread;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CliFailureClass {
@@ -13,6 +15,20 @@ pub enum CliFailureClass {
     Sema,
     Codegen,
     Runtime,
+}
+
+struct TestProcessLogDir(PathBuf);
+
+impl TestProcessLogDir {
+    fn new() -> Self {
+        Self(make_temp_dir("skepac_test_process"))
+    }
+}
+
+impl Drop for TestProcessLogDir {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
 }
 
 pub fn skepac_bin() -> &'static str {
@@ -55,7 +71,17 @@ pub fn exe_ext() -> &'static str {
 }
 
 pub fn run_skepac(args: &[&str]) -> Output {
-    run_output(Command::new(skepac_bin()).args(args)).expect("run skepac")
+    let mut command = Command::new(skepac_bin());
+    command.args(args);
+    run_output(&mut command).expect("run skepac")
+}
+
+pub const CLI_TEST_PROCESS_TIMEOUT: Duration = Duration::from_secs(120);
+
+pub fn run_skepac_with_timeout(args: &[&str], timeout: Duration) -> io::Result<Output> {
+    let mut command = Command::new(skepac_bin());
+    command.args(args);
+    run_output_with_platform_timeout(&mut command, timeout)
 }
 
 pub fn assert_cli_failure_class(output: &Output, class: CliFailureClass) {
@@ -126,17 +152,70 @@ pub fn assert_diag_code_and_message(stderr: &str, code: &str, message_fragment: 
 }
 
 fn run_output(command: &mut Command) -> std::io::Result<Output> {
+    run_output_with_platform_timeout(command, CLI_TEST_PROCESS_TIMEOUT)
+}
+
+fn run_output_with_platform_timeout(
+    command: &mut Command,
+    timeout: Duration,
+) -> io::Result<Output> {
     #[cfg(windows)]
     {
         let previous = set_error_mode(SEM_NOGPFAULTERRORBOX | SEM_FAILCRITICALERRORS);
-        let result = command.output();
+        let result = run_output_with_timeout(command, timeout);
         let _ = set_error_mode(previous);
         result
     }
     #[cfg(not(windows))]
     {
-        command.output()
+        run_output_with_timeout(command, timeout)
     }
+}
+
+pub fn run_output_with_timeout(command: &mut Command, timeout: Duration) -> io::Result<Output> {
+    let log_dir = TestProcessLogDir::new();
+    let stdout_path = log_dir.0.join("stdout.log");
+    let stderr_path = log_dir.0.join("stderr.log");
+    let stdout = fs::File::create(&stdout_path)?;
+    let stderr = fs::File::create(&stderr_path)?;
+    command
+        .stdout(Stdio::from(stdout))
+        .stderr(Stdio::from(stderr));
+    let mut child = command.spawn()?;
+    let started_at = Instant::now();
+
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break Ok(status),
+            Ok(None) => {
+                let elapsed = started_at.elapsed();
+                if elapsed >= timeout {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    break Err(io::Error::new(
+                        io::ErrorKind::TimedOut,
+                        format!(
+                            "process {:?} exceeded test deadline of {timeout:?}",
+                            command.get_program()
+                        ),
+                    ));
+                }
+                thread::sleep((timeout - elapsed).min(Duration::from_millis(10)));
+            }
+            Err(error) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                break Err(error);
+            }
+        }
+    }?;
+
+    let output = Output {
+        status,
+        stdout: fs::read(&stdout_path)?,
+        stderr: fs::read(&stderr_path)?,
+    };
+    Ok(output)
 }
 
 #[cfg(windows)]

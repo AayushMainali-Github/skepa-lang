@@ -2,10 +2,11 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::{Command, Output, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::thread;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use skepart::{RtErrorKind, RtHost, RtResult, RtString, RtValue};
 use skeplib::ast::Program;
@@ -273,6 +274,8 @@ pub fn native_run_project_structured(entry: &Path) -> NativeRunResult {
     native_run_program(&program)
 }
 
+pub const NATIVE_TEST_PROCESS_TIMEOUT: Duration = Duration::from_secs(60);
+
 pub fn llvm_tool_available(tool: &str) -> bool {
     Command::new(tool).arg("--version").output().is_ok()
 }
@@ -380,14 +383,64 @@ fn run_output(command: &mut Command) -> std::io::Result<Output> {
     #[cfg(windows)]
     {
         let previous = set_error_mode(SEM_NOGPFAULTERRORBOX | SEM_FAILCRITICALERRORS);
-        let result = command.output();
+        let result = run_output_with_timeout(command, NATIVE_TEST_PROCESS_TIMEOUT);
         let _ = set_error_mode(previous);
         result
     }
     #[cfg(not(windows))]
     {
-        command.output()
+        run_output_with_timeout(command, NATIVE_TEST_PROCESS_TIMEOUT)
     }
+}
+
+pub fn run_output_with_timeout(
+    command: &mut Command,
+    timeout: Duration,
+) -> std::io::Result<Output> {
+    let logs = TempProject::new("skepa_test_process");
+    let stdout_path = logs.file("stdout.log", "");
+    let stderr_path = logs.file("stderr.log", "");
+    let stdout = fs::File::create(&stdout_path)?;
+    let stderr = fs::File::create(&stderr_path)?;
+    command
+        .stdout(Stdio::from(stdout))
+        .stderr(Stdio::from(stderr));
+    let mut child = command.spawn()?;
+    let started_at = Instant::now();
+
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break Ok(status),
+            Ok(None) => {
+                let elapsed = started_at.elapsed();
+                if elapsed >= timeout {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    break Err(std::io::Error::new(
+                        std::io::ErrorKind::TimedOut,
+                        format!(
+                            "process {:?} exceeded test deadline of {timeout:?}",
+                            command.get_program()
+                        ),
+                    ));
+                }
+                thread::sleep((timeout - elapsed).min(Duration::from_millis(10)));
+            }
+            Err(error) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                break Err(error);
+            }
+        }
+    }?;
+
+    let stdout = fs::read(stdout_path)?;
+    let stderr = fs::read(stderr_path)?;
+    Ok(Output {
+        status,
+        stdout,
+        stderr,
+    })
 }
 
 #[cfg(windows)]

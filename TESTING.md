@@ -45,6 +45,7 @@ Use this for compiler/backend tests.
   - `native_run_project_structured`
   - `native_run_exit_code_ok`
   - `native_run_printed_int_ok`
+  - native subprocesses are captured and terminated after a 60-second test deadline
 - LLVM/tool helpers
   - `llvm_tool_available`
   - `require_llvm_tool`
@@ -80,6 +81,8 @@ Use this for CLI tests.
 - CLI assertions
   - `assert_cli_failure_class`
   - `assert_diag_code_and_message`
+  - `run_skepac_with_timeout` for a caller-selected subprocess deadline
+  - `run_skepac` uses a 120-second default deadline
 
 ## Where Tests Go
 
@@ -218,19 +221,23 @@ If a change affects one of these areas, add a cross-layer test:
 ## Concurrency Test Contract
 
 Concurrency tests enforce the contract in [`DOCS.md`](./DOCS.md#concurrency-model-target-contract-experimental).
-The deterministic interpreter fixture is the semantic oracle for controlled
-ordering tests: it advances ready tasks in stable creation order and reports
-the blocked task/channel state when its step budget is exhausted. Tests should
-assert only specified order (for example, FIFO messages from one sender), not
-which independent sender wins a race.
+The current interpreter fallback executes spawned functions inline; it is
+deterministic but does not interleave ready tasks or model blocking. Until the
+deterministic step scheduler in #138 is implemented, use it only for
+synchronous spawn/join outcomes, not as an oracle for wakeup, cancellation, or
+task-order guarantees. The remaining scheduler/state/channel harness is still
+tracked by #138. Tests should assert only specified order (for example, FIFO
+messages from one sender), not which independent sender wins a race.
 
-Native and CLI tests exercise real scheduling with bounded deadlines. A
-deadline is a deadlock guard, not a timing assertion; do not use sleeps to
-claim that one task ran before another. Compare interpreter and native
-results, typed failures, and specified happens-before outcomes, while allowing
-independent tasks to interleave differently. Channel, task-scope, cancellation,
-and actor tests should use shared helpers once #138 provides them rather than
-creating one-off schedulers or process harnesses.
+Native and CLI helpers run child processes with bounded deadlines (60 seconds
+for native test executables and 120 seconds for CLI invocations by default;
+focused tests may choose a shorter limit). A deadline is only a deadlock
+guard, not a timing assertion; do not use sleeps to claim that one task ran
+before another. Compare interpreter and native results, typed failures, and
+specified happens-before outcomes, while allowing independent tasks to
+interleave differently. Channel, task-scope, cancellation, and actor tests
+should use the shared harness once #138 provides scheduler and channel-state
+control, rather than creating one-off schedulers or process harnesses.
 
 ## Preferred Test Flow
 
