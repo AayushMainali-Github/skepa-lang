@@ -98,6 +98,11 @@ Wrong ABI/signature use at the foreign boundary is undefined behavior.
 
 ## Handle and Resource Lifetime
 
+The handle rules below describe the current runtime contract. The concurrency
+target contract (including directional endpoints and typed operational
+failures) is specified in [`DOCS.md`](./DOCS.md#concurrency-model-target-contract-experimental)
+and is not implemented by every current task builtin yet.
+
 Runtime handles represent host-managed resources such as:
 
 - sockets
@@ -116,6 +121,28 @@ Rules:
 - double-close is a runtime error
 - `task.join` consumes the task handle
 - `ffi.closeSymbol` and `ffi.closeLibrary` reclaim host handle state; symbol/library cache entries are weak and may be pruned after the last strong owner drops
+
+## Concurrency Runtime Design Invariants
+
+These invariants apply as the experimental task API is migrated to the target
+contract in `DOCS.md`:
+
+- A logical Skepa task is not defined as an OS thread. The implementation may
+  initially use host threads, but user-visible task lifetime and ordering do
+  not depend on the eventual scheduler or worker count.
+- Runtime synchronization on channel/actor handles does not make arbitrary
+  `Vec`, `Map`, socket, or FFI values source-level sendable. Compiler
+  capability checks remain authoritative.
+- Channel payloads become visible at one synchronization point. Runtime queue
+  implementations preserve FIFO commit order and wake blocked senders/receivers
+  on message, endpoint close, peer disconnect, and cancellation.
+- Expected disconnection, cancellation, and task failure are language-level
+  `Result` outcomes. Invalid pointers, stale or wrong-kind handles, and
+  violated affine-handle operations remain `RtError` failures.
+- Cancellation is cooperative. Runtime blocking operations must register
+  cancellation wakeups; arbitrary host and FFI calls are not interrupted.
+- Interpreter/native implementations may schedule independent work
+  differently, but must preserve the source-visible guarantees in `DOCS.md`.
 
 ## Panic and Error Mapping
 

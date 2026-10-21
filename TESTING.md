@@ -215,6 +215,23 @@ If a change affects one of these areas, add a cross-layer test:
 - CLI-visible behavior
   - `skepac/tests`
 
+## Concurrency Test Contract
+
+Concurrency tests enforce the contract in [`DOCS.md`](./DOCS.md#concurrency-model-target-contract-experimental).
+The deterministic interpreter fixture is the semantic oracle for controlled
+ordering tests: it advances ready tasks in stable creation order and reports
+the blocked task/channel state when its step budget is exhausted. Tests should
+assert only specified order (for example, FIFO messages from one sender), not
+which independent sender wins a race.
+
+Native and CLI tests exercise real scheduling with bounded deadlines. A
+deadline is a deadlock guard, not a timing assertion; do not use sleeps to
+claim that one task ran before another. Compare interpreter and native
+results, typed failures, and specified happens-before outcomes, while allowing
+independent tasks to interleave differently. Channel, task-scope, cancellation,
+and actor tests should use shared helpers once #138 provides them rather than
+creating one-off schedulers or process harnesses.
+
 ## Preferred Test Flow
 
 For new language/runtime features:
