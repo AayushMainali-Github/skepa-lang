@@ -829,6 +829,8 @@ normal return does not detach unfinished children. Nested tasks belong to the
 current task's child scope. `task.sender` and `task.receiver` expose aliases to
 the channel's single logical endpoint of each direction; assigning an endpoint
 creates another alias to that same synchronized endpoint, not a new queue.
+The `task.scope` callback runs synchronously in the caller; only its spawned
+children cross task boundaries.
 
 #### Isolation and transfer capabilities
 
@@ -847,7 +849,7 @@ The initial type-family matrix is:
 | `Int`, `Float`, `Bool`, `String`, `Bytes`, `Void` | `Shareable` |
 | `[T; N]`, user structs | `Shareable` only when every contained field/element is `Shareable` |
 | `Option[T]`, `Result[T, E]` | `Shareable` only when all contained types are `Shareable` |
-| `Fn(A...) -> R` | `Shareable` when non-capturing and its signature types are `Shareable`; spawn targets must also pass the global-state rule below |
+| `Fn(A...) -> R` | Local-only as ordinary data; the `task.scope`/`task.spawn` code-entry parameter is a special case described below |
 | `Vec[T]`, `Map[String, T]` | Local-only; mutable aliases are not sent or shared |
 | `task.Sender[T]`, `task.Receiver[T]`, actor references | `Shareable` synchronized capabilities; payload/message types must independently be `Shareable` |
 | `task.Task[T]`, channel owner handles | Scope/local-only; they are not payloads for another task |
@@ -889,7 +891,7 @@ fn consume(values: Vec[Int]) -> Void {
 }
 
 fn do_work(values: Vec[Int]) -> Void {
-  let child: task.Task[Void] = task.spawn(consume, values);
+  let child: Result[task.Task[Void], String] = task.spawn(consume, values);
   // Rejected: Vec[Int] is local-only and cannot cross a task boundary.
 }
 ```
@@ -906,10 +908,15 @@ own value and later mutation of its local value cannot change the receiver's
 copy. Implementations may share immutable storage internally. There is no
 implicit move and no `TransferOnly` builtin type in the initial model; values
 that need ownership transfer are rejected until explicit ownership syntax and
-checking are designed. Non-capturing function code may cross a boundary, but a
-spawn target may not read or mutate local-only global state, directly or
-through a call it makes. This effect restriction is checked with the spawn
-boundary, not inferred from the Rust representation of the function value.
+checking are designed. Function values are not ordinary sendable payloads.
+The non-capturing function passed directly to `task.spawn` is code, not a user
+value being copied: its declared arguments and result must be `Shareable`, and
+its body and transitive calls may not read or mutate local-only global state.
+This effect restriction is checked at the spawn boundary, not inferred from
+the Rust representation of the function value. The `task.scope` callback
+runs in-place, so its own arguments and result do not cross a task boundary.
+Function values sent through channels or actor messages are rejected in the
+initial model.
 
 #### Channel semantics
 
