@@ -920,6 +920,36 @@ impl Checker {
         self.diagnostics
             .error(message, self.current_fallback_span());
     }
+
+    pub(super) fn require_shareable_task_boundary(&mut self, ty: &TypeInfo, boundary: &str) {
+        let failure = crate::types::shareability_failure_with(ty, &self.struct_fields, &|name| {
+            self.resolve_named_type_name(name)
+        });
+        let Some(failure) = failure else {
+            return;
+        };
+        let capability = match failure.capability {
+            crate::types::ConcurrencyCapability::Shareable => "Shareable",
+            crate::types::ConcurrencyCapability::TransferOnly => "TransferOnly",
+            crate::types::ConcurrencyCapability::ActorLocal => "ActorLocal",
+            crate::types::ConcurrencyCapability::LocalOnly => "local-only",
+            crate::types::ConcurrencyCapability::Unknown => "unknown",
+        };
+        let field_path = if failure.path.is_empty() {
+            String::new()
+        } else {
+            format!(
+                " at field path `{}.{}`",
+                crate::types::display_type(ty),
+                failure.path.join(".")
+            )
+        };
+        self.error(format!(
+            "{boundary} of type `{}` must be Shareable: `{}` has {capability} concurrency capability{field_path}",
+            crate::types::display_type(ty),
+            crate::types::display_type(&failure.ty),
+        ));
+    }
 }
 
 fn encoded_type_name_references(value: &str) -> Vec<&str> {
