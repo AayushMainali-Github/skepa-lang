@@ -671,13 +671,36 @@ impl IrVerifier {
                 function: caller.name.clone(),
             });
         };
-        Self::verify_task_function_effects(program, target, struct_fields, &mut HashSet::new())
+        let module_init = program.module_init.as_ref().map(|init| init.function);
+        let mutable_globals = program
+            .functions
+            .iter()
+            .filter(|function| Some(function.id) != module_init)
+            .flat_map(|function| function.blocks.iter())
+            .flat_map(|block| block.instrs.iter())
+            .filter_map(Self::mutated_global)
+            .collect::<HashSet<_>>();
+        Self::verify_task_function_effects(
+            program,
+            target,
+            struct_fields,
+            &HashSet::new(),
+            &mut HashSet::new(),
+        )?;
+        Self::verify_task_function_effects(
+            program,
+            target,
+            struct_fields,
+            &mutable_globals,
+            &mut HashSet::new(),
+        )
     }
 
     fn verify_task_function_effects(
         program: &IrProgram,
         function_id: FunctionId,
         struct_fields: &HashMap<String, HashMap<String, TypeInfo>>,
+        mutable_globals: &HashSet<crate::ir::GlobalId>,
         visiting: &mut HashSet<FunctionId>,
     ) -> Result<(), IrVerifyError> {
         if !visiting.insert(function_id) {
@@ -716,6 +739,12 @@ impl IrVerifier {
                     let Some(global) = program.globals.iter().find(|g| g.id == global_id) else {
                         return Err(IrVerifyError::UnknownGlobal);
                     };
+                    if mutable_globals.contains(&global_id) {
+                        return Err(IrVerifyError::UnsafeTaskGlobalRead {
+                            function: function.name.clone(),
+                            global: global.name.clone(),
+                        });
+                    }
                     Self::verify_shareable_task_type(
                         function,
                         &format!("task.spawn global `{}`", global.name),
@@ -732,6 +761,7 @@ impl IrVerifier {
                         program,
                         *callee_id,
                         struct_fields,
+                        mutable_globals,
                         visiting,
                     )?,
                     Instr::CallIndirect { callee, .. } => {
@@ -744,6 +774,7 @@ impl IrVerifier {
                             program,
                             target,
                             struct_fields,
+                            mutable_globals,
                             visiting,
                         )?;
                     }
@@ -760,6 +791,12 @@ impl IrVerifier {
                     let Some(global) = program.globals.iter().find(|g| g.id == *global_id) else {
                         return Err(IrVerifyError::UnknownGlobal);
                     };
+                    if mutable_globals.contains(global_id) {
+                        return Err(IrVerifyError::UnsafeTaskGlobalRead {
+                            function: function.name.clone(),
+                            global: global.name.clone(),
+                        });
+                    }
                     Self::verify_shareable_task_type(
                         function,
                         &format!("task.spawn global `{}`", global.name),

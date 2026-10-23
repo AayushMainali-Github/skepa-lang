@@ -50,6 +50,34 @@ fn main() -> Int {
 }
 
 #[test]
+fn native_and_interpreter_report_spawned_runtime_failures_from_join() {
+    let source = r#"
+import task;
+
+fn job() -> Int {
+  return 1 / 0;
+}
+
+fn main() -> Int {
+  match (task.spawn(job)) {
+    Ok(child) => { return task.join(child); }
+    Err(_) => { return 7; }
+  }
+}
+"#;
+
+    assert!(matches!(
+        common::ir_run_err(source),
+        IrInterpError::DivisionByZero
+    ));
+    let native = common::native_run_structured(source);
+    assert!(
+        !native.output.status.success(),
+        "native execution should report the child failure when joining"
+    );
+}
+
+#[test]
 fn native_exec_runs_core_control_flow_program() {
     let src = r#"
 fn main() -> Int {

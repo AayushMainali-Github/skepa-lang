@@ -29,6 +29,10 @@ impl builtins::BuiltinRuntime for ImmediateRuntime {
                 })?
                 .expect_int()
                 .map(RtValue::Int),
+            9 => Err(skepart::RtError::new(
+                skepart::RtErrorKind::DivisionByZero,
+                "division by zero in spawned function",
+            )),
             _ => Err(skepart::RtError::new(
                 skepart::RtErrorKind::InvalidArgument,
                 format!("unknown runtime function id {}", function.0),
@@ -687,6 +691,31 @@ fn builtins_cover_spawn_and_join_roundtrip() {
     assert_eq!(
         builtins::call_with_host(&mut host, "task", "join", &[task]).expect("task.join"),
         RtValue::Int(99)
+    );
+}
+
+#[test]
+fn builtins_task_spawn_keeps_function_failure_for_join() {
+    let mut host = RecordingHostBuilder::seeded().build();
+    let mut runtime = ImmediateRuntime;
+    let spawned = builtins::call_with_host_runtime(
+        &mut host,
+        &mut runtime,
+        "task",
+        "spawn",
+        &[RtValue::Function(RtFunctionRef(9))],
+    )
+    .expect("task.spawn should return a handle for a started task");
+    let task = match spawned.expect_result_value().expect("spawn result") {
+        skepart::RtResultValue::Ok(task) => *task,
+        skepart::RtResultValue::Err(error) => panic!("spawn failed: {error:?}"),
+    };
+
+    assert_eq!(
+        builtins::call_with_host(&mut host, "task", "join", &[task])
+            .expect_err("join should report the spawned function failure")
+            .kind,
+        RtErrorKind::DivisionByZero
     );
 }
 

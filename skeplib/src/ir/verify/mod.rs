@@ -59,6 +59,10 @@ pub enum IrVerifyError {
         function: String,
         global: String,
     },
+    UnsafeTaskGlobalRead {
+        function: String,
+        global: String,
+    },
     UnverifiableTaskCodeEntry {
         function: String,
     },

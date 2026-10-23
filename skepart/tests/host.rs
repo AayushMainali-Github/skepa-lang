@@ -993,6 +993,28 @@ fn noop_host_maps_panicked_task_join_to_invalid_argument() {
 }
 
 #[test]
+fn noop_host_preserves_completed_task_errors_until_join() {
+    let mut host = NoopHost::default();
+    let task = host
+        .task_store_failed(skepart::RtError::new(
+            skepart::RtErrorKind::DivisionByZero,
+            "division by zero in spawned function",
+        ))
+        .expect("store failed task");
+
+    let error = host
+        .task_join(task)
+        .expect_err("joining a failed task should return its error");
+    assert_eq!(error.kind, skepart::RtErrorKind::DivisionByZero);
+    assert_eq!(
+        host.net_lookup_handle_kind(task)
+            .expect_err("failed task handle should be reclaimed on join")
+            .kind,
+        skepart::RtErrorKind::InvalidArgument
+    );
+}
+
+#[test]
 fn noop_host_can_close_task_and_channel_handles_explicitly() {
     let mut host = NoopHost::default();
     let task = host

@@ -770,6 +770,38 @@ fn main() -> Int {
 }
 
 #[test]
+fn verifier_rejects_spawned_reads_of_globals_mutated_by_other_functions() {
+    let source = r#"
+import task;
+
+let counter: Int = 0;
+
+fn read_counter() -> Int {
+  return counter;
+}
+
+fn update_counter() -> Void {
+  counter = counter + 1;
+}
+
+fn main() -> Int {
+  let spawned = task.spawn(read_counter);
+  return 0;
+}
+"#;
+    let error = ir::lowering::compile_source(source)
+        .expect_err("task reads must not race with writes from another function");
+    let messages = error
+        .as_slice()
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>();
+    assert!(messages.iter().any(|message| {
+        message.contains("UnsafeTaskGlobalRead") && message.contains("counter")
+    }));
+}
+
+#[test]
 fn verifier_checks_spawn_argument_signatures_and_capabilities() {
     fn program(expected_arg: IrType, actual_arg: IrType) -> IrProgram {
         let is_vec = matches!(&actual_arg, IrType::Vec { .. });

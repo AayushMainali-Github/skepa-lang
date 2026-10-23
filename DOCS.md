@@ -913,9 +913,11 @@ checking are designed. Function values are not ordinary sendable payloads.
 local alias is accepted only when the IR verifier can resolve its code entry.
 The function is code, not a user value being copied: its declared arguments
 and result must be `Shareable`, and its body and transitive calls may not read
-local-only global state or mutate any global binding. Spawned code may read
-shareable globals. The IR verifier follows direct calls and rejects indirect
-call targets it cannot resolve. The `task.scope` callback
+local-only global state or mutate any global binding. Spawned code may read a
+shareable global only when no non-initializer function in the program mutates
+that global; the current verifier applies this whole-program rule
+conservatively. The IR verifier follows direct calls and rejects indirect call
+targets it cannot resolve. The `task.scope` callback
 runs in-place, so its own arguments and result do not cross a task boundary.
 Function values sent through channels or actor messages are rejected in the
 initial model.
@@ -2063,6 +2065,10 @@ Behavior:
 - `task.recv` removes and returns the next queued value.
 - `task.spawn` starts a background task in native/CLI execution paths and
   returns `Ok(task.Task[T])`; registration failures are returned as `Err(String)`.
+- A function failure after a task starts is stored on its task handle and is
+  reported when `task.join` is called, rather than being reported as a spawn
+  registration failure. The current prototype surfaces that failure as a
+  runtime error from `task.join`.
 - `task.join` waits for task completion, returns the task result exactly once, and reclaims the joined task handle.
 - `task.close` explicitly closes a task or channel handle and reclaims the underlying handle-table entry.
 
@@ -2073,12 +2079,14 @@ spawn arguments at both spawn and join boundaries. Checks recurse through
 arrays, `Option`, `Result`, and user-defined struct fields; diagnostics
 identify the path to a local-only or unresolved field. Mutable `Vec`/`Map`
 values, ordinary function values, task/resource handles, and unresolved types
-are rejected as payloads. Spawned functions remain non-capturing and each
-explicit argument must match the function signature and be shareable. A
+are rejected as payloads. Spawned functions remain non-capturing, each
+explicit argument must match the function signature and be shareable, and the
+verifier rejects reads of shareable globals if any non-initializer function
+may mutate them. This whole-program check is conservative. A
 zero-argument function remains valid with `task.spawn(job)`, but callers must
 now handle the result, for example with `result.unwrapOk(task.spawn(job))` or
 an `Ok`/`Err` match. The current prototype does not yet implement structured
-scopes, transfer-only values, or the full spawned-code effect rules.
+scopes or transfer-only values.
 
 Handle semantics:
 - `task.Channel[T]` and `task.Task[T]` are opaque builtin handle types, not structs.

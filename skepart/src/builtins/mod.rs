@@ -25,8 +25,8 @@ pub trait BuiltinRuntime {
         function: RtFunctionRef,
         args: &[RtValue],
     ) -> RtResult<crate::RtHandle> {
-        let value = self.call_function(function, args)?;
-        host.task_store_completed(value)
+        let result = self.call_function(function, args);
+        host.task_store_completed_result(result)
     }
 }
 
