@@ -3,6 +3,7 @@ use std::io::Read;
 use std::net::TcpListener;
 use std::process::Command;
 use std::thread;
+use std::time::Duration;
 
 mod common;
 
@@ -10,6 +11,63 @@ use common::{
     CliFailureClass, assert_cli_failure_class, assert_diag_code_and_message, example_entry,
     exe_ext, make_temp_dir, obj_ext, repo_root, skepac_bin, write_temp_file,
 };
+
+const PROCESS_RUNNER_CHILD_MODE: &str = "SKEPAC_TEST_PROCESS_CHILD_MODE";
+
+#[test]
+fn process_runner_child() {
+    match std::env::var(PROCESS_RUNNER_CHILD_MODE).as_deref() {
+        Ok("sleep") => {
+            println!("child started");
+            thread::sleep(Duration::from_secs(5));
+        }
+        Ok("output") => println!("captured child output"),
+        _ => {}
+    }
+}
+
+fn process_runner_child_command(mode: &str) -> Command {
+    let mut command = Command::new(std::env::current_exe().expect("test executable path"));
+    command
+        .args(["--exact", "process_runner_child", "--nocapture"])
+        .env(PROCESS_RUNNER_CHILD_MODE, mode);
+    command
+}
+
+#[test]
+fn cli_test_process_runner_captures_child_output() {
+    let output = common::run_output_with_timeout(
+        &mut process_runner_child_command("output"),
+        Duration::from_secs(5),
+    )
+    .expect("completed child should return output");
+
+    assert!(output.status.success());
+    assert!(String::from_utf8_lossy(&output.stdout).contains("captured child output"));
+}
+
+#[test]
+fn cli_test_process_runner_terminates_at_its_deadline() {
+    let error = common::run_output_with_timeout(
+        &mut process_runner_child_command("sleep"),
+        Duration::from_millis(250),
+    )
+    .expect_err("hung child should be terminated at the test deadline");
+
+    assert_eq!(error.kind(), std::io::ErrorKind::TimedOut);
+}
+
+#[test]
+fn skepac_shared_runner_accepts_a_caller_selected_deadline() {
+    let temp_dir = make_temp_dir("skepac_bounded_check");
+    let source = write_temp_file(&temp_dir, "main.sk", "fn main() -> Int { return 0; }\n");
+    let source_arg = source.to_string_lossy().into_owned();
+    let output = common::run_skepac_with_timeout(&["check", &source_arg], Duration::from_secs(30))
+        .expect("skepac check should complete before its deadline");
+    let _ = std::fs::remove_dir_all(temp_dir);
+
+    assert!(output.status.success());
+}
 
 #[cfg(target_os = "windows")]
 fn ffi_test_library_path() -> &'static str {
