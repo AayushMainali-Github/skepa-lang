@@ -779,7 +779,274 @@ Cross-mode consistency guarantees:
 
 If an execution-mode difference is observable today, it should be treated as a runtime implementation detail unless the docs call it out explicitly.
 
+### Concurrency Model (Target Contract; Experimental)
+
+This section defines the target contract for the concurrency work tracked by
+[#136](https://github.com/AayushMainali-Github/skepa-lang/issues/136). It is a
+design target, not a claim that the current prototype implements these rules.
+Until the stabilization decision in #146, all concurrency APIs remain
+experimental and may require source migration.
+
+#### Tasks, actors, and channels
+
+- A **task** is bounded work owned by a lexical task scope. A task returns one
+  result, can be joined or cancelled, and cannot outlive its owning scope.
+- An **actor** is a long-lived service with exclusively owned mutable state.
+  It processes one message handler at a time and must be owned by a
+  supervisor; ordinary tasks are not detached actors.
+- A **channel** is a typed communication path. A channel owner creates a
+  sender and receiver endpoint; senders cannot receive and receivers cannot
+  send. Endpoints, not the owner, are passed to concurrent work.
+
+Task scopes, task creation, channel construction, and endpoint operations are
+experimental `task` builtins; they do not add `async`/`await` syntax. Actors
+are different: an `actor` declaration is a language construct so the compiler
+can enforce private state ownership and typed handlers. Actor construction,
+message sends, and lifecycle operations use the experimental `task` package.
+The actor declaration is staged for #144. The target task/channel API shapes
+are:
+
+```text
+task.scope(f: Fn(...) -> T, args...) -> Result[T, String]
+task.spawn(f: Fn(...) -> T, args...) -> Result[task.Task[T], String]
+task.join(task: task.Task[T]) -> Result[T, String]
+task.cancel(task: task.Task[T]) -> Void
+task.channel[T](capacity: Int) -> task.Channel[T]
+task.sender(channel: task.Channel[T]) -> task.Sender[T]
+task.receiver(channel: task.Channel[T]) -> task.Receiver[T]
+task.send(sender: task.Sender[T], value: T) -> Result[Void, String]
+task.recv(receiver: task.Receiver[T]) -> Result[T, String]
+task.tryRecv(receiver: task.Receiver[T]) -> Result[Option[T], String]
+task.close(handle: task.Channel[T] | task.Sender[T] | task.Receiver[T]) -> Void
+```
+
+These signatures describe the destination, not the current builtin signatures;
+the implementation issues may refine names while preserving the rules below.
+Function values remain non-capturing. Inputs and outputs at a task boundary
+must satisfy the capability rules below. A task may call `task.spawn` only
+inside an active scope. A scope waits for all its children before returning;
+normal return does not detach unfinished children. Nested tasks belong to the
+current task's child scope. `task.sender` and `task.receiver` expose aliases to
+the channel's single logical endpoint of each direction; assigning an endpoint
+creates another alias to that same synchronized endpoint, not a new queue.
+The `task.scope` callback runs synchronously in the caller; only its spawned
+children cross task boundaries.
+
+#### Isolation and transfer capabilities
+
+Concurrency capabilities are properties of Skepa types, not Rust trait
+properties. `Sendable` means a value may cross a task or actor boundary.
+`Shareable` is a sendable value that may be aliased on both sides safely.
+`TransferOnly` is reserved for values that may cross only when ownership is
+transferred and the sender can no longer use any alias. `ActorLocal` means a
+value is confined to one actor instance. A type with no boundary capability is
+usable by ordinary local code but is rejected at a concurrency boundary.
+
+The initial type-family matrix is:
+
+| Skepa type | Boundary capability |
+| --- | --- |
+| `Int`, `Float`, `Bool`, `String`, `Bytes`, `Void` | `Shareable` |
+| `[T; N]`, user structs | `Shareable` only when every contained field/element is `Shareable` |
+| `Option[T]`, `Result[T, E]` | `Shareable` only when all contained types are `Shareable` |
+| `Fn(A...) -> R` | Local-only as ordinary data; the `task.scope`/`task.spawn` code-entry parameter is a special case described below |
+| `Vec[T]`, `Map[String, T]` | Local-only; mutable aliases are not sent or shared |
+| `task.Sender[T]`, `task.Receiver[T]`, actor references | `Shareable` synchronized capabilities; payload/message types must independently be `Shareable` |
+| `task.Task[T]`, channel owner handles | Scope/local-only; they are not payloads for another task |
+| Actor state values | `ActorLocal`; only the owning actor's handlers may access them |
+| `net.Socket`, `net.Listener`, `ffi.Library`, `ffi.Symbol` | Local-only; no implicit transfer or shared access |
+| `Unknown` or a type whose fields cannot be resolved | Rejected at the boundary |
+
+Target examples below use the signatures above. They are not executable with
+the current prototype; the snippets are checked against the target grammar
+and capability rules and become compiler fixtures as #140 and #141 land.
+
+```sk
+fn square(value: Int) -> Int {
+  return value * value;
+}
+
+fn do_work() -> Void {
+  // This function is invoked as a task.scope body.
+  match (task.spawn(square, 12)) {
+    Ok(child) => {
+      let answer: Result[Int, String] = task.join(child);
+    }
+    Err(_message) => {
+    }
+  }
+}
+
+fn main() -> Int {
+  let outcome: Result[Void, String] = task.scope(do_work);
+  return 0;
+}
+```
+
+The same boundary rejects a mutable shared-reference value, even if its
+element type is otherwise shareable:
+
+```sk
+fn consume(values: Vec[Int]) -> Void {
+}
+
+fn do_work(values: Vec[Int]) -> Void {
+  let child: Result[task.Task[Void], String] = task.spawn(consume, values);
+  // Rejected: Vec[Int] is local-only and cannot cross a task boundary.
+}
+```
+
+Structs are checked recursively, with diagnostics identifying the first
+non-shareable field path. `Array`, `Option`, and `Result` do not make an unsafe
+contained value safe. `Vec` and `Map` remain mutable shared-reference values
+for ordinary local code, but their Rust implementation's thread safety does
+not grant source-level permission to send them. Actor state may contain such
+mutable values because it is owned and accessed only by that actor.
+
+Sending a `Shareable` value has copy-by-value semantics: the sender retains its
+own value and later mutation of its local value cannot change the receiver's
+copy. Implementations may share immutable storage internally. There is no
+implicit move and no `TransferOnly` builtin type in the initial model; values
+that need ownership transfer are rejected until explicit ownership syntax and
+checking are designed. Function values are not ordinary sendable payloads.
+The non-capturing function passed directly to `task.spawn` is code, not a user
+value being copied: its declared arguments and result must be `Shareable`, and
+its body and transitive calls may not read or mutate local-only global state.
+This effect restriction is checked at the spawn boundary, not inferred from
+the Rust representation of the function value. The `task.scope` callback
+runs in-place, so its own arguments and result do not cross a task boundary.
+Function values sent through channels or actor messages are rejected in the
+initial model.
+
+#### Channel semantics
+
+The channel constructor requires an explicit finite capacity. Capacity zero
+is a rendezvous channel; a positive capacity allows that many queued messages.
+There is no implicit or unbounded default in the target API. `send` blocks
+when the buffer is full, and `recv` blocks when it is empty. `tryRecv` never
+blocks: `Ok(None)` means currently empty and still connected, while
+`Err(message)` means disconnected or cancelled. Timed send/receive operations
+are not in the initial surface; callers use task cancellation to stop blocked
+operations.
+
+Successful sends enter one FIFO order at the channel's synchronization point.
+Messages from a given sender preserve send order. Concurrent sends from
+different senders are ordered by whichever send commits first; which sender
+wins a race is unspecified, and no fairness guarantee is made. A successful
+send happens-before the matching receive returns. Programs must not rely on a
+particular interleaving of otherwise independent tasks.
+
+Closing the sender prevents future messages but lets the receiver drain
+already-buffered messages; after the drain, `recv` returns `Err`. Closing the
+receiver discards queued messages and wakes blocked or future senders with
+`Err`. Closing a sender also wakes sends blocked through its aliases with
+`Err`. `tryRecv` continues to return buffered values after the sender closes,
+then returns `Err` once the queue is empty. Cancellation wakes tasks blocked
+in channel operations. These are ordinary operational outcomes represented
+by `Result`, not runtime errors.
+
+`task.close(sender)` closes only the send direction and
+`task.close(receiver)` closes only the receive direction. Closing the channel
+owner is an abort: it closes both directions, discards buffered messages, and
+wakes all blocked operations with `Err`. Endpoint close is global to aliases;
+closing one endpoint does not consume the opposite endpoint.
+
+Using a stale handle, passing the wrong handle kind, or closing an already
+consumed affine handle remains a runtime error. Aliases observe the same
+endpoint close state.
+
+#### Failure, cancellation, and actor lifecycle
+
+`task.join` and scope completion return `Result`, so task panic/failure and
+cancellation are values rather than process aborts. When a child failure is
+observed, its scope requests cancellation of its unfinished siblings, waits
+for their cleanup, then returns that failure. If independent children fail
+simultaneously, the first failure observed by that execution is returned; the
+winner is not a cross-mode ordering guarantee. A successful scope return also
+waits for every child. A task handle is valid only within its owning scope and
+its completion result is consumed once; runtime checks remain as a backstop
+for aliases the compiler cannot prove redundant.
+
+A task that returns an ordinary `Err` value inside its own `Result` has
+completed successfully from the task system's perspective; only panic,
+cancellation, or runtime task failure triggers sibling cancellation. Failure
+of the scope body itself follows the same cancellation and cleanup rule.
+
+`task.spawn` returns `Err` if the runtime cannot register the child; no child
+is attached to the scope and the caller retains its input values. A panic or
+failure after the child starts is reported by `join` or scope completion.
+Operational error strings are diagnostic text, not stable identifiers;
+programs branch on the `Result` variant rather than matching message text.
+
+Cancellation is cooperative, not asynchronous thread termination. It is
+observed at task/runtime operations and scheduler safe points. Pure CPU work
+without safe points may delay cancellation; blocking channel operations must
+always wake for cancellation. Host and FFI calls are not forcibly interrupted.
+`task.cancel` on a live task requests cancellation; repeated requests and
+cancellation of an already completed task are no-ops. Cleanup finishes before
+scope exit, and child tasks cannot escape the scope.
+
+Actor mutable state is `ActorLocal`, and cannot be read or mutated outside its
+owning actor. An `actor` declaration lists typed handler methods; calling a
+handler through its actor reference sends a typed request and returns its
+handler result as `Result[HandlerResult, String]`. This avoids requiring a
+user-defined tagged union just to define an actor's messages. Each handler
+runs to completion before the next message is dispatched. The mailbox has an
+explicit finite capacity with the same zero-capacity rendezvous and
+positive-capacity backpressure rules as a channel. Messages are ordered by
+mailbox commit order; no fairness guarantee is made among concurrent senders.
+Actor references are shareable typed send capabilities, but message arguments
+and results still require `Shareable`. An application-level `Err` returned by
+a handler is an ordinary reply; only a panic or runtime handler failure
+triggers supervision restart.
+
+Actors are long-lived only under a supervisor; scope exit shuts down tasks
+but does not silently stop supervised actors. The initial supervision policy
+is one-for-one: only the failed actor restarts, from its initializer rather
+than its prior mutable state; siblings continue. A supervisor permits at most
+three restarts in its lifetime, then fails and shuts down its remaining
+children in reverse start order. No time-based backoff is part of the initial
+contract. Restarted actor references remain the same logical reference;
+messages queued for the failed actor generation fail with `Err` rather than
+being replayed. Normal actor termination and explicit stop do not trigger a
+restart; explicit stop fails pending requests with `Err`. The policy can be
+extended only through a later documented experimental change.
+
+When a scope is cancelled, it requests cancellation for children in reverse
+spawn order and waits for every child to acknowledge cancellation or finish.
+The relative order in which independent children release local resources is
+not observable; reverse spawn order defines request order, not cleanup
+completion order.
+
+#### Execution-mode guarantees and migration
+
+Interpreter, native, and CLI execution must agree on values, channel
+capacity, per-sender FIFO, close/disconnect outcomes, scope lifetime,
+cancellation/failure result shapes, and invalid-handle diagnostics. The
+interpreter uses a deterministic ready queue and stable task-creation order to
+choose among runnable work. Native scheduling may choose a different order
+for independent tasks; that is not observable program meaning unless the
+contract above establishes a happens-before relation.
+
+Implementation ownership follows the dependency flow in #136: capability
+derivation and field-path diagnostics belong to #139; task arguments and
+spawn validation to #140; channel endpoints and blocking/disconnection to
+#141; deterministic fixtures to #138; scopes and cancellation to #142; the
+native scheduler to #143; actor declarations/mailboxes to #144; supervision
+to #145; and cross-mode stress/stabilization evidence to #146.
+
+The current `task.Channel[T]` duplex API, empty-`recv` runtime error,
+zero-argument-only `spawn`, and unscoped task lifetime are prototype behavior,
+not compatibility promises. Migration moves channel operations to typed
+sender/receiver endpoints, supplies an explicit capacity, handles `Result`
+from send/receive/join, passes task inputs as explicit shareable arguments,
+and starts spawned work inside a scope. No bytecode or VM execution model is
+part of this contract.
+
 ### Runtime Handles And Lifetime
+
+The handle details below describe the current implementation. The concurrency
+target above supersedes them as each experimental task behavior is migrated.
 
 Opaque runtime-backed handles include:
 
@@ -1766,6 +2033,10 @@ fn main() -> Int {
 ```
 
 ### 8.14 `task`
+
+This subsection records the current prototype behavior. The target semantics
+are specified in [Concurrency Model](#concurrency-model-target-contract-experimental)
+above and supersede this prototype description as the migration issues land.
 
 Status:
 - Experimental standard-library surface.

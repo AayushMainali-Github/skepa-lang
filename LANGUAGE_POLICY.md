@@ -44,6 +44,7 @@ Current example:
 - `task`
 
 Experimental surface may change more freely while semantics are still being settled, but the docs must still be updated whenever the behavior changes.
+The isolation-first task/scope/channel contract in [`DOCS.md`](./DOCS.md#concurrency-model-target-contract-experimental) is the target for that work; the prototype behavior in the current `task` package is not a promise that those target semantics already ship. Compatibility is decided explicitly at #146, and migrations must be documented before the experimental surface is stabilized.
 
 ### Narrow Special-Purpose
 
