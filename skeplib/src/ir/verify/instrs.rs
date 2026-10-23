@@ -1,5 +1,11 @@
+use std::collections::HashMap;
+
 use crate::builtins::{BuiltinKind, find_builtin_spec_any};
 use crate::ir::{ConstValue, Instr, IrFunction, IrProgram, IrType};
+use crate::types::{
+    TypeInfo, display_type, shareability_failure, task_channel_value_type, task_task_type,
+    task_task_value_type,
+};
 
 use super::{IrVerifier, IrVerifyError};
 
@@ -340,6 +346,9 @@ impl IrVerifier {
                     Self::verify_generic_ffi_call(program, func, args, ret_ty)?;
                     return Ok(());
                 }
+                if builtin.package == "task" {
+                    Self::verify_task_boundary(program, func, &builtin.name, args, ret_ty)?;
+                }
                 if let Some(spec) = find_builtin_spec_any(&builtin.package, &builtin.name) {
                     if !matches!(ret_ty, IrType::Unknown | IrType::Void) {
                         let expected_ret = IrType::from(&spec.sig.ret);
@@ -480,6 +489,164 @@ impl IrVerifier {
             }
         }
         Ok(())
+    }
+
+    fn verify_task_boundary(
+        program: &IrProgram,
+        func: &IrFunction,
+        name: &str,
+        args: &[crate::ir::Operand],
+        ret_ty: &IrType,
+    ) -> Result<(), IrVerifyError> {
+        let bad_signature = || IrVerifyError::BadCallSignature {
+            function: func.name.clone(),
+        };
+        let struct_fields = program
+            .structs
+            .iter()
+            .map(|strukt| {
+                (
+                    strukt.name.clone(),
+                    strukt
+                        .fields
+                        .iter()
+                        .map(|field| (field.name.clone(), TypeInfo::from(&field.ty)))
+                        .collect::<HashMap<_, _>>(),
+                )
+            })
+            .collect::<HashMap<_, _>>();
+
+        match name {
+            "send" => {
+                if args.len() != 2 {
+                    return Err(bad_signature());
+                }
+                let Some(channel_ty) = Self::operand_type(program, func, &args[0]) else {
+                    return Err(bad_signature());
+                };
+                let TypeInfo::Opaque(channel_name) = TypeInfo::from(&channel_ty) else {
+                    return Err(bad_signature());
+                };
+                let Some(payload_ty) = task_channel_value_type(&channel_name) else {
+                    return Err(bad_signature());
+                };
+                let Some(value_ir_ty) = Self::operand_type(program, func, &args[1]) else {
+                    return Err(bad_signature());
+                };
+                if !Self::types_compatible(&value_ir_ty, &IrType::from(&payload_ty)) {
+                    return Err(bad_signature());
+                }
+                Self::verify_shareable_task_type(
+                    func,
+                    "task.send payload",
+                    &payload_ty,
+                    &struct_fields,
+                )?;
+                Self::verify_shareable_task_type(
+                    func,
+                    "task.send payload",
+                    &TypeInfo::from(&value_ir_ty),
+                    &struct_fields,
+                )?;
+            }
+            "recv" | "join" => {
+                if args.len() != 1 {
+                    return Err(bad_signature());
+                }
+                let Some(handle_ty) = Self::operand_type(program, func, &args[0]) else {
+                    return Err(bad_signature());
+                };
+                let TypeInfo::Opaque(handle_name) = TypeInfo::from(&handle_ty) else {
+                    return Err(bad_signature());
+                };
+                let payload_ty = if name == "recv" {
+                    task_channel_value_type(&handle_name)
+                } else {
+                    task_task_value_type(&handle_name)
+                }
+                .ok_or_else(bad_signature)?;
+                if !Self::types_compatible(ret_ty, &IrType::from(&payload_ty)) {
+                    return Err(bad_signature());
+                }
+                let boundary = if name == "recv" {
+                    "task.recv payload"
+                } else {
+                    "task.join result"
+                };
+                Self::verify_shareable_task_type(func, boundary, &payload_ty, &struct_fields)?;
+                Self::verify_shareable_task_type(
+                    func,
+                    boundary,
+                    &TypeInfo::from(ret_ty),
+                    &struct_fields,
+                )?;
+            }
+            "spawn" => {
+                if args.len() != 1 {
+                    return Err(bad_signature());
+                }
+                let Some(code_ty) = Self::operand_type(program, func, &args[0]) else {
+                    return Err(bad_signature());
+                };
+                match TypeInfo::from(&code_ty) {
+                    TypeInfo::Fn { params, ret } => {
+                        for (index, param) in params.iter().enumerate() {
+                            Self::verify_shareable_task_type(
+                                func,
+                                &format!("task.spawn argument {}", index + 1),
+                                param,
+                                &struct_fields,
+                            )?;
+                        }
+                        if !params.is_empty() {
+                            return Err(bad_signature());
+                        }
+                        let expected_task_ty = IrType::from(&task_task_type(&ret));
+                        if matches!(ret_ty, IrType::Unknown)
+                            || !Self::types_compatible(ret_ty, &expected_task_ty)
+                        {
+                            return Err(bad_signature());
+                        }
+                        Self::verify_shareable_task_type(
+                            func,
+                            "task.spawn result",
+                            &ret,
+                            &struct_fields,
+                        )?;
+                    }
+                    TypeInfo::Unknown => {
+                        Self::verify_shareable_task_type(
+                            func,
+                            "task.spawn code entry",
+                            &TypeInfo::Unknown,
+                            &struct_fields,
+                        )?;
+                    }
+                    _ => return Err(bad_signature()),
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn verify_shareable_task_type(
+        func: &IrFunction,
+        boundary: &str,
+        ty: &TypeInfo,
+        struct_fields: &HashMap<String, HashMap<String, TypeInfo>>,
+    ) -> Result<(), IrVerifyError> {
+        let failure = shareability_failure(ty, struct_fields);
+        let Some(failure) = failure else {
+            return Ok(());
+        };
+        Err(IrVerifyError::NonShareableConcurrencyValue {
+            function: func.name.clone(),
+            boundary: boundary.to_string(),
+            capability: failure.capability,
+            path: failure.path,
+            ty: display_type(&failure.ty),
+        })
     }
 
     fn verify_generic_ffi_call(

@@ -4,6 +4,32 @@ mod common;
 use skeplib::ir::IrInterpError;
 
 #[test]
+fn native_and_interpreter_round_trip_nested_shareable_channel_payloads() {
+    let source = r#"
+import option;
+import result;
+import task;
+
+struct Message {
+  values: [Int; 2],
+  status: Option[Result[Int, String]]
+}
+
+fn main() -> Int {
+  let jobs: task.Channel[Message] = task.channel();
+  let message = Message { values: [3, 4], status: Some(Ok(7)) };
+  task.send(jobs, message);
+  let received: Message = task.recv(jobs);
+  let value = result.unwrapOk(option.unwrapSome(received.status));
+  return received.values[0] + value;
+}
+"#;
+
+    assert_eq!(common::ir_run_ok(source), skepart::value::RtValue::Int(10));
+    assert_eq!(common::native_run_exit_code_ok(source), 10);
+}
+
+#[test]
 fn native_exec_runs_core_control_flow_program() {
     let src = r#"
 fn main() -> Int {

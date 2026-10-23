@@ -71,6 +71,43 @@ impl From<&TypeInfo> for IrType {
     }
 }
 
+impl From<&IrType> for TypeInfo {
+    fn from(value: &IrType) -> Self {
+        match value {
+            IrType::Int => Self::Int,
+            IrType::Float => Self::Float,
+            IrType::Bool => Self::Bool,
+            IrType::String => Self::String,
+            IrType::Bytes => Self::Bytes,
+            IrType::Void => Self::Void,
+            IrType::Option { value } => Self::Option {
+                value: Box::new(Self::from(value.as_ref())),
+            },
+            IrType::Result { ok, err } => Self::Result {
+                ok: Box::new(Self::from(ok.as_ref())),
+                err: Box::new(Self::from(err.as_ref())),
+            },
+            IrType::Named(name) => Self::Named(name.clone()),
+            IrType::Opaque(name) => Self::Opaque(name.clone()),
+            IrType::Array { elem, size } => Self::Array {
+                elem: Box::new(Self::from(elem.as_ref())),
+                size: *size,
+            },
+            IrType::Vec { elem } => Self::Vec {
+                elem: Box::new(Self::from(elem.as_ref())),
+            },
+            IrType::Map { value } => Self::Map {
+                value: Box::new(Self::from(value.as_ref())),
+            },
+            IrType::Fn { params, ret } => Self::Fn {
+                params: params.iter().map(Self::from).collect(),
+                ret: Box::new(Self::from(ret.as_ref())),
+            },
+            IrType::Unknown => Self::Unknown,
+        }
+    }
+}
+
 impl IrType {
     pub fn is_void(&self) -> bool {
         matches!(self, Self::Void)

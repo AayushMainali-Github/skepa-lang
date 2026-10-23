@@ -1636,6 +1636,91 @@ fn main() -> Int {
 }
 
 #[test]
+fn sema_accepts_shareable_nested_task_channel_payloads() {
+    let src = r#"
+import task;
+
+struct Message {
+  values: [Int; 2],
+  status: Option[Result[Int, String]]
+}
+
+fn main() -> Int {
+  let jobs: task.Channel[Message] = task.channel();
+  let message = Message { values: [3, 4], status: Some(Ok(7)) };
+  task.send(jobs, message);
+  let received: Message = task.recv(jobs);
+  return received.values[0];
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
+
+#[test]
+fn sema_rejects_non_shareable_task_payloads_with_nested_field_paths() {
+    let src = r#"
+import task;
+import vec;
+
+struct Envelope {
+  items: Vec[Int]
+}
+
+fn make_envelope() -> Envelope {
+  let items: Vec[Int] = vec.new();
+  return Envelope { items: items };
+}
+
+fn main() -> Int {
+  let jobs: task.Channel[Envelope] = task.channel();
+  let envelope = make_envelope();
+  task.send(jobs, envelope);
+  let received: Envelope = task.recv(jobs);
+  let job: task.Task[Envelope] = task.__testTask(envelope);
+  let joined: Envelope = task.join(job);
+  let child: task.Task[Envelope] = task.spawn(make_envelope);
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    let boundary_diags = diags
+        .as_slice()
+        .iter()
+        .filter(|diagnostic| {
+            diagnostic
+                .message
+                .contains("has local-only concurrency capability")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(boundary_diags.len(), 4, "{boundary_diags:#?}");
+    assert!(boundary_diags.iter().all(|diagnostic| {
+        diagnostic.message.contains("Envelope.items") && diagnostic.message.contains("Vec[Int]")
+    }));
+    assert!(
+        boundary_diags
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("task.send payload"))
+    );
+    assert!(
+        boundary_diags
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("task.recv payload"))
+    );
+    assert!(
+        boundary_diags
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("task.join result"))
+    );
+    assert!(
+        boundary_diags
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("task.spawn result"))
+    );
+}
+
+#[test]
 fn sema_accepts_task_spawn_and_join_flow() {
     let src = r#"
 import task;

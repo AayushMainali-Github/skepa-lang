@@ -551,6 +551,134 @@ fn verifier_rejects_non_int_indexes_for_array_and_vec_ops() {
 }
 
 #[test]
+fn verifier_rejects_non_shareable_task_payloads_with_field_path() {
+    for (name, expected_boundary) in [
+        ("send", "task.send payload"),
+        ("recv", "task.recv payload"),
+        ("spawn", "task.spawn result"),
+        ("join", "task.join result"),
+    ] {
+        let (locals, args, ret_ty, dst) = match name {
+            "send" => (
+                vec![
+                    IrLocal {
+                        id: ir::LocalId(0),
+                        name: "jobs".into(),
+                        ty: IrType::Opaque("task.Channel[Envelope]".into()),
+                    },
+                    IrLocal {
+                        id: ir::LocalId(1),
+                        name: "payload".into(),
+                        ty: IrType::Named("Envelope".into()),
+                    },
+                ],
+                vec![
+                    ir::Operand::Local(ir::LocalId(0)),
+                    ir::Operand::Local(ir::LocalId(1)),
+                ],
+                IrType::Void,
+                None,
+            ),
+            "recv" => (
+                vec![IrLocal {
+                    id: ir::LocalId(0),
+                    name: "jobs".into(),
+                    ty: IrType::Opaque("task.Channel[Envelope]".into()),
+                }],
+                vec![ir::Operand::Local(ir::LocalId(0))],
+                IrType::Named("Envelope".into()),
+                Some(TempId(0)),
+            ),
+            "spawn" => (
+                vec![IrLocal {
+                    id: ir::LocalId(0),
+                    name: "job".into(),
+                    ty: IrType::Fn {
+                        params: Vec::new(),
+                        ret: Box::new(IrType::Named("Envelope".into())),
+                    },
+                }],
+                vec![ir::Operand::Local(ir::LocalId(0))],
+                IrType::Opaque("task.Task[Envelope]".into()),
+                Some(TempId(0)),
+            ),
+            "join" => (
+                vec![IrLocal {
+                    id: ir::LocalId(0),
+                    name: "job".into(),
+                    ty: IrType::Opaque("task.Task[Envelope]".into()),
+                }],
+                vec![ir::Operand::Local(ir::LocalId(0))],
+                IrType::Named("Envelope".into()),
+                Some(TempId(0)),
+            ),
+            _ => unreachable!(),
+        };
+        let temps = dst
+            .map(|id| {
+                vec![IrTemp {
+                    id,
+                    ty: ret_ty.clone(),
+                }]
+            })
+            .unwrap_or_default();
+        let func = IrFunction {
+            id: FunctionId(0),
+            name: "main".into(),
+            params: Vec::new(),
+            locals,
+            temps,
+            ret_ty: IrType::Int,
+            entry: BlockId(0),
+            blocks: vec![BasicBlock {
+                id: BlockId(0),
+                name: "entry".into(),
+                instrs: vec![Instr::CallBuiltin {
+                    dst,
+                    ret_ty,
+                    builtin: ir::BuiltinCall {
+                        package: "task".into(),
+                        name: name.into(),
+                    },
+                    args,
+                }],
+                terminator: Terminator::Return(Some(ir::Operand::Const(ir::ConstValue::Int(0)))),
+            }],
+        };
+        let program = IrProgram {
+            functions: vec![func],
+            globals: Vec::new(),
+            structs: vec![IrStruct {
+                id: StructId(0),
+                name: "Envelope".into(),
+                fields: vec![StructField {
+                    name: "items".into(),
+                    ty: IrType::Vec {
+                        elem: Box::new(IrType::Int),
+                    },
+                }],
+            }],
+            module_init: None,
+        };
+
+        let error = IrVerifier::verify_program(&program)
+            .expect_err("non-shareable concurrency value must fail");
+        assert!(matches!(
+            error,
+            ir::IrVerifyError::NonShareableConcurrencyValue {
+                boundary,
+                capability: skeplib::types::ConcurrencyCapability::LocalOnly,
+                path,
+                ty,
+                ..
+            } if boundary == expected_boundary
+                && path == vec!["items"]
+                && ty == "Vec[Int]"
+        ));
+    }
+}
+
+#[test]
 fn verifier_rejects_bad_store_closure_array_struct_and_vec_element_types() {
     let callee = IrFunction {
         id: FunctionId(1),

@@ -38,6 +38,10 @@ pub(super) fn check_task_builtin(
                                 "task.send argument 2 expects {:?}, got {:?}",
                                 expected, value_ty
                             ));
+                        } else if value_ty == TypeInfo::Unknown {
+                            checker.require_shareable_task_boundary(&value_ty, "task.send payload");
+                        } else {
+                            checker.require_shareable_task_boundary(&expected, "task.send payload");
                         }
                     }
                     None => checker.error(format!(
@@ -68,6 +72,7 @@ pub(super) fn check_task_builtin(
                         checker.error("task.spawn argument 1 expects Fn() -> T".to_string());
                         TypeInfo::Unknown
                     } else {
+                        checker.require_shareable_task_boundary(&ret, "task.spawn result");
                         task_task_type(&ret)
                     }
                 }
@@ -90,13 +95,19 @@ pub(super) fn check_task_builtin(
                 return TypeInfo::Unknown;
             }
             match checker.check_expr(&args[0], scopes) {
-                TypeInfo::Opaque(name) => task_channel_value_type(&name).unwrap_or_else(|| {
-                    checker.error(format!(
-                        "task.recv argument 1 expects Channel, got {:?}",
-                        TypeInfo::Opaque(name)
-                    ));
-                    TypeInfo::Unknown
-                }),
+                TypeInfo::Opaque(name) => match task_channel_value_type(&name) {
+                    Some(value) => {
+                        checker.require_shareable_task_boundary(&value, "task.recv payload");
+                        value
+                    }
+                    None => {
+                        checker.error(format!(
+                            "task.recv argument 1 expects Channel with a known payload type, got {:?}",
+                            TypeInfo::Opaque(name)
+                        ));
+                        TypeInfo::Unknown
+                    }
+                },
                 TypeInfo::Unknown => TypeInfo::Unknown,
                 got => {
                     checker.error(format!(
@@ -132,13 +143,19 @@ pub(super) fn check_task_builtin(
                 return TypeInfo::Unknown;
             }
             match checker.check_expr(&args[0], scopes) {
-                TypeInfo::Opaque(name) => task_task_value_type(&name).unwrap_or_else(|| {
-                    checker.error(format!(
-                        "task.join argument 1 expects Task, got {:?}",
-                        TypeInfo::Opaque(name)
-                    ));
-                    TypeInfo::Unknown
-                }),
+                TypeInfo::Opaque(name) => match task_task_value_type(&name) {
+                    Some(value) => {
+                        checker.require_shareable_task_boundary(&value, "task.join result");
+                        value
+                    }
+                    None => {
+                        checker.error(format!(
+                            "task.join argument 1 expects Task with a known result type, got {:?}",
+                            TypeInfo::Opaque(name)
+                        ));
+                        TypeInfo::Unknown
+                    }
+                },
                 TypeInfo::Unknown => TypeInfo::Unknown,
                 got => {
                     checker.error(format!("task.join argument 1 expects Task, got {:?}", got));

@@ -5,22 +5,62 @@ mod instrs;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IrVerifyError {
-    MissingEntryBlock { function: String },
-    DuplicateBlockId { function: String },
-    DuplicateParamId { function: String },
-    DuplicateLocalId { function: String },
-    DuplicateTempId { function: String },
-    MissingTerminator { function: String, block: String },
-    UnknownBlockTarget { function: String, block: String },
-    UnknownTemp { function: String },
-    UnknownLocal { function: String },
+    MissingEntryBlock {
+        function: String,
+    },
+    DuplicateBlockId {
+        function: String,
+    },
+    DuplicateParamId {
+        function: String,
+    },
+    DuplicateLocalId {
+        function: String,
+    },
+    DuplicateTempId {
+        function: String,
+    },
+    MissingTerminator {
+        function: String,
+        block: String,
+    },
+    UnknownBlockTarget {
+        function: String,
+        block: String,
+    },
+    UnknownTemp {
+        function: String,
+    },
+    UnknownLocal {
+        function: String,
+    },
     UnknownGlobal,
-    UnknownFunctionTarget { function: String },
-    UnknownStruct { function: String },
-    UnknownField { function: String, field: String },
-    BadCallSignature { function: String },
-    ReturnTypeMismatch { function: String },
-    OperandTypeMismatch { function: String },
+    UnknownFunctionTarget {
+        function: String,
+    },
+    UnknownStruct {
+        function: String,
+    },
+    UnknownField {
+        function: String,
+        field: String,
+    },
+    BadCallSignature {
+        function: String,
+    },
+    NonShareableConcurrencyValue {
+        function: String,
+        boundary: String,
+        capability: crate::types::ConcurrencyCapability,
+        path: Vec<String>,
+        ty: String,
+    },
+    ReturnTypeMismatch {
+        function: String,
+    },
+    OperandTypeMismatch {
+        function: String,
+    },
     UnknownModuleInitFunction,
 }
 

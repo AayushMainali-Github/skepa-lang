@@ -2063,6 +2063,16 @@ Behavior:
 - `task.join` waits for task completion, returns the task result exactly once, and reclaims the joined task handle.
 - `task.close` explicitly closes a task or channel handle and reclaims the underlying handle-table entry.
 
+Concurrency payloads are checked against the `Shareable` type-family rules in
+the target contract above. The current compiler checks values sent through a
+typed channel, values received from typed channels, and task results at both
+spawn and join boundaries. Checks recurse through arrays, `Option`, `Result`,
+and user-defined struct fields; diagnostics identify the path to a local-only
+or unresolved field. Mutable `Vec`/`Map` values, ordinary function values,
+task/resource handles, and unresolved types are rejected as payloads. The
+current prototype still accepts only zero-argument `task.spawn` functions and
+does not yet implement the target scope, transfer, or spawn-effect rules.
+
 Handle semantics:
 - `task.Channel[T]` and `task.Task[T]` are opaque builtin handle types, not structs.
 - Users cannot construct or inspect these types directly.
