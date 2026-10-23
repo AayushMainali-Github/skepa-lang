@@ -102,7 +102,9 @@ impl builtins::BuiltinRuntime for FfiBuiltinRuntime {
         args: &[RtValue],
     ) -> crate::RtResult<crate::RtHandle> {
         let args = args.to_vec();
-        let task = std::thread::spawn(move || call_wrapped_function(function, &args));
+        let task = std::thread::Builder::new()
+            .spawn(move || call_wrapped_function(function, &args))
+            .map_err(|error| crate::RtError::io(error.to_string()))?;
         host.task_store_running(task)
     }
 }

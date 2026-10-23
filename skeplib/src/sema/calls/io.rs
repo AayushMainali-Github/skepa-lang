@@ -20,6 +20,6 @@ pub(super) fn check_io_builtin(
         BuiltinKind::FormatVariadic => {
             checker.check_format_variadic_builtin("io", method, args, scopes, sig)
         }
-        BuiltinKind::ArrayOps => sig.ret.clone(),
+        BuiltinKind::ArrayOps | BuiltinKind::FunctionVariadic => sig.ret.clone(),
     }
 }

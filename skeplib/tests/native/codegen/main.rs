@@ -2544,6 +2544,7 @@ fn main() -> Int {
 fn codegen_builds_native_executable_for_task_close() {
     let source = r#"
 import task;
+import result;
 
 fn job() -> Int {
   return 4;
@@ -2551,7 +2552,7 @@ fn job() -> Int {
 
 fn main() -> Int {
   let jobs: task.Channel[Int] = task.channel();
-  let t: task.Task[Int] = task.spawn(job);
+  let t: task.Task[Int] = result.unwrapOk(task.spawn(job));
   task.close(jobs);
   task.close(t);
   return 0;

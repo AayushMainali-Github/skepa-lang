@@ -59,27 +59,55 @@ pub(super) fn check_task_builtin(
             TypeInfo::Void
         }
         "spawn" => {
-            if args.len() != 1 {
+            let Some(function_expr) = args.first() else {
                 checker.error(format!(
-                    "task.spawn expects 1 argument(s), got {}",
+                    "task.spawn expects a function argument, got {} argument(s)",
                     args.len()
                 ));
                 return TypeInfo::Unknown;
-            }
-            match checker.check_expr(&args[0], scopes) {
+            };
+            let function_ty = checker.check_expr(function_expr, scopes);
+            let values = args[1..]
+                .iter()
+                .map(|arg| checker.check_expr(arg, scopes))
+                .collect::<Vec<_>>();
+            match function_ty {
                 TypeInfo::Fn { params, ret } => {
-                    if !params.is_empty() {
-                        checker.error("task.spawn argument 1 expects Fn() -> T".to_string());
+                    if values.len() != params.len() {
+                        checker.error(format!(
+                            "task.spawn function expects {} argument(s), got {}",
+                            params.len(),
+                            values.len()
+                        ));
                         TypeInfo::Unknown
                     } else {
+                        for (index, (actual, expected)) in
+                            values.iter().zip(params.iter()).enumerate()
+                        {
+                            if !Checker::types_compatible(actual, expected) {
+                                checker.error(format!(
+                                    "task.spawn argument {} expects {:?}, got {:?}",
+                                    index + 1,
+                                    expected,
+                                    actual
+                                ));
+                            }
+                            checker.require_shareable_task_boundary(
+                                actual,
+                                &format!("task.spawn argument {}", index + 1),
+                            );
+                        }
                         checker.require_shareable_task_boundary(&ret, "task.spawn result");
-                        task_task_type(&ret)
+                        TypeInfo::Result {
+                            ok: Box::new(task_task_type(&ret)),
+                            err: Box::new(TypeInfo::String),
+                        }
                     }
                 }
                 TypeInfo::Unknown => TypeInfo::Unknown,
                 got => {
                     checker.error(format!(
-                        "task.spawn argument 1 expects Fn() -> T, got {:?}",
+                        "task.spawn argument 1 expects Fn(...) -> T, got {:?}",
                         got
                     ));
                     TypeInfo::Unknown

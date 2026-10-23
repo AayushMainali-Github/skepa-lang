@@ -59,6 +59,7 @@ pub struct RecordingHost {
     pub net_handles: HashMap<usize, RtHandleKind>,
     pub ffi_symbol_pointers: HashMap<usize, usize>,
     pub task_results: HashMap<usize, RtValue>,
+    pub task_errors: HashMap<usize, RtError>,
     pub task_channels: HashMap<usize, VecDeque<RtValue>>,
     pub env: HashMap<String, String>,
     pub files: HashMap<String, String>,
@@ -992,17 +993,23 @@ impl RtHost for RecordingHost {
         Ok(handle)
     }
 
+    fn task_store_failed(&mut self, error: RtError) -> RtResult<RtHandle> {
+        let handle = self.net_alloc_handle(RtHandleKind::Task)?;
+        self.task_errors.insert(handle.id, error);
+        Ok(handle)
+    }
+
     fn task_store_running(
         &mut self,
         task: std::thread::JoinHandle<RtResult<RtValue>>,
     ) -> RtResult<RtHandle> {
-        let value = task.join().map_err(|_| {
-            RtError::new(
+        let result = task.join().unwrap_or_else(|_| {
+            Err(RtError::new(
                 skepart::RtErrorKind::InvalidArgument,
                 "spawned task panicked",
-            )
-        })??;
-        self.task_store_completed(value)
+            ))
+        });
+        self.task_store_completed_result(result)
     }
 
     fn task_channel(&mut self) -> RtResult<RtHandle> {
@@ -1039,6 +1046,9 @@ impl RtHost for RecordingHost {
     fn task_join(&mut self, task: RtHandle) -> RtResult<RtValue> {
         self.net_lookup_handle_kind(task)?;
         self.output.push_str(&format!("[taskjoin {}]", task.id));
+        if let Some(error) = self.task_errors.remove(&task.id) {
+            return Err(error);
+        }
         self.task_results.remove(&task.id).ok_or_else(|| {
             RtError::new(
                 skepart::RtErrorKind::InvalidArgument,

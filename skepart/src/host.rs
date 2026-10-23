@@ -34,6 +34,7 @@ pub enum RtNetResource {
 
 pub enum RtTaskState {
     Completed(Option<crate::RtValue>),
+    Failed(Option<RtError>),
     Running(Option<JoinHandle<RtResult<crate::RtValue>>>),
 }
 
@@ -94,6 +95,12 @@ impl RtNetResourceTable {
     pub fn insert_task(&mut self, value: crate::RtValue) -> RtHandle {
         self.insert(RtNetResource::Task(Arc::new(Mutex::new(
             RtTaskState::Completed(Some(value)),
+        ))))
+    }
+
+    pub fn insert_failed_task(&mut self, error: RtError) -> RtHandle {
+        self.insert(RtNetResource::Task(Arc::new(Mutex::new(
+            RtTaskState::Failed(Some(error)),
         ))))
     }
 
@@ -502,6 +509,20 @@ pub trait RtHost {
 
     fn task_store_completed(&mut self, _value: crate::RtValue) -> RtResult<RtHandle> {
         Err(RtError::unsupported_builtin("task.Task"))
+    }
+
+    fn task_store_failed(&mut self, error: RtError) -> RtResult<RtHandle> {
+        Err(error)
+    }
+
+    fn task_store_completed_result(
+        &mut self,
+        result: RtResult<crate::RtValue>,
+    ) -> RtResult<RtHandle> {
+        match result {
+            Ok(value) => self.task_store_completed(value),
+            Err(error) => self.task_store_failed(error),
+        }
     }
 
     fn task_store_running(
@@ -1072,6 +1093,10 @@ impl RtHost for NoopHost {
         Ok(self.net_resources.insert_task(value))
     }
 
+    fn task_store_failed(&mut self, error: RtError) -> RtResult<RtHandle> {
+        Ok(self.net_resources.insert_failed_task(error))
+    }
+
     fn task_store_running(
         &mut self,
         task: JoinHandle<RtResult<crate::RtValue>>,
@@ -1119,6 +1144,14 @@ impl RtHost for NoopHost {
                             "cannot join completed task more than once",
                         )
                     });
+                }
+                RtTaskState::Failed(error) => {
+                    return Err(error.take().ok_or_else(|| {
+                        RtError::new(
+                            RtErrorKind::InvalidArgument,
+                            "cannot join completed task more than once",
+                        )
+                    })?);
                 }
                 RtTaskState::Running(handle) => handle.take().ok_or_else(|| {
                     RtError::new(
