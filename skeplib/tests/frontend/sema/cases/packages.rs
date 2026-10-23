@@ -1636,18 +1636,105 @@ fn main() -> Int {
 }
 
 #[test]
+fn sema_accepts_shareable_nested_task_channel_payloads() {
+    let src = r#"
+import task;
+
+struct Message {
+  values: [Int; 2],
+  status: Option[Result[Int, String]]
+}
+
+fn main() -> Int {
+  let jobs: task.Channel[Message] = task.channel();
+  let message = Message { values: [3, 4], status: Some(Ok(7)) };
+  task.send(jobs, message);
+  let received: Message = task.recv(jobs);
+  return received.values[0];
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert_sema_success(&result, &diags);
+}
+
+#[test]
+fn sema_rejects_non_shareable_task_payloads_with_nested_field_paths() {
+    let src = r#"
+import task;
+import vec;
+
+struct Envelope {
+  items: Vec[Int]
+}
+
+fn make_envelope() -> Envelope {
+  let items: Vec[Int] = vec.new();
+  return Envelope { items: items };
+}
+
+fn main() -> Int {
+  let jobs: task.Channel[Envelope] = task.channel();
+  let envelope = make_envelope();
+  task.send(jobs, envelope);
+  let received: Envelope = task.recv(jobs);
+  let job: task.Task[Envelope] = task.__testTask(envelope);
+  let joined: Envelope = task.join(job);
+  let child: task.Task[Envelope] = task.spawn(make_envelope);
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    let boundary_diags = diags
+        .as_slice()
+        .iter()
+        .filter(|diagnostic| {
+            diagnostic
+                .message
+                .contains("has local-only concurrency capability")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(boundary_diags.len(), 4, "{boundary_diags:#?}");
+    assert!(boundary_diags.iter().all(|diagnostic| {
+        diagnostic.message.contains("Envelope.items") && diagnostic.message.contains("Vec[Int]")
+    }));
+    assert!(
+        boundary_diags
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("task.send payload"))
+    );
+    assert!(
+        boundary_diags
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("task.recv payload"))
+    );
+    assert!(
+        boundary_diags
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("task.join result"))
+    );
+    assert!(
+        boundary_diags
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("task.spawn result"))
+    );
+}
+
+#[test]
 fn sema_accepts_task_spawn_and_join_flow() {
     let src = r#"
 import task;
 
-fn job() -> Int {
-  return 21;
+fn job(value: Int) -> Int {
+  return value;
 }
 
 fn main() -> Int {
-  let t: task.Task[Int] = task.spawn(job);
-  let value: Int = task.join(t);
-  return value;
+  let spawned: Result[task.Task[Int], String] = task.spawn(job, 21);
+  match (spawned) {
+    Ok(t) => { return task.join(t); }
+    Err(_) => { return 0; }
+  }
 }
 "#;
     let (result, diags) = analyze_source(src);
@@ -1665,9 +1752,11 @@ fn job() -> Int {
 
 fn main() -> Void {
   let jobs: task.Channel[Int] = task.channel();
-  let t: task.Task[Int] = task.spawn(job);
+  match (task.spawn(job)) {
+    Ok(t) => { task.close(t); }
+    Err(_) => {}
+  }
   task.close(jobs);
-  task.close(t);
   return;
 }
 "#;
@@ -1685,7 +1774,8 @@ fn job(x: Int) -> Int {
 }
 
 fn main() -> Int {
-  let bad: task.Task[Int] = task.spawn(job);
+  let bad = task.spawn(job, "wrong");
+  let missing_argument = task.spawn(job);
   let other: task.Channel[Int] = task.channel();
   let value: Int = task.join(other);
   return value;
@@ -1695,7 +1785,11 @@ fn main() -> Int {
     assert!(result.has_errors);
     assert!(diags.as_slice().iter().any(|d| {
         d.message
-            .contains("task.spawn argument 1 expects Fn() -> T")
+            .contains("task.spawn argument 1 expects Int, got String")
+    }));
+    assert!(diags.as_slice().iter().any(|d| {
+        d.message
+            .contains("task.spawn function expects 1 argument(s), got 0")
     }));
     assert!(
         diags
@@ -1703,6 +1797,33 @@ fn main() -> Int {
             .iter()
             .any(|d| d.message.contains("task.join argument 1 expects Task"))
     );
+}
+
+#[test]
+fn sema_rejects_non_shareable_task_spawn_arguments() {
+    let src = r#"
+import task;
+import vec;
+
+fn consume(values: Vec[Int]) -> Int {
+  return vec.len(values);
+}
+
+fn main() -> Int {
+  let values: Vec[Int] = vec.new();
+  let spawned = task.spawn(consume, values);
+  return 0;
+}
+"#;
+    let (result, diags) = analyze_source(src);
+    assert!(result.has_errors);
+    assert!(diags.as_slice().iter().any(|diagnostic| {
+        diagnostic.message.contains("task.spawn argument 1")
+            && diagnostic.message.contains("Vec[Int]")
+            && diagnostic
+                .message
+                .contains("local-only concurrency capability")
+    }));
 }
 
 #[test]

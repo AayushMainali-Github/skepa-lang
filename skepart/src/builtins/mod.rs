@@ -25,8 +25,8 @@ pub trait BuiltinRuntime {
         function: RtFunctionRef,
         args: &[RtValue],
     ) -> RtResult<crate::RtHandle> {
-        let value = self.call_function(function, args)?;
-        host.task_store_completed(value)
+        let result = self.call_function(function, args);
+        host.task_store_completed_result(result)
     }
 }
 
@@ -490,7 +490,9 @@ pub fn call_with_context(
             ctx.host(),
             channel.expect_handle_kind(crate::RtHandleKind::Channel)?,
         ),
-        ("task", "spawn", [function]) => task::spawn(ctx, function.expect_function()?),
+        ("task", "spawn", [function, args @ ..]) => {
+            task::spawn(ctx, function.expect_function()?, args)
+        }
         ("task", "join", [task]) => task::join(
             ctx.host(),
             task.expect_handle_kind(crate::RtHandleKind::Task)?,

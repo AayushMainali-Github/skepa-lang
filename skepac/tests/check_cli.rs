@@ -1505,13 +1505,15 @@ fn check_accepts_minimal_task_spawn_program() {
         r#"
 import task;
 
-fn job() -> Int {
-  return 8;
+fn job(value: Int) -> Int {
+  return value;
 }
 
 fn main() -> Int {
-  let t: task.Task[Int] = task.spawn(job);
-  return task.join(t) - 8;
+  match (task.spawn(job, 8)) {
+    Ok(t) => { return task.join(t) - 8; }
+    Err(_) => { return 1; }
+  }
 }
 "#,
     )
@@ -1533,6 +1535,7 @@ fn check_accepts_task_close_program() {
         &file,
         r#"
 import task;
+import result;
 
 fn job() -> Int {
   return 8;
@@ -1540,7 +1543,7 @@ fn job() -> Int {
 
 fn main() -> Int {
   let jobs: task.Channel[Int] = task.channel();
-  let t: task.Task[Int] = task.spawn(job);
+  let t: task.Task[Int] = result.unwrapOk(task.spawn(job));
   task.close(jobs);
   task.close(t);
   return 0;
@@ -1566,13 +1569,15 @@ fn run_executes_task_spawn_program_end_to_end() {
         r#"
 import task;
 
-fn job() -> Int {
-  return 14;
+fn job(value: Int) -> Int {
+  return value;
 }
 
 fn main() -> Int {
-  let t: task.Task[Int] = task.spawn(job);
-  return task.join(t);
+  match (task.spawn(job, 14)) {
+    Ok(t) => { return task.join(t); }
+    Err(_) => { return 1; }
+  }
 }
 "#,
     )
@@ -1595,6 +1600,7 @@ fn run_executes_task_close_program_end_to_end() {
         &source,
         r#"
 import task;
+import result;
 
 fn job() -> Int {
   return 14;
@@ -1602,7 +1608,7 @@ fn job() -> Int {
 
 fn main() -> Int {
   let jobs: task.Channel[Int] = task.channel();
-  let t: task.Task[Int] = task.spawn(job);
+  let t: task.Task[Int] = result.unwrapOk(task.spawn(job));
   task.close(jobs);
   task.close(t);
   return 0;

@@ -1,5 +1,13 @@
+use std::collections::{HashMap, HashSet};
+
 use crate::builtins::{BuiltinKind, find_builtin_spec_any};
-use crate::ir::{ConstValue, Instr, IrFunction, IrProgram, IrType};
+use crate::ir::{
+    ConstValue, FunctionId, Instr, IrFunction, IrProgram, IrType, Operand, Terminator,
+};
+use crate::types::{
+    TypeInfo, display_type, shareability_failure, task_channel_value_type, task_task_type,
+    task_task_value_type,
+};
 
 use super::{IrVerifier, IrVerifyError};
 
@@ -340,7 +348,13 @@ impl IrVerifier {
                     Self::verify_generic_ffi_call(program, func, args, ret_ty)?;
                     return Ok(());
                 }
-                if let Some(spec) = find_builtin_spec_any(&builtin.package, &builtin.name) {
+                if builtin.package == "task" {
+                    Self::verify_task_boundary(program, func, &builtin.name, args, ret_ty)?;
+                }
+                let task_spawn = builtin.package == "task" && builtin.name == "spawn";
+                if !task_spawn
+                    && let Some(spec) = find_builtin_spec_any(&builtin.package, &builtin.name)
+                {
                     if !matches!(ret_ty, IrType::Unknown | IrType::Void) {
                         let expected_ret = IrType::from(&spec.sig.ret);
                         if !Self::types_compatible(ret_ty, &expected_ret) {
@@ -372,6 +386,13 @@ impl IrVerifier {
                             }
                         }
                         BuiltinKind::FormatVariadic => {
+                            if args.is_empty() {
+                                return Err(IrVerifyError::BadCallSignature {
+                                    function: func.name.clone(),
+                                });
+                            }
+                        }
+                        BuiltinKind::FunctionVariadic => {
                             if args.is_empty() {
                                 return Err(IrVerifyError::BadCallSignature {
                                     function: func.name.clone(),
@@ -480,6 +501,522 @@ impl IrVerifier {
             }
         }
         Ok(())
+    }
+
+    fn verify_task_boundary(
+        program: &IrProgram,
+        func: &IrFunction,
+        name: &str,
+        args: &[crate::ir::Operand],
+        ret_ty: &IrType,
+    ) -> Result<(), IrVerifyError> {
+        let bad_signature = || IrVerifyError::BadCallSignature {
+            function: func.name.clone(),
+        };
+        let struct_fields = program
+            .structs
+            .iter()
+            .map(|strukt| {
+                (
+                    strukt.name.clone(),
+                    strukt
+                        .fields
+                        .iter()
+                        .map(|field| (field.name.clone(), TypeInfo::from(&field.ty)))
+                        .collect::<HashMap<_, _>>(),
+                )
+            })
+            .collect::<HashMap<_, _>>();
+
+        match name {
+            "send" => {
+                if args.len() != 2 {
+                    return Err(bad_signature());
+                }
+                let Some(channel_ty) = Self::operand_type(program, func, &args[0]) else {
+                    return Err(bad_signature());
+                };
+                let TypeInfo::Opaque(channel_name) = TypeInfo::from(&channel_ty) else {
+                    return Err(bad_signature());
+                };
+                let Some(payload_ty) = task_channel_value_type(&channel_name) else {
+                    return Err(bad_signature());
+                };
+                let Some(value_ir_ty) = Self::operand_type(program, func, &args[1]) else {
+                    return Err(bad_signature());
+                };
+                if !Self::types_compatible(&value_ir_ty, &IrType::from(&payload_ty)) {
+                    return Err(bad_signature());
+                }
+                Self::verify_shareable_task_type(
+                    func,
+                    "task.send payload",
+                    &payload_ty,
+                    &struct_fields,
+                )?;
+                Self::verify_shareable_task_type(
+                    func,
+                    "task.send payload",
+                    &TypeInfo::from(&value_ir_ty),
+                    &struct_fields,
+                )?;
+            }
+            "recv" | "join" => {
+                if args.len() != 1 {
+                    return Err(bad_signature());
+                }
+                let Some(handle_ty) = Self::operand_type(program, func, &args[0]) else {
+                    return Err(bad_signature());
+                };
+                let TypeInfo::Opaque(handle_name) = TypeInfo::from(&handle_ty) else {
+                    return Err(bad_signature());
+                };
+                let payload_ty = if name == "recv" {
+                    task_channel_value_type(&handle_name)
+                } else {
+                    task_task_value_type(&handle_name)
+                }
+                .ok_or_else(bad_signature)?;
+                if !Self::types_compatible(ret_ty, &IrType::from(&payload_ty)) {
+                    return Err(bad_signature());
+                }
+                let boundary = if name == "recv" {
+                    "task.recv payload"
+                } else {
+                    "task.join result"
+                };
+                Self::verify_shareable_task_type(func, boundary, &payload_ty, &struct_fields)?;
+                Self::verify_shareable_task_type(
+                    func,
+                    boundary,
+                    &TypeInfo::from(ret_ty),
+                    &struct_fields,
+                )?;
+            }
+            "spawn" => {
+                if args.is_empty() {
+                    return Err(bad_signature());
+                }
+                let Some(code_ty) = Self::operand_type(program, func, &args[0]) else {
+                    return Err(bad_signature());
+                };
+                match TypeInfo::from(&code_ty) {
+                    TypeInfo::Fn { params, ret } => {
+                        if params.len() + 1 != args.len() {
+                            return Err(bad_signature());
+                        }
+                        for (index, param) in params.iter().enumerate() {
+                            let Some(actual_ty) =
+                                Self::operand_type(program, func, &args[index + 1])
+                            else {
+                                return Err(bad_signature());
+                            };
+                            if !Self::types_compatible(&actual_ty, &IrType::from(param)) {
+                                return Err(bad_signature());
+                            }
+                            Self::verify_shareable_task_type(
+                                func,
+                                &format!("task.spawn argument {}", index + 1),
+                                param,
+                                &struct_fields,
+                            )?;
+                            Self::verify_shareable_task_type(
+                                func,
+                                &format!("task.spawn argument {}", index + 1),
+                                &TypeInfo::from(&actual_ty),
+                                &struct_fields,
+                            )?;
+                        }
+                        let expected_task_ty = IrType::Result {
+                            ok: Box::new(IrType::from(&task_task_type(&ret))),
+                            err: Box::new(IrType::String),
+                        };
+                        if matches!(ret_ty, IrType::Unknown)
+                            || !Self::types_compatible(ret_ty, &expected_task_ty)
+                        {
+                            return Err(bad_signature());
+                        }
+                        Self::verify_shareable_task_type(
+                            func,
+                            "task.spawn result",
+                            &ret,
+                            &struct_fields,
+                        )?;
+                        Self::verify_spawned_code_effects(program, func, &args[0], &struct_fields)?;
+                    }
+                    TypeInfo::Unknown => {
+                        Self::verify_shareable_task_type(
+                            func,
+                            "task.spawn code entry",
+                            &TypeInfo::Unknown,
+                            &struct_fields,
+                        )?;
+                    }
+                    _ => return Err(bad_signature()),
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn verify_spawned_code_effects(
+        program: &IrProgram,
+        caller: &IrFunction,
+        code_entry: &Operand,
+        struct_fields: &HashMap<String, HashMap<String, TypeInfo>>,
+    ) -> Result<(), IrVerifyError> {
+        let Some(target) = Self::resolve_function_value(caller, code_entry) else {
+            return Err(IrVerifyError::UnverifiableTaskCodeEntry {
+                function: caller.name.clone(),
+            });
+        };
+        let module_init = program.module_init.as_ref().map(|init| init.function);
+        let mutable_globals = program
+            .functions
+            .iter()
+            .filter(|function| Some(function.id) != module_init)
+            .flat_map(|function| function.blocks.iter())
+            .flat_map(|block| block.instrs.iter())
+            .filter_map(Self::mutated_global)
+            .collect::<HashSet<_>>();
+        Self::verify_task_function_effects(
+            program,
+            target,
+            struct_fields,
+            &HashSet::new(),
+            &mut HashSet::new(),
+        )?;
+        Self::verify_task_function_effects(
+            program,
+            target,
+            struct_fields,
+            &mutable_globals,
+            &mut HashSet::new(),
+        )
+    }
+
+    fn verify_task_function_effects(
+        program: &IrProgram,
+        function_id: FunctionId,
+        struct_fields: &HashMap<String, HashMap<String, TypeInfo>>,
+        mutable_globals: &HashSet<crate::ir::GlobalId>,
+        visiting: &mut HashSet<FunctionId>,
+    ) -> Result<(), IrVerifyError> {
+        if !visiting.insert(function_id) {
+            return Ok(());
+        }
+        let Some(function) = program
+            .functions
+            .iter()
+            .find(|candidate| candidate.id == function_id)
+        else {
+            return Err(IrVerifyError::UnknownFunctionTarget {
+                function: format!("task function {:?}", function_id),
+            });
+        };
+
+        for block in &function.blocks {
+            for instruction in &block.instrs {
+                if let Some(global_id) = Self::mutated_global(instruction) {
+                    let Some(global) = program.globals.iter().find(|g| g.id == global_id) else {
+                        return Err(IrVerifyError::UnknownGlobal);
+                    };
+                    return Err(IrVerifyError::UnsafeTaskGlobalMutation {
+                        function: function.name.clone(),
+                        global: global.name.clone(),
+                    });
+                }
+
+                for global_id in
+                    Self::referenced_globals(instruction)
+                        .into_iter()
+                        .chain(match instruction {
+                            Instr::LoadGlobal { global, .. } => Some(*global),
+                            _ => None,
+                        })
+                {
+                    let Some(global) = program.globals.iter().find(|g| g.id == global_id) else {
+                        return Err(IrVerifyError::UnknownGlobal);
+                    };
+                    if mutable_globals.contains(&global_id) {
+                        return Err(IrVerifyError::UnsafeTaskGlobalRead {
+                            function: function.name.clone(),
+                            global: global.name.clone(),
+                        });
+                    }
+                    Self::verify_shareable_task_type(
+                        function,
+                        &format!("task.spawn global `{}`", global.name),
+                        &TypeInfo::from(&global.ty),
+                        struct_fields,
+                    )?;
+                }
+
+                match instruction {
+                    Instr::CallDirect {
+                        function: callee_id,
+                        ..
+                    } => Self::verify_task_function_effects(
+                        program,
+                        *callee_id,
+                        struct_fields,
+                        mutable_globals,
+                        visiting,
+                    )?,
+                    Instr::CallIndirect { callee, .. } => {
+                        let Some(target) = Self::resolve_function_value(function, callee) else {
+                            return Err(IrVerifyError::UnverifiableTaskCallTarget {
+                                function: function.name.clone(),
+                            });
+                        };
+                        Self::verify_task_function_effects(
+                            program,
+                            target,
+                            struct_fields,
+                            mutable_globals,
+                            visiting,
+                        )?;
+                    }
+                    _ => {}
+                }
+            }
+            let terminator_operands = match &block.terminator {
+                Terminator::Branch(branch) => vec![&branch.cond],
+                Terminator::Return(Some(value)) => vec![value],
+                _ => Vec::new(),
+            };
+            for operand in terminator_operands {
+                if let Operand::Global(global_id) = operand {
+                    let Some(global) = program.globals.iter().find(|g| g.id == *global_id) else {
+                        return Err(IrVerifyError::UnknownGlobal);
+                    };
+                    if mutable_globals.contains(global_id) {
+                        return Err(IrVerifyError::UnsafeTaskGlobalRead {
+                            function: function.name.clone(),
+                            global: global.name.clone(),
+                        });
+                    }
+                    Self::verify_shareable_task_type(
+                        function,
+                        &format!("task.spawn global `{}`", global.name),
+                        &TypeInfo::from(&global.ty),
+                        struct_fields,
+                    )?;
+                }
+            }
+        }
+        visiting.remove(&function_id);
+        Ok(())
+    }
+
+    fn resolve_function_value(function: &IrFunction, operand: &Operand) -> Option<FunctionId> {
+        fn resolve(
+            ir_function: &IrFunction,
+            operand: &Operand,
+            visiting: &mut HashSet<(bool, usize)>,
+        ) -> Option<FunctionId> {
+            match operand {
+                Operand::Temp(temp) => {
+                    if !visiting.insert((false, temp.0)) {
+                        return None;
+                    }
+                    for instruction in ir_function.blocks.iter().flat_map(|block| &block.instrs) {
+                        match instruction {
+                            Instr::MakeClosure {
+                                dst,
+                                function: target,
+                            } if dst == temp => {
+                                return Some(*target);
+                            }
+                            Instr::Copy { dst, src, .. } if dst == temp => {
+                                return resolve(ir_function, src, visiting);
+                            }
+                            Instr::LoadLocal { dst, local, .. } if dst == temp => {
+                                return resolve_local(ir_function, *local, visiting);
+                            }
+                            _ => {}
+                        }
+                    }
+                    None
+                }
+                Operand::Local(local) => resolve_local(ir_function, *local, visiting),
+                _ => None,
+            }
+        }
+
+        fn resolve_local(
+            function: &IrFunction,
+            local: crate::ir::LocalId,
+            visiting: &mut HashSet<(bool, usize)>,
+        ) -> Option<FunctionId> {
+            if !visiting.insert((true, local.0)) {
+                return None;
+            }
+            let values = function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.instrs)
+                .filter_map(|instruction| match instruction {
+                    Instr::StoreLocal {
+                        local: stored_local,
+                        value,
+                        ..
+                    } if *stored_local == local => Some(value),
+                    _ => None,
+                });
+            let mut target = None;
+            for value in values {
+                let mut branch_visiting = visiting.clone();
+                let resolved = resolve(function, value, &mut branch_visiting)?;
+                if target.is_some_and(|existing| existing != resolved) {
+                    return None;
+                }
+                target = Some(resolved);
+            }
+            target
+        }
+
+        resolve(function, operand, &mut HashSet::new())
+    }
+
+    fn referenced_globals(instruction: &Instr) -> Vec<crate::ir::GlobalId> {
+        fn add_operand(globals: &mut Vec<crate::ir::GlobalId>, operand: &Operand) {
+            if let Operand::Global(global) = operand {
+                globals.push(*global);
+            }
+        }
+
+        let mut globals = Vec::new();
+        match instruction {
+            Instr::Const { .. }
+            | Instr::LoadGlobal { .. }
+            | Instr::LoadLocal { .. }
+            | Instr::VecNew { .. }
+            | Instr::MakeClosure { .. } => {}
+            Instr::Copy { src, .. }
+            | Instr::Unary { operand: src, .. }
+            | Instr::StoreLocal { value: src, .. }
+            | Instr::MakeArrayRepeat { value: src, .. } => add_operand(&mut globals, src),
+            Instr::StoreGlobal { value, .. } => add_operand(&mut globals, value),
+            Instr::Binary { left, right, .. }
+            | Instr::Compare { left, right, .. }
+            | Instr::Logic { left, right, .. } => {
+                add_operand(&mut globals, left);
+                add_operand(&mut globals, right);
+            }
+            Instr::MakeArray { items, .. } | Instr::MakeStruct { fields: items, .. } => {
+                for item in items {
+                    add_operand(&mut globals, item);
+                }
+            }
+            Instr::ArrayGet { array, index, .. }
+            | Instr::VecGet {
+                vec: array, index, ..
+            }
+            | Instr::VecDelete {
+                vec: array, index, ..
+            } => {
+                add_operand(&mut globals, array);
+                add_operand(&mut globals, index);
+            }
+            Instr::ArraySet {
+                array,
+                index,
+                value,
+                ..
+            }
+            | Instr::VecSet {
+                vec: array,
+                index,
+                value,
+                ..
+            } => {
+                add_operand(&mut globals, array);
+                add_operand(&mut globals, index);
+                add_operand(&mut globals, value);
+            }
+            Instr::VecLen { vec, .. } => add_operand(&mut globals, vec),
+            Instr::VecPush { vec, value } => {
+                add_operand(&mut globals, vec);
+                add_operand(&mut globals, value);
+            }
+            Instr::StructGet { base, .. } => add_operand(&mut globals, base),
+            Instr::StructSet { base, value, .. } => {
+                add_operand(&mut globals, base);
+                add_operand(&mut globals, value);
+            }
+            Instr::CallDirect { args, .. } | Instr::CallBuiltin { args, .. } => {
+                for arg in args {
+                    add_operand(&mut globals, arg);
+                }
+            }
+            Instr::CallIndirect { callee, args, .. } => {
+                add_operand(&mut globals, callee);
+                for arg in args {
+                    add_operand(&mut globals, arg);
+                }
+            }
+        }
+        globals
+    }
+
+    fn mutated_global(instruction: &Instr) -> Option<crate::ir::GlobalId> {
+        match instruction {
+            Instr::StoreGlobal { global, .. } => Some(*global),
+            Instr::ArraySet {
+                array: Operand::Global(global),
+                ..
+            }
+            | Instr::VecPush {
+                vec: Operand::Global(global),
+                ..
+            }
+            | Instr::VecSet {
+                vec: Operand::Global(global),
+                ..
+            }
+            | Instr::VecDelete {
+                vec: Operand::Global(global),
+                ..
+            }
+            | Instr::StructSet {
+                base: Operand::Global(global),
+                ..
+            } => Some(*global),
+            Instr::CallBuiltin { builtin, args, .. }
+                if ((builtin.package == "vec"
+                    && matches!(builtin.name.as_str(), "push" | "set" | "delete"))
+                    || (builtin.package == "map"
+                        && matches!(builtin.name.as_str(), "insert" | "remove")))
+                    && matches!(args.first(), Some(Operand::Global(_))) =>
+            {
+                match args.first() {
+                    Some(Operand::Global(global)) => Some(*global),
+                    _ => None,
+                }
+            }
+            _ => None,
+        }
+    }
+
+    fn verify_shareable_task_type(
+        func: &IrFunction,
+        boundary: &str,
+        ty: &TypeInfo,
+        struct_fields: &HashMap<String, HashMap<String, TypeInfo>>,
+    ) -> Result<(), IrVerifyError> {
+        let failure = shareability_failure(ty, struct_fields);
+        let Some(failure) = failure else {
+            return Ok(());
+        };
+        Err(IrVerifyError::NonShareableConcurrencyValue {
+            function: func.name.clone(),
+            boundary: boundary.to_string(),
+            capability: failure.capability,
+            path: failure.path,
+            ty: display_type(&failure.ty),
+        })
     }
 
     fn verify_generic_ffi_call(

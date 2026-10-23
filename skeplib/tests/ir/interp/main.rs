@@ -1523,13 +1523,14 @@ fn main() -> Int {
 fn interpreter_supports_task_spawn_and_join_roundtrip() {
     let source = r#"
 import task;
+import result;
 
-fn job() -> Int {
-  return 33;
+fn job(value: Int) -> Int {
+  return value;
 }
 
 fn main() -> Int {
-  let t: task.Task[Int] = task.spawn(job);
+  let t: task.Task[Int] = result.unwrapOk(task.spawn(job, 33));
   return task.join(t);
 }
 "#;
@@ -1542,6 +1543,7 @@ fn main() -> Int {
 fn interpreter_supports_task_close_for_channel_and_task_handles() {
     let source = r#"
 import task;
+import result;
 
 fn job() -> Int {
   return 9;
@@ -1549,7 +1551,7 @@ fn job() -> Int {
 
 fn main() -> Int {
   let jobs: task.Channel[Int] = task.channel();
-  let t: task.Task[Int] = task.spawn(job);
+  let t: task.Task[Int] = result.unwrapOk(task.spawn(job));
   task.close(jobs);
   task.close(t);
   return 0;

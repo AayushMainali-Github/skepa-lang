@@ -1003,12 +1003,15 @@ impl IrLowerer {
             ("task", "spawn") => {
                 let function = args.first()?;
                 if let IrType::Fn { params, ret } = self.infer_operand_type(func, function)
-                    && params.is_empty()
+                    && params.len() + 1 == args.len()
                 {
-                    return Some(IrType::Opaque(format!(
-                        "task.Task[{}]",
-                        self.display_ir_type(&ret)
-                    )));
+                    return Some(IrType::Result {
+                        ok: Box::new(IrType::Opaque(format!(
+                            "task.Task[{}]",
+                            self.display_ir_type(&ret)
+                        ))),
+                        err: Box::new(IrType::String),
+                    });
                 }
             }
             ("task", "join") => {

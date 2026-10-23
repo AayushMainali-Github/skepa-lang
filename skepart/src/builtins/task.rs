@@ -22,8 +22,16 @@ pub fn recv(host: &mut dyn RtHost, channel: crate::RtHandle) -> RtResult<RtValue
     host.task_recv(channel)
 }
 
-pub fn spawn(ctx: &mut dyn BuiltinContext, function: RtFunctionRef) -> RtResult<RtValue> {
-    Ok(RtValue::Handle(ctx.spawn_function(function, &[])?))
+pub fn spawn(
+    ctx: &mut dyn BuiltinContext,
+    function: RtFunctionRef,
+    args: &[RtValue],
+) -> RtResult<RtValue> {
+    let result = match ctx.spawn_function(function, args) {
+        Ok(handle) => crate::RtResultValue::ok(RtValue::Handle(handle)),
+        Err(error) => crate::RtResultValue::err(RtValue::String(error.to_string().into())),
+    };
+    Ok(RtValue::Result(result))
 }
 
 pub fn join(host: &mut dyn RtHost, task: RtHandle) -> RtResult<RtValue> {

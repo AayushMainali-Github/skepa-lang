@@ -239,6 +239,11 @@ interleave differently. Channel, task-scope, cancellation, and actor tests
 should use the shared harness once #138 provides scheduler and channel-state
 control, rather than creating one-off schedulers or process harnesses.
 
+Spawn-boundary changes should cover argument signature/capability rejection in
+sema and IR verification, plus argument transport and task results in both the
+interpreter and a native executable. Runtime registration failures should be
+asserted as `Err(String)`, not as a process/runtime abort.
+
 ## Preferred Test Flow
 
 For new language/runtime features:

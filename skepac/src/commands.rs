@@ -5,6 +5,7 @@ use std::process::Command;
 use std::{
     collections::HashSet,
     collections::hash_map::DefaultHasher,
+    sync::atomic::{AtomicU64, Ordering},
     time::{Instant, UNIX_EPOCH},
 };
 
@@ -360,10 +361,7 @@ pub fn run_native_file(input: &str) -> Result<i32, String> {
         Ok(program) => program,
         Err(code) => return Ok(code),
     };
-    let exe_path = temp_native_path();
-    if let Some(parent) = exe_path.parent() {
-        fs::create_dir_all(parent).map_err(|err| err.to_string())?;
-    }
+    let exe_path = temp_native_path().map_err(|err| err.to_string())?;
     let _cleanup = TempPathGuard::new(exe_path.clone());
     if let Err(err) = codegen::compile_program_to_executable(&program, &exe_path) {
         eprintln!("[E-CODEGEN][codegen] {err}");
@@ -976,23 +974,28 @@ impl Drop for TempPathGuard {
     }
 }
 
-fn temp_native_path() -> PathBuf {
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .expect("time should be monotonic enough for temp path")
-        .as_nanos();
+static NEXT_TEMP_NATIVE_PATH_ID: AtomicU64 = AtomicU64::new(0);
+
+fn temp_native_path() -> std::io::Result<PathBuf> {
     let ext = if cfg!(windows) { "exe" } else { "out" };
-    std::env::temp_dir()
-        .join(format!("skepac_run_{nanos}"))
-        .join(format!("main.{ext}"))
+    loop {
+        let id = NEXT_TEMP_NATIVE_PATH_ID.fetch_add(1, Ordering::Relaxed);
+        let dir = std::env::temp_dir().join(format!("skepac_run_{}_{}", std::process::id(), id));
+        match fs::create_dir(&dir) {
+            Ok(()) => return Ok(dir.join(format!("main.{ext}"))),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => return Err(error),
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
         canonicalize_llvm_ssa_names, compiler_cache_identity, materialize_cached_artifact,
-        prepare_output_path, store_cached_artifact, text_fingerprint,
+        prepare_output_path, store_cached_artifact, temp_native_path, text_fingerprint,
     };
+    use std::collections::HashSet;
     use std::fs;
     use std::hash::{DefaultHasher, Hash, Hasher};
     use std::path::PathBuf;
@@ -1048,6 +1051,29 @@ mod tests {
         prepare_output_path(&path).expect("prepare");
         assert!(!path.exists());
         let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn temp_native_paths_reserve_unique_directories_concurrently() {
+        let paths = std::thread::scope(|scope| {
+            let handles = (0..32)
+                .map(|_| scope.spawn(|| temp_native_path().expect("reserve executable path")))
+                .collect::<Vec<_>>();
+            handles
+                .into_iter()
+                .map(|handle| handle.join().expect("path allocation thread"))
+                .collect::<Vec<_>>()
+        });
+        let directories = paths
+            .iter()
+            .map(|path| path.parent().expect("executable parent").to_path_buf())
+            .collect::<HashSet<_>>();
+
+        assert_eq!(directories.len(), paths.len());
+        assert!(directories.iter().all(|directory| directory.is_dir()));
+        for directory in directories {
+            fs::remove_dir_all(directory).expect("remove reserved executable directory");
+        }
     }
 
     #[test]

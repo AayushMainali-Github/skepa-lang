@@ -451,8 +451,8 @@ impl<'a> IrInterpreter<'a> {
                 function: RtFunctionRef,
                 args: &[RtValue],
             ) -> skepart::RtResult<skepart::RtHandle> {
-                let value = self.call_function(function, args)?;
-                self.host().task_store_completed(value)
+                let result = self.call_function(function, args);
+                self.host().task_store_completed_result(result)
             }
         }
 
